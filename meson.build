@@ -14,13 +14,10 @@ wlroots = dependency('wlroots-0.20', version: '>=0.20.0')
 wayland_server = dependency('wayland-server')
 xkbcommon = dependency('xkbcommon')
 
-executable(
-  'stonefly',
-  'stonefly.c',
-  dependencies: [wlroots, wayland_server, xkbcommon],
-  c_args: [
-    '-DWLR_USE_UNSTABLE',
-    '-D_POSIX_C_SOURCE=200809L',
-  ],
-  install: true,
+add_project_arguments(
+  '-DWLR_USE_UNSTABLE',
+  '-D_POSIX_C_SOURCE=200809L',
+  language: 'c',
 )
+
+subdir('src')

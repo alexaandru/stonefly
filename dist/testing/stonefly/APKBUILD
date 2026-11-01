@@ -1,0 +1,38 @@
+# Maintainer: Alexandru Ungur <alexaandru@gmail.com>
+pkgname=stonefly
+pkgver=0.0.1
+pkgrel=0
+pkgdesc="Wayland compositor/WM (tinywl 0.20 seed)"
+url="https://github.com/alexaandru/stonefly"
+arch="all"
+license="MIT"
+depends="
+	foot
+	wlroots0.20
+	"
+makedepends="
+	clang
+	libxkbcommon-dev
+	meson
+	samurai
+	wayland-dev
+	wayland-protocols
+	wlroots0.20-dev
+	"
+options="!check"
+source="stonefly-$pkgver.tar.gz"
+builddir="$srcdir/stonefly-$pkgver"
+
+build() {
+	export CC=clang
+	abuild-meson . output
+	meson compile -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+sha512sums="
+2c20cc5b4dcfcdabf72a4bd9cb9229ae38c255f2c7003fdd2ecb57103e76015988e89d7c8c4fc12764fa6bba058cca3405e69c6b6c303a26aea02408be9fd93d  stonefly-0.0.1.tar.gz
+"

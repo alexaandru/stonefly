@@ -1,10 +1,13 @@
-# abuild work dirs (srcdir is $startdir/src — keep C sources out of ./src/)
-/src/
-/pkg/
+# abuild work dirs (aport is dist/testing/stonefly)
+/dist/testing/stonefly/src/
+/dist/testing/stonefly/pkg/
+/dist/testing/stonefly/*.tar.gz
 /.repo/
 /*.apk
-/*.tar.gz
 /.abuild/
+/.ccls-cache
+
+/dist/**/*.tar.gz
 
 # meson
 /output/
