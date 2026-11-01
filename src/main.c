@@ -1,0 +1,141 @@
+#include <getopt.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "config/config.h"
+#include "ipc/ipc.h"
+#include "log/log.h"
+#include "server/server.h"
+#include "util/spawn.h"
+
+static void usage(const char *argv0) {
+	printf("Usage:\n");
+	printf("  %s [-s startup command]         run the compositor\n", argv0);
+	printf("  %s --write-config               write default Fennel-first config tree\n", argv0);
+	printf("  %s validate                     check config without starting / applying\n",
+	       argv0);
+	printf("  %s windows [--json]             list windows via IPC\n", argv0);
+	printf("  %s layers [--json]              list layer-shell surfaces via IPC\n", argv0);
+	printf("  %s outputs [--json]             list outputs via IPC\n", argv0);
+	printf("  %s workspaces [--json]          list workspaces via IPC\n", argv0);
+	printf("  %s config [section] [--json]    dump live config (or one section)\n", argv0);
+	printf("  %s focus <id>                   focus window by id\n", argv0);
+	printf("  %s close <id>                   close window by id\n", argv0);
+	printf("  %s block-capture <id>           block window image capture\n", argv0);
+	printf("  %s unblock-capture <id>         allow window image capture\n", argv0);
+	printf("  %s set-urgent <id>              mark window urgent (amber)\n", argv0);
+	printf("  %s unset-urgent <id>            clear window urgency\n", argv0);
+	printf("  %s toggle-quick-terminal        toggle scratchpad pad \"term\"\n", argv0);
+	printf("  %s toggle-claim-quick-terminal  claim/unclaim focused as QT\n", argv0);
+	printf("  %s reload                       re-run Lua/Fennel config\n", argv0);
+	printf("  %s exit                         quit this WAYLAND_DISPLAY session\n", argv0);
+}
+
+static int run_compositor(int argc, char *argv[]) {
+	char *startup_cmd = NULL;
+	int c;
+	optind = 1;
+	while ((c = getopt(argc, argv, "s:h")) != -1) {
+		switch (c) {
+		case 's':
+			startup_cmd = optarg;
+			break;
+		default:
+			usage(argv[0]);
+			return c == 'h' ? 0 : 1;
+		}
+	}
+	if (optind < argc) {
+		usage(argv[0]);
+		return 1;
+	}
+
+	sf_log_init(SF_LOG_DEBUG);
+	sf_spawn_install_reaper();
+
+	struct sf_server server = {0};
+	if (!sf_server_init(&server)) {
+		sf_log_finish();
+		return 1;
+	}
+	int rc = sf_server_run(&server, startup_cmd);
+	sf_server_finish(&server);
+	sf_log_finish();
+	return rc;
+}
+
+int main(int argc, char *argv[]) {
+	if (argc >= 2 && strcmp(argv[1], "--write-config") == 0) {
+		return sf_config_write_default();
+	}
+	if (argc >= 2 && strcmp(argv[1], "validate") == 0) {
+		for (int i = 2; i < argc; i++) {
+			if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+				printf("Usage: stonefly validate\n");
+				printf("  Load user init.lua (or embedded default) and report "
+				       "the\n");
+				printf("  exact Lua/Fennel error without starting the "
+				       "compositor.\n");
+				printf("  Exit 0 if ok, 1 if invalid.\n");
+				return 0;
+			}
+			fprintf(stderr, "Usage: stonefly validate\n");
+			return 1;
+		}
+		sf_log_init(SF_LOG_WARN);
+		int rc = sf_config_validate();
+		sf_log_finish();
+		return rc;
+	}
+	if (argc >= 2 && argv[1][0] != '-') {
+		if (strcmp(argv[1], "windows") == 0) {
+			return sf_ipc_cmd_windows(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "layers") == 0) {
+			return sf_ipc_cmd_layers(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "outputs") == 0) {
+			return sf_ipc_cmd_outputs(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "workspaces") == 0) {
+			return sf_ipc_cmd_workspaces(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "config") == 0) {
+			return sf_ipc_cmd_config(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "focus") == 0) {
+			return sf_ipc_cmd_focus(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "close") == 0) {
+			return sf_ipc_cmd_close(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "block-capture") == 0) {
+			return sf_ipc_cmd_block_capture(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "unblock-capture") == 0) {
+			return sf_ipc_cmd_unblock_capture(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "set-urgent") == 0) {
+			return sf_ipc_cmd_set_urgent(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "unset-urgent") == 0) {
+			return sf_ipc_cmd_unset_urgent(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "toggle-quick-terminal") == 0) {
+			return sf_ipc_cmd_toggle_quick_terminal(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "toggle-claim-quick-terminal") == 0) {
+			return sf_ipc_cmd_toggle_claim_quick_terminal(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "reload") == 0) {
+			return sf_ipc_cmd_reload(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "exit") == 0 || strcmp(argv[1], "quit") == 0) {
+			return sf_ipc_cmd_exit(argc - 1, argv + 1);
+		}
+		fprintf(stderr, "stonefly: unknown command %s\n", argv[1]);
+		usage(argv[0]);
+		return 1;
+	}
+	return run_compositor(argc, argv);
+}

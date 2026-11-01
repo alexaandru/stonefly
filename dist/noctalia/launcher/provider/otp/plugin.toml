@@ -1,0 +1,17 @@
+id = "stonefly/otp"
+name = "OTP"
+version = "1.0.0"
+plugin_api = 24
+author = "stonefly"
+license = "MIT"
+dependencies = ["awbus"]
+tags = ["otp", "2fa", "launcher", "awbus"]
+icon = "key"
+description = "Search awbus OTP accounts from the launcher and generate codes (peeble /otp port)."
+
+[[launcher_provider]]
+id = "otp"
+entry = "otp.luau"
+prefix = "otp"
+glyph = "key"
+include_in_global_search = true

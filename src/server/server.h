@@ -1,0 +1,441 @@
+#ifndef SF_SERVER_H
+#define SF_SERVER_H
+
+#include <stdbool.h>
+#include <stdint.h>
+#include <time.h>
+#include <wayland-server-core.h>
+#include <wlr/util/box.h>
+
+struct wlr_allocator;
+struct wlr_backend;
+struct wlr_session;
+struct wlr_cursor;
+struct wlr_cursor_shape_manager_v1;
+struct wlr_layer_shell_v1;
+struct wlr_output_layout;
+struct wlr_renderer;
+struct wlr_scene;
+struct wlr_scene_optimized_blur;
+struct wlr_scene_output_layout;
+struct wlr_scene_tree;
+struct wlr_seat;
+struct wlr_xcursor_manager;
+struct wlr_xdg_activation_v1;
+struct wlr_xdg_shell;
+struct wlr_xdg_system_bell_v1;
+struct wlr_xdg_wm_dialog_v1;
+struct wlr_xdg_decoration_manager_v1;
+struct wlr_xdg_toplevel_tag_manager_v1;
+struct wlr_xdg_toplevel_icon_manager_v1;
+struct wlr_ext_foreign_toplevel_list_v1;
+struct wlr_ext_foreign_toplevel_image_capture_source_manager_v1;
+struct wlr_ext_data_control_manager_v1;
+struct wlr_data_control_manager_v1;
+struct wlr_gamma_control_manager_v1;
+struct wlr_session_lock_manager_v1;
+struct wlr_session_lock_v1;
+struct wlr_idle_notifier_v1;
+struct wlr_idle_inhibit_manager_v1;
+struct wlr_output_power_manager_v1;
+struct wlr_output_manager_v1;
+struct wlr_presentation;
+struct wlr_tearing_control_manager_v1;
+struct wlr_scene_rect;
+struct wlr_ext_workspace_manager_v1;
+struct wlr_pointer_gestures_v1;
+struct wlr_virtual_keyboard_manager_v1;
+struct wlr_relative_pointer_manager_v1;
+struct wlr_pointer_constraints_v1;
+struct wlr_pointer_constraint_v1;
+struct wlr_keyboard_shortcuts_inhibit_manager_v1;
+struct wlr_security_context_manager_v1;
+struct wlr_text_input_manager_v3;
+struct wlr_text_input_v3;
+struct wlr_input_method_manager_v2;
+struct wlr_input_method_v2;
+struct wlr_surface;
+struct wlr_tablet_manager_v2;
+
+struct sf_toplevel;
+struct sf_column;
+struct sf_output;
+struct sf_keyboard;
+struct sf_ipc;
+struct sf_layer_surface;
+struct sf_snap_preview;
+struct sf_dbus_notify;
+struct sf_config_watch;
+
+#include "config/config.h"
+#include "wm/drag_snap.h"
+
+enum sf_cursor_mode {
+	SF_CURSOR_PASSTHROUGH,
+	SF_CURSOR_MOVE,
+	SF_CURSOR_RESIZE,
+	/* Super+Shift+RMB: grow/shrink around a fixed center (both axes). */
+	SF_CURSOR_RESIZE_CENTER,
+	/* Super+LMB on a tiled window: cell swap / insert / new column (not float). */
+	SF_CURSOR_ARRANGE_SWAP,
+	/* Super+RMB on a tiled window: adjust column_ratio. */
+	SF_CURSOR_ARRANGE_RESIZE,
+};
+
+/* Discriminator for scene node->data (toplevel vs layer vs SSD). First field. */
+enum sf_node_kind {
+	SF_NODE_TOPLEVEL = 1,
+	SF_NODE_LAYER = 2,
+	SF_NODE_SSD = 3,
+};
+
+struct sf_server {
+	struct wl_display *wl_display;
+	struct wlr_backend *backend;
+	/* DRM/seat session from autocreate; NULL under nested backends. */
+	struct wlr_session *session;
+	struct wlr_renderer *renderer;
+	struct wlr_allocator *allocator;
+	struct wlr_compositor *compositor;
+	struct wlr_scene *scene;
+	struct wlr_scene_output_layout *scene_layout;
+
+	/* Z-order: background < bottom < blur < toplevel < overview < top <
+	 * fullscreen < overlay < ime < lock. Fullscreen xdg sits above the bar;
+	 * overview sits above windows (below shell chrome) while open. */
+	struct {
+		struct wlr_scene_tree *background;
+		struct wlr_scene_tree *bottom;
+		struct wlr_scene_tree *toplevel;
+		struct wlr_scene_tree *overview;
+		struct wlr_scene_tree *top;
+		struct wlr_scene_tree *fullscreen;
+		struct wlr_scene_tree *overlay;
+		struct wlr_scene_tree *ime;
+		struct wlr_scene_tree *lock;
+	} layers;
+	struct wlr_scene_optimized_blur *blur_layer;
+
+	/* Client-close ghosts sliding out after surface destroy. */
+	struct wl_list ghosts;
+
+	struct wlr_layer_shell_v1 *layer_shell;
+	struct wl_listener new_layer_surface;
+	struct sf_layer_surface *exclusive_layer;
+
+	struct wlr_xdg_shell *xdg_shell;
+	struct wl_listener new_xdg_toplevel;
+	struct wl_listener new_xdg_popup;
+	struct wl_list toplevels;
+
+	/* Xwayland (lazy on-demand, guarded by WLR_HAS_XWAYLAND in xwayland.c). */
+	struct {
+		struct wlr_xwayland *wlr;
+		struct wl_listener on_ready;
+		struct wl_listener on_new_surface;
+	} xwayland;
+
+	/* FORK.md #1281 / #1389 — demand-attention + system bell. */
+	struct wlr_xdg_activation_v1 *xdg_activation;
+	struct wl_listener request_activate;
+	struct wlr_xdg_system_bell_v1 *system_bell;
+	struct wl_listener system_bell_ring;
+
+	/* xdg_wm_dialog_v1 — client modal hint (with set_parent). */
+	struct wlr_xdg_wm_dialog_v1 *xdg_dialog_mgr;
+	struct wl_listener new_xdg_dialog;
+
+	/* xdg-decoration: mode from ssd_mode + client request_mode. */
+	struct wlr_xdg_decoration_manager_v1 *xdg_decoration_mgr;
+	struct wl_listener new_xdg_decoration;
+
+	/* xdg-toplevel-tag-v1 — client identity for rules / persist / IPC. */
+	struct wlr_xdg_toplevel_tag_manager_v1 *xdg_toplevel_tag_mgr;
+	struct wl_listener xdg_toplevel_set_tag;
+	struct wl_listener xdg_toplevel_set_description;
+
+	/* xdg-toplevel-icon-v1 — per-window icon name / buffers for IPC / SSD. */
+	struct wlr_xdg_toplevel_icon_manager_v1 *xdg_toplevel_icon_mgr;
+	struct wl_listener xdg_toplevel_set_icon;
+
+	/* ext-background-effect-v1 — client blur region → client_blur gate. */
+	struct wl_global *background_effect_global;
+
+	/* Noctalia night light / clipboard history (wlroots helpers). */
+	struct wlr_gamma_control_manager_v1 *gamma_control_mgr;
+	struct wlr_ext_data_control_manager_v1 *ext_data_control_mgr;
+	struct wlr_data_control_manager_v1 *wlr_data_control_mgr;
+
+	struct wlr_cursor *cursor;
+	struct wlr_xcursor_manager *cursor_mgr;
+	struct wlr_cursor_shape_manager_v1 *cursor_shape_mgr;
+	struct wl_listener cursor_motion;
+	struct wl_listener cursor_motion_absolute;
+	struct wl_listener cursor_button;
+	struct wl_listener cursor_axis;
+	struct wl_listener cursor_frame;
+	struct wl_listener cursor_touch_down;
+	struct wl_listener cursor_touch_up;
+	struct wl_listener cursor_touch_motion;
+	struct wl_listener cursor_touch_cancel;
+	struct wl_listener cursor_touch_frame;
+
+	struct wlr_seat *seat;
+	struct wl_listener new_input;
+	struct wl_listener request_cursor;
+	struct wl_listener request_set_cursor_shape;
+	struct wl_listener pointer_focus_change;
+	struct wl_listener request_set_selection;
+	struct wl_listener request_set_primary_selection;
+	struct wl_list keyboards;
+	struct wl_list touch;
+	enum sf_cursor_mode cursor_mode;
+	/* True while process_cursor_motion set a WM resize/move xcursor face.
+	 * Cleared when leaving the hit band so the face cannot stick. */
+	bool pointer_wm_cursor;
+	struct sf_toplevel *grabbed_toplevel;
+	double grab_x, grab_y;
+	struct wlr_box grab_geobox;
+	uint32_t resize_edges;
+	/* Layout-space content center locked for SF_CURSOR_RESIZE_CENTER. */
+	double resize_center_x, resize_center_y;
+	struct sf_drag_snap drag_snap;
+	/* Tile-swap drag (SF_CURSOR_ARRANGE_SWAP). Drop kind matches live reflow. */
+	struct {
+		bool active;
+		struct sf_toplevel *hover;
+		/* 0 none, 1 swap, 2 insert row, 3 new column — see arrange.c. */
+		int drop_kind;
+		struct sf_toplevel *drop_peer;
+		struct sf_column *drop_column;
+		int drop_index;
+		struct wlr_box drop_hint;
+		bool drop_valid;
+		/* Lifted home (grab unlinked for the drag). home_column pins
+		 * identity; home_col is only the preferred insert index when
+		 * restoring as a sole/new column after the home column dies. */
+		bool home_valid;
+		bool home_was_sole;
+		struct sf_column *home_column;
+		int home_col;
+		int home_row;
+		float home_weight;
+		float home_extent;
+		float home_width_frac;
+		bool home_full_width;
+	} arrange_swap;
+	/* Tile-factor resize (SF_CURSOR_ARRANGE_RESIZE). */
+	struct {
+		bool active;
+		bool vertical; /* dy → factor (master top/bottom); else dx */
+		double start_cx;
+		double start_cy;
+		float start_factor;
+		int span; /* usable width or height for delta→factor */
+	} arrange_resize;
+	struct sf_snap_preview *snap_preview;
+
+	struct wlr_output_layout *output_layout;
+	struct wl_list outputs;
+	struct wl_listener new_output;
+
+	/* zwlr_output_manager_v1 — wdisplays / kanshi / Noctalia display settings. */
+	struct wlr_output_manager_v1 *output_mgr;
+	struct wl_listener output_mgr_apply;
+	struct wl_listener output_mgr_test;
+
+	/* wp_presentation + wp_tearing_control_v1 (advertise only this pass). */
+	struct wlr_presentation *presentation;
+	struct wlr_tearing_control_manager_v1 *tearing_control_mgr;
+	struct wl_listener tearing_new_object;
+
+	struct wl_list minimized;
+
+	uint64_t next_toplevel_id;
+
+	/* zwlr-foreign-toplevel + ext-foreign-toplevel-list + image-capture */
+	struct {
+		struct wl_global *wlr_global;
+		struct wl_list managers;
+		struct wl_list handles;
+		/* Coalesce title/state/outputs sends onto one idle flush. */
+		struct wl_event_source *flush_idle;
+		struct wlr_ext_foreign_toplevel_list_v1 *ext_list;
+		struct wlr_ext_foreign_toplevel_image_capture_source_manager_v1 *capture_mgr;
+		struct wl_listener on_capture_request;
+	} foreign;
+
+	struct sf_ipc *ipc;
+
+	struct sf_config config;
+
+	/* Lone-modifier tap (Super): peeble bind_tap semantics.
+	 * bind aliases into live config (stable until reload). */
+	struct {
+		bool armed;
+		struct timespec since;
+		int taps;
+		struct wl_event_source *timer;
+		const struct sf_tapbind *bind;
+	} tap;
+
+	/* Last Mod+Wheel action fire (event time_msec); 0 = never. */
+	uint32_t last_wheel_bind_msec;
+
+	/* ext-session-lock-v1 (Noctalia auto-lock). */
+	struct {
+		bool active;
+		bool awaiting_present;
+		struct wl_listener layout_change;
+		struct wlr_session_lock_manager_v1 *mgr;
+		struct wlr_session_lock_v1 *current;
+		struct wlr_scene_tree *tree;
+		struct wlr_scene_rect *blank;
+		struct wl_list surfaces;
+		struct wl_listener on_new;
+		struct wl_listener on_new_surface;
+		struct wl_listener on_unlock;
+		struct wl_listener on_destroy;
+	} lock;
+
+	struct {
+		struct wlr_idle_notifier_v1 *notifier;
+		struct wlr_idle_inhibit_manager_v1 *inhibit_mgr;
+		struct wl_listener on_inhibitor_new;
+	} idle;
+
+	struct {
+		struct wlr_output_power_manager_v1 *mgr;
+		struct wl_listener on_set_mode;
+	} output_power;
+
+	/* ext-workspace-v1 — one group per output, handles per workspace. */
+	struct wlr_ext_workspace_manager_v1 *ext_workspace_mgr;
+	struct wl_listener ext_workspace_commit;
+	uint32_t next_workspace_ext_id;
+
+	/* Forward unused touchpad gestures to clients. */
+	struct wlr_pointer_gestures_v1 *pointer_gestures;
+
+	/* In-progress touchpad swipe (matched against sf.gesture binds). */
+	struct {
+		bool active;
+		bool consumed;
+		/* 0 = undecided, 1 = horizontal, 2 = vertical. */
+		int axis;
+		uint32_t fingers;
+		double dx, dy;
+		/* Index into config->gestures once axis locks; -1 = none. */
+		int match_idx;
+		/* workspace / action already fired this gesture. */
+		bool stepped;
+	} swipe;
+
+	/* In-progress pinch (sf.gesture pinchin/pinchout/pinch). */
+	struct {
+		bool active;
+		bool consumed;
+		uint32_t fingers;
+		double scale; /* libinput cumulative; 1.0 at begin */
+		int match_idx;
+		bool stepped;
+	} pinch;
+
+	/* Workspace overview (Umbriel-shaped filmstrip; thin v1). */
+	struct {
+		bool active;
+		bool closing;
+		double progress; /* 0 = desktop, 1 = fully open */
+		bool anim_active;
+		double anim_from;
+		double anim_to;
+		struct timespec anim_start;
+		int64_t anim_dur_ns;
+		struct wlr_scene_tree *tree; /* == layers.overview */
+		struct wl_list cards;
+		struct wl_list dims;
+		struct sf_toplevel *pending_focus; /* window to focus on close (click/confirm) */
+		/* Highlighted card while open; seat focus is cleared so clients do not eat keys. */
+		struct sf_toplevel *selection;
+		/* Filmstrip pan: scroll_y in workspace-index units; scroll_x layout px. */
+		double scroll_y;
+		double scroll_x;
+		/* 4-finger open/close gesture tracking (gestures.c). */
+		bool gesture_active;
+		bool gesture_was_open;
+		double gesture_accum;
+	} overview;
+
+	/* Pointer devices with gesture listeners attached. */
+	struct wl_list pointers;
+
+	/* zwp_virtual_keyboard_v1 — attach like a normal keyboard. */
+	struct wlr_virtual_keyboard_manager_v1 *virtual_keyboard_mgr;
+	struct wl_listener new_virtual_keyboard;
+
+	/* zwp_relative_pointer_manager_v1 — raw deltas for locked/raw clients. */
+	struct wlr_relative_pointer_manager_v1 *relative_pointer_mgr;
+
+	/* zwp_pointer_constraints_v1 — lock/confine when surface has focus. */
+	struct {
+		struct wlr_pointer_constraints_v1 *mgr;
+		struct wl_listener on_new;
+		struct wlr_pointer_constraint_v1 *current;
+	} constraints;
+
+	/* wp_security_context_v1 — restrict privileged globals for sandboxed clients. */
+	struct wlr_security_context_manager_v1 *security_context_mgr;
+
+	/* zwp_keyboard_shortcuts_inhibit_v1 — games/VMs/RDP inhibit compositor binds. */
+	struct {
+		struct wlr_keyboard_shortcuts_inhibit_manager_v1 *mgr;
+		struct wl_listener on_new;
+		struct wl_list inhibitors;
+	} shortcuts_inhibit;
+
+	/* text-input-v3 + input-method-v2 relay (fcitx/ibus/OSK). */
+	struct {
+		struct wlr_text_input_manager_v3 *text_input_mgr;
+		struct wlr_input_method_manager_v2 *input_method_mgr;
+		struct wlr_input_method_v2 *input_method;
+		struct wlr_surface *focused_surface;
+		struct wlr_text_input_v3 *active_text_input;
+		struct wl_list text_inputs; /* sf_ime_text_input.link */
+		struct wl_list popups;	    /* sf_ime_popup.link */
+		struct wl_listener new_text_input;
+		struct wl_listener new_input_method;
+		struct wl_listener keyboard_focus_change;
+		struct wl_listener input_method_commit;
+		struct wl_listener input_method_grab_keyboard;
+		struct wl_listener input_method_destroy;
+		struct wl_listener input_method_new_popup;
+		struct wl_listener grab_destroy;
+	} ime;
+
+	/* zwp_tablet_v2 — stylus / pad (Wacom One & co). */
+	struct {
+		struct wlr_tablet_manager_v2 *mgr;
+		struct wl_list tablets; /* sf_tablet.link */
+		struct wl_list tools;	/* sf_tablet_tool.link */
+		struct wl_list pads;	/* sf_tablet_pad.link */
+		struct wl_listener tool_axis;
+		struct wl_listener tool_proximity;
+		struct wl_listener tool_tip;
+		struct wl_listener tool_button;
+	} tablet;
+
+	/* Heap; set when user init.lua fails and we fall back to embedded/C.
+	 * Surfaced via FDO Notifications after the display is up (peeble-style). */
+	char *config_warn;
+	/* Pending NameOwnerChanged wait + Notify (owned by dbus.c). */
+	struct sf_dbus_notify *config_notify;
+
+	/* inotify + debounce timer for the user config directory (optional). */
+	struct sf_config_watch *config_watch;
+};
+
+bool sf_server_init(struct sf_server *server);
+int sf_server_run(struct sf_server *server, const char *startup_cmd);
+void sf_server_finish(struct sf_server *server);
+
+#endif

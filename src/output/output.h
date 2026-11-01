@@ -1,0 +1,65 @@
+#ifndef SF_OUTPUT_H
+#define SF_OUTPUT_H
+
+#include <stdint.h>
+#include <time.h>
+#include <wayland-server-core.h>
+#include <wlr/util/box.h>
+
+#include "server/server.h"
+#include "session/lock_frame.h"
+#include "wm/workspace.h"
+
+struct wlr_output;
+struct wlr_ext_workspace_group_handle_v1;
+
+struct sf_output {
+	struct wl_list link;
+	struct sf_server *server;
+	struct wlr_output *wlr_output;
+	struct wl_listener frame;
+	struct wl_listener present;
+	bool dpms_off;
+	struct wlr_box lock_box;
+	struct sf_lock_frame lock_frame;
+	struct wl_listener request_state;
+	struct wl_listener destroy;
+
+	/* Layer-shell surfaces on this output, indexed by zwlr layer enum. */
+	struct wl_list layers[4];
+	struct wlr_box full;
+	struct wlr_box usable;
+
+	/* Dynamic per-output workspace strip. */
+	struct wl_list workspaces;
+	struct sf_workspace *active;
+	enum sf_arrange arrange; /* UNSET = inherit global */
+	struct wlr_ext_workspace_group_handle_v1 *ext_group;
+
+	/* Vertical strip slide (keybind / IPC / 3-finger swipe share this). */
+	struct {
+		bool active;
+		struct sf_workspace *from;
+		struct sf_workspace *to;
+		int from_y0; /* scene offset at t=0 */
+		int to_y0;
+		int travel; /* signed: from → from_y0+travel, to → to_y0+travel */
+		struct timespec start;
+		int64_t dur_ns;
+	} ws_anim;
+};
+
+void sf_output_setup(struct sf_server *server);
+void sf_output_finish(struct sf_server *server);
+
+/* Push current heads to zwlr_output_manager_v1 clients. */
+void sf_output_mgr_send_config(struct sf_server *server);
+
+/* DRM seat: config output_scale. Nested/headless (no session): 1.0. */
+float sf_output_scale_factor(struct sf_server *server);
+
+/* Apply sf.output rules → output->arrange (UNSET when no match). */
+void sf_output_apply_config(struct sf_output *output);
+void sf_output_apply_all(struct sf_server *server);
+
+#endif

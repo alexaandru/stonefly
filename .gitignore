@@ -1,0 +1,17 @@
+# abuild work dirs (aport is dist/testing/stonefly)
+/dist/testing/stonefly/src/
+/dist/testing/stonefly/pkg/
+/dist/testing/stonefly/*.tar.gz
+/.repo/
+/*.apk
+/.abuild/
+/.ccls-cache
+/references/
+
+/dist/**/*.tar.gz
+/dist/alpine/src
+/run
+
+# meson
+/output/
+/build/

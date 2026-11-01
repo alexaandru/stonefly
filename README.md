@@ -3,46 +3,160 @@
 Wayland compositor seeded from **wlroots 0.20
 [tinywl](https://gitlab.freedesktop.org/wlroots/wlroots/-/tree/0.20.0/tinywl)**.
 
-## Build (abuild)
+## Why “stonefly”?
 
-```sh
-cd testdata/testing/stonefly
-abuild -P "$PWD/.repo" -r
-doas apk add --allow-untrusted .repo/*/x86_64/stonefly-*.apk
+There was once a little pebble by a river.
+
+It sat very still. Water polished it. Seasons argued over it. Fish ignored it.
+Compositors and window managers thundered past upstream like bigger rocks with
+opinions. The pebble listened.
+
+One spring morning it noticed the insects that skim the surface — stoneflies —
+hatching, lifting, refusing to stay where the current put them. The pebble
+thought: *I could do that.*
+
+So it grew wings. Not fancy ones. Just enough to leave the riverbed without
+forgetting it.
+
+That is this project. A small stone that learned to fly: still close to the
+water (wlroots, Wayland, the usual current), still humble about what it is,
+but no longer content to only be sat upon.
+
+If you prefer something quieter, *dipper* was the runner-up — a bird that
+bobs along the same streams. We kept the louder name. The lore stays; the
+binary is `stonefly`.
+
+## Layout
+
+```
+meson.build          # project root
+Makefile             # make apk
+protocol/            # vendored wlr XML → wayland-scanner *-protocol.h
+src/
+  main.c             # tiny entry (+ windows subcommand)
+  util/json.*        # fixed-buffer JSON writer + scanner
+  log/               # structured JSON logging (peeble slog shape)
+  ipc/               # unix-socket IPC (windows/layers/outputs/config/…)
+  config/            # LuaJIT + Fennel-first defaults
+  server/            # display, backend, scene, loop
+  output/            # outputs + scale
+  layer/             # wlr-layer-shell scene + exclusive zones
+  seat/              # seat, keys, pointer, cursor
+  xdg/               # xdg-shell toplevels/popups
+  wm/                # focus, max, snap, minimize, spawn, scratchpads
+dist/testing/stonefly/APKBUILD  # Alpine aport (repo name = testing)
 ```
 
-The `.apk` lands under `.repo/testing/x86_64/` when you pin `-P` like that.
-`pkg/` is only fakeroot staging.
+Day-zero policy lives in the embedded Fennel-first default (`src/config/default/`); open gaps in [`ROADMAP.md`](ROADMAP.md). C↔Lua border (Neovim-for-WM): ROADMAP **C ↔ Lua border**.
+Layer-shell (`wlr-layer-shell-unstable-v1` v5) is implemented for
+external clients (bars, OSD, wallpapers): exclusive zones shrink the
+usable area used by maximize/snap/cascade.
 
+Super N-tap (`sf.tap` `:count`, peeble `bind_tap`): count 1 →
+`noctalia msg panel-toggle launcher`; count 2 → named scratchpad `term`
+(default `ghostty`). Super+t toggles QT on the focused window (claim /
+unclaim; steals the pad). Named pads are omitted from Super+Tab. Visible
+pads with `auto_hide` (default) slide away when focus moves to another
+window on the same output.
+
+## Build
+
+```sh
+make apk
+doas apk upgrade --available   # if /home/apk/testing is already a repo
+# or:
+doas apk add --allow-untrusted /home/apk/testing/x86_64/stonefly-*.apk
+```
+
+`make apk` packs a source tarball, runs `abuild checksum`, then `abuild -r`.
+The aport lives at `dist/testing/stonefly/` so:
+
+- project `src/` does not collide with abuild’s `$srcdir` (`$aport/src`)
+- abuild names the repo after the aport’s **parent** → `testing`
+- with default `REPODEST` (`/home/apk` on this host) the APK lands in
+  `/home/apk/testing/x86_64/`
+
+If you already have the same `pkgver-rpkgrel` installed, `apk upgrade` is a
+no-op — bump `pkgrel` (or `--force-reinstall` the `.apk`).
 ## Run
-
-Nested (inside an existing Wayland session — opens a window as the “display”):
 
 ```sh
 stonefly -s foot
 ```
 
-Or from a TTY (real DRM session).
+`-s` runs a command after the compositor is up (`WAYLAND_DISPLAY` set).
+Spawn binds (Super+w Ghostty, Super+Space foot, …) also work once you are in
+the session.
 
-`-s` runs a shell command after the compositor is up, with `WAYLAND_DISPLAY`
-set. You need that (or clients launched some other way): stonefly has **no
-launcher keybind**.
+## Logging and IPC
 
-Without `-s`, the compositor still starts; point clients at its
-`WAYLAND_DISPLAY` (printed in the log) yourself.
+Compositor logs are structured JSON lines (peeble-shaped) on stderr and
+`~/.var/log/stonefly/wm.log` (on start the previous file becomes
+`wm.last.json`; only current + last session are kept). wlroots messages
+go through the same handler.
 
-## Keybindings (from tinywl)
+Same binary speaks IPC when given a subcommand. Socket path:
+`$STONEFLY_SOCKET`, else `$XDG_RUNTIME_DIR/stonefly-$WAYLAND_DISPLAY.sock`.
 
-| Bind           | Action                         |
-| -------------- | ------------------------------ |
-| **Alt+Escape** | Quit the compositor            |
-| **Alt+F1**     | Cycle focus to the next window |
+```sh
+stonefly windows           # human: "* id  app_id  title  [tag=…]"
+stonefly windows --json    # JSON array (id, app_id, title, tag, description, geom, flags)
+stonefly layers            # human: namespace / layer / output / geom / excl / kbd
+stonefly layers --json     # JSON array (namespace, layer, output, geom, zones)
+stonefly outputs           # human: name*  WxH@scale  layout / usable
+stonefly outputs --json    # JSON array (name, geom, scale, usable, focused)
+stonefly workspaces        # human: per-output strip (* = active)
+stonefly workspaces --json # JSON array (output, index, name, active, …)
+stonefly workspace next|prev|N
+stonefly move-to-workspace next|prev|N
+stonefly config            # pretty-print live config (all sections)
+stonefly config binds      # one section: options|binds|taps|scratchpads|window_rules|…
+stonefly config --json     # compact JSON object / section value
+stonefly focus <id>        # focus (unminimize if needed)
+stonefly close <id>        # send xdg close
+stonefly toggle-quick-terminal  # toggle scratchpad pad "term"
+stonefly toggle-claim-quick-terminal  # claim/unclaim focused as QT
+stonefly exit              # quit this WAYLAND_DISPLAY session (nested-safe)
+```
 
-Pointer: click to focus; interactive move/resize via xdg toplevel requests
-(CSD / client decorations), same as tinywl.
+Wire format matches peeble: one JSON object per line, e.g. `{"cmd":"windows"}`,
+`{"cmd":"focus","arg":"42"}`, or `{"cmd":"config","arg":"binds"}`.
+
+## Keybindings (peeble-shaped; override via Fennel/Lua config)
+
+| Bind | Action |
+|---|---|
+| **Super+Esc** / **Super+Shift+Q** | Quit |
+| **Super+q** | Close focused window |
+| **Super+Tab** / **Super+Shift+Tab** | Focus next / prev |
+| **Alt+Tab** | `noctalia msg window-switcher` (window snapshots when capture protocols are present) |
+| **Alt+Shift+Tab** | Focus prev including minimized |
+| **Super+f** | Toggle maximize to edges |
+| **Super+m** | Toggle maximize with gaps |
+| **Ctrl+Esc** / **Ctrl+Shift+Esc** | Minimize / unminimize (unnamed scratchpad) |
+| **Super+Left/Right/Up/Down** | Snap to half (with gaps) |
+| **Super+u** | Unsnap / restore |
+| **Super+Prior/Next** / **Super+1–9** | Workspace prev/next / switch (per-output strip) |
+| **Super+Shift+Prior/Next** / **Super+Shift+1–9** | Move focused window (follow) |
+| **Touchpad swipe** | `sf.gesture` binds (default 3-finger V=workspace, H=columns pan). See `gestures.fnl` |
+| **Super+LMB** | Move window (magnetic edge snap + preview) |
+| **Super+RMB** | Resize window (edges nearest pointer) |
+| **Super+Shift+RMB** | Center-lock resize (grow/shrink around fixed center) |
+| **Super+w** | spawn `ghostty +new-window` |
+| **Super+Space** | spawn `foot` |
+| **Super+z** | spawn `nautilus` |
+| **Super+e** | spawn text editor |
+| **Alt+Enter** | spawn Ghostty quick terminal |
+
+Default output scale is **1.5** (`sf.opt.scale`) with `wp_fractional_scale_v1` + viewporter.
 
 ## Notes
 
-- Multiple windows work; cycle with Alt+F1.
-- No HiDPI, layer-shell, Xwayland, or config — same omissions as tinywl.
-- `LICENSE.tinywl` is upstream’s MIT notice for the seed.
+- SceneFX 0.5 (`scenefx` / `scenefx-dev`): `fx_renderer_create`, per-window blur + drop shadow + 12px rounded corners, 3px border (neon-blue focused / silver idle / amber urgent), focused/inactive opacity **0.96** (dim is opt-in via `inactive_opacity`).
+- Presentation: peeble-style slide in/out (`ease_out`, 200ms, closest usable edge; multi-edge snap/gap-max prefers the shorter axis) on map, close, minimize/unminimize, and scratchpad show/hide. Client Ctrl+W / CSD close uses a last-frame **ghost** slide (FORK.md close-ghost).
+- Urgency: `xdg-activation-v1` → amber border until focus (never steals focus). IPC `windows.urgent`, `set-urgent` / `unset-urgent`. System bell: `xdg-system-bell-v1` → 200ms amber flash.
+- Usable area: layer exclusive zones (`exclusive_zone != 0`, including `-1`) shrink the box used by max/snap/cascade. When the bar’s zone arrives after map, floaters are EnsureOnScreen’d (gap-max if oversized).
+- Drag-snap (peeble parity): Super+LMB / CSD move has magnetic edge resistance (`snap_threshold` 26, push-through `4×`), neon half-snap preview on `layers.overlay` (SceneFX rects), release-to-snap / push-through cancel, PrepareDrag float from snap/max keeping PreSnap.
+- Lazy on-demand Xwayland is in-process (unified `sf_toplevel`). Config is LuaJIT + Fennel-first (`stonefly --write-config` / `stonefly config`), including Fennel `window_rule` (Lua-pattern `app_id`/`title`; center/float/size/ssd/borderless; defaults for Chrome profile + gcr-prompter). Layer-shell is implemented. Editor completion for `sf.*`: copy `dist/fennel-ls/docsets/sf.lua` into fennel-ls docsets (see `dist/fennel-ls/README.md`).
+- Shipped capabilities: [`FEATURES.md`](FEATURES.md). Open / partial work: [`ROADMAP.md`](ROADMAP.md).
+- Stonefly is [MIT-licensed](LICENSE). Its original tinywl seed was released under [CC0-1.0](LICENSE.tinywl).

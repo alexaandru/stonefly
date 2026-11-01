@@ -1,0 +1,1175 @@
+#include <stdlib.h>
+#include <string.h>
+#include <wlr/types/wlr_compositor.h>
+#include <wlr/types/wlr_cursor.h>
+#include <wlr/types/wlr_layer_shell_v1.h>
+#include <scenefx/types/wlr_scene.h>
+#include <wlr/types/wlr_seat.h>
+#include <wlr/types/wlr_xdg_activation_v1.h>
+#include <wlr/types/wlr_xdg_decoration_v1.h>
+#include <wlr/types/wlr_xdg_dialog_v1.h>
+#include <wlr/types/wlr_xdg_shell.h>
+#include <wlr/types/wlr_xdg_system_bell_v1.h>
+#include <wlr/types/wlr_xdg_toplevel_icon_v1.h>
+#include <wlr/types/wlr_xdg_toplevel_tag_v1.h>
+#include <wlr/util/box.h>
+#include <wlr/util/edges.h>
+
+#include "anim/anim.h"
+#include "decor/decor.h"
+#include "layer/layer.h"
+#include "log/log.h"
+#include "output/output.h"
+#include "seat/seat.h"
+#include "ssd/ssd.h"
+#include "toplevel/ext_capture.h"
+#include "toplevel/foreign.h"
+#include "util/str.h"
+#include "wm/arrange.h"
+#include "wm/dialog.h"
+#include "wm/drag_snap.h"
+#include "wm/overview.h"
+#include "wm/rules.h"
+#include "wm/scratchpad.h"
+#include "wm/workspace.h"
+#include "session/session.h"
+#include "wm/layout_sm.h"
+#include "wm/wm.h"
+#include "xdg/xdg.h"
+
+#define SF_XDG_SHELL_VERSION 7
+
+static bool xdg_surface_ready(struct sf_toplevel *toplevel) {
+	return toplevel != NULL && toplevel->xdg_toplevel != NULL &&
+	       toplevel->xdg_toplevel->base->initialized;
+}
+
+static uint32_t xdg_edges_all(void) {
+	return (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_BOTTOM | (uint32_t)WLR_EDGE_LEFT |
+	       (uint32_t)WLR_EDGE_RIGHT;
+}
+
+static uint32_t xdg_edges_for_snap(enum sf_snap edge) {
+	switch (edge) {
+	case SF_SNAP_LEFT:
+		return (uint32_t)WLR_EDGE_LEFT | (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_BOTTOM;
+	case SF_SNAP_RIGHT:
+		return (uint32_t)WLR_EDGE_RIGHT | (uint32_t)WLR_EDGE_TOP |
+		       (uint32_t)WLR_EDGE_BOTTOM;
+	case SF_SNAP_TOP:
+		return (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_LEFT | (uint32_t)WLR_EDGE_RIGHT;
+	case SF_SNAP_BOTTOM:
+		return (uint32_t)WLR_EDGE_BOTTOM | (uint32_t)WLR_EDGE_LEFT |
+		       (uint32_t)WLR_EDGE_RIGHT;
+	case SF_SNAP_NONE:
+		break;
+	}
+	return 0;
+}
+
+static uint32_t xdg_wm_caps(void) {
+	return (uint32_t)WLR_XDG_TOPLEVEL_WM_CAPABILITIES_MAXIMIZE |
+	       (uint32_t)WLR_XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN |
+	       (uint32_t)WLR_XDG_TOPLEVEL_WM_CAPABILITIES_MINIMIZE;
+}
+
+static bool xdg_should_suspend(const struct sf_toplevel *toplevel) {
+	if (toplevel->minimized) {
+		return true;
+	}
+	if (sf_session_locked(toplevel->server)) {
+		return true;
+	}
+	if (sf_toplevel_is_scratchpad(toplevel)) {
+		return false;
+	}
+	if (toplevel->workspace == NULL) {
+		return false;
+	}
+	struct sf_output *output = toplevel->workspace->output;
+	if (output == NULL) {
+		return false;
+	}
+	if (output->active == toplevel->workspace) {
+		return false;
+	}
+	if (output->ws_anim.active && (toplevel->workspace == output->ws_anim.from ||
+				       toplevel->workspace == output->ws_anim.to)) {
+		return false;
+	}
+
+	return true;
+}
+
+static uint32_t xdg_constrained_edges(struct sf_toplevel *toplevel) {
+	if (sf_layout_sm_is_fullscreen(&toplevel->layout) ||
+	    sf_layout_sm_is_max_edges(&toplevel->layout) ||
+	    sf_layout_sm_is_max_gaps(&toplevel->layout)) {
+		return xdg_edges_all();
+	}
+	if (toplevel->arrange_managed && !toplevel->arrange_floating) {
+		return xdg_edges_all();
+	}
+	enum sf_snap snap = sf_layout_sm_snap(&toplevel->layout);
+	if (snap != SF_SNAP_NONE) {
+		return xdg_edges_for_snap(snap);
+	}
+	struct wlr_box usable, geom;
+	if (!sf_toplevel_output_box(toplevel, &usable) || usable.width <= 0 || usable.height <= 0) {
+		return 0;
+	}
+	sf_toplevel_layout_geom(toplevel, &geom);
+	if (geom.width <= 0 || geom.height <= 0) {
+		return 0;
+	}
+	const int tol = 2;
+	uint32_t edges = 0;
+	if (geom.x <= usable.x + tol) {
+		edges |= (uint32_t)WLR_EDGE_LEFT;
+	}
+	if (geom.y <= usable.y + tol) {
+		edges |= (uint32_t)WLR_EDGE_TOP;
+	}
+	if (geom.x + geom.width >= usable.x + usable.width - tol) {
+		edges |= (uint32_t)WLR_EDGE_RIGHT;
+	}
+	if (geom.y + geom.height >= usable.y + usable.height - tol) {
+		edges |= (uint32_t)WLR_EDGE_BOTTOM;
+	}
+
+	return edges;
+}
+
+static void xdg_sync_toplevel(struct sf_toplevel *toplevel, bool initial) {
+	if (!xdg_surface_ready(toplevel)) {
+		return;
+	}
+	struct wlr_xdg_toplevel *xdg = toplevel->xdg_toplevel;
+	/* Each setter queues a configure, even for equal values. Compare against
+	 * scheduled, not current: the client may not have acked our last change. */
+	const struct wlr_xdg_toplevel_configure *scheduled = &xdg->scheduled;
+	uint32_t caps = xdg_wm_caps();
+	if (initial || scheduled->wm_capabilities != caps) {
+		wlr_xdg_toplevel_set_wm_capabilities(xdg, caps);
+	}
+	struct wlr_box usable;
+	if (sf_toplevel_output_box(toplevel, &usable) && usable.width > 0 && usable.height > 0 &&
+	    (initial || scheduled->bounds.width != usable.width ||
+	     scheduled->bounds.height != usable.height)) {
+		wlr_xdg_toplevel_set_bounds(xdg, usable.width, usable.height);
+	}
+	bool suspended = xdg_should_suspend(toplevel);
+	if (scheduled->suspended != suspended) {
+		wlr_xdg_toplevel_set_suspended(xdg, suspended);
+	}
+	uint32_t constrained = xdg_constrained_edges(toplevel);
+	if (scheduled->constrained != constrained) {
+		wlr_xdg_toplevel_set_constrained(xdg, constrained);
+	}
+}
+
+void sf_xdg_sync_toplevel(struct sf_toplevel *toplevel) {
+	xdg_sync_toplevel(toplevel, false);
+}
+
+void sf_xdg_sync_output(struct sf_output *output) {
+	if (output == NULL || output->server == NULL) {
+		return;
+	}
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &output->server->toplevels, link) {
+		if (t->workspace != NULL && t->workspace->output != output) {
+			continue;
+		}
+		sf_xdg_sync_toplevel(t);
+	}
+}
+
+void sf_xdg_sync_all(struct sf_server *server) {
+	if (server == NULL) {
+		return;
+	}
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &server->toplevels, link) {
+		sf_xdg_sync_toplevel(t);
+	}
+}
+
+static struct sf_toplevel *toplevel_from_surface(struct sf_server *server,
+						 struct wlr_surface *surface) {
+	if (surface == NULL) {
+		return NULL;
+	}
+	struct wlr_surface *root = wlr_surface_get_root_surface(surface);
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &server->toplevels, link) {
+		if (sf_toplevel_wlr_surface(t) == root) {
+			return t;
+		}
+	}
+	return NULL;
+}
+
+static struct sf_toplevel *toplevel_from_xdg(struct sf_server *server,
+					     struct wlr_xdg_toplevel *xdg) {
+	if (xdg == NULL) {
+		return NULL;
+	}
+	/* Mapped windows are on the list; unmapped still exist via scene data. */
+	if (xdg->base != NULL && xdg->base->data != NULL) {
+		struct wlr_scene_tree *tree = xdg->base->data;
+		if (tree->node.data != NULL) {
+			struct sf_toplevel *t = tree->node.data;
+			if (t->kind == SF_NODE_TOPLEVEL && t->xdg_toplevel == xdg) {
+				return t;
+			}
+		}
+	}
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &server->toplevels, link) {
+		if (t->xdg_toplevel == xdg) {
+			return t;
+		}
+	}
+	return NULL;
+}
+
+static void xdg_toplevel_set_tag(struct wl_listener *listener, void *data) {
+	struct sf_server *server = wl_container_of(listener, server, xdg_toplevel_set_tag);
+	const struct wlr_xdg_toplevel_tag_manager_v1_set_tag_event *event = data;
+	struct sf_toplevel *toplevel = toplevel_from_xdg(server, event->toplevel);
+	if (toplevel == NULL) {
+		return;
+	}
+	sf_replace_str(&toplevel->tag, event->tag);
+	SF_LOGI("toplevel tag", sf_i64("id", (int64_t)toplevel->id),
+		sf_str("tag", toplevel->tag != NULL ? toplevel->tag : ""));
+}
+
+static void xdg_toplevel_set_description(struct wl_listener *listener, void *data) {
+	struct sf_server *server = wl_container_of(listener, server, xdg_toplevel_set_description);
+	const struct wlr_xdg_toplevel_tag_manager_v1_set_description_event *event = data;
+	struct sf_toplevel *toplevel = toplevel_from_xdg(server, event->toplevel);
+	if (toplevel == NULL) {
+		return;
+	}
+	sf_replace_str(&toplevel->description, event->description);
+	SF_LOGI("toplevel description", sf_i64("id", (int64_t)toplevel->id),
+		sf_str("description", toplevel->description != NULL ? toplevel->description : ""));
+}
+
+static void xdg_toplevel_set_icon(struct wl_listener *listener, void *data) {
+	struct sf_server *server = wl_container_of(listener, server, xdg_toplevel_set_icon);
+	const struct wlr_xdg_toplevel_icon_manager_v1_set_icon_event *event = data;
+	struct sf_toplevel *toplevel = toplevel_from_xdg(server, event->toplevel);
+	if (toplevel == NULL) {
+		return;
+	}
+
+	if (toplevel->icon != NULL) {
+		wlr_xdg_toplevel_icon_v1_unref(toplevel->icon);
+		toplevel->icon = NULL;
+	}
+	free(toplevel->icon_name);
+	toplevel->icon_name = NULL;
+
+	if (event->icon != NULL) {
+		toplevel->icon = wlr_xdg_toplevel_icon_v1_ref(event->icon);
+		if (event->icon->name != NULL) {
+			toplevel->icon_name = strdup(event->icon->name);
+		}
+	}
+	SF_LOGI("toplevel icon", sf_i64("id", (int64_t)toplevel->id),
+		sf_str("name", toplevel->icon_name != NULL ? toplevel->icon_name : ""));
+}
+
+/* Never steal focus for ordinary activates: demand-attention (amber until
+ * focus). Scratchpad spawn tokens claim+show instead (icons keep real app_id). */
+static void request_activate(struct wl_listener *listener, void *data) {
+	struct sf_server *server = wl_container_of(listener, server, request_activate);
+	const struct wlr_xdg_activation_v1_request_activate_event *event = data;
+	struct sf_toplevel *toplevel = toplevel_from_surface(server, event->surface);
+	if (toplevel == NULL) {
+		return;
+	}
+	if (sf_scratchpad_try_claim_activation(toplevel, event->token)) {
+		return;
+	}
+	if (sf_focused_toplevel(server) == toplevel) {
+		return;
+	}
+	sf_decor_set_urgent(toplevel, true);
+	SF_LOGI("urgency", sf_i64("id", (int64_t)toplevel->id));
+}
+
+static void system_bell_ring(struct wl_listener *listener, void *data) {
+	struct sf_server *server = wl_container_of(listener, server, system_bell_ring);
+	const struct wlr_xdg_system_bell_v1_ring_event *event = data;
+	struct sf_toplevel *toplevel = toplevel_from_surface(server, event->surface);
+	if (toplevel == NULL) {
+		toplevel = sf_focused_toplevel(server);
+	}
+	sf_decor_ring_bell(toplevel);
+	SF_LOGI("system bell", sf_i64("id", toplevel != NULL ? (int64_t)toplevel->id : 0));
+}
+
+static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
+	(void)data;
+	/* Called when the surface is mapped, or ready to display on-screen. */
+	struct sf_toplevel *toplevel = wl_container_of(listener, toplevel, map);
+
+	/* Stay disabled until arm_appear — SoftPlace may hold for late center. */
+	if (toplevel->scene_tree != NULL) {
+		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, false);
+	}
+
+	wl_list_insert(&toplevel->server->toplevels, &toplevel->link);
+	sf_scratchpad_try_claim(toplevel);
+	if (sf_toplevel_is_scratchpad(toplevel)) {
+		sf_workspace_detach_scratchpad(toplevel);
+		/* Claim may have run early on set_app_id; finish first-spawn max. */
+		if (!sf_layout_sm_is_max_edges(&toplevel->layout)) {
+			sf_toplevel_set_max_edges(toplevel, true);
+		}
+		sf_focus_toplevel(toplevel);
+	} else {
+		struct sf_output *output = sf_output_at_cursor(toplevel->server);
+		if (output != NULL && output->active != NULL) {
+			sf_workspace_assign(toplevel, output->active);
+		}
+		sf_toplevel_place_new(toplevel);
+		/* Bar exclusive may already be applied; keep origin in usable. */
+		sf_toplevel_ensure_on_screen(toplevel);
+		sf_toplevel_modal_reconcile(toplevel);
+		sf_focus_toplevel(toplevel);
+	}
+	sf_decor_apply_buffers(toplevel);
+	sf_decor_refresh_close_snap(toplevel);
+	/* SoftPlace hold or park off-screen then slide in (peeble open/appear). */
+	sf_toplevel_arm_appear(toplevel);
+	sf_foreign_toplevel_on_map(toplevel);
+	sf_ext_capture_on_map(toplevel);
+	sf_overview_on_toplevel_mapped(toplevel);
+	sf_xdg_sync_toplevel(toplevel);
+}
+
+static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
+	(void)data;
+	/* Called when the surface is unmapped, and should no longer be shown. */
+	struct sf_toplevel *toplevel = wl_container_of(listener, toplevel, unmap);
+	struct sf_server *server = toplevel->server;
+
+	sf_overview_on_toplevel_unmapped(toplevel);
+
+	/* Reset the cursor mode if the grabbed toplevel was unmapped. */
+	if (toplevel == server->grabbed_toplevel) {
+		sf_reset_cursor_mode(server);
+	}
+
+	bool was_focused = sf_focused_toplevel(server) == toplevel;
+
+	/* Detach modals hanging on us, then leave our own parent attach. */
+	sf_toplevel_modal_release_attachments(toplevel);
+	sf_toplevel_modal_detach(toplevel);
+
+	/* Client and compositor closes converge here, before removing the cell. */
+	sf_ghost_try_spawn(toplevel);
+	sf_anim_cancel(toplevel, false);
+	{
+		struct sf_place_ev ev = {.kind = SF_PLACE_EV_RESET};
+		struct sf_place_result out;
+		sf_place_sm_step(&toplevel->place, &ev, NULL, &out);
+		toplevel->place = out.state;
+	}
+	sf_scratchpad_on_destroy(toplevel);
+
+	/* Hide wrapper immediately so blur/border/shadow cannot outlive the
+	 * client buffer. Ghost (if any) is a separate tree under layers.toplevel. */
+	if (toplevel->scene_tree != NULL) {
+		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, false);
+	}
+
+	struct sf_workspace *old_ws = toplevel->workspace;
+	struct sf_output *ws_output = old_ws != NULL ? old_ws->output : NULL;
+	bool was_tiled = toplevel->arrange_managed || toplevel->column != NULL;
+	sf_arrange_unlink(toplevel);
+	sf_arrange_slot_clear(toplevel);
+	toplevel->arrange_managed = false;
+	toplevel->workspace = NULL;
+
+	if (toplevel->minimized) {
+		wl_list_remove(&toplevel->minimize_link);
+		wl_list_init(&toplevel->minimize_link);
+		toplevel->minimized = false;
+	}
+
+	wl_list_remove(&toplevel->link);
+
+	/* Flush so survivors morph on the same clock as the close ghost. */
+	if (old_ws != NULL) {
+		if (was_tiled) {
+			sf_arrange_flush(old_ws);
+		} else {
+			sf_arrange_schedule(old_ws);
+		}
+	}
+	if (ws_output != NULL) {
+		sf_workspace_compact(ws_output);
+	}
+
+	/* Peeble Focus(nil): fall back to the previous top of the stack.
+	 * Also recover when the seat already dropped focus before unmap. */
+	if (was_focused || sf_focused_toplevel(server) == NULL) {
+		sf_focus_top(server);
+	}
+	sf_foreign_toplevel_on_unmap(toplevel);
+	sf_ext_capture_on_unmap(toplevel);
+}
+
+static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
+	(void)data;
+	/* Called when a new surface state is committed. */
+	struct sf_toplevel *toplevel = wl_container_of(listener, toplevel, commit);
+
+	if (toplevel->xdg_toplevel->base->initial_commit) {
+		/* When an xdg_surface performs an initial commit, the compositor must
+		 * reply with a configure so the client can map the surface. sf
+		 * configures the xdg_toplevel with 0,0 size to let the client pick the
+		 * dimensions itself. */
+		wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, 0, 0);
+		xdg_sync_toplevel(toplevel, true);
+		return;
+	}
+	/* Output teardown may have already destroyed scene chrome. */
+	if (toplevel->scene_tree == NULL || toplevel->xdg_scene_tree == NULL) {
+		return;
+	}
+	sf_decor_update_geom(toplevel);
+	/* Pop present crop: scene xdg helper resets dest_size on this commit;
+	 * re-apply once after all commit listeners so scale↔full does not flicker
+	 * on every Ghostty/kitty damage (visible as 50%↔final thrash). */
+	if (toplevel->anim.active && toplevel->anim.pop) {
+		sf_decor_pop_schedule_reapply(toplevel);
+	}
+	sf_foreign_toplevel_on_outputs_change(toplevel);
+	/* Center-lock grab: re-pin when the committed buffer size catches up. */
+	if (toplevel->server->cursor_mode == SF_CURSOR_RESIZE_CENTER &&
+	    toplevel->server->grabbed_toplevel == toplevel) {
+		sf_seat_resize_center_sync(toplevel->server);
+	}
+	/* Keep layout mode honest after client size settles (resize / configure). */
+	if (toplevel->server->grabbed_toplevel != toplevel) {
+		sf_toplevel_layout_observe(toplevel);
+	}
+	/* Capture natural size once for stacking leave / rule float — skip the
+	 * packed cell configure (matches arrange_prop_*). */
+	if (!toplevel->arrange_float_saved && !toplevel->arrange_floating) {
+		struct wlr_box natural;
+		sf_toplevel_layout_geom(toplevel, &natural);
+		bool cell = toplevel->arrange_prop_w > 0 && toplevel->arrange_prop_h > 0 &&
+			    natural.width == toplevel->arrange_prop_w &&
+			    natural.height == toplevel->arrange_prop_h;
+		if (!cell && natural.width >= 50 && natural.height >= 50) {
+			sf_arrange_remember_float_box(toplevel);
+		}
+	}
+	/* Parent-centered windows re-center when size arrives (still managed). */
+	if (sf_place_sm_is_managed(&toplevel->place)) {
+		sf_toplevel_place_transient(toplevel);
+	}
+	/* Tiled appear held until the packed cell size commits (SoftPlace hold
+	 * or arrange_appear_pending with scene still parked). */
+	bool appear_wait = sf_place_sm_is_holding(&toplevel->place) ||
+			   (toplevel->arrange_appear_pending && toplevel->arrange_managed &&
+			    toplevel->scene_tree != NULL && !toplevel->scene_tree->node.enabled &&
+			    !toplevel->anim.active);
+	if (appear_wait) {
+		if (toplevel->arrange_managed && toplevel->arrange_prop_w > 0) {
+			toplevel->arrange_prop_waits++;
+		}
+		sf_toplevel_try_appear(toplevel);
+	}
+}
+
+static void xdg_toplevel_set_title(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct sf_toplevel *toplevel = wl_container_of(listener, toplevel, set_title);
+	sf_foreign_toplevel_on_title_change(toplevel);
+	sf_ext_capture_on_title_change(toplevel);
+	sf_ssd_update(toplevel);
+	sf_rules_consider_place(toplevel);
+}
+
+static void xdg_toplevel_set_app_id(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct sf_toplevel *toplevel = wl_container_of(listener, toplevel, set_app_id);
+	sf_scratchpad_try_claim(toplevel);
+	sf_foreign_toplevel_on_app_id_change(toplevel);
+	sf_ext_capture_on_app_id_change(toplevel);
+	sf_rules_consider_place(toplevel);
+}
+
+static void xdg_toplevel_set_parent(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct sf_toplevel *toplevel = wl_container_of(listener, toplevel, set_parent);
+	sf_foreign_toplevel_on_parent_change(toplevel);
+	/* Parent arriving after map ends SoftPlace appear-hold for dialogs. */
+	sf_toplevel_try_appear(toplevel);
+	if (sf_place_sm_is_managed(&toplevel->place)) {
+		sf_toplevel_place_transient(toplevel);
+	}
+	sf_toplevel_modal_reconcile(toplevel);
+}
+
+static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
+	(void)data;
+	/* Called when the xdg_toplevel is destroyed. */
+	struct sf_toplevel *toplevel = wl_container_of(listener, toplevel, destroy);
+	struct sf_server *server = toplevel->server;
+	struct sf_workspace *ws = toplevel->workspace;
+
+	/* Unmap usually clears grabs first; destroy-without-unmap must too. */
+	if (server != NULL && server->grabbed_toplevel == toplevel) {
+		sf_reset_cursor_mode(server);
+	}
+
+	sf_foreign_toplevel_on_close(toplevel);
+	sf_ext_capture_on_close(toplevel);
+	sf_toplevel_modal_release_attachments(toplevel);
+	sf_toplevel_modal_detach(toplevel);
+	sf_arrange_unlink(toplevel);
+	sf_arrange_slot_clear(toplevel);
+	if (ws != NULL) {
+		sf_arrange_schedule(ws);
+	}
+	/* Drop snapshot overlay before the live scene tree is destroyed. */
+	sf_anim_cancel(toplevel, false);
+	sf_scratchpad_on_destroy(toplevel);
+	sf_ssd_destroy(toplevel);
+	/* Client teardown can still emit tag/icon/deco signals that resolve the
+	 * toplevel via base->data; clear before freeing the scene tree or parent
+	 * aborts on nested-session disconnect (ASan heap-use-after-free). */
+	if (toplevel->xdg_toplevel != NULL && toplevel->xdg_toplevel->base != NULL) {
+		toplevel->xdg_toplevel->base->data = NULL;
+	}
+	sf_decor_finish_toplevel(toplevel);
+
+	if (toplevel->minimized) {
+		wl_list_remove(&toplevel->minimize_link);
+	}
+
+	wl_list_remove(&toplevel->map.link);
+	wl_list_remove(&toplevel->unmap.link);
+	wl_list_remove(&toplevel->commit.link);
+	wl_list_remove(&toplevel->destroy.link);
+	wl_list_remove(&toplevel->request_move.link);
+	wl_list_remove(&toplevel->request_resize.link);
+	wl_list_remove(&toplevel->request_maximize.link);
+	wl_list_remove(&toplevel->request_minimize.link);
+	wl_list_remove(&toplevel->request_fullscreen.link);
+	wl_list_remove(&toplevel->set_title.link);
+	wl_list_remove(&toplevel->set_app_id.link);
+	wl_list_remove(&toplevel->set_parent.link);
+
+	if (toplevel->icon != NULL) {
+		wlr_xdg_toplevel_icon_v1_unref(toplevel->icon);
+		toplevel->icon = NULL;
+	}
+	free(toplevel->icon_name);
+	free(toplevel->tag);
+	free(toplevel->description);
+	free(toplevel);
+}
+
+void sf_begin_interactive(struct sf_toplevel *toplevel, enum sf_cursor_mode mode, uint32_t edges) {
+	/* This function sets up an interactive move or resize operation, where the
+	 * compositor stops propagating pointer events to clients and instead
+	 * consumes them itself, to move or resize windows. */
+	struct sf_server *server = toplevel->server;
+
+	sf_anim_cancel(toplevel, true);
+
+	/* Tiled Super+LMB / titlebar drag swaps tiles — never float or edge-snap. */
+	if (sf_cfg(server)->tiled_grab_remap && mode == SF_CURSOR_MOVE &&
+	    toplevel->arrange_managed) {
+		server->grabbed_toplevel = toplevel;
+		server->cursor_mode = SF_CURSOR_ARRANGE_SWAP;
+		sf_arrange_swap_begin(server, toplevel);
+		wlr_seat_pointer_notify_clear_focus(server->seat);
+		sf_seat_apply_grab_cursor(server);
+		return;
+	}
+	/* Tiled Super+RMB adjusts arrange factors while staying tiled. */
+	if (sf_cfg(server)->tiled_grab_remap &&
+	    (mode == SF_CURSOR_RESIZE || mode == SF_CURSOR_RESIZE_CENTER) &&
+	    toplevel->arrange_managed) {
+		enum sf_arrange kind = SF_ARRANGE_STACKING;
+		if (toplevel->workspace != NULL) {
+			kind = sf_workspace_arrange(toplevel->workspace);
+		}
+		if (sf_arrange_is_tiling(kind)) {
+			server->grabbed_toplevel = toplevel;
+			server->cursor_mode = SF_CURSOR_ARRANGE_RESIZE;
+			server->resize_edges = edges;
+			sf_arrange_resize_begin(server, toplevel);
+			if (!server->arrange_resize.active) {
+				server->cursor_mode = SF_CURSOR_PASSTHROUGH;
+				server->grabbed_toplevel = NULL;
+				return;
+			}
+			wlr_seat_pointer_notify_clear_focus(server->seat);
+			sf_seat_apply_grab_cursor(server);
+			return;
+		}
+		/* Monocle: ignore free resize. */
+		return;
+	}
+
+	if (mode == SF_CURSOR_MOVE) {
+		/* Peeble PrepareDrag: float snap/max, keep PreSnap, record origin. */
+		sf_drag_snap_prepare(toplevel);
+	} else if (mode == SF_CURSOR_RESIZE || mode == SF_CURSOR_RESIZE_CENTER) {
+		/* User resize leaves edged modes so hide/show keeps the new size
+		 * (chrome flush heuristic covers undragged edges). */
+		sf_toplevel_clear_auto_place(toplevel);
+		sf_toplevel_break_edged_for_user_geom(toplevel);
+	}
+
+	server->grabbed_toplevel = toplevel;
+	server->cursor_mode = mode;
+
+	if (mode == SF_CURSOR_MOVE) {
+		server->grab_x = server->cursor->x - toplevel->scene_tree->node.x;
+		server->grab_y = server->cursor->y - toplevel->scene_tree->node.y;
+		sf_drag_snap_begin(server, toplevel);
+	} else if (mode == SF_CURSOR_RESIZE_CENTER) {
+		struct wlr_box geo_box;
+		sf_toplevel_surface_geom(toplevel, &geo_box);
+		/* scene_tree origin is geometry TL (xdg scene); do not add geo.x/y. */
+		server->grab_x = server->cursor->x;
+		server->grab_y = server->cursor->y;
+		server->grab_geobox.x = toplevel->scene_tree->node.x;
+		server->grab_geobox.y = toplevel->scene_tree->node.y;
+		server->grab_geobox.width = geo_box.width;
+		server->grab_geobox.height = geo_box.height;
+		server->resize_center_x =
+			(double)server->grab_geobox.x + (double)server->grab_geobox.width / 2.0;
+		server->resize_center_y =
+			(double)server->grab_geobox.y + (double)server->grab_geobox.height / 2.0;
+		server->resize_edges = 0;
+		(void)edges;
+	} else {
+		struct wlr_box geo_box;
+		sf_toplevel_surface_geom(toplevel, &geo_box);
+
+		double border_x = (double)toplevel->scene_tree->node.x +
+				  ((edges & (uint32_t)WLR_EDGE_RIGHT) ? geo_box.width : 0);
+		double border_y = (double)toplevel->scene_tree->node.y +
+				  ((edges & (uint32_t)WLR_EDGE_BOTTOM) ? geo_box.height : 0);
+		server->grab_x = server->cursor->x - border_x;
+		server->grab_y = server->cursor->y - border_y;
+
+		server->grab_geobox.x = toplevel->scene_tree->node.x;
+		server->grab_geobox.y = toplevel->scene_tree->node.y;
+		server->grab_geobox.width = geo_box.width;
+		server->grab_geobox.height = geo_box.height;
+
+		server->resize_edges = edges;
+	}
+	/* Drop client pointer focus first so a queued set_cursor cannot replace
+	 * the WM face; then assert grabbing / resize xcursor (with fallbacks). */
+	wlr_seat_pointer_notify_clear_focus(server->seat);
+	sf_seat_apply_grab_cursor(server);
+}
+
+static void xdg_toplevel_request_move(struct wl_listener *listener, void *data) {
+	(void)data;
+	/* This event is raised when a client would like to begin an interactive
+	 * move, typically because the user clicked on their client-side
+	 * decorations. Note that a more sophisticated compositor should check the
+	 * provided serial against a list of button press serials sent to this
+	 * client, to prevent the client from requesting this whenever they want. */
+	struct sf_toplevel *toplevel = wl_container_of(listener, toplevel, request_move);
+	sf_begin_interactive(toplevel, SF_CURSOR_MOVE, 0);
+}
+
+static void xdg_toplevel_request_resize(struct wl_listener *listener, void *data) {
+	/* This event is raised when a client would like to begin an interactive
+	 * resize, typically because the user clicked on their client-side
+	 * decorations. Note that a more sophisticated compositor should check the
+	 * provided serial against a list of button press serials sent to this
+	 * client, to prevent the client from requesting this whenever they want. */
+	struct wlr_xdg_toplevel_resize_event *event = data;
+	struct sf_toplevel *toplevel = wl_container_of(listener, toplevel, request_resize);
+	sf_begin_interactive(toplevel, SF_CURSOR_RESIZE, event->edges);
+}
+
+static void xdg_toplevel_request_maximize(struct wl_listener *listener, void *data) {
+	(void)data;
+	/* Honor the client's requested maximized bit — never toggle blindly
+	 * (a toggle on unset-maximize after a bad 0×0 save made windows vanish). */
+	struct sf_toplevel *toplevel = wl_container_of(listener, toplevel, request_maximize);
+	if (!toplevel->xdg_toplevel->base->initialized) {
+		return;
+	}
+	sf_toplevel_set_client_maximized(toplevel, toplevel->xdg_toplevel->requested.maximized);
+}
+
+static void xdg_toplevel_request_minimize(struct wl_listener *listener, void *data) {
+	(void)data;
+	/* CSD/SSD minimize buttons and clients that request minimize. */
+	struct sf_toplevel *toplevel = wl_container_of(listener, toplevel, request_minimize);
+	if (!toplevel->xdg_toplevel->base->initialized) {
+		return;
+	}
+	if (toplevel->xdg_toplevel->requested.minimized) {
+		sf_toplevel_minimize(toplevel);
+	} else {
+		/* Unset without forcing focus — matches foreign unset_minimized. */
+		sf_toplevel_unminimize(toplevel);
+	}
+	/* Minimize does not always schedule a configure; ack the request. */
+	wlr_xdg_surface_schedule_configure(toplevel->xdg_toplevel->base);
+}
+
+static void xdg_toplevel_request_fullscreen(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct sf_toplevel *toplevel = wl_container_of(listener, toplevel, request_fullscreen);
+	if (!toplevel->xdg_toplevel->base->initialized) {
+		return;
+	}
+	sf_toplevel_set_fullscreen(toplevel, toplevel->xdg_toplevel->requested.fullscreen, NULL);
+}
+
+static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
+	/* This event is raised when a client creates a new toplevel (application window). */
+	struct sf_server *server = wl_container_of(listener, server, new_xdg_toplevel);
+	struct wlr_xdg_toplevel *xdg_toplevel = data;
+
+	/* Allocate a sf_toplevel for this surface */
+	struct sf_toplevel *toplevel = calloc(1, sizeof(*toplevel));
+	toplevel->kind = SF_NODE_TOPLEVEL;
+	toplevel->server = server;
+	toplevel->xdg_toplevel = xdg_toplevel;
+	toplevel->id = ++server->next_toplevel_id;
+	wl_list_init(&toplevel->minimize_link);
+	wl_list_init(&toplevel->column_link);
+	toplevel->column = NULL;
+	toplevel->column_row_weight = 1.0f;
+	toplevel->column_extent_saved = 0.0f;
+	/* Wrapper holds blur/shadow/border; xdg content is a child. */
+	toplevel->scene_tree = wlr_scene_tree_create(server->layers.toplevel);
+	toplevel->xdg_scene_tree =
+		wlr_scene_xdg_surface_create(toplevel->scene_tree, xdg_toplevel->base);
+	toplevel->scene_tree->node.data = toplevel;
+	xdg_toplevel->base->data = toplevel->scene_tree;
+	sf_decor_init_toplevel(toplevel);
+
+	/* Listen to the various events it can emit */
+	toplevel->map.notify = xdg_toplevel_map;
+	wl_signal_add(&xdg_toplevel->base->surface->events.map, &toplevel->map);
+	toplevel->unmap.notify = xdg_toplevel_unmap;
+	wl_signal_add(&xdg_toplevel->base->surface->events.unmap, &toplevel->unmap);
+	toplevel->commit.notify = xdg_toplevel_commit;
+	wl_signal_add(&xdg_toplevel->base->surface->events.commit, &toplevel->commit);
+
+	toplevel->destroy.notify = xdg_toplevel_destroy;
+	wl_signal_add(&xdg_toplevel->events.destroy, &toplevel->destroy);
+
+	toplevel->request_move.notify = xdg_toplevel_request_move;
+	wl_signal_add(&xdg_toplevel->events.request_move, &toplevel->request_move);
+	toplevel->request_resize.notify = xdg_toplevel_request_resize;
+	wl_signal_add(&xdg_toplevel->events.request_resize, &toplevel->request_resize);
+	toplevel->request_maximize.notify = xdg_toplevel_request_maximize;
+	wl_signal_add(&xdg_toplevel->events.request_maximize, &toplevel->request_maximize);
+	toplevel->request_minimize.notify = xdg_toplevel_request_minimize;
+	wl_signal_add(&xdg_toplevel->events.request_minimize, &toplevel->request_minimize);
+	toplevel->request_fullscreen.notify = xdg_toplevel_request_fullscreen;
+	wl_signal_add(&xdg_toplevel->events.request_fullscreen, &toplevel->request_fullscreen);
+	toplevel->set_title.notify = xdg_toplevel_set_title;
+	wl_signal_add(&xdg_toplevel->events.set_title, &toplevel->set_title);
+	toplevel->set_app_id.notify = xdg_toplevel_set_app_id;
+	wl_signal_add(&xdg_toplevel->events.set_app_id, &toplevel->set_app_id);
+	toplevel->set_parent.notify = xdg_toplevel_set_parent;
+	wl_signal_add(&xdg_toplevel->events.set_parent, &toplevel->set_parent);
+}
+
+/*
+ * Keep menus on-screen. Box is in the root parent surface's coordinate
+ * system (wlroots walks nested popups). Prefer output usable so popups stay
+ * clear of exclusive zones (bar).
+ */
+void sf_xdg_popup_unconstrain(struct sf_server *server, struct wlr_xdg_popup *xdg_popup) {
+	if (server == NULL || xdg_popup == NULL) {
+		return;
+	}
+	struct wlr_surface *parent = xdg_popup->parent;
+	if (parent == NULL) {
+		return;
+	}
+
+	struct sf_toplevel *toplevel = toplevel_from_surface(server, parent);
+	if (toplevel != NULL && toplevel->scene_tree != NULL && toplevel->xdg_toplevel != NULL) {
+		struct wlr_box usable;
+		if (!sf_toplevel_output_box(toplevel, &usable)) {
+			return;
+		}
+		int lx = 0, ly = 0;
+		if (!wlr_scene_node_coords(&toplevel->scene_tree->node, &lx, &ly)) {
+			return;
+		}
+		struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
+		int geo_x = geo->width > 0 ? geo->x : 0;
+		int geo_y = geo->height > 0 ? geo->y : 0;
+		/* Geometry TL is at scene node; surface origin is geo offset back. */
+		struct wlr_box box = {
+			.x = usable.x - (lx - geo_x),
+			.y = usable.y - (ly - geo_y),
+			.width = usable.width,
+			.height = usable.height,
+		};
+		wlr_xdg_popup_unconstrain_from_box(xdg_popup, &box);
+		return;
+	}
+
+	struct wlr_surface *root = wlr_surface_get_root_surface(parent);
+	struct wlr_layer_surface_v1 *ls = wlr_layer_surface_v1_try_from_wlr_surface(root);
+	if (ls == NULL || ls->data == NULL) {
+		return;
+	}
+	struct sf_layer_surface *layer = ls->data;
+	if (layer->kind != SF_NODE_LAYER || layer->scene == NULL) {
+		return;
+	}
+	struct wlr_box usable;
+	if (layer->output != NULL && sf_output_usable_box(layer->output, &usable)) {
+		/* ok */
+	} else if (ls->output != NULL && ls->output->data != NULL) {
+		if (!sf_output_usable_box(ls->output->data, &usable)) {
+			return;
+		}
+	} else {
+		return;
+	}
+	int lx = 0, ly = 0;
+	if (!wlr_scene_node_coords(&layer->scene->node, &lx, &ly)) {
+		return;
+	}
+	struct wlr_box box = {
+		.x = usable.x - lx,
+		.y = usable.y - ly,
+		.width = usable.width,
+		.height = usable.height,
+	};
+	wlr_xdg_popup_unconstrain_from_box(xdg_popup, &box);
+}
+
+static void xdg_popup_commit(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct sf_popup *popup = wl_container_of(listener, popup, commit);
+
+	if (popup->xdg_popup->base->initial_commit) {
+		sf_xdg_popup_unconstrain(popup->server, popup->xdg_popup);
+		/* Unconstrain schedules a configure when it adjusts; always
+		 * ensure one so the client can map. */
+		wlr_xdg_surface_schedule_configure(popup->xdg_popup->base);
+	}
+}
+
+static void xdg_popup_reposition(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct sf_popup *popup = wl_container_of(listener, popup, reposition);
+
+	if (!popup->xdg_popup->base->initialized) {
+		return;
+	}
+	sf_xdg_popup_unconstrain(popup->server, popup->xdg_popup);
+	wlr_xdg_surface_schedule_configure(popup->xdg_popup->base);
+}
+
+static void xdg_popup_destroy(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct sf_popup *popup = wl_container_of(listener, popup, destroy);
+
+	wl_list_remove(&popup->commit.link);
+	wl_list_remove(&popup->reposition.link);
+	wl_list_remove(&popup->destroy.link);
+
+	free(popup);
+}
+
+static void xdg_popup_destroy_idle(void *data) {
+	wlr_xdg_popup_destroy(data);
+}
+
+static struct wlr_scene_tree *popup_parent_tree(struct wlr_surface *parent) {
+	if (parent == NULL) {
+		return NULL;
+	}
+	struct wlr_surface *root = wlr_surface_get_root_surface(parent);
+	if (root == NULL) {
+		root = parent;
+	}
+
+	struct wlr_xdg_surface *xdg = wlr_xdg_surface_try_from_wlr_surface(parent);
+	if (xdg == NULL && root != parent) {
+		xdg = wlr_xdg_surface_try_from_wlr_surface(root);
+	}
+	if (xdg != NULL && xdg->data != NULL) {
+		return xdg->data;
+	}
+
+	struct wlr_layer_surface_v1 *ls = wlr_layer_surface_v1_try_from_wlr_surface(root);
+	if (ls != NULL && ls->data != NULL) {
+		struct sf_layer_surface *layer = ls->data;
+		if (layer->popups != NULL) {
+			return layer->popups;
+		}
+	}
+
+	if (parent->data != NULL) {
+		return parent->data;
+	}
+	if (root != parent && root->data != NULL) {
+		return root->data;
+	}
+	return NULL;
+}
+
+static void server_new_xdg_popup(struct wl_listener *listener, void *data) {
+	struct sf_server *server = wl_container_of(listener, server, new_xdg_popup);
+	struct wlr_xdg_popup *xdg_popup = data;
+
+	/* xdg parents stash the scene tree on xdg_surface->data. Layer-shell
+	 * parents arrive later via zwlr_layer_surface_v1.get_popup (parent is
+	 * NULL here); park under overlay until layer_surface_new_popup reparents. */
+	struct wlr_scene_tree *parent_tree = popup_parent_tree(xdg_popup->parent);
+	if (parent_tree == NULL) {
+		if (xdg_popup->parent != NULL) {
+			SF_LOGW("xdg popup without parent scene tree; using overlay");
+		}
+		parent_tree = server->layers.overlay;
+	}
+
+	struct sf_popup *popup = calloc(1, sizeof(*popup));
+	if (popup == NULL) {
+		struct wl_display *display =
+			wl_client_get_display(wl_resource_get_client(xdg_popup->base->resource));
+		wl_event_loop_add_idle(wl_display_get_event_loop(display), xdg_popup_destroy_idle,
+				       xdg_popup);
+		return;
+	}
+	popup->server = server;
+	popup->xdg_popup = xdg_popup;
+
+	xdg_popup->base->data = wlr_scene_xdg_surface_create(parent_tree, xdg_popup->base);
+
+	popup->commit.notify = xdg_popup_commit;
+	wl_signal_add(&xdg_popup->base->surface->events.commit, &popup->commit);
+	popup->reposition.notify = xdg_popup_reposition;
+	wl_signal_add(&xdg_popup->events.reposition, &popup->reposition);
+	popup->destroy.notify = xdg_popup_destroy;
+	wl_signal_add(&xdg_popup->events.destroy, &popup->destroy);
+}
+
+/* Honor client request_mode within ssd_mode; paint SSD when SERVER_SIDE. */
+struct sf_xdg_decoration {
+	struct sf_server *server;
+	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco;
+	struct wl_listener request_mode;
+	struct wl_listener surface_commit;
+	struct wl_listener destroy;
+};
+
+/* wlroots 0.20: set_mode → schedule_configure asserts surface->initialized.
+ * Chrome binds xdg-decoration before the first commit; defer until then. */
+static void xdg_decoration_apply(struct sf_xdg_decoration *deco) {
+	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco = deco->wlr_deco;
+	if (wlr_deco->toplevel == NULL || !wlr_deco->toplevel->base->initialized) {
+		return;
+	}
+	struct sf_toplevel *toplevel = toplevel_from_xdg(deco->server, wlr_deco->toplevel);
+	sf_ssd_decoration_apply(toplevel, wlr_deco);
+}
+
+static void xdg_decoration_request_mode(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct sf_xdg_decoration *deco = wl_container_of(listener, deco, request_mode);
+	xdg_decoration_apply(deco);
+}
+
+static void xdg_decoration_surface_commit(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct sf_xdg_decoration *deco = wl_container_of(listener, deco, surface_commit);
+	if (!deco->wlr_deco->toplevel->base->initial_commit) {
+		return;
+	}
+	xdg_decoration_apply(deco);
+}
+
+static void xdg_decoration_destroy(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct sf_xdg_decoration *deco = wl_container_of(listener, deco, destroy);
+	struct sf_toplevel *toplevel = toplevel_from_xdg(deco->server, deco->wlr_deco->toplevel);
+	if (toplevel != NULL && toplevel->decoration == deco->wlr_deco) {
+		toplevel->decoration = NULL;
+		toplevel->want_ssd = false;
+		toplevel->ssd_set_mode = 0;
+		sf_ssd_destroy(toplevel);
+		sf_decor_update_geom(toplevel);
+	}
+	wl_list_remove(&deco->request_mode.link);
+	wl_list_remove(&deco->surface_commit.link);
+	wl_list_remove(&deco->destroy.link);
+	free(deco);
+}
+
+static void server_new_xdg_decoration(struct wl_listener *listener, void *data) {
+	struct sf_server *server = wl_container_of(listener, server, new_xdg_decoration);
+	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco = data;
+
+	struct sf_xdg_decoration *deco = calloc(1, sizeof(*deco));
+	if (deco == NULL) {
+		return;
+	}
+	deco->server = server;
+	deco->wlr_deco = wlr_deco;
+	deco->request_mode.notify = xdg_decoration_request_mode;
+	wl_signal_add(&wlr_deco->events.request_mode, &deco->request_mode);
+	deco->surface_commit.notify = xdg_decoration_surface_commit;
+	wl_signal_add(&wlr_deco->toplevel->base->surface->events.commit, &deco->surface_commit);
+	deco->destroy.notify = xdg_decoration_destroy;
+	wl_signal_add(&wlr_deco->events.destroy, &deco->destroy);
+
+	/* No-op until the client's first commit (Chrome binds deco early). */
+	xdg_decoration_apply(deco);
+}
+
+struct sf_xdg_dialog {
+	struct wlr_xdg_dialog_v1 *dialog;
+	struct sf_server *server;
+	struct wl_listener set_modal;
+	struct wl_listener destroy;
+};
+
+static void xdg_dialog_apply_modal(struct sf_xdg_dialog *wrap) {
+	if (wrap == NULL || wrap->dialog == NULL) {
+		return;
+	}
+	struct sf_toplevel *toplevel = toplevel_from_xdg(wrap->server, wrap->dialog->xdg_toplevel);
+	if (toplevel == NULL) {
+		return;
+	}
+	bool want = wrap->dialog->modal;
+	bool changed = toplevel->modal != want;
+	toplevel->modal = want;
+	/* Modal only applies with a parent (protocol); re-place while managed. */
+	if (changed && sf_place_sm_is_managed(&toplevel->place)) {
+		sf_toplevel_place_transient(toplevel);
+	}
+	sf_toplevel_modal_reconcile(toplevel);
+	if (changed) {
+		SF_LOGI("xdg dialog modal", sf_i64("id", (int64_t)toplevel->id),
+			sf_bool("modal", toplevel->modal));
+	}
+}
+
+static void xdg_dialog_set_modal(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct sf_xdg_dialog *wrap = wl_container_of(listener, wrap, set_modal);
+	xdg_dialog_apply_modal(wrap);
+}
+
+static void xdg_dialog_destroy(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct sf_xdg_dialog *wrap = wl_container_of(listener, wrap, destroy);
+	struct sf_toplevel *toplevel = toplevel_from_xdg(
+		wrap->server, wrap->dialog != NULL ? wrap->dialog->xdg_toplevel : NULL);
+	if (toplevel != NULL && toplevel->modal) {
+		toplevel->modal = false;
+		sf_toplevel_modal_reconcile(toplevel);
+	}
+	wl_list_remove(&wrap->set_modal.link);
+	wl_list_remove(&wrap->destroy.link);
+	free(wrap);
+}
+
+static void server_new_xdg_dialog(struct wl_listener *listener, void *data) {
+	struct sf_server *server = wl_container_of(listener, server, new_xdg_dialog);
+	struct wlr_xdg_dialog_v1 *dialog = data;
+	struct sf_xdg_dialog *wrap = calloc(1, sizeof(*wrap));
+	if (wrap == NULL) {
+		return;
+	}
+	wrap->dialog = dialog;
+	wrap->server = server;
+	wrap->set_modal.notify = xdg_dialog_set_modal;
+	wl_signal_add(&dialog->events.set_modal, &wrap->set_modal);
+	wrap->destroy.notify = xdg_dialog_destroy;
+	wl_signal_add(&dialog->events.destroy, &wrap->destroy);
+	xdg_dialog_apply_modal(wrap);
+}
+
+void sf_xdg_setup(struct sf_server *server) {
+	wl_list_init(&server->toplevels);
+	server->xdg_shell = wlr_xdg_shell_create(server->wl_display, SF_XDG_SHELL_VERSION);
+	server->new_xdg_toplevel.notify = server_new_xdg_toplevel;
+	wl_signal_add(&server->xdg_shell->events.new_toplevel, &server->new_xdg_toplevel);
+	server->new_xdg_popup.notify = server_new_xdg_popup;
+	wl_signal_add(&server->xdg_shell->events.new_popup, &server->new_xdg_popup);
+
+	/* FORK.md #1281 — demand-attention via xdg-activation. */
+	server->xdg_activation = wlr_xdg_activation_v1_create(server->wl_display);
+	if (server->xdg_activation != NULL) {
+		server->request_activate.notify = request_activate;
+		wl_signal_add(&server->xdg_activation->events.request_activate,
+			      &server->request_activate);
+	}
+
+	/* FORK.md #1389 — visual system bell. */
+	server->system_bell = wlr_xdg_system_bell_v1_create(server->wl_display, 1);
+	if (server->system_bell != NULL) {
+		server->system_bell_ring.notify = system_bell_ring;
+		wl_signal_add(&server->system_bell->events.ring, &server->system_bell_ring);
+	}
+
+	/* xdg_wm_dialog_v1 — advertise modal hint (wlroots 0.20.2+). */
+	server->xdg_dialog_mgr = wlr_xdg_wm_dialog_v1_create(server->wl_display, 1);
+	if (server->xdg_dialog_mgr != NULL) {
+		server->new_xdg_dialog.notify = server_new_xdg_dialog;
+		wl_signal_add(&server->xdg_dialog_mgr->events.new_dialog, &server->new_xdg_dialog);
+	}
+
+	/* Advertise decoration; mode from ssd_mode + client request. */
+	/* wlroots 0.20: create(display) only (no version arg). */
+	server->xdg_decoration_mgr = wlr_xdg_decoration_manager_v1_create(server->wl_display);
+	if (server->xdg_decoration_mgr != NULL) {
+		server->new_xdg_decoration.notify = server_new_xdg_decoration;
+		wl_signal_add(&server->xdg_decoration_mgr->events.new_toplevel_decoration,
+			      &server->new_xdg_decoration);
+	}
+
+	/* river#1390 / FEATURES — client tags for rules / persist / IPC windows. */
+	server->xdg_toplevel_tag_mgr =
+		wlr_xdg_toplevel_tag_manager_v1_create(server->wl_display, 1);
+	if (server->xdg_toplevel_tag_mgr != NULL) {
+		server->xdg_toplevel_set_tag.notify = xdg_toplevel_set_tag;
+		wl_signal_add(&server->xdg_toplevel_tag_mgr->events.set_tag,
+			      &server->xdg_toplevel_set_tag);
+		server->xdg_toplevel_set_description.notify = xdg_toplevel_set_description;
+		wl_signal_add(&server->xdg_toplevel_tag_mgr->events.set_description,
+			      &server->xdg_toplevel_set_description);
+	}
+
+	/* xdg-toplevel-icon-v1 — silence Foot warn; store for IPC / future SSD. */
+	server->xdg_toplevel_icon_mgr =
+		wlr_xdg_toplevel_icon_manager_v1_create(server->wl_display, 1);
+	if (server->xdg_toplevel_icon_mgr != NULL) {
+		static int icon_sizes[] = {16, 24, 32, 48, 64};
+		wlr_xdg_toplevel_icon_manager_v1_set_sizes(server->xdg_toplevel_icon_mgr,
+							   icon_sizes, 5);
+		server->xdg_toplevel_set_icon.notify = xdg_toplevel_set_icon;
+		wl_signal_add(&server->xdg_toplevel_icon_mgr->events.set_icon,
+			      &server->xdg_toplevel_set_icon);
+	}
+}
