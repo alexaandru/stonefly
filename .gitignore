@@ -1,0 +1,11 @@
+# abuild work dirs (srcdir is $startdir/src — keep C sources out of ./src/)
+/src/
+/pkg/
+/.repo/
+/*.apk
+/*.tar.gz
+/.abuild/
+
+# meson
+/output/
+/build/
