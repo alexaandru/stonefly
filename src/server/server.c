@@ -17,14 +17,20 @@
 #include <wlr/types/wlr_viewporter.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_output_layout.h>
-#include <wlr/types/wlr_scene.h>
 #include <wlr/types/wlr_xcursor_manager.h>
+#include <scenefx/render/fx_renderer/fx_renderer.h>
+#include <scenefx/types/wlr_scene.h>
 
+#include "decor/decor.h"
 #include "ipc/ipc.h"
+#include "layer/layer.h"
 #include "log/log.h"
 #include "output/output.h"
 #include "seat/seat.h"
 #include "server/server.h"
+#include "wm/drag_snap.h"
+#include "wm/scratchpad.h"
+#include "wm/snap_preview.h"
 #include "xdg/xdg.h"
 
 /*
@@ -72,9 +78,10 @@ bool stonefly_server_init(struct stonefly_server *server) {
 		return false;
 	}
 
-	server->renderer = wlr_renderer_autocreate(server->backend);
+	/* SceneFX FX renderer (drop-in for wlr_renderer_autocreate). */
+	server->renderer = fx_renderer_create(server->backend);
 	if (server->renderer == NULL) {
-		SF_LOGE("failed to create wlr_renderer");
+		SF_LOGE("failed to create fx_renderer");
 		return false;
 	}
 	wlr_renderer_init_wl_display(server->renderer, server->wl_display);
@@ -91,6 +98,7 @@ bool stonefly_server_init(struct stonefly_server *server) {
 
 	server->output_layout = wlr_output_layout_create(server->wl_display);
 	wl_list_init(&server->minimized);
+	wl_list_init(&server->ghosts);
 
 	/* Fractional-scale clients need viewporter for destination sizing. */
 	wlr_viewporter_create(server->wl_display);
@@ -100,9 +108,13 @@ bool stonefly_server_init(struct stonefly_server *server) {
 	server->scene_layout =
 		wlr_scene_attach_output_layout(server->scene, server->output_layout);
 
+	stonefly_layer_setup(server);
+	stonefly_snap_preview_init(server);
+	stonefly_drag_snap_reset(&server->drag_snap);
 	stonefly_output_setup(server);
 	stonefly_xdg_setup(server);
 	stonefly_seat_setup(server);
+	stonefly_scratchpad_init(server);
 	return true;
 }
 
@@ -140,8 +152,20 @@ void stonefly_server_finish(struct stonefly_server *server) {
 	stonefly_ipc_stop(server);
 	wl_display_destroy_clients(server->wl_display);
 
+	stonefly_ghost_finish_all(server);
+	stonefly_snap_preview_finish(server);
+	stonefly_seat_finish(server);
+	stonefly_scratchpad_finish(server);
+	stonefly_layer_finish(server);
+
 	wl_list_remove(&server->new_xdg_toplevel.link);
 	wl_list_remove(&server->new_xdg_popup.link);
+	if (server->xdg_activation != NULL) {
+		wl_list_remove(&server->request_activate.link);
+	}
+	if (server->system_bell != NULL) {
+		wl_list_remove(&server->system_bell_ring.link);
+	}
 
 	wl_list_remove(&server->cursor_motion.link);
 	wl_list_remove(&server->cursor_motion_absolute.link);
@@ -151,6 +175,7 @@ void stonefly_server_finish(struct stonefly_server *server) {
 
 	wl_list_remove(&server->new_input.link);
 	wl_list_remove(&server->request_cursor.link);
+	wl_list_remove(&server->request_set_cursor_shape.link);
 	wl_list_remove(&server->pointer_focus_change.link);
 	wl_list_remove(&server->request_set_selection.link);
 

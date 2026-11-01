@@ -3,12 +3,16 @@
 #include <stdlib.h>
 #include <time.h>
 #include <wlr/backend.h>
+#include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
-#include <wlr/types/wlr_scene.h>
+#include <scenefx/types/wlr_scene.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 
+#include "anim/anim.h"
 #include "config/hardcoded.h"
+#include "decor/decor.h"
+#include "layer/layer.h"
 #include "output/output.h"
 
 static void output_frame(struct wl_listener *listener, void *data) {
@@ -21,11 +25,14 @@ static void output_frame(struct wl_listener *listener, void *data) {
 	struct wlr_scene_output *scene_output = wlr_scene_get_scene_output(
 		scene, output->wlr_output);
 
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	/* Advance slides before commit so this frame shows the new pose. */
+	stonefly_anim_tick(output->server, &now);
+
 	/* Render the scene if needed and commit the output */
 	wlr_scene_output_commit(scene_output, NULL);
 
-	struct timespec now;
-	clock_gettime(CLOCK_MONOTONIC, &now);
 	wlr_scene_output_send_frame_done(scene_output, &now);
 }
 
@@ -36,12 +43,22 @@ static void output_request_state(struct wl_listener *listener, void *data) {
 	struct stonefly_output *output = wl_container_of(listener, output, request_state);
 	const struct wlr_output_event_request_state *event = data;
 	wlr_output_commit_state(output->wlr_output, event->state);
+	stonefly_layer_arrange_output(output);
+	stonefly_decor_update_blur_size(output->server);
 }
 
 static void output_destroy(struct wl_listener *listener, void *data) {
 	(void)data;
 	struct stonefly_output *output = wl_container_of(listener, output, destroy);
+	struct stonefly_layer_surface *layer, *tmp;
 
+	for (int i = 0; i <= ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY; i++) {
+		wl_list_for_each_safe(layer, tmp, &output->layers[i], link) {
+			wlr_layer_surface_v1_destroy(layer->layer_surface);
+		}
+	}
+
+	output->wlr_output->data = NULL;
 	wl_list_remove(&output->frame.link);
 	wl_list_remove(&output->request_state.link);
 	wl_list_remove(&output->destroy.link);
@@ -86,6 +103,10 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	struct stonefly_output *output = calloc(1, sizeof(*output));
 	output->wlr_output = wlr_output;
 	output->server = server;
+	wlr_output->data = output;
+	for (int i = 0; i <= ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY; i++) {
+		wl_list_init(&output->layers[i]);
+	}
 
 	/* Sets up a listener for the frame event. */
 	output->frame.notify = output_frame;
@@ -114,6 +135,9 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 		wlr_output);
 	struct wlr_scene_output *scene_output = wlr_scene_output_create(server->scene, wlr_output);
 	wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
+
+	stonefly_layer_arrange_output(output);
+	stonefly_decor_update_blur_size(server);
 }
 
 

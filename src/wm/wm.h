@@ -6,8 +6,14 @@
 #include "config/hardcoded.h"
 #include "xdg/xdg.h"
 
+struct stonefly_output;
+
 void stonefly_focus_toplevel(struct stonefly_toplevel *toplevel);
 struct stonefly_toplevel *stonefly_focused_toplevel(struct stonefly_server *server);
+
+/* Focus the top of the stacking list (most recently focused visible),
+ * or clear keyboard focus when none remain. Peeble Focus(nil) equivalent. */
+void stonefly_focus_top(struct stonefly_server *server);
 
 /* Layout-box in output-layout coordinates (scene position + surface size). */
 void stonefly_toplevel_layout_geom(struct stonefly_toplevel *toplevel,
@@ -16,13 +22,45 @@ void stonefly_toplevel_layout_geom(struct stonefly_toplevel *toplevel,
 /* Restore floating geometry saved before maximize/snap. */
 void stonefly_toplevel_restore_saved(struct stonefly_toplevel *toplevel);
 
+/* Usable output box for a toplevel (layout coords, exclusive zones applied). */
+bool stonefly_toplevel_output_box(struct stonefly_toplevel *toplevel,
+		struct wlr_box *box);
+
+/* Re-apply max/snap and EnsureOnScreen floaters after exclusive-zone change. */
+void stonefly_wm_relayout_output(struct stonefly_output *output);
+
+/* Pull a floating toplevel into the gap-inset usable area (gap-max if oversized). */
+void stonefly_toplevel_ensure_on_screen(struct stonefly_toplevel *toplevel);
+
+/* Inset box by STONEFLY_GAP_SIZE on every side (clamped). */
+void stonefly_box_inset_gap(struct wlr_box *box);
+
 void stonefly_toplevel_set_max_edges(struct stonefly_toplevel *toplevel, bool want);
 void stonefly_toplevel_toggle_max_edges(struct stonefly_toplevel *toplevel);
+void stonefly_toplevel_set_max_gaps(struct stonefly_toplevel *toplevel, bool want);
+void stonefly_toplevel_toggle_max_gaps(struct stonefly_toplevel *toplevel);
 void stonefly_toplevel_snap(struct stonefly_toplevel *toplevel, enum stonefly_snap edge);
+/* Half-snap into an explicit usable box (drag release uses pointer head). */
+void stonefly_toplevel_snap_in(struct stonefly_toplevel *toplevel,
+		enum stonefly_snap edge, const struct wlr_box *usable);
+/* Peeble snapBorderBox geometry (layout coords). */
+struct wlr_box stonefly_wm_snap_box(enum stonefly_snap edge,
+		const struct wlr_box *usable);
+/* Remember floating geom as PreSnap if none is stored yet. */
+void stonefly_toplevel_capture_geom(struct stonefly_toplevel *toplevel,
+		const struct wlr_box *box);
+/* Apply saved size at (x,y) without clearing has_saved_geom (PrepareDrag). */
+void stonefly_toplevel_apply_saved_at(struct stonefly_toplevel *toplevel,
+		int x, int y);
 void stonefly_toplevel_unsnap(struct stonefly_toplevel *toplevel);
 void stonefly_toplevel_minimize(struct stonefly_toplevel *toplevel);
 void stonefly_toplevel_unminimize(struct stonefly_toplevel *toplevel);
 
-void stonefly_run_action(struct stonefly_server *server, enum stonefly_action action);
+/* Peeble-style cascade origin for a newly mapped floating toplevel. */
+void stonefly_toplevel_place_cascade(struct stonefly_toplevel *toplevel);
+
+/* cmd is used when action == STONEFLY_ACTION_EXEC; pass NULL otherwise. */
+void stonefly_run_action(struct stonefly_server *server,
+		enum stonefly_action action, const char *cmd);
 
 #endif

@@ -9,6 +9,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <unistd.h>
 #include <wlr/util/log.h>
 
 #include "util/json.h"
@@ -170,6 +171,31 @@ static char *log_dir_path(void) {
 	return dir;
 }
 
+/*
+ * Keep only current + previous session on disk:
+ *   wm.log → wm.last.json (replacing any older last), then open wm.log truncated.
+ */
+static void rotate_session_log(const char *dir) {
+	char cur[512];
+	char last[512];
+	int ncur = snprintf(cur, sizeof(cur), "%s/wm.log", dir);
+	int nlast = snprintf(last, sizeof(last), "%s/wm.last.json", dir);
+	if (ncur < 0 || (size_t)ncur >= sizeof(cur) ||
+			nlast < 0 || (size_t)nlast >= sizeof(last)) {
+		return;
+	}
+
+	struct stat st;
+	if (stat(cur, &st) != 0) {
+		return; /* no previous session file */
+	}
+	unlink(last); /* ignore ENOENT */
+	if (rename(cur, last) != 0) {
+		/* Fall through: fopen("w") still truncates a stuck wm.log. */
+		return;
+	}
+}
+
 void sf_log_init(enum sf_log_level min_level) {
 	g_level = min_level;
 	g_file = NULL;
@@ -181,6 +207,8 @@ void sf_log_init(enum sf_log_level min_level) {
 		SF_LOGW("cannot create log dir, logging to stderr only",
 			sf_str("dir", dir), sf_str("err", strerror(errno)));
 	} else {
+		rotate_session_log(dir);
+
 		size_t n = strlen(dir) + sizeof("/wm.log");
 		char *path = malloc(n);
 		if (path == NULL) {
@@ -188,7 +216,8 @@ void sf_log_init(enum sf_log_level min_level) {
 				sf_str("dir", dir));
 		} else {
 			snprintf(path, n, "%s/wm.log", dir);
-			g_file = fopen(path, "a");
+			/* Truncate: fresh session after rotate moved the old file. */
+			g_file = fopen(path, "w");
 			if (g_file == NULL) {
 				SF_LOGW("cannot open log file, logging to stderr only",
 					sf_str("path", path), sf_str("err", strerror(errno)));

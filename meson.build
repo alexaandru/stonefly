@@ -10,6 +10,8 @@ project(
   ],
 )
 
+# SceneFX before wlroots so wlr_scene_* comes from the FX scene.
+scenefx = dependency('scenefx-0.5', version: '>=0.5.0')
 wlroots = dependency('wlroots-0.20', version: '>=0.20.0')
 wayland_server = dependency('wayland-server')
 xkbcommon = dependency('xkbcommon')
@@ -20,4 +22,5 @@ add_project_arguments(
   language: 'c',
 )
 
+subdir('protocol')
 subdir('src')

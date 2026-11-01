@@ -69,7 +69,8 @@ size_t stonefly_windows_collect(struct stonefly_server *server,
 		info->maximized_to_edges = toplevel->maximized_edges;
 		info->minimized = toplevel->minimized;
 		info->snapped = toplevel->snapped != STONEFLY_SNAP_NONE;
-		info->floating = !info->maximized_to_edges && !info->snapped;
+		info->floating = !info->maximized_to_edges &&
+			!toplevel->maximized_gaps && !info->snapped;
 		copy_str(info->snap_dir, sizeof(info->snap_dir),
 			snap_dir_name(toplevel->snapped));
 	}

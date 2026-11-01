@@ -11,6 +11,9 @@
  * Each record is one JSON object on stderr and ~/.var/log/stonefly/wm.log:
  *   {"time":"...","level":"INFO","msg":"...","display":"wayland-1"}
  *
+ * On start, any existing wm.log is renamed to wm.last.json (previous
+ * session only) and wm.log is truncated. Never more than current + last.
+ *
  * wlroots messages share the same sink via wlr_log_init.
  *
  * Usage:

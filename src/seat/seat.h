@@ -17,11 +17,15 @@ struct stonefly_keyboard {
 };
 
 void stonefly_seat_setup(struct stonefly_server *server);
+void stonefly_seat_finish(struct stonefly_server *server);
 
 struct stonefly_toplevel *stonefly_desktop_toplevel_at(
 		struct stonefly_server *server, double lx, double ly,
 		struct wlr_surface **surface, double *sx, double *sy);
 
 void stonefly_reset_cursor_mode(struct stonefly_server *server);
+
+/* Cancel an armed Super tap (combination chord or Super+click). */
+void stonefly_tap_disarm(struct stonefly_server *server);
 
 #endif

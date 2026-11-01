@@ -1,14 +1,21 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include <errno.h>
+#include <linux/input-event-codes.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+#include <wayland-server-core.h>
 #include <wlr/backend.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
+#include <wlr/types/wlr_cursor_shape_v1.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_input_device.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_pointer.h>
-#include <wlr/types/wlr_scene.h>
+#include <scenefx/types/wlr_scene.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/box.h>
@@ -16,9 +23,118 @@
 #include <xkbcommon/xkbcommon.h>
 
 #include "config/hardcoded.h"
+#include "log/log.h"
 #include "seat/seat.h"
+#include "wm/drag_snap.h"
+#include "wm/snap_preview.h"
 #include "wm/wm.h"
 #include "xdg/xdg.h"
+
+static int64_t timespec_ms_since(const struct timespec *then) {
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	return (int64_t)(now.tv_sec - then->tv_sec) * 1000 +
+		(now.tv_nsec - then->tv_nsec) / 1000000;
+}
+
+static const struct stonefly_tapbind *tapbind_for_sym(xkb_keysym_t sym) {
+	for (size_t i = 0; i < sizeof(stonefly_tapbinds) / sizeof(stonefly_tapbinds[0]); i++) {
+		const struct stonefly_tapbind *b = &stonefly_tapbinds[i];
+		if (sym == b->sym || (b->sym_alt != 0 && sym == b->sym_alt)) {
+			return b;
+		}
+	}
+	return NULL;
+}
+
+void stonefly_tap_disarm(struct stonefly_server *server) {
+	server->tap.armed = false;
+}
+
+static void tap_clear_timer(struct stonefly_server *server) {
+	if (server->tap.timer != NULL) {
+		wl_event_source_remove(server->tap.timer);
+		server->tap.timer = NULL;
+	}
+}
+
+static int tap_double_timer(void *data) {
+	struct stonefly_server *server = data;
+	server->tap.timer = NULL;
+	if (server->tap.taps != 1) {
+		return 0;
+	}
+	enum stonefly_action single = (enum stonefly_action)server->tap.single;
+	server->tap.taps = 0;
+	if (single != STONEFLY_ACTION_NONE) {
+		stonefly_run_action(server, single, NULL);
+	}
+	return 0;
+}
+
+static void tap_finish(struct stonefly_server *server, enum stonefly_action action) {
+	tap_clear_timer(server);
+	server->tap.taps = 0;
+	if (action != STONEFLY_ACTION_NONE) {
+		stonefly_run_action(server, action, NULL);
+	}
+}
+
+static void tap_on_press(struct stonefly_server *server,
+		const struct stonefly_tapbind *bind) {
+	server->tap.armed = true;
+	clock_gettime(CLOCK_MONOTONIC, &server->tap.since);
+	server->tap.single = bind->single;
+	server->tap.double_tap = bind->double_tap;
+}
+
+static void tap_on_release(struct stonefly_server *server) {
+	bool armed = server->tap.armed;
+	server->tap.armed = false;
+	if (!armed) {
+		return;
+	}
+	if (timespec_ms_since(&server->tap.since) > STONEFLY_TAP_MAX_HOLD_MS) {
+		return;
+	}
+
+	if (server->tap.double_tap == STONEFLY_ACTION_NONE) {
+		tap_finish(server, (enum stonefly_action)server->tap.single);
+		return;
+	}
+
+	server->tap.taps++;
+	if (server->tap.taps >= 2) {
+		tap_finish(server, (enum stonefly_action)server->tap.double_tap);
+		return;
+	}
+
+	/* First tap: wait for a second before firing single. */
+	tap_clear_timer(server);
+	struct wl_event_loop *loop =
+		wl_display_get_event_loop(server->wl_display);
+	server->tap.timer = wl_event_loop_add_timer(loop, tap_double_timer, server);
+	wl_event_source_timer_update(server->tap.timer, STONEFLY_DOUBLE_TAP_GAP_MS);
+}
+
+/* Peeble setupCursorTheme: honor XCURSOR_* so desktop and clients match. */
+static uint32_t cursor_size_from_env(void) {
+	const char *s = getenv("XCURSOR_SIZE");
+	if (s == NULL || s[0] == '\0') {
+		return STONEFLY_CURSOR_SIZE_DEFAULT;
+	}
+	char *end = NULL;
+	errno = 0;
+	long v = strtol(s, &end, 10);
+	if (errno != 0 || end == s || *end != '\0' || v <= 0 ||
+			v > (long)UINT32_MAX) {
+		SF_LOGW("invalid XCURSOR_SIZE, using default",
+			sf_str("value", s),
+			sf_i64("size", STONEFLY_CURSOR_SIZE_DEFAULT));
+		return STONEFLY_CURSOR_SIZE_DEFAULT;
+	}
+	return (uint32_t)v;
+}
 
 static void keyboard_handle_modifiers(
 		struct wl_listener *listener, void *data) {
@@ -50,7 +166,8 @@ static bool handle_keybinding(struct stonefly_server *server,
 		if (sym != bind->sym && (bind->sym_alt == 0 || sym != bind->sym_alt)) {
 			continue;
 		}
-		stonefly_run_action(server, bind->action);
+		stonefly_tap_disarm(server);
+		stonefly_run_action(server, bind->action, bind->cmd);
 		return true;
 	}
 	return false;
@@ -74,9 +191,28 @@ static void keyboard_handle_key(
 
 	bool handled = false;
 	uint32_t modifiers = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
+
 	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
 		for (int i = 0; i < nsyms; i++) {
+			const struct stonefly_tapbind *tap = tapbind_for_sym(syms[i]);
+			if (tap != NULL) {
+				tap_on_press(server, tap);
+				handled = true;
+				break;
+			}
+			/* Any other key while a tap is armed → combination, not a tap. */
+			if (server->tap.armed) {
+				stonefly_tap_disarm(server);
+			}
 			if (handle_keybinding(server, modifiers, syms[i])) {
+				handled = true;
+				break;
+			}
+		}
+	} else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED) {
+		for (int i = 0; i < nsyms; i++) {
+			if (tapbind_for_sym(syms[i]) != NULL) {
+				tap_on_release(server);
 				handled = true;
 				break;
 			}
@@ -193,6 +329,24 @@ static void seat_request_cursor(struct wl_listener *listener, void *data) {
 	}
 }
 
+/* Clients that speak wp_cursor_shape_v1 ask for a named shape; we render it
+ * from the compositor xcursor theme so theme and size match the desktop. */
+static void seat_request_set_cursor_shape(
+		struct wl_listener *listener, void *data) {
+	struct stonefly_server *server = wl_container_of(
+			listener, server, request_set_cursor_shape);
+	struct wlr_cursor_shape_manager_v1_request_set_shape_event *event = data;
+
+	if (server->cursor_mode != STONEFLY_CURSOR_PASSTHROUGH) {
+		return;
+	}
+	if (event->seat_client != server->seat->pointer_state.focused_client) {
+		return;
+	}
+	wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr,
+			wlr_cursor_shape_v1_name(event->shape));
+}
+
 static void seat_pointer_focus_change(struct wl_listener *listener, void *data) {
 	struct stonefly_server *server = wl_container_of(
 			listener, server, pointer_focus_change);
@@ -235,27 +389,35 @@ struct stonefly_toplevel *stonefly_desktop_toplevel_at(
 	}
 
 	*surface = scene_surface->surface;
-	/* Find the node corresponding to the stonefly_toplevel at the root of this
-	 * surface tree, it is the only one for which we set the data field. */
+	/* Walk up to a scene node with data. Layer surfaces also stash data;
+	 * only return when the kind tag is an xdg toplevel. */
 	struct wlr_scene_tree *tree = node->parent;
 	while (tree != NULL && tree->node.data == NULL) {
 		tree = tree->node.parent;
 	}
-	return tree != NULL ? tree->node.data : NULL;
+	if (tree == NULL || tree->node.data == NULL) {
+		return NULL;
+	}
+	enum stonefly_node_kind kind = *(enum stonefly_node_kind *)tree->node.data;
+	if (kind != STONEFLY_NODE_TOPLEVEL) {
+		return NULL;
+	}
+	return tree->node.data;
 }
 
 void stonefly_reset_cursor_mode(struct stonefly_server *server) {
 	/* Reset the cursor mode to passthrough. */
+	if (server->drag_snap.active) {
+		stonefly_snap_preview_hide(server);
+		stonefly_drag_snap_reset(&server->drag_snap);
+	}
 	server->cursor_mode = STONEFLY_CURSOR_PASSTHROUGH;
 	server->grabbed_toplevel = NULL;
 }
 
 static void process_cursor_move(struct stonefly_server *server) {
-	/* Move the grabbed toplevel to the new position. */
-	struct stonefly_toplevel *toplevel = server->grabbed_toplevel;
-	wlr_scene_node_set_position(&toplevel->scene_tree->node,
-		server->cursor->x - server->grab_x,
-		server->cursor->y - server->grab_y);
+	/* Magnetic resistance + snap preview (peeble Move.Render). */
+	stonefly_drag_snap_motion(server);
 }
 
 static void process_cursor_resize(struct stonefly_server *server) {
@@ -301,8 +463,11 @@ static void process_cursor_resize(struct stonefly_server *server) {
 	}
 
 	struct wlr_box *geo_box = &toplevel->xdg_toplevel->base->geometry;
-	wlr_scene_node_set_position(&toplevel->scene_tree->node,
-		new_left - geo_box->x, new_top - geo_box->y);
+	int x = new_left - geo_box->x;
+	int y = new_top - geo_box->y;
+	wlr_scene_node_set_position(&toplevel->scene_tree->node, x, y);
+	toplevel->resting_x = x;
+	toplevel->resting_y = y;
 
 	int new_width = new_right - new_left;
 	int new_height = new_bottom - new_top;
@@ -325,10 +490,10 @@ static void process_cursor_motion(struct stonefly_server *server, uint32_t time)
 	struct wlr_surface *surface = NULL;
 	struct stonefly_toplevel *toplevel = stonefly_desktop_toplevel_at(server,
 			server->cursor->x, server->cursor->y, &surface, &sx, &sy);
-	if (!toplevel) {
-		/* If there's no toplevel under the cursor, set the cursor image to a
-		 * default. This is what makes the cursor image appear when you move it
-		 * around the screen, not over any toplevels. */
+	(void)toplevel;
+	if (surface == NULL) {
+		/* Empty desktop (or non-surface node): show the theme default.
+		 * Layer-shell surfaces still set surface and may set_cursor. */
 		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "default");
 	}
 	if (surface) {
@@ -384,26 +549,82 @@ static void server_cursor_motion_absolute(
 	process_cursor_motion(server, event->time_msec);
 }
 
+static uint32_t seat_keyboard_mods(struct stonefly_server *server) {
+	struct wlr_keyboard *kb = wlr_seat_get_keyboard(server->seat);
+	if (kb == NULL) {
+		return 0;
+	}
+	return wlr_keyboard_get_modifiers(kb);
+}
+
+/* Resize from the edges nearest the pointer (sway/i3-style). */
+static uint32_t resize_edges_at(struct stonefly_toplevel *toplevel,
+		double lx, double ly) {
+	struct wlr_box geom;
+	stonefly_toplevel_layout_geom(toplevel, &geom);
+	uint32_t edges = 0;
+	if (lx < geom.x + geom.width / 2.0) {
+		edges |= WLR_EDGE_LEFT;
+	} else {
+		edges |= WLR_EDGE_RIGHT;
+	}
+	if (ly < geom.y + geom.height / 2.0) {
+		edges |= WLR_EDGE_TOP;
+	} else {
+		edges |= WLR_EDGE_BOTTOM;
+	}
+	return edges;
+}
+
 static void server_cursor_button(struct wl_listener *listener, void *data) {
 	/* This event is forwarded by the cursor when a pointer emits a button
 	 * event. */
 	struct stonefly_server *server =
 		wl_container_of(listener, server, cursor_button);
 	struct wlr_pointer_button_event *event = data;
-	/* Notify the client with pointer focus that a button press has occurred */
-	wlr_seat_pointer_notify_button(server->seat,
-			event->time_msec, event->button, event->state);
+
 	if (event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
-		/* If you released any buttons, we exit interactive move/resize mode. */
+		bool grabbing = server->cursor_mode != STONEFLY_CURSOR_PASSTHROUGH;
+		if (server->cursor_mode == STONEFLY_CURSOR_MOVE) {
+			stonefly_drag_snap_finish(server);
+		}
 		stonefly_reset_cursor_mode(server);
-	} else {
-		/* Focus that client if the button was _pressed_ */
+		if (!grabbing) {
+			wlr_seat_pointer_notify_button(server->seat,
+				event->time_msec, event->button, event->state);
+		}
+		return;
+	}
+
+	/* Super+LMB move, Super+RMB resize — do not forward the press. */
+	uint32_t mods = seat_keyboard_mods(server) & STONEFLY_MOD_MASK;
+	if (mods == STONEFLY_SUPER &&
+			(event->button == BTN_LEFT || event->button == BTN_RIGHT)) {
+		stonefly_tap_disarm(server);
 		double sx, sy;
 		struct wlr_surface *surface = NULL;
 		struct stonefly_toplevel *toplevel = stonefly_desktop_toplevel_at(server,
-				server->cursor->x, server->cursor->y, &surface, &sx, &sy);
-		stonefly_focus_toplevel(toplevel);
+			server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+		if (toplevel != NULL) {
+			stonefly_focus_toplevel(toplevel);
+			if (event->button == BTN_LEFT) {
+				stonefly_begin_interactive(toplevel, STONEFLY_CURSOR_MOVE, 0);
+			} else {
+				stonefly_begin_interactive(toplevel, STONEFLY_CURSOR_RESIZE,
+					resize_edges_at(toplevel, server->cursor->x,
+						server->cursor->y));
+			}
+			return;
+		}
 	}
+
+	wlr_seat_pointer_notify_button(server->seat,
+		event->time_msec, event->button, event->state);
+	double sx, sy;
+	struct wlr_surface *surface = NULL;
+	struct stonefly_toplevel *toplevel = stonefly_desktop_toplevel_at(server,
+		server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+	stonefly_focus_toplevel(toplevel);
 }
 
 static void server_cursor_axis(struct wl_listener *listener, void *data) {
@@ -434,8 +655,23 @@ static void server_cursor_frame(struct wl_listener *listener, void *data) {
 void stonefly_seat_setup(struct stonefly_server *server) {
 	server->cursor = wlr_cursor_create();
 	wlr_cursor_attach_output_layout(server->cursor, server->output_layout);
-	server->cursor_mgr = wlr_xcursor_manager_create(NULL, 24);
+
+	const char *theme = getenv("XCURSOR_THEME");
+	if (theme != NULL && theme[0] == '\0') {
+		theme = NULL;
+	}
+	uint32_t size = cursor_size_from_env();
+	if (theme != NULL) {
+		/* Keep clients spawned after seat setup on the same size. */
+		char sizebuf[16];
+		snprintf(sizebuf, sizeof(sizebuf), "%u", size);
+		setenv("XCURSOR_SIZE", sizebuf, 1);
+	}
+	server->cursor_mgr = wlr_xcursor_manager_create(theme, size);
 	wlr_xcursor_manager_load(server->cursor_mgr, STONEFLY_OUTPUT_SCALE);
+	SF_LOGI("cursor theme",
+		sf_str("theme", theme != NULL ? theme : ""),
+		sf_i64("size", size));
 
 	server->cursor_mode = STONEFLY_CURSOR_PASSTHROUGH;
 	server->cursor_motion.notify = server_cursor_motion;
@@ -457,10 +693,28 @@ void stonefly_seat_setup(struct stonefly_server *server) {
 	server->request_cursor.notify = seat_request_cursor;
 	wl_signal_add(&server->seat->events.request_set_cursor,
 			&server->request_cursor);
+	/* v2 matches River/peeble; wlroots 0.20 caps at CURSOR_SHAPE_MANAGER_V1_VERSION. */
+	server->cursor_shape_mgr =
+		wlr_cursor_shape_manager_v1_create(server->wl_display, 2);
+	server->request_set_cursor_shape.notify = seat_request_set_cursor_shape;
+	wl_signal_add(&server->cursor_shape_mgr->events.request_set_shape,
+			&server->request_set_cursor_shape);
 	server->pointer_focus_change.notify = seat_pointer_focus_change;
 	wl_signal_add(&server->seat->pointer_state.events.focus_change,
 			&server->pointer_focus_change);
 	server->request_set_selection.notify = seat_request_set_selection;
 	wl_signal_add(&server->seat->events.request_set_selection,
 			&server->request_set_selection);
+
+	server->tap.armed = false;
+	server->tap.taps = 0;
+	server->tap.timer = NULL;
+	server->tap.single = STONEFLY_ACTION_NONE;
+	server->tap.double_tap = STONEFLY_ACTION_NONE;
+}
+
+void stonefly_seat_finish(struct stonefly_server *server) {
+	tap_clear_timer(server);
+	server->tap.armed = false;
+	server->tap.taps = 0;
 }
