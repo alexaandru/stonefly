@@ -44,7 +44,7 @@ void stonefly_decor_ring_bell(struct stonefly_toplevel *toplevel);
  * Call from toplevel destroy — otherwise close leaves a leftover border. */
 void stonefly_decor_finish_toplevel(struct stonefly_toplevel *toplevel);
 
-/* Lock the main toplevel buffer for snapshot effects (ghost / morph). */
+/* Lock the main toplevel buffer for close-ghost snapshot slides. */
 bool stonefly_decor_lock_snapshot(struct stonefly_toplevel *toplevel,
 		struct wlr_buffer **out_locked, int *out_w, int *out_h);
 

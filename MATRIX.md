@@ -65,7 +65,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Scratchpad claim focused | ✅ Super+t | — | ✅ | |
 | Scratchpad omit from Alt-Tab | ✅ | — | ✅ | Super+Tab too |
 | Window menu | ✅ | — | ❌ | |
-| SSD titlebars | ✅ River `use_ssd` | Polish / force-SSD rules 📋 | ❌ | Stonefly draws SceneFX border/blur; clients keep CSD |
+| SSD titlebars | ✅ River `use_ssd` | Polish / force-SSD rules 📋 | 🚧 | `xdg-decoration` advertised, prefers CSD. SceneFX border/blur only; no SSD titlebar paint yet. |
 | Geometry persist across restart | ✅ `windows.json` by river id | Schema / blacklist / MRU polish 📋 | ❌ | |
 | Window rules (app-id/title) | 🚧 center + modal parent | auto-float, size, scratchpad, AOT, force SSD 📋 | ❌ | |
 | Keyboard nudge move/resize | ❌ | 📋 high-value | ❌ | Snap exists; step nudge does not |
@@ -89,7 +89,7 @@ hooks; on stonefly they are owned in-process.
 | Appear / map slide | ✅ `window_effect` + AppearHold hack | Map-hold fork feature 📋 | ✅ | Closest edge, 200ms ease_out; no resting flash needed |
 | Close slide (WM-initiated) | ✅ Super+q etc. | — | ✅ | |
 | Close slide (client Ctrl+W / CSD) | ❌ blocked | Last-frame ghost FORK P1 📋 | ✅ | Ghost buffer slide |
-| Snap / unsnap morph | ✅ `animation("morph")` + window_effect | — | ✅ | SceneFX snapshot: `dest_size` scale + border/shadow lerp (`STONEFLY_MORPH_DURATION_MS`); set_size once to target. Keybind snap + Super+u unsnap. |
+| Snap / unsnap morph | ✅ `animation("morph")` + window_effect | — | ✅ | Live peeble-style: each tick `set_position` + `set_size` (`STONEFLY_MORPH_DURATION_MS`); SceneFX chrome follows commits. Keybind snap + Super+u unsnap. Mid-flight retarget. |
 | Scratchpad / minimize slides | ✅ | — | ✅ | Mid-flight reverse |
 | Vsync-capped animation pacing | ❌ busy manage→render | river#1385 P0 📋 | ✅ | Own scene / frame loop |
 | Fade / scale appear | ❌ | river#1373 + Ideas 📋 | ❌ | Opacity static 0.96, not animated fade |
@@ -124,7 +124,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | SSD / winmenu chrome | ✅ | — | ❌ | |
 | Idle ceremony / lock / DPMS | ✅ | Lock polish Ideas 📋 | ✅ | `ext-session-lock-v1` + `zwlr-output-power-management-v1` (`session/session.c`). Blank retained if lock client dies. Auto-lock / PrepareForSleep are Noctalia-side on top of idle-notify. |
 | Caffeine (idle-inhibit) | ✅ | — | ✅ | `zwp_idle_inhibit_v1` → `ext-idle-notify-v1` inhibit |
-| Night light (gamma) | ✅ | Schedule timer 📋 | ❌ | |
+| Night light (gamma) | ✅ | Schedule timer 📋 | ✅ | `zwlr_gamma_control_v1` + SceneFX `wlr_scene_set_gamma_control_manager_v1` (`server.c`). Schedule stays Noctalia-side. |
 | Power confirm / power menu | 🚧 `confirm_power` | Dedicated power menu 📋 | ❌ | |
 | Control center panel | ❌ | Ideas 📋 | 🌙 | Noctalia-shaped |
 | Hold-modifier cheatsheet | ❌ | Ideas + `modifiers_watch` 📋 | ❌ | |
@@ -162,7 +162,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | wp_cursor_shape_v1 | ✅ | `all_resize` / `dnd_ask` 📋 | ✅ v2 | Named shapes for clients |
 | XCURSOR_THEME / SIZE | ✅ | — | ✅ | |
 | wlr-output-management | ✅ `output()` | — | ❌ | Hardcoded scale; no wdisplays path |
-| ext-data-control clipboard | ✅ | Primary-selection history Ideas 📋 | ❌ | |
+| ext-data-control clipboard | ✅ | Primary-selection history Ideas 📋 | ✅ | `ext-data-control-v1` + legacy `wlr-data-control-v1` + `wp_primary_selection` (`server.c` / seat). |
 | Screenshots (fullscreen/window/region) | ✅ ext-image-copy-capture | Include-cursor polish 📋 | 🌙 / 🚧 | Print binds → noctalia. `ext-image-copy-capture` + toplevel capture source advertised (`src/toplevel/ext_capture.c`) → window-switcher snapshots + `screenshot-window`. No `zwlr_screencopy` / output capture source yet (region/fullscreen still need that on compositors without it). |
 | Screencast / capture_sessions | ✅ bar widget | — | ❌ | |
 | Foreign-toplevel management | 🚧 River read-only; bar uses Focus | Activate relay #1449/#1537 📋 | ✅ | `zwlr_foreign_toplevel_management_v1` v3 (`foreign.c`) + parallel `ext-foreign-toplevel-list-v1` (`ext_capture.c`) for capture handles |
@@ -242,7 +242,7 @@ in-process shell (Noctalia stands in under stonefly).
 | Fullscreen / always-on-top / winmenu / SSD | ✅ fullscreen / ❌ aot / ❌ winmenu / ❌ SSD |
 | Multi-mon send/focus, pointer center | ❌ |
 | Geometry persist, window rules, set_tiled | ❌ |
-| Screenshots, clipboard, idle/lock/gamma | 🌙 screenshots via noctalia / ✅ idle+lock+DPMS / ❌ clipboard+gamma |
+| Screenshots, clipboard, idle/lock/gamma | 🌙 screenshots via noctalia / ✅ idle+lock+DPMS / ✅ clipboard+gamma (data-control + gamma) |
 | Xwayland | ❌ |
 | Real config file | ❌ |
 | Workspaces / tiling layouts | ❌ both |
@@ -271,11 +271,11 @@ work on these (launcher centering needs xdg-output under fractional scale).
 | P1 | `zwlr_screencopy` / `ext-image-copy-capture` | 🚧 `ext-image-copy-capture` ✅ (window path); `zwlr_screencopy` / output capture source ❌ (region/fullscreen) |
 | P1 | `ext-idle-notify` + idle-inhibit | ✅ Idle dim / caffeine / lock triggers (`session/session.c`) |
 | P1 | `zwlr-output-power-management-v1` | ✅ DPMS on/off for idle / lock (`session/session.c`) |
-| P2 | `zwlr_gamma_control` / color-management | Night light |
+| P2 | `zwlr_gamma_control` / color-management | ✅ Gamma LUT (`server.c` + SceneFX); full color-mgmt still open |
 | P2 | `zxdg_output` | ✅ Logical output size/pos (`server.c`); Noctalia panel/OSD centering |
 | P2 | `zwlr_output_management` | Display settings / wdisplays (scale still hardcoded) |
-| P2 | `ext-data-control` / wlr-data-control | Clipboard history |
-| P3 | xdg-decoration | SSD titlebars (optional) |
+| P2 | `ext-data-control` / wlr-data-control | ✅ Clipboard history (`server.c`); primary-selection wired |
+| P3 | xdg-decoration | ✅ Manager advertised; always prefers **client-side** (no SSD painting yet) |
 
 Also high leverage (not a Wayland protocol): richer **stonefly IPC**
 (focus/close by id, outputs, workspaces) so Noctalia need not grow a

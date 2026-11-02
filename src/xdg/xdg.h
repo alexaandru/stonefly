@@ -83,22 +83,15 @@ struct stonefly_toplevel {
 	bool anim_hide;
 	struct {
 		bool active;
-		bool morph; /* false = pos-only slide; true = SceneFX snapshot morph */
+		bool morph; /* false = pos-only slide; true = live peeble-style morph */
 		struct timespec start;
 		int64_t dur_ns;
 		int from_x, from_y;
 		int to_x, to_y;
 		int from_w, from_h;
 		int to_w, to_h;
-		/* Snapshot overlay: scale locked buffer via dest_size + border/shadow. */
-		struct wlr_scene_tree *morph_tree;
-		struct wlr_scene_buffer *morph_buffer;
-		struct wlr_scene_rect *morph_border;
-		struct wlr_scene_shadow *morph_shadow;
-		struct wlr_buffer *morph_locked;
-		int capture_w, capture_h; /* geom size when buffer was locked */
-		int buf_w, buf_h;
-		int geo_x, geo_y;
+		/* Last size proposed this morph (skip redundant set_size). */
+		int prop_w, prop_h;
 		void (*on_done)(struct stonefly_toplevel *);
 	} anim;
 };

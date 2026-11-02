@@ -11,8 +11,12 @@
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/types/wlr_compositor.h>
+#include <wlr/types/wlr_data_control_v1.h>
 #include <wlr/types/wlr_data_device.h>
+#include <wlr/types/wlr_ext_data_control_v1.h>
 #include <wlr/types/wlr_fractional_scale_v1.h>
+#include <wlr/types/wlr_gamma_control_v1.h>
+#include <wlr/types/wlr_primary_selection_v1.h>
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_viewporter.h>
 #include <wlr/types/wlr_cursor.h>
@@ -100,6 +104,17 @@ bool stonefly_server_init(struct stonefly_server *server) {
 	wlr_compositor_create(server->wl_display, 5, server->renderer);
 	wlr_subcompositor_create(server->wl_display);
 	wlr_data_device_manager_create(server->wl_display);
+	/* Middle-click paste + data-control primary path. */
+	wlr_primary_selection_v1_device_manager_create(server->wl_display);
+
+	/*
+	 * Clipboard history (Noctalia / cliphist): ext-data-control preferred;
+	 * keep legacy wlr-data-control for older clients while wlroots ships it.
+	 */
+	server->ext_data_control_mgr =
+		wlr_ext_data_control_manager_v1_create(server->wl_display, 1);
+	server->wlr_data_control_mgr =
+		wlr_data_control_manager_v1_create(server->wl_display);
 
 	server->output_layout = wlr_output_layout_create(server->wl_display);
 	wl_list_init(&server->minimized);
@@ -119,6 +134,14 @@ bool stonefly_server_init(struct stonefly_server *server) {
 	server->scene = wlr_scene_create();
 	server->scene_layout =
 		wlr_scene_attach_output_layout(server->scene, server->output_layout);
+
+	/* Night light: SceneFX applies LUTs on output commit. */
+	server->gamma_control_mgr =
+		wlr_gamma_control_manager_v1_create(server->wl_display);
+	if (server->gamma_control_mgr != NULL) {
+		wlr_scene_set_gamma_control_manager_v1(server->scene,
+			server->gamma_control_mgr);
+	}
 
 	stonefly_layer_setup(server);
 	/* After layers so layers.lock sits above overlay. */
@@ -197,6 +220,10 @@ void stonefly_server_finish(struct stonefly_server *server) {
 	wl_list_remove(&server->request_set_cursor_shape.link);
 	wl_list_remove(&server->pointer_focus_change.link);
 	wl_list_remove(&server->request_set_selection.link);
+	wl_list_remove(&server->request_set_primary_selection.link);
+	if (server->xdg_decoration_mgr != NULL) {
+		wl_list_remove(&server->new_xdg_decoration.link);
+	}
 
 	wl_list_remove(&server->new_output.link);
 

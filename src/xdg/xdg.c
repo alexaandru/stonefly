@@ -5,6 +5,7 @@
 #include <wlr/types/wlr_cursor.h>
 #include <scenefx/types/wlr_scene.h>
 #include <wlr/types/wlr_xdg_activation_v1.h>
+#include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/types/wlr_xdg_system_bell_v1.h>
 #include <wlr/util/box.h>
@@ -441,6 +442,51 @@ static void server_new_xdg_popup(struct wl_listener *listener, void *data) {
 }
 
 
+/* Prefer CSD until stonefly paints real SSD titlebars. */
+struct stonefly_xdg_decoration {
+	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco;
+	struct wl_listener request_mode;
+	struct wl_listener destroy;
+};
+
+static void xdg_decoration_request_mode(struct wl_listener *listener,
+		void *data) {
+	(void)data;
+	struct stonefly_xdg_decoration *deco =
+		wl_container_of(listener, deco, request_mode);
+	wlr_xdg_toplevel_decoration_v1_set_mode(deco->wlr_deco,
+		WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
+}
+
+static void xdg_decoration_destroy(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct stonefly_xdg_decoration *deco =
+		wl_container_of(listener, deco, destroy);
+	wl_list_remove(&deco->request_mode.link);
+	wl_list_remove(&deco->destroy.link);
+	free(deco);
+}
+
+static void server_new_xdg_decoration(struct wl_listener *listener, void *data) {
+	struct stonefly_server *server =
+		wl_container_of(listener, server, new_xdg_decoration);
+	(void)server;
+	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco = data;
+
+	struct stonefly_xdg_decoration *deco = calloc(1, sizeof(*deco));
+	if (deco == NULL) {
+		return;
+	}
+	deco->wlr_deco = wlr_deco;
+	deco->request_mode.notify = xdg_decoration_request_mode;
+	wl_signal_add(&wlr_deco->events.request_mode, &deco->request_mode);
+	deco->destroy.notify = xdg_decoration_destroy;
+	wl_signal_add(&wlr_deco->events.destroy, &deco->destroy);
+
+	wlr_xdg_toplevel_decoration_v1_set_mode(wlr_deco,
+		WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
+}
+
 void stonefly_xdg_setup(struct stonefly_server *server) {
 	wl_list_init(&server->toplevels);
 	server->xdg_shell = wlr_xdg_shell_create(server->wl_display, 3);
@@ -463,5 +509,15 @@ void stonefly_xdg_setup(struct stonefly_server *server) {
 		server->system_bell_ring.notify = system_bell_ring;
 		wl_signal_add(&server->system_bell->events.ring,
 			&server->system_bell_ring);
+	}
+
+	/* MATRIX §9 P3 — advertise decoration; always prefer client-side for now. */
+	/* wlroots 0.20: create(display) only (no version arg). */
+	server->xdg_decoration_mgr =
+		wlr_xdg_decoration_manager_v1_create(server->wl_display);
+	if (server->xdg_decoration_mgr != NULL) {
+		server->new_xdg_decoration.notify = server_new_xdg_decoration;
+		wl_signal_add(&server->xdg_decoration_mgr->events.new_toplevel_decoration,
+			&server->new_xdg_decoration);
 	}
 }

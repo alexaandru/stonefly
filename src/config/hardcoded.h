@@ -28,8 +28,8 @@
 #define STONEFLY_SLIDE_DIR_CLOSEST 1
 
 /*
- * Geometry morph (spirit of peeble animation("morph") for snap/unsnap).
- * SceneFX snapshot: locked buffer + dest_size scale, border/shadow lerp.
+ * Geometry morph (peeble animation("morph") for snap/unsnap).
+ * Live window: each tick set_position + set_size; chrome follows commits.
  * Duration 0 disables (instant apply_box).
  */
 #define STONEFLY_MORPH_DURATION_MS 200

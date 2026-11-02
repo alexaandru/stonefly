@@ -120,7 +120,7 @@ void stonefly_toplevel_restore_saved(struct stonefly_toplevel *toplevel) {
 	toplevel->fullscreen = false;
 	bool was_snapped = toplevel->snapped != STONEFLY_SNAP_NONE;
 	toplevel->snapped = STONEFLY_SNAP_NONE;
-	/* Morph only for snap/unsnap-style restores; max/fullscreen stay instant. */
+	/* Live morph only for snap/unsnap restores; max/fullscreen stay instant. */
 	if (was_snapped && from.width > 0 && from.height > 0 &&
 			stonefly_anim_start_morph(toplevel, &from, &to)) {
 		return;
@@ -380,7 +380,7 @@ void stonefly_toplevel_snap_in(struct stonefly_toplevel *toplevel,
 	struct wlr_box from;
 	stonefly_toplevel_layout_geom(toplevel, &from);
 	toplevel->snapped = edge;
-	/* start_morph retargets from the overlay when a morph is already active. */
+	/* start_morph retargets from the current live rect when already morphing. */
 	if (from.width > 0 && from.height > 0 &&
 			stonefly_anim_start_morph(toplevel, &from, &box)) {
 		return;
