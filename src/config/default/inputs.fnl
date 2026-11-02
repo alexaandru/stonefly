@@ -1,2 +1,1 @@
-;; Input device policy — stub until stonefly input API exists.
-;; Reorder requires in init.lua if this ever depends on options/binds.
+;; Input-device policy — stub until an input API exists.

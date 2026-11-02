@@ -37,7 +37,7 @@ src/
   util/json.*        # fixed-buffer JSON writer + scanner
   log/               # structured JSON logging (peeble slog shape)
   ipc/               # unix-socket IPC (windows/layers/outputs/config/…)
-  config/            # LuaJIT + Fennel-first defaults (see docs/CONFIG.md)
+  config/            # LuaJIT + Fennel-first defaults (MATRIX §10)
   server/            # display, backend, scene, loop
   output/            # outputs + scale
   layer/             # wlr-layer-shell scene + exclusive zones
@@ -47,7 +47,7 @@ src/
 dist/testing/stonefly/APKBUILD  # Alpine aport (repo name = testing)
 ```
 
-Day-zero binds and scale live in `src/config/hardcoded.h`.
+Day-zero policy lives in the embedded Fennel-first default (`src/config/default/`); open gaps in [`MATRIX.md`](MATRIX.md) §10.
 Layer-shell (`wlr-layer-shell-unstable-v1` v5) is implemented for
 external clients (bars, OSD, wallpapers): exclusive zones shrink the
 usable area used by maximize/snap/cascade.
@@ -136,7 +136,7 @@ Wire format matches peeble: one JSON object per line, e.g. `{"cmd":"windows"}`,
 | **Super+e** | spawn text editor |
 | **Alt+Enter** | spawn Ghostty quick terminal |
 
-Output scale is hardcoded to **1.5** with `wp_fractional_scale_v1` + viewporter.
+Default output scale is **1.5** (`stonefly.opt.scale`) with `wp_fractional_scale_v1` + viewporter.
 
 ## Notes
 
@@ -163,6 +163,6 @@ Still open relative to the old River-fork brief / peeble feature set:
 | Xwayland | peeble/river day-to-day | Not implemented |
 | Screenshots / screencopy / image-copy-capture | peeble | ✅ `zwlr_screencopy` + ext-image-copy-capture; Print binds → noctalia 🌙 |
 | Session lock / idle / DPMS | Noctalia auto-lock / suspend | ✅ `ext-session-lock` + idle-notify/inhibit + output-power (`session/session.c`) |
-| Gamma / output-mgmt / clipboard | Noctalia shell needs | Not implemented — see `MATRIX.md` §9 |
-| Real config (vs `hardcoded.h`) | — | Spec: [`docs/CONFIG.md`](docs/CONFIG.md) (LuaJIT + fennel-shim); not coded yet |
+| Gamma / output-mgmt / clipboard | Noctalia shell needs | ✅ gamma + clipboard (`server.c`); ❌ wlr-output-management — see `MATRIX.md` §9 |
+| Real config (vs `hardcoded.h`) | — | ✅ LuaJIT + Fennel-first; `stonefly --write-config` / `stonefly config`; open items in MATRIX §10 |
 | In-process bar/OSD/media | peeble; noctalia covers bar/launcher/notifier | Deferred to shell |

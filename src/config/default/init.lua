@@ -1,4 +1,5 @@
--- Stonefly default bootstrap (Fennel-first). Policy lives in the *.fnl modules.
+-- Default bootstrap (Fennel-first). Policy lives in the *.fnl modules below.
+-- Reorder requires here if modules ever depend on each other.
 stonefly.packadd("fennel-shim")
 require("options")
 require("binds")

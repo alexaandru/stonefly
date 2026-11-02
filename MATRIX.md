@@ -32,7 +32,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Language | Go + Risor config | C23 (C11 fallback), Meson |
 | Scene / FX | River draws; peeble proposes geometry | SceneFX 0.5 scene graph |
 | Chrome | In-process bar / OSD / launcher / wallpaper | Layer-shell clients; day-zero → **Noctalia** |
-| Config | `config.risor` + live reload | `src/config/hardcoded.h` only |
+| Config | `config.risor` + live reload | LuaJIT + Fennel-first defaults (§10); `hardcoded.h` is a shim |
 | Packaging | Go binary `~/.local/share/go/bin/peeble` | Alpine APK via `make apk` |
 
 ---
@@ -75,7 +75,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Multi-monitor focus / send | ✅ `focus_monitor` / `send_to_monitor` | — | ❌ | |
 | Pointer center / cursor-follows-focus | ✅ | — | ❌ | |
 | Picture-in-picture float | ❌ | Ideas 📋 | ❌ | |
-| Dim inactive / spotlight | ❌ | Ideas 📋 (needs opacity) | 🚧 | Flat opacity 0.96 (`STONEFLY_CLIENT_OPACITY`); no dim-unfocused policy |
+| Dim inactive / spotlight | ❌ | Ideas 📋 (needs opacity) | 🚧 | Flat opacity 0.96 (`stonefly.opt.client_opacity`); no dim-unfocused policy |
 
 ---
 
@@ -93,8 +93,8 @@ hooks; on stonefly they are owned in-process.
 | Scratchpad / minimize slides | ✅ | — | ✅ | Mid-flight reverse |
 | Vsync-capped animation pacing | ❌ busy manage→render | river#1385 P0 📋 | ✅ | Own scene / frame loop |
 | Fade / scale appear | ❌ | river#1373 + Ideas 📋 | ❌ | Opacity static 0.96, not animated fade |
-| WM-settable per-window opacity | ❌ | river#1373 P1 📋 | 🚧 | Global `STONEFLY_CLIENT_OPACITY` 0.96; no per-window API |
-| Backdrop / window blur | ❌ | SceneFX P3 📋 | 🚧 | Optimized blur node exists; per-window blur off (`STONEFLY_WINDOW_BLUR 0`) |
+| WM-settable per-window opacity | ❌ | river#1373 P1 📋 | 🚧 | Global `stonefly.opt.client_opacity` 0.96; no per-window API |
+| Backdrop / window blur | ❌ | SceneFX P3 📋 | 🚧 | Optimized blur node exists; per-window blur off (`stonefly.opt.window_blur` default false) |
 | Soft rounded corners (opaque) | ❌ | SceneFX P3 📋 | ✅ | 12px |
 | Drop shadows | ❌ | SceneFX P3 📋 | ✅ | |
 | Compositor border (focus/idle/urgent) | ✅ via River `SetBorders` | Urgency needs #1281 | ✅ SceneFX | Neon / charcoal inactive / amber. **Fixed:** `STONEFLY_BORDER_*` were compound literals; pointers into them across `else if` blocks → ASan `stack-use-after-scope` in `border_rgba_premul` on first map/focus (boot loop). Now `static const float[4]`. |
@@ -116,7 +116,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Status bar | ✅ rich widgets | Taskbar v2, overflow modes, FuncMap 📋 | 🌙 | Noctalia |
 | Taskbar / app icons | ✅ | Middle-click close, group-by-app, urgency badge 📋 | 🌙 | Scratch `term` placeholder icon — see Named scratchpads. **Crash:** taskbar tooltip `xdg_popup` with no parent scene tree. Null-check alone insufficient — `wlr_xdg_popup_destroy` inside `new_popup` still SEGVs in wlroots. Now parents orphans to `layers.overlay` (idle-destroy only on OOM). |
 | Unread title-regex badges | ✅ Slack / Gmail | Live notify unread semantics 📋 | 🌙 | |
-| Launcher | ✅ fuzzy + plugins | Grid / categories / emoji Ideas 📋 | 🌙 | Super tap → `noctalia msg panel-toggle launcher` |
+| Launcher | ✅ fuzzy + plugins | Grid / categories / emoji Ideas 📋 | 🌙 | Super tap → `noctalia msg panel-toggle launcher`. OTP provider plugin shipped under `dist/noctalia/launcher/provider/otp/` (install into Noctalia config). |
 | OSD cards (vol/bright/…) | ✅ | Richer network OSD 📋 | 🌙 | XF86* / media / mic / brightness binds → `noctalia msg` |
 | Notification toasts | ✅ FDO server | Notification center UI Ideas 📋 | 🌙 | Noctalia notifier |
 | Wallpaper engine | ✅ slideshow + transitions + cache | Video/shader Ideas 📋 | 🌙 / ❌ | Layer-shell wallpaper clients OK; no in-process engine |
@@ -182,10 +182,10 @@ notifier) on layer-shell. Peeble owns these in-process.
 
 | Feature | Peeble shipped | Peeble roadmap / Ideas | Stonefly | Notes |
 |---|---|---|---|---|
-| Scriptable config | ✅ Risor + live reload | Multi-file include design 📋 | 🚧 | Spec: [`docs/CONFIG.md`](docs/CONFIG.md) — LuaJIT + Neovim rtp/packpath; first pack = fennel-shim from `fennel-nvim/`. Consumers use `stonefly_cfg(server)` / `server->config`; `hardcoded.h` is a shim. |
-| Validate / write-default | ✅ `--write-config` + embed | — | 🚧 | C23 `#embed` Fennel-first tree + `stonefly --write-config` (refuse overwrite); validate CLI still open |
+| Scriptable config | ✅ Risor + live reload | Multi-file include design 📋 | ✅ | LuaJIT in-process VM (§10): Neovim-ish rtp/packpath, builtin fennel-shim (Fennel 1.6.1), Fennel-first embedded default. Open gaps in §10. |
+| Validate / write-default | ✅ `--write-config` + embed | — | 🚧 | ✅ `stonefly --write-config` (C23 `#embed` tree, refuse overwrite); validate CLI still ❌ (§10) |
 | Nano syntax highlight | ✅ `peeble.nanorc` | — | ❌ | |
-| Keybind table | ✅ Risor binds + taps | — | ✅ | Compile-time table |
+| Keybind table | ✅ Risor binds + taps | — | ✅ | Runtime via Fennel/Lua (`binds.fnl` / `stonefly.bind`); C defaults until first bind |
 | Ctrl+Alt+Fn VT switch | ✅ via session | — | ✅ | `wlr_session_change_vt` on `XF86Switch_VT_*`; was missing (unreliable switch + DRM yank / crash on half-leave). Nested backends: no-op. |
 | Super tap / double-tap | ✅ | Regression keep-green 📋 | ✅ | Launcher / term pad |
 | Spawn / exec / exec_once | ✅ | `spawn_one` panels QoL 📋 | 🚧 | Named SPAWN_* + `STONEFLY_ACTION_EXEC` (`sh -c`); no exec_once |
@@ -220,7 +220,7 @@ River-fork brief items and where stonefly stands (no River needed).
 | P1 | #1481 capture privacy | Blocked | ❌ |
 | P2 | #1402 workspaces, #1390 tags | Roadmap | ❌ |
 | P2 | Layer `set_exclusive_edge`, presentation-time | Roadmap | 🚧 exclusive zones yes; edge/proto clock no |
-| P3 | SceneFX blur / corners / shadows | Parked | 🚧 blur off (`WINDOW_BLUR 0`) / ✅ corners / ✅ shadows |
+| P3 | SceneFX blur / corners / shadows | Parked | 🚧 blur off (`opt.window_blur` false) / ✅ corners / ✅ shadows |
 
 ---
 
@@ -245,7 +245,7 @@ in-process shell (Noctalia stands in under stonefly).
 | Geometry persist, window rules, set_tiled | ❌ persist/rules / ✅ set_tiled |
 | Screenshots, clipboard, idle/lock/gamma | 🌙 noctalia binds + ✅ screencopy/ext-capture / ✅ idle+lock+DPMS / ✅ clipboard+gamma |
 | Xwayland | ❌ |
-| Real config file | 🚧 LuaJIT + Fennel-first embed (`docs/CONFIG.md`); rebuild to verify |
+| Real config file | ✅ LuaJIT + Fennel-first embed + `--write-config` + IPC `config`; open items in §10 |
 | Workspaces / tiling layouts | ❌ both |
 | Foreign-toplevel for docks/taskbars | ✅ |
 
@@ -274,7 +274,7 @@ work on these (launcher centering needs xdg-output under fractional scale).
 | P1 | `zwlr-output-power-management-v1` | ✅ DPMS on/off for idle / lock (`session/session.c`) |
 | P2 | `zwlr_gamma_control` / color-management | ✅ Gamma LUT (`server.c` + SceneFX); full color-mgmt still open |
 | P2 | `zxdg_output` | ✅ Logical output size/pos (`server.c`); Noctalia panel/OSD centering |
-| P2 | `zwlr_output_management` | Display settings / wdisplays (scale still hardcoded) |
+| P2 | `zwlr_output_management` | Display settings / wdisplays (scale from config `opt.scale`, no wlr-output-management yet) |
 | P2 | `ext-data-control` / wlr-data-control | ✅ Clipboard history (`server.c`); primary-selection wired |
 | P3 | xdg-decoration | ✅ Manager advertised; always prefers **client-side** (no SSD painting yet). **Fixed:** defer `set_mode` until `xdg_surface` initialized (Chrome early bind aborted wlroots 0.20) |
 
@@ -286,11 +286,39 @@ dump. Still open: workspaces / action allowlist / inputs.
 
 1. **Xwayland** (classic apps)
 2. **Capture privacy** (#1481) — screencopy exists; policy UI still missing
-3. **Real config** — 🚧 in tree: LuaJIT + `#embed` Fennel-first default + fennel-shim 1.6.1 (`docs/CONFIG.md`); abuild verify next
+3. **Real config** — ✅ shipped; remaining work listed in §10.
 4. Optional: always-on-top, multi-mon send/focus, tags (#1390)
 
 Shell/OSD/media stay **🌙 Noctalia** unless product asks for in-process
 chrome again.
+
+---
+
+## 10. Config — shipped vs open
+
+**Shipped:** LuaJIT linked in-process (`config_lua.c`); XDG dirs + `STONEFLY_*`
+overrides; C23 `#embed` of Fennel-first default tree (`src/config/default/`);
+missing user `init.lua` → embedded default; `stonefly --write-config` (refuse
+overwrite); builtin pack `fennel-shim` (Fennel 1.6.1 + Fennel-side loader);
+`stonefly.*` API (`opt` / `bind` / `tap` / `scratchpad` / `packadd` / `stdpath`);
+IPC `stonefly config [section]`; consumers read `stonefly_cfg(server)`.
+
+| Open | Status | Notes |
+|---|---|---|
+| Live reload mid-session | ❌ | Peeble has it; stonefly loads once at init |
+| Config validate CLI | ❌ | peeble-style check without applying |
+| `--write-config-lua` | ❌ | Offload compiled/plain Lua instead of `.fnl` |
+| `sf_*` / `sf.` rename | ❌ | Shorter C + Lua/Fennel identifiers; binary name stays `stonefly` |
+| `inputs.fnl` / `outputs.fnl` APIs | 🚧 | Files are no-op stubs; no input/output policy surface yet |
+| IPC `config` inputs/outputs sections | 🚧 | Emit `{}` until those APIs exist |
+| `exec_once` / session spawn helpers | ❌ | Named SPAWN_* + `EXEC` only |
+| Neovim API compat / fake `vim.*` | ❌ | Non-goal |
+| Fennel as C dependency | ❌ | Non-goal (Fennel is Lua in the pack) |
+| Remote plugin fetch | ❌ | Non-goal for v1 |
+| Static-link LuaJIT (drop `luajit` runtime dep) | ❌ | Optional packaging choice later |
+
+Entry points: `src/config/`, `runtime/pack/dist/opt/fennel-shim/`,
+`stonefly --write-config`, `stonefly config`.
 
 ---
 

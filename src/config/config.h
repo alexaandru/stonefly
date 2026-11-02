@@ -1,4 +1,4 @@
-/* Runtime config: C defaults + LuaJIT/Fennel overlays (see docs/CONFIG.md). */
+/* Runtime config: C defaults + LuaJIT/Fennel overlays (MATRIX §10). */
 #ifndef STONEFLY_CONFIG_H
 #define STONEFLY_CONFIG_H
 
