@@ -10,6 +10,7 @@
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/box.h>
+#include <wlr/util/edges.h>
 
 #include "anim/anim.h"
 #include "decor/decor.h"
@@ -91,6 +92,35 @@ static bool xdg_surface_ready(struct stonefly_toplevel *toplevel) {
 	return toplevel->xdg_toplevel->base->initialized;
 }
 
+/* Peeble tiledEdgesAll / tiledEdgesFor — CSD drops shadows/resizers on edges. */
+static uint32_t tiled_edges_all(void) {
+	return WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT;
+}
+
+static uint32_t tiled_edges_for(enum stonefly_snap edge) {
+	switch (edge) {
+	case STONEFLY_SNAP_LEFT:
+		return WLR_EDGE_LEFT | WLR_EDGE_TOP | WLR_EDGE_BOTTOM;
+	case STONEFLY_SNAP_RIGHT:
+		return WLR_EDGE_RIGHT | WLR_EDGE_TOP | WLR_EDGE_BOTTOM;
+	case STONEFLY_SNAP_TOP:
+		return WLR_EDGE_TOP | WLR_EDGE_LEFT | WLR_EDGE_RIGHT;
+	case STONEFLY_SNAP_BOTTOM:
+		return WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT;
+	case STONEFLY_SNAP_NONE:
+		break;
+	}
+	return 0;
+}
+
+static void toplevel_set_tiled(struct stonefly_toplevel *toplevel,
+		uint32_t edges) {
+	if (!xdg_surface_ready(toplevel)) {
+		return;
+	}
+	wlr_xdg_toplevel_set_tiled(toplevel->xdg_toplevel, edges);
+}
+
 static void stonefly_toplevel_apply_box(struct stonefly_toplevel *toplevel,
 		const struct wlr_box *box) {
 	stonefly_anim_cancel(toplevel, false);
@@ -120,6 +150,7 @@ void stonefly_toplevel_restore_saved(struct stonefly_toplevel *toplevel) {
 	toplevel->fullscreen = false;
 	bool was_snapped = toplevel->snapped != STONEFLY_SNAP_NONE;
 	toplevel->snapped = STONEFLY_SNAP_NONE;
+	toplevel_set_tiled(toplevel, 0);
 	/* Live morph only for snap/unsnap restores; max/fullscreen stay instant. */
 	if (was_snapped && from.width > 0 && from.height > 0 &&
 			stonefly_anim_start_morph(toplevel, &from, &to)) {
@@ -154,6 +185,7 @@ void stonefly_toplevel_apply_saved_at(struct stonefly_toplevel *toplevel,
 	toplevel->maximized_edges = false;
 	toplevel->maximized_gaps = false;
 	toplevel->snapped = STONEFLY_SNAP_NONE;
+	toplevel_set_tiled(toplevel, 0);
 	stonefly_decor_update_geom(toplevel);
 }
 
@@ -175,6 +207,7 @@ void stonefly_toplevel_set_max_edges(struct stonefly_toplevel *toplevel, bool wa
 			wlr_xdg_toplevel_set_maximized(toplevel->xdg_toplevel, false);
 			toplevel->maximized_edges = false;
 			toplevel->maximized_gaps = false;
+			toplevel_set_tiled(toplevel, 0);
 			wlr_xdg_surface_schedule_configure(toplevel->xdg_toplevel->base);
 			stonefly_decor_update_geom(toplevel);
 		}
@@ -197,6 +230,7 @@ void stonefly_toplevel_set_max_edges(struct stonefly_toplevel *toplevel, bool wa
 	wlr_xdg_toplevel_set_maximized(toplevel->xdg_toplevel, true);
 	stonefly_toplevel_apply_box(toplevel, &out);
 	toplevel->maximized_edges = true;
+	toplevel_set_tiled(toplevel, tiled_edges_all());
 	/* Drop blur/border/shadow/corners immediately (commit may lag). */
 	stonefly_decor_update_geom(toplevel);
 	stonefly_foreign_toplevel_on_state_change(toplevel);
@@ -260,6 +294,7 @@ void stonefly_toplevel_set_fullscreen(struct stonefly_toplevel *toplevel,
 	}
 	toplevel->maximized_gaps = false;
 	toplevel->snapped = STONEFLY_SNAP_NONE;
+	toplevel_set_tiled(toplevel, 0);
 
 	struct wlr_box out;
 	if (!toplevel_full_output_box(toplevel, hint, &out)) {
@@ -306,7 +341,8 @@ void stonefly_toplevel_set_max_gaps(struct stonefly_toplevel *toplevel, bool wan
 		wlr_xdg_toplevel_set_maximized(toplevel->xdg_toplevel, false);
 		toplevel->maximized_edges = false;
 	}
-	/* Gap-max: WM-only — do not inform the client it is maximized (peeble). */
+	/* Gap-max: WM-only — do not inform maximized / tiled (peeble). */
+	toplevel_set_tiled(toplevel, 0);
 	stonefly_box_inset_gap(&out);
 	stonefly_toplevel_apply_box(toplevel, &out);
 	toplevel->maximized_gaps = true;
@@ -380,6 +416,7 @@ void stonefly_toplevel_snap_in(struct stonefly_toplevel *toplevel,
 	struct wlr_box from;
 	stonefly_toplevel_layout_geom(toplevel, &from);
 	toplevel->snapped = edge;
+	toplevel_set_tiled(toplevel, tiled_edges_for(edge));
 	/* start_morph retargets from the current live rect when already morphing. */
 	if (from.width > 0 && from.height > 0 &&
 			stonefly_anim_start_morph(toplevel, &from, &box)) {

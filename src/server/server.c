@@ -17,6 +17,7 @@
 #include <wlr/types/wlr_fractional_scale_v1.h>
 #include <wlr/types/wlr_gamma_control_v1.h>
 #include <wlr/types/wlr_primary_selection_v1.h>
+#include <wlr/types/wlr_screencopy_v1.h>
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_viewporter.h>
 #include <wlr/types/wlr_cursor.h>
@@ -142,6 +143,9 @@ bool stonefly_server_init(struct stonefly_server *server) {
 		wlr_scene_set_gamma_control_manager_v1(server->scene,
 			server->gamma_control_mgr);
 	}
+
+	/* Noctalia region/fullscreen screenshots + lock desktop capture. */
+	wlr_screencopy_manager_v1_create(server->wl_display);
 
 	stonefly_layer_setup(server);
 	/* After layers so layers.lock sits above overlay. */

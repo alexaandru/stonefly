@@ -36,7 +36,7 @@ src/
   main.c             # tiny entry (+ windows subcommand)
   util/json.*        # fixed-buffer JSON writer + scanner
   log/               # structured JSON logging (peeble slog shape)
-  ipc/               # unix-socket IPC + windows/layers [--json]
+  ipc/               # unix-socket IPC + windows/layers/outputs/focus/close/toggle-qt
   config/hardcoded.h # day-zero knobs
   server/            # display, backend, scene, loop
   output/            # outputs + scale
@@ -101,9 +101,15 @@ stonefly windows           # human: "* id  app_id  title"
 stonefly windows --json    # JSON array (id, app_id, title, geom, flags)
 stonefly layers            # human: namespace / layer / output / geom / excl / kbd
 stonefly layers --json     # JSON array (namespace, layer, output, geom, zones)
+stonefly outputs           # human: name*  WxH@scale  layout / usable
+stonefly outputs --json    # JSON array (name, geom, scale, usable, focused)
+stonefly focus <id>        # focus (unminimize if needed)
+stonefly close <id>        # send xdg close
+stonefly toggle-quick-terminal  # toggle scratchpad pad "term"
 ```
 
-Wire format matches peeble: one JSON object per line, e.g. `{"cmd":"windows"}`.
+Wire format matches peeble: one JSON object per line, e.g. `{"cmd":"windows"}`
+or `{"cmd":"focus","arg":"42"}`.
 
 ## Keybindings (peeble-shaped, hardcoded)
 
@@ -152,7 +158,7 @@ Still open relative to the old River-fork brief / peeble feature set:
 | Workspaces / tags | [#1402](https://codeberg.org/river/river/issues/1402) `ext-workspace-v1`, [#1390](https://codeberg.org/river/river/issues/1390) toplevel-tag | Not implemented |
 | Window previews / destination size | [#1384](https://codeberg.org/river/river/issues/1384) | ✅ ext toplevel image-capture + image-copy-capture for Noctalia switcher (`ext_capture.c`) |
 | Xwayland | peeble/river day-to-day | Not implemented |
-| Screenshots / screencopy / image-copy-capture | peeble | Protocol ❌; Print binds → noctalia 🌙 |
+| Screenshots / screencopy / image-copy-capture | peeble | ✅ `zwlr_screencopy` + ext-image-copy-capture; Print binds → noctalia 🌙 |
 | Session lock / idle / DPMS | Noctalia auto-lock / suspend | ✅ `ext-session-lock` + idle-notify/inhibit + output-power (`session/session.c`) |
 | Gamma / output-mgmt / clipboard | Noctalia shell needs | Not implemented — see `MATRIX.md` §9 |
 | Real config (vs `hardcoded.h`) | — | Not implemented |

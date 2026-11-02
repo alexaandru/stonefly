@@ -13,16 +13,24 @@
 #include <wayland-server-core.h>
 
 #include "ipc/layers.h"
+#include "ipc/outputs.h"
 #include "ipc/windows.h"
 #include "log/log.h"
 #include "server/server.h"
 #include "util/json.h"
+#include "wm/scratchpad.h"
+#include "wm/wm.h"
+#include "xdg/xdg.h"
+
+#include <wlr/types/wlr_xdg_shell.h>
 
 #define STONEFLY_IPC_ENV "STONEFLY_SOCKET"
 #define STONEFLY_IPC_REPLY_CAP (64 * 1024)
 #define STONEFLY_IPC_REQ_CAP 4096
 #define STONEFLY_IPC_MAX_WINDOWS 256
 #define STONEFLY_IPC_MAX_LAYERS 256
+#define STONEFLY_IPC_MAX_OUTPUTS 32
+#define STONEFLY_IPC_QUICK_TERM "term"
 
 struct stonefly_ipc {
 	struct stonefly_server *server;
@@ -68,8 +76,13 @@ static char *socket_path(void) {
 	return path;
 }
 
-/* Parse {"cmd":"<name>"} (optional whitespace, string values only). */
-static bool parse_cmd(const char *line, char *cmd, size_t cmd_cap) {
+/* Parse {"cmd":"<name>","arg":"..."} (arg optional; string values only). */
+static bool parse_cmd_arg(const char *line, char *cmd, size_t cmd_cap,
+		char *arg, size_t arg_cap) {
+	if (arg != NULL && arg_cap > 0) {
+		arg[0] = '\0';
+	}
+
 	struct json_scan s;
 	json_scan_init(&s, line);
 	if (!json_scan_expect(&s, '{')) {
@@ -96,6 +109,8 @@ static bool parse_cmd(const char *line, char *cmd, size_t cmd_cap) {
 		if (strcmp(key, "cmd") == 0) {
 			snprintf(cmd, cmd_cap, "%s", value);
 			found = true;
+		} else if (strcmp(key, "arg") == 0 && arg != NULL && arg_cap > 0) {
+			snprintf(arg, arg_cap, "%s", value);
 		}
 
 		json_scan_skip_ws(&s);
@@ -108,6 +123,35 @@ static bool parse_cmd(const char *line, char *cmd, size_t cmd_cap) {
 		}
 		return found && cmd[0] != '\0';
 	}
+}
+
+static struct stonefly_toplevel *toplevel_by_id(struct stonefly_server *server,
+		uint64_t id) {
+	struct stonefly_toplevel *toplevel;
+	wl_list_for_each(toplevel, &server->toplevels, link) {
+		if (toplevel->id == id) {
+			return toplevel;
+		}
+	}
+	wl_list_for_each(toplevel, &server->minimized, minimize_link) {
+		if (toplevel->id == id) {
+			return toplevel;
+		}
+	}
+	return NULL;
+}
+
+static bool parse_id_arg(const char *arg, uint64_t *out) {
+	if (arg == NULL || arg[0] == '\0' || out == NULL) {
+		return false;
+	}
+	char *end = NULL;
+	unsigned long long v = strtoull(arg, &end, 10);
+	if (end == arg || (end != NULL && *end != '\0')) {
+		return false;
+	}
+	*out = (uint64_t)v;
+	return true;
 }
 
 static void ipc_client_destroy(struct stonefly_ipc_client *client) {
@@ -135,6 +179,22 @@ static void ipc_write_line(int fd, const char *payload) {
 		SF_LOGE("ipc write", sf_str("err", strerror(errno)));
 	}
 	free(line);
+}
+
+static void ipc_write_ok(struct stonefly_ipc_client *client) {
+	ipc_write_line(client->fd, "{\"ok\":true}");
+}
+
+static void ipc_write_err(struct stonefly_ipc_client *client, const char *msg) {
+	char err[192];
+	struct json_buf b;
+	json_buf_init(&b, err, sizeof(err));
+	json_byte(&b, '{');
+	json_key(&b, "error");
+	json_str(&b, msg);
+	json_byte(&b, '}');
+	json_finish(&b);
+	ipc_write_line(client->fd, json_ok(&b) ? err : "{\"error\":\"oom\"}");
 }
 
 static void ipc_handle_windows(struct stonefly_ipc_client *client) {
@@ -173,10 +233,69 @@ static void ipc_handle_layers(struct stonefly_ipc_client *client) {
 	free(out);
 }
 
+static void ipc_handle_outputs(struct stonefly_ipc_client *client) {
+	struct stonefly_output_info infos[STONEFLY_IPC_MAX_OUTPUTS];
+	size_t n = stonefly_outputs_collect(client->ipc->server, infos,
+		STONEFLY_IPC_MAX_OUTPUTS);
+
+	char *out = malloc(STONEFLY_IPC_REPLY_CAP);
+	if (out == NULL) {
+		ipc_write_line(client->fd, "{\"error\":\"oom\"}");
+		return;
+	}
+	if (stonefly_outputs_to_json(infos, n, out, STONEFLY_IPC_REPLY_CAP) < 0) {
+		ipc_write_line(client->fd, "{\"error\":\"outputs snapshot overflow\"}");
+	} else {
+		ipc_write_line(client->fd, out);
+	}
+	free(out);
+}
+
+static void ipc_handle_focus(struct stonefly_ipc_client *client, const char *arg) {
+	uint64_t id;
+	if (!parse_id_arg(arg, &id)) {
+		ipc_write_err(client, "focus requires numeric id arg");
+		return;
+	}
+	struct stonefly_toplevel *toplevel =
+		toplevel_by_id(client->ipc->server, id);
+	if (toplevel == NULL) {
+		ipc_write_err(client, "no window with that id");
+		return;
+	}
+	if (toplevel->minimized) {
+		stonefly_toplevel_unminimize(toplevel);
+	}
+	stonefly_focus_toplevel(toplevel);
+	ipc_write_ok(client);
+}
+
+static void ipc_handle_close(struct stonefly_ipc_client *client, const char *arg) {
+	uint64_t id;
+	if (!parse_id_arg(arg, &id)) {
+		ipc_write_err(client, "close requires numeric id arg");
+		return;
+	}
+	struct stonefly_toplevel *toplevel =
+		toplevel_by_id(client->ipc->server, id);
+	if (toplevel == NULL) {
+		ipc_write_err(client, "no window with that id");
+		return;
+	}
+	wlr_xdg_toplevel_send_close(toplevel->xdg_toplevel);
+	ipc_write_ok(client);
+}
+
+static void ipc_handle_toggle_quick_terminal(struct stonefly_ipc_client *client) {
+	stonefly_scratchpad_toggle(client->ipc->server, STONEFLY_IPC_QUICK_TERM);
+	ipc_write_ok(client);
+}
+
 static void ipc_handle_request(struct stonefly_ipc_client *client, const char *line) {
 	char cmd[64];
-	if (!parse_cmd(line, cmd, sizeof(cmd))) {
-		ipc_write_line(client->fd, "{\"error\":\"bad request\"}");
+	char arg[128];
+	if (!parse_cmd_arg(line, cmd, sizeof(cmd), arg, sizeof(arg))) {
+		ipc_write_err(client, "bad request");
 		return;
 	}
 
@@ -188,18 +307,26 @@ static void ipc_handle_request(struct stonefly_ipc_client *client, const char *l
 		ipc_handle_layers(client);
 		return;
 	}
+	if (strcmp(cmd, "outputs") == 0) {
+		ipc_handle_outputs(client);
+		return;
+	}
+	if (strcmp(cmd, "focus") == 0) {
+		ipc_handle_focus(client, arg);
+		return;
+	}
+	if (strcmp(cmd, "close") == 0) {
+		ipc_handle_close(client, arg);
+		return;
+	}
+	if (strcmp(cmd, "toggle-quick-terminal") == 0) {
+		ipc_handle_toggle_quick_terminal(client);
+		return;
+	}
 
-	char err[160];
-	struct json_buf b;
-	json_buf_init(&b, err, sizeof(err));
-	json_byte(&b, '{');
-	json_key(&b, "error");
 	char msg[96];
 	snprintf(msg, sizeof(msg), "unknown command \"%s\"", cmd);
-	json_str(&b, msg);
-	json_byte(&b, '}');
-	json_finish(&b);
-	ipc_write_line(client->fd, json_ok(&b) ? err : "{\"error\":\"unknown command\"}");
+	ipc_write_err(client, msg);
 }
 
 static int ipc_client_readable(int fd, uint32_t mask, void *data) {
@@ -370,7 +497,7 @@ void stonefly_ipc_stop(struct stonefly_server *server) {
 
 /* ---- client ----------------------------------------------------------- */
 
-static int ipc_request(const char *cmd, char **reply_out) {
+static int ipc_request_arg(const char *cmd, const char *arg, char **reply_out) {
 	*reply_out = NULL;
 
 	char *path = socket_path();
@@ -409,12 +536,17 @@ static int ipc_request(const char *cmd, char **reply_out) {
 	}
 	free(path);
 
-	char req[128];
+	char req[256];
 	struct json_buf b;
 	json_buf_init(&b, req, sizeof(req));
 	json_byte(&b, '{');
 	json_key(&b, "cmd");
 	json_str(&b, cmd);
+	if (arg != NULL && arg[0] != '\0') {
+		json_byte(&b, ',');
+		json_key(&b, "arg");
+		json_str(&b, arg);
+	}
 	json_byte(&b, '}');
 	json_byte(&b, '\n');
 	json_finish(&b);
@@ -458,6 +590,21 @@ static int ipc_request(const char *cmd, char **reply_out) {
 		*nl = '\0';
 	}
 	*reply_out = reply;
+	return 0;
+}
+
+static int ipc_request(const char *cmd, char **reply_out) {
+	return ipc_request_arg(cmd, NULL, reply_out);
+}
+
+static int ipc_print_ok_reply(char *reply) {
+	if (reply[0] == '{' && strncmp(reply, "{\"error\":", 9) == 0) {
+		fprintf(stderr, "stonefly: %s\n", reply);
+		free(reply);
+		return 1;
+	}
+	printf("%s\n", reply);
+	free(reply);
 	return 0;
 }
 
@@ -551,4 +698,120 @@ int stonefly_ipc_cmd_layers(int argc, char **argv) {
 	free(reply);
 	stonefly_layers_print(infos, n, stdout);
 	return 0;
+}
+
+int stonefly_ipc_cmd_outputs(int argc, char **argv) {
+	bool as_json = false;
+
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "--json") == 0) {
+			as_json = true;
+		} else if (strcmp(argv[i], "-h") == 0 ||
+				strcmp(argv[i], "--help") == 0) {
+			printf("Usage: stonefly outputs [--json]\n");
+			return 0;
+		} else {
+			fprintf(stderr, "Usage: stonefly outputs [--json]\n");
+			return 1;
+		}
+	}
+
+	char *reply = NULL;
+	int rc = ipc_request("outputs", &reply);
+	if (rc != 0) {
+		return rc;
+	}
+
+	if (reply[0] == '{' && strncmp(reply, "{\"error\":", 9) == 0) {
+		fprintf(stderr, "stonefly: %s\n", reply);
+		free(reply);
+		return 1;
+	}
+
+	if (as_json) {
+		printf("%s\n", reply);
+		free(reply);
+		return 0;
+	}
+
+	struct stonefly_output_info infos[STONEFLY_IPC_MAX_OUTPUTS];
+	size_t n = 0;
+	if (!stonefly_outputs_from_json(reply, infos, STONEFLY_IPC_MAX_OUTPUTS, &n)) {
+		fprintf(stderr, "stonefly: bad outputs reply\n");
+		free(reply);
+		return 1;
+	}
+	free(reply);
+	stonefly_outputs_print(infos, n, stdout);
+	return 0;
+}
+
+int stonefly_ipc_cmd_focus(int argc, char **argv) {
+	const char *id = NULL;
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+			printf("Usage: stonefly focus <id>\n");
+			return 0;
+		}
+		if (id != NULL) {
+			fprintf(stderr, "Usage: stonefly focus <id>\n");
+			return 1;
+		}
+		id = argv[i];
+	}
+	if (id == NULL) {
+		fprintf(stderr, "Usage: stonefly focus <id>\n");
+		return 1;
+	}
+
+	char *reply = NULL;
+	int rc = ipc_request_arg("focus", id, &reply);
+	if (rc != 0) {
+		return rc;
+	}
+	return ipc_print_ok_reply(reply);
+}
+
+int stonefly_ipc_cmd_close(int argc, char **argv) {
+	const char *id = NULL;
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+			printf("Usage: stonefly close <id>\n");
+			return 0;
+		}
+		if (id != NULL) {
+			fprintf(stderr, "Usage: stonefly close <id>\n");
+			return 1;
+		}
+		id = argv[i];
+	}
+	if (id == NULL) {
+		fprintf(stderr, "Usage: stonefly close <id>\n");
+		return 1;
+	}
+
+	char *reply = NULL;
+	int rc = ipc_request_arg("close", id, &reply);
+	if (rc != 0) {
+		return rc;
+	}
+	return ipc_print_ok_reply(reply);
+}
+
+int stonefly_ipc_cmd_toggle_quick_terminal(int argc, char **argv) {
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+			printf("Usage: stonefly toggle-quick-terminal\n");
+			return 0;
+		}
+		fprintf(stderr, "Usage: stonefly toggle-quick-terminal\n");
+		return 1;
+	}
+
+	char *reply = NULL;
+	int rc = ipc_request("toggle-quick-terminal", &reply);
+	if (rc != 0) {
+		return rc;
+	}
+	return ipc_print_ok_reply(reply);
 }

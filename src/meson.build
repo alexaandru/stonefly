@@ -5,6 +5,7 @@ stonefly_src = files(
   'ipc/ipc.c',
   'ipc/windows.c',
   'ipc/layers.c',
+  'ipc/outputs.c',
   'server/server.c',
   'output/output.c',
   'layer/layer.c',
