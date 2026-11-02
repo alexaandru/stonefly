@@ -105,6 +105,9 @@ struct stonefly_config {
 	float border_urgent[4];
 	float shadow_color[4];
 	int window_blur; /* per-window SceneFX blur behind chrome */
+	/* true → blur wallpaper/optimized underlay only (mango xray);
+	 * false → blur whatever is actually behind the window (other clients). */
+	int blur_xray;
 	/* Global SceneFX blur_data (optimized wallpaper pass). */
 	int blur_num_passes;
 	int blur_radius;

@@ -94,7 +94,7 @@ hooks; on stonefly they are owned in-process.
 | Vsync-capped animation pacing | ❌ busy manage→render | river#1385 P0 📋 | ✅ | Own scene / frame loop |
 | Fade / scale appear | ❌ | river#1373 + Ideas 📋 | ❌ | Opacity static 0.96, not animated fade |
 | WM-settable per-window opacity | ❌ | river#1373 P1 📋 | 🚧 | Global focused/inactive opacity knobs; no per-window / rules API yet |
-| Backdrop / window blur | ❌ | SceneFX P3 📋 | 🚧 | Per-window SceneFX blur on (`window_blur` true). Optimized cache dirtied on background/bottom map/commit; layout-positioned; `blur_*` params. Needs a wallpaper — empty background still looks black |
+| Backdrop / window blur | ❌ | SceneFX P3 📋 | 🚧 | Per-window SceneFX blur (`window_blur`). Default `blur_xray false` → blur real backdrop (other clients); `true` → wallpaper/optimized underlay only (mango xray). Needs wallpaper when xray/optimized path matters |
 | Soft rounded corners (opaque) | ❌ | SceneFX P3 📋 | ✅ | `corner_radius` 12 = CSD/hole/buffer; outer rim = `corner_radius + border_thickness` |
 | Drop shadows | ❌ | SceneFX P3 📋 | ✅ | |
 | Compositor border (focus/idle/urgent) | ✅ via River `SetBorders` | Urgency needs #1281 | ✅ SceneFX | Neon / charcoal inactive / amber. **Fixed:** `STONEFLY_BORDER_*` were compound literals; pointers into them across `else if` blocks → ASan `stack-use-after-scope` in `border_rgba_premul` on first map/focus (boot loop). Now `static const float[4]`. **Fixed:** crescent/hairline vs CSD — hole+buffer use `corner_radius` (match client round); outer = radius+border (dwl); hole inset 1px under the rim for AA/scale seams. |

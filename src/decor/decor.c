@@ -277,7 +277,9 @@ void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel) {
 	const float sigma = cfg->shadow_blur_sigma;
 
 	toplevel->blur = wlr_scene_blur_create(toplevel->scene_tree, 0, 0);
-	wlr_scene_blur_set_should_only_blur_bottom_layer(toplevel->blur, true);
+	/* blur_xray: sample optimized wallpaper only. Off: blur real backdrop. */
+	wlr_scene_blur_set_should_only_blur_bottom_layer(toplevel->blur,
+		cfg->blur_xray != 0);
 	wlr_scene_blur_set_corner_radii(toplevel->blur, corner_radii_all(inner));
 	wlr_scene_node_set_enabled(&toplevel->blur->node, cfg->window_blur);
 

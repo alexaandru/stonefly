@@ -231,6 +231,8 @@ void stonefly_config_set_defaults(struct stonefly_config *cfg) {
 	copy4(cfg->border_urgent, (float[4]){ 1.00f, 0.45f, 0.10f, 1.00f });
 	copy4(cfg->shadow_color, (float[4]){ 0.0f, 0.0f, 0.0f, 0.55f });
 	cfg->window_blur = 1;
+	/* false: blur real backdrop including other clients (hypr/niri-ish). */
+	cfg->blur_xray = 0;
 	/* mango-ish SceneFX defaults */
 	cfg->blur_num_passes = 2;
 	cfg->blur_radius = 5;

@@ -152,6 +152,9 @@ static void emit_options(struct json_buf *b, const struct stonefly_config *cfg) 
 	json_key(b, "window_blur");
 	json_bool(b, cfg->window_blur != 0);
 	json_byte(b, ',');
+	json_key(b, "blur_xray");
+	json_bool(b, cfg->blur_xray != 0);
+	json_byte(b, ',');
 	json_key(b, "blur_num_passes");
 	json_i64(b, cfg->blur_num_passes);
 	json_byte(b, ',');

@@ -26,6 +26,8 @@
   :shadow_color [0.0 0.0 0.0 0.55]
   ;; Per-window blur (needs a background/bottom wallpaper; else looks black).
   :window_blur true
+  ;; false = blur real backdrop (other windows); true = wallpaper-only (cheap).
+  :blur_xray false
   :blur_num_passes 2
   :blur_radius 5
   :blur_noise 0.02

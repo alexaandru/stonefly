@@ -717,6 +717,8 @@ static int l_opt_newindex(lua_State *L) {
 			cfg->slide_dir_closest = v;
 		} else if (strcmp(k, "window_blur") == 0) {
 			cfg->window_blur = v;
+		} else if (strcmp(k, "blur_xray") == 0) {
+			cfg->blur_xray = v;
 		}
 		return 0;
 	}
