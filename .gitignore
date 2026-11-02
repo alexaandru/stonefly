@@ -6,6 +6,7 @@
 /*.apk
 /.abuild/
 /.ccls-cache
+/peeble/
 
 /dist/**/*.tar.gz
 

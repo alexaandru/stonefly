@@ -23,8 +23,9 @@ void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel);
  * blur stays gated by STONEFLY_WINDOW_BLUR (black plate when broken). */
 void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel);
 
-/* Apply opacity + corner radii to all xdg scene buffers (incl. CSD).
- * No chrome when maximized_edges (client-only, opaque, square). */
+/* Apply opacity + per-buffer corner radii (only outer corners each buffer
+ * covers — avoids foot CSD titlebar/body hourglass). No chrome when
+ * maximized_edges (client-only, opaque, square). */
 void stonefly_decor_apply_buffers(struct stonefly_toplevel *toplevel);
 
 /* Refresh border from focus / urgent / bell-flash state. */

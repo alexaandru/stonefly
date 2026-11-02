@@ -103,21 +103,59 @@ static void decor_set_chrome_enabled(struct stonefly_toplevel *toplevel,
 }
 
 /*
- * Opacity + corner radii on every buffer under the window (main surface and
- * CSD subsurfaces). The rounded look is mostly the border ring; client radii
- * keep titlebars from looking pointy inside the hole.
+ * Which outer window corners this buffer covers. Geometry TL is at (0,0) in
+ * xdg_scene_tree space (see decor_update_geom). Foot CSD splits titlebar +
+ * body into two buffers — corner_radii_all on both rounds the join and looks
+ * like an hourglass; GTK often ships one buffer so all-four is fine.
  */
+static struct fx_corner_radii corners_for_buffer(int sx, int sy,
+		int bw, int bh, const struct wlr_box *geo, int radius) {
+	if (radius <= 0 || bw <= 0 || bh <= 0 ||
+			geo->width <= 0 || geo->height <= 0) {
+		return corner_radii_none();
+	}
+
+	const int left = 0;
+	const int top = 0;
+	const int right = geo->width - 1;
+	const int bottom = geo->height - 1;
+	const int x1 = sx + bw;
+	const int y1 = sy + bh;
+
+	return corner_radii_new(
+		(left >= sx && left < x1 && top >= sy && top < y1) ? radius : 0,
+		(right >= sx && right < x1 && top >= sy && top < y1) ? radius : 0,
+		(right >= sx && right < x1 && bottom >= sy && bottom < y1) ? radius : 0,
+		(left >= sx && left < x1 && bottom >= sy && bottom < y1) ? radius : 0);
+}
+
 static void iter_apply_buffers(struct wlr_scene_buffer *buffer,
 		int sx, int sy, void *user_data) {
-	(void)sx;
-	(void)sy;
 	struct stonefly_toplevel *toplevel = user_data;
 	bool chrome = decor_chrome_on(toplevel);
 
 	wlr_scene_buffer_set_opacity(buffer,
 		chrome ? STONEFLY_CLIENT_OPACITY : 1.0f);
+
+	int bw = buffer->dst_width;
+	int bh = buffer->dst_height;
+	if (bw <= 0 || bh <= 0) {
+		struct wlr_scene_surface *ss =
+			wlr_scene_surface_try_from_buffer(buffer);
+		if (ss != NULL) {
+			if (bw <= 0) {
+				bw = ss->surface->current.width;
+			}
+			if (bh <= 0) {
+				bh = ss->surface->current.height;
+			}
+		}
+	}
+
+	struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
+	int radius = chrome ? STONEFLY_CORNER_RADIUS : 0;
 	wlr_scene_buffer_set_corner_radii(buffer,
-		corner_radii_all(chrome ? STONEFLY_CORNER_RADIUS : 0));
+		corners_for_buffer(sx, sy, bw, bh, geo, radius));
 }
 
 void stonefly_decor_apply_buffers(struct stonefly_toplevel *toplevel) {

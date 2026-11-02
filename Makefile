@@ -2,7 +2,7 @@
 ROOT := $(CURDIR)
 # aports-style: dist/testing/stonefly → repo name "testing" under REPODEST
 # (default REPODEST is often /home/apk → /home/apk/testing/x86_64/).
-APORT := dist/testing/stonefly
+APORT := dist/alpine
 PKGVER := 0.0.1
 TARBALL := $(APORT)/stonefly-$(PKGVER).tar.gz
 
