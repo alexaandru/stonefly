@@ -37,6 +37,8 @@ struct wlr_idle_notifier_v1;
 struct wlr_idle_inhibit_manager_v1;
 struct wlr_output_power_manager_v1;
 struct wlr_scene_rect;
+struct wlr_ext_workspace_manager_v1;
+struct wlr_pointer_gestures_v1;
 
 struct stonefly_toplevel;
 struct stonefly_output;
@@ -190,6 +192,25 @@ struct stonefly_server {
 
 	struct wlr_output_power_manager_v1 *output_power_mgr;
 	struct wl_listener output_power_set_mode;
+
+	/* ext-workspace-v1 — one group per output, handles per workspace. */
+	struct wlr_ext_workspace_manager_v1 *ext_workspace_mgr;
+	struct wl_listener ext_workspace_commit;
+	uint32_t next_workspace_ext_id;
+
+	/* Forward unused touchpad gestures to clients. */
+	struct wlr_pointer_gestures_v1 *pointer_gestures;
+
+	/* In-progress 3-finger workspace swipe. */
+	struct {
+		bool active;
+		bool consumed;
+		uint32_t fingers;
+		double dx, dy;
+	} swipe;
+
+	/* Pointer devices with gesture listeners attached. */
+	struct wl_list pointers;
 };
 
 bool stonefly_server_init(struct stonefly_server *server);

@@ -17,6 +17,7 @@
 #include "server/server.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
+#include "wm/workspace.h"
 
 #define STONEFLY_SCRATCH_CLAIM_TIMEOUT_S 15
 
@@ -126,6 +127,8 @@ static void scratch_claim(struct stonefly_scratch_slot *slot,
 	snprintf(toplevel->scratchpad, sizeof(toplevel->scratchpad), "%s",
 		slot->spec->name);
 	slot->toplevel = toplevel;
+	/* Scratchpads stay visible across workspace switches. */
+	stonefly_workspace_detach_scratchpad(toplevel);
 	pending_clear();
 	SF_LOGI("scratchpad claim",
 		sf_str("name", slot->spec->name),

@@ -40,6 +40,7 @@
 #include "wm/drag_snap.h"
 #include "wm/scratchpad.h"
 #include "wm/snap_preview.h"
+#include "wm/workspace.h"
 #include "xdg/xdg.h"
 
 /*
@@ -160,6 +161,8 @@ bool stonefly_server_init(struct stonefly_server *server) {
 	stonefly_session_setup(server);
 	stonefly_snap_preview_init(server);
 	stonefly_drag_snap_reset(&server->drag_snap);
+	/* Before outputs so each head can create an ext-workspace group. */
+	stonefly_workspace_setup(server);
 	stonefly_output_setup(server);
 	stonefly_xdg_setup(server);
 	stonefly_foreign_toplevel_setup(server);
@@ -226,6 +229,7 @@ void stonefly_server_finish(struct stonefly_server *server) {
 	}
 	stonefly_foreign_toplevel_finish(server);
 	stonefly_ext_capture_finish(server);
+	stonefly_workspace_finish(server);
 
 	wl_list_remove(&server->cursor_motion.link);
 	wl_list_remove(&server->cursor_motion_absolute.link);

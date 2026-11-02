@@ -1,6 +1,8 @@
 ;; Day-zero knobs — one table, applied through stonefly.opt's __newindex.
 (local opt {
-  ;; layout
+  ;; layout — global default; resolve is workspace → output → global.
+  ;; stacking is implemented; columns/tile reserved for later engines.
+  :layout "stacking"
   :scale 1.5
   :cursor_size 24
   :gap 15
@@ -27,6 +29,8 @@
   :snap_preview_opacity 0.40
   :tap_max_hold_ms 500
   :double_tap_gap_ms 300
+  ;; workspaces — 3-finger vertical swipe threshold (logical px)
+  :swipe_workspace_threshold 80
   ;; spawn commands (SPAWN_* actions)
   :cmd_foot "foot"
   :cmd_nautilus "nautilus"

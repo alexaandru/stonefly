@@ -25,6 +25,8 @@ struct stonefly_window_info {
 	bool minimized;
 	bool snapped;
 	char snap_dir[16]; /* empty when not snapped */
+	char output[64];
+	int workspace; /* 1-based; 0 when unset/scratchpad */
 };
 
 /* Bottom-most first. Returns how many entries were written (≤ cap). */

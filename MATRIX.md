@@ -69,8 +69,8 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Geometry persist across restart | ✅ `windows.json` by river id | Schema / blacklist / MRU polish 📋 | ❌ | |
 | Window rules (app-id/title) | 🚧 center + modal parent | auto-float, size, scratchpad, AOT, force SSD 📋 | ❌ | |
 | Keyboard nudge move/resize | ❌ | 📋 high-value | ❌ | Snap exists; step nudge does not |
-| Workspaces / tags | ❌ | 📋 + river#1402 / #1390 | 🚧 | ✅ `xdg-toplevel-tag` + IPC; ❌ `ext-workspace` / rules / persist |
-| Layout engine (tile/columns/…) | ❌ | 📋 | ❌ | |
+| Workspaces / tags | ❌ | 📋 + river#1402 / #1390 | 🚧 | Dynamic per-output strip (`workspace.c`): trailing empty, compact on empty, Super+Page/1–9 + Shift move-follow, IPC `workspaces`/`workspace`/`move-to-workspace`, windows `{output,workspace}`. ✅ `ext-workspace-v1` group/handle sync. ✅ 3-finger vertical swipe (`swipe_workspace_threshold`). ❌ persist / named rules / switch anim |
+| Layout engine (tile/columns/…) | ❌ | 📋 | 🚧 | Resolve `workspace → output → global` (`stonefly_layout`); only `stacking` implemented. `columns`/`tile` enum + `apply_layout` hook reserved. Global `stonefly.opt.layout`. |
 | Focus cycle policy (MRU vs stack) | 🚧 stacking default | Decide MRU Alt+Tab 📋 | 🚧 | Stacking / MRU list front |
 | Multi-monitor focus / send | ✅ `focus_monitor` / `send_to_monitor` | — | ❌ | |
 | Pointer center / cursor-follows-focus | ✅ | — | ❌ | |
@@ -171,7 +171,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Idle-inhibit / idle-notify / session-lock | ✅ | — | ✅ | `session/session.c`: ext-session-lock-v1, ext-idle-notify-v1, zwp-idle-inhibit-v1, zwlr-output-power-management-v1 |
 | Gamma control | ✅ | — | ✅ | `zwlr_gamma_control_v1` + SceneFX scene hook (`server.c`) |
 | Xwayland | ✅ (River host) | — | ❌ | Classic X11 apps fail |
-| ext-workspace-v1 | ❌ | #1402 📋 | ❌ | |
+| ext-workspace-v1 | ❌ | #1402 📋 | ✅ | Per-output group + per-workspace handle; activate/create commit → switch/compact (`workspace.c`) |
 | xdg-toplevel-tag | ❌ | #1390 📋 | ✅ | `wlr_xdg_toplevel_tag_manager_v1` (`xdg.c`); stored on toplevel; shown in IPC `windows` (`tag` / `description`). No rules/persist consumer yet. |
 | Touch / gestures / virtual-keyboard | ❌ | River 0.5 items 📋 | ❌ | |
 | Presentation-time / fifo / tearing | ❌ | Shared frame clock Ideas 📋 | 🚧 | Own vsync; no protocol export |
@@ -218,7 +218,7 @@ River-fork brief items and where stonefly stands (no River needed).
 | P1 | #1281 urgency / xdg-activation | Blocked | ✅ |
 | P1 | #1389 system bell | Blocked | ✅ |
 | P1 | #1481 capture privacy | Blocked | ❌ |
-| P2 | #1402 workspaces, #1390 tags | Roadmap | 🚧 | ✅ `xdg-toplevel-tag` advertised + IPC; ❌ workspaces / rules / geometry persist |
+| P2 | #1402 workspaces, #1390 tags | Roadmap | 🚧 | ✅ `xdg-toplevel-tag` + ✅ dynamic workspaces + ✅ `ext-workspace-v1`; ❌ rules / geometry persist |
 | P2 | Layer `set_exclusive_edge`, presentation-time | Roadmap | 🚧 exclusive zones yes; edge/proto clock no |
 | P3 | SceneFX blur / corners / shadows | Parked | 🚧 blur off (`opt.window_blur` false) / ✅ corners / ✅ shadows |
 
@@ -235,6 +235,8 @@ in-process shell (Noctalia stands in under stonefly).
 | Super+q close | ✅ |
 | Super+f / Super+m max | ✅ |
 | Super+arrows snap + Super+u | ✅ |
+| Super+Page / Super+1–9 workspaces; Shift moves follow | ✅ |
+| 3-finger vertical swipe workspaces | ✅ |
 | Super+LMB/RMB move/resize + magnetic snap + preview | ✅ |
 | Ctrl+Esc minimize LIFO | ✅ |
 | Super tap launcher / double-tap term / Super+t claim | ✅ |
@@ -246,7 +248,7 @@ in-process shell (Noctalia stands in under stonefly).
 | Screenshots, clipboard, idle/lock/gamma | 🌙 noctalia binds + ✅ screencopy/ext-capture / ✅ idle+lock+DPMS / ✅ clipboard+gamma |
 | Xwayland | ❌ |
 | Real config file | ✅ LuaJIT + Fennel-first embed + `--write-config` + IPC `config`; open items in §10 |
-| Workspaces / tiling layouts | ❌ both |
+| Workspaces / tiling layouts | 🚧 workspaces (stacking) / ❌ tiling engines |
 | Foreign-toplevel for docks/taskbars | ✅ |
 
 ---
@@ -267,7 +269,7 @@ work on these (launcher centering needs xdg-output under fractional scale).
 | Pri | Protocol / surface | Noctalia use |
 |---|---|---|
 | P0 | `ext-session-lock-v1` | ✅ Lock screen (`session/session.c`) |
-| P0 | `ext-workspace-v1` **or** stonefly IPC workspaces | Workspace indicator / switcher (else compositor-specific backends) |
+| P0 | `ext-workspace-v1` **or** stonefly IPC workspaces | ✅ both — `ext-workspace-v1` + IPC `workspaces` / `workspace` / `move-to-workspace` |
 | P1 | `ext-foreign-toplevel-image-capture-source-v1` | ✅ Window-switcher thumbnails (`ext_capture.c`; was icons-only without it) |
 | P1 | `zwlr_screencopy` / `ext-image-copy-capture` | ✅ both (`server.c` screencopy + `ext_capture.c`); capture privacy still open |
 | P1 | `ext-idle-notify` + idle-inhibit | ✅ Idle dim / caffeine / lock triggers (`session/session.c`) |
@@ -279,8 +281,8 @@ work on these (launcher centering needs xdg-output under fractional scale).
 | P3 | xdg-decoration | ✅ Manager advertised; always prefers **client-side** (no SSD painting yet). **Fixed:** defer `set_mode` until `xdg_surface` initialized (Chrome early bind aborted wlroots 0.20) |
 
 Also high leverage (not a Wayland protocol): richer **stonefly IPC**.
-Done crumbs: focus/close by id, outputs, toggle-quick-terminal, live `config`
-dump. Still open: workspaces / action allowlist / inputs.
+Done crumbs: focus/close by id, outputs, workspaces, toggle-quick-terminal, live
+`config` dump. Still open: action allowlist / inputs.
 
 ### Broader WM gaps (after / beside the above)
 
@@ -312,7 +314,7 @@ read `stonefly_cfg(server)`.
 | Config validate CLI | ❌ | peeble-style check without applying |
 | `--write-config-lua` | ❌ | Offload compiled/plain Lua instead of `.fnl` |
 | `sf_*` / `sf.` rename | ❌ | Shorter C + Lua/Fennel identifiers; binary name stays `stonefly` |
-| `inputs.fnl` / `outputs.fnl` APIs | 🚧 | Files are no-op stubs; no input/output policy surface yet |
+| `inputs.fnl` / `outputs.fnl` APIs | 🚧 | Files are no-op stubs; no input/output policy surface yet. Output `:layout` override planned (resolve workspace→output→global; global `opt.layout` already wired) |
 | IPC `config` inputs/outputs sections | 🚧 | Emit `{}` until those APIs exist |
 | `exec_once` / session spawn helpers | ❌ | Named SPAWN_* + `EXEC` only |
 | Neovim API compat / fake `vim.*` | ❌ | Non-goal |

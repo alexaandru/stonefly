@@ -51,6 +51,13 @@ enum stonefly_action {
 	/* Named scratchpad; cmd holds pad name (default "term"). */
 	STONEFLY_ACTION_SCRATCH_TOGGLE,
 	STONEFLY_ACTION_SCRATCH_CLAIM,
+	/* Dynamic workspaces (cmd holds 1-based index for switch/move). */
+	STONEFLY_ACTION_WORKSPACE_NEXT,
+	STONEFLY_ACTION_WORKSPACE_PREV,
+	STONEFLY_ACTION_WORKSPACE_SWITCH,
+	STONEFLY_ACTION_MOVE_TO_WORKSPACE_NEXT,
+	STONEFLY_ACTION_MOVE_TO_WORKSPACE_PREV,
+	STONEFLY_ACTION_MOVE_TO_WORKSPACE,
 };
 
 struct stonefly_keybind {
@@ -103,6 +110,11 @@ struct stonefly_config {
 	float snap_preview_opacity;
 	int tap_max_hold_ms;
 	int double_tap_gap_ms;
+
+	/* Global layout default (workspace → output → global). */
+	int layout; /* enum stonefly_layout; STACKING today */
+	/* 3-finger vertical swipe distance (logical px) to change workspace. */
+	int swipe_workspace_threshold;
 
 	char *cmd_foot;
 	char *cmd_nautilus;

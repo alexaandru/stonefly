@@ -10,6 +10,7 @@
 #include "server/server.h"
 #include "toplevel/foreign.h"
 #include "wm/wm.h"
+#include "wm/workspace.h"
 #include "xdg/xdg.h"
 
 #include "wlr-foreign-toplevel-management-unstable-v1-protocol.h"
@@ -349,6 +350,7 @@ static void foreign_handle_activate(struct wl_client *client,
 		return;
 	}
 	SF_LOGI("foreign activate", sf_i64("id", (int64_t)toplevel->id));
+	stonefly_workspace_reveal_toplevel(toplevel);
 	stonefly_focus_toplevel(toplevel);
 }
 

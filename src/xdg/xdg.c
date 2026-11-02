@@ -16,11 +16,13 @@
 #include "anim/anim.h"
 #include "decor/decor.h"
 #include "log/log.h"
+#include "output/output.h"
 #include "seat/seat.h"
 #include "toplevel/ext_capture.h"
 #include "toplevel/foreign.h"
 #include "wm/drag_snap.h"
 #include "wm/scratchpad.h"
+#include "wm/workspace.h"
 #include "wm/wm.h"
 #include "xdg/xdg.h"
 
@@ -150,12 +152,17 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	wl_list_insert(&toplevel->server->toplevels, &toplevel->link);
 	stonefly_scratchpad_try_claim(toplevel);
 	if (stonefly_toplevel_is_scratchpad(toplevel)) {
+		stonefly_workspace_detach_scratchpad(toplevel);
 		/* Claim may have run early on set_app_id; finish first-spawn max. */
 		if (!toplevel->maximized_edges) {
 			stonefly_toplevel_set_max_edges(toplevel, true);
 		}
 		stonefly_focus_toplevel(toplevel);
 	} else {
+		struct stonefly_output *output = stonefly_output_at_cursor(toplevel->server);
+		if (output != NULL && output->active != NULL) {
+			stonefly_workspace_assign(toplevel, output->active);
+		}
 		stonefly_toplevel_place_cascade(toplevel);
 		/* Bar exclusive may already be applied; keep cascade origin in usable. */
 		stonefly_toplevel_ensure_on_screen(toplevel);
@@ -192,6 +199,10 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, false);
 	}
 
+	struct stonefly_output *ws_output =
+		toplevel->workspace != NULL ? toplevel->workspace->output : NULL;
+	toplevel->workspace = NULL;
+
 	if (toplevel->minimized) {
 		wl_list_remove(&toplevel->minimize_link);
 		wl_list_init(&toplevel->minimize_link);
@@ -199,6 +210,10 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	}
 
 	wl_list_remove(&toplevel->link);
+
+	if (ws_output != NULL) {
+		stonefly_workspace_compact(ws_output);
+	}
 
 	/* Peeble Focus(nil): fall back to the previous top of the stack.
 	 * Also recover when the seat already dropped focus before unmap. */

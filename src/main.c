@@ -17,6 +17,7 @@ static void usage(const char *argv0) {
 	printf("  %s windows [--json]             list windows via IPC\n", argv0);
 	printf("  %s layers [--json]              list layer-shell surfaces via IPC\n", argv0);
 	printf("  %s outputs [--json]             list outputs via IPC\n", argv0);
+	printf("  %s workspaces [--json]          list workspaces via IPC\n", argv0);
 	printf("  %s config [section] [--json]    dump live config (or one section)\n", argv0);
 	printf("  %s focus <id>                   focus window by id\n", argv0);
 	printf("  %s close <id>                   close window by id\n", argv0);
@@ -69,6 +70,9 @@ int main(int argc, char *argv[]) {
 		}
 		if (strcmp(argv[1], "outputs") == 0) {
 			return stonefly_ipc_cmd_outputs(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "workspaces") == 0) {
+			return stonefly_ipc_cmd_workspaces(argc - 1, argv + 1);
 		}
 		if (strcmp(argv[1], "config") == 0) {
 			return stonefly_ipc_cmd_config(argc - 1, argv + 1);

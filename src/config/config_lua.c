@@ -18,6 +18,7 @@
 #include "config/config_lua.h"
 #include "log/log.h"
 #include "server/server.h"
+#include "wm/workspace.h"
 
 #ifndef STONEFLY_DATADIR
 #define STONEFLY_DATADIR "/usr/share/stonefly"
@@ -363,6 +364,12 @@ static enum stonefly_action parse_action(const char *s) {
 		{ "exec", STONEFLY_ACTION_EXEC },
 		{ "scratch_toggle", STONEFLY_ACTION_SCRATCH_TOGGLE },
 		{ "scratch_claim", STONEFLY_ACTION_SCRATCH_CLAIM },
+		{ "workspace_next", STONEFLY_ACTION_WORKSPACE_NEXT },
+		{ "workspace_prev", STONEFLY_ACTION_WORKSPACE_PREV },
+		{ "workspace_switch", STONEFLY_ACTION_WORKSPACE_SWITCH },
+		{ "move_to_workspace_next", STONEFLY_ACTION_MOVE_TO_WORKSPACE_NEXT },
+		{ "move_to_workspace_prev", STONEFLY_ACTION_MOVE_TO_WORKSPACE_PREV },
+		{ "move_to_workspace", STONEFLY_ACTION_MOVE_TO_WORKSPACE },
 	};
 	for (size_t i = 0; i < sizeof map / sizeof map[0]; i++) {
 		if (strcmp(s, map[i].name) == 0) {
@@ -679,6 +686,8 @@ static void opt_set_number(struct stonefly_config *cfg, const char *k, double v)
 		cfg->tap_max_hold_ms = (int)v;
 	} else if (strcmp(k, "double_tap_gap_ms") == 0) {
 		cfg->double_tap_gap_ms = (int)v;
+	} else if (strcmp(k, "swipe_workspace_threshold") == 0) {
+		cfg->swipe_workspace_threshold = (int)v;
 	}
 }
 
@@ -721,6 +730,8 @@ static int l_opt_newindex(lua_State *L) {
 		} else if (strcmp(k, "cmd_launcher") == 0) {
 			free(cfg->cmd_launcher);
 			cfg->cmd_launcher = xstrdup(s);
+		} else if (strcmp(k, "layout") == 0) {
+			cfg->layout = (int)stonefly_layout_parse(s);
 		}
 		return 0;
 	}

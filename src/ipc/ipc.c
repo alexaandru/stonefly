@@ -16,11 +16,13 @@
 #include "ipc/layers.h"
 #include "ipc/outputs.h"
 #include "ipc/windows.h"
+#include "ipc/workspaces.h"
 #include "log/log.h"
 #include "server/server.h"
 #include "util/json.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
+#include "wm/workspace.h"
 #include "xdg/xdg.h"
 
 #include <wlr/types/wlr_xdg_shell.h>
@@ -31,6 +33,7 @@
 #define STONEFLY_IPC_MAX_WINDOWS 256
 #define STONEFLY_IPC_MAX_LAYERS 256
 #define STONEFLY_IPC_MAX_OUTPUTS 32
+#define STONEFLY_IPC_MAX_WORKSPACES 128
 #define STONEFLY_IPC_QUICK_TERM "term"
 
 struct stonefly_ipc {
@@ -252,6 +255,84 @@ static void ipc_handle_outputs(struct stonefly_ipc_client *client) {
 	free(out);
 }
 
+static void ipc_handle_workspaces(struct stonefly_ipc_client *client) {
+	struct stonefly_workspace_info infos[STONEFLY_IPC_MAX_WORKSPACES];
+	size_t n = stonefly_workspaces_collect(client->ipc->server, infos,
+		STONEFLY_IPC_MAX_WORKSPACES);
+
+	char *out = malloc(STONEFLY_IPC_REPLY_CAP);
+	if (out == NULL) {
+		ipc_write_line(client->fd, "{\"error\":\"oom\"}");
+		return;
+	}
+	if (stonefly_workspaces_to_json(infos, n, out, STONEFLY_IPC_REPLY_CAP) < 0) {
+		ipc_write_line(client->fd, "{\"error\":\"workspaces snapshot overflow\"}");
+	} else {
+		ipc_write_line(client->fd, out);
+	}
+	free(out);
+}
+
+static void ipc_handle_workspace(struct stonefly_ipc_client *client,
+		const char *arg) {
+	struct stonefly_server *server = client->ipc->server;
+	struct stonefly_output *output = stonefly_output_at_cursor(server);
+	if (output == NULL) {
+		ipc_write_err(client, "no output");
+		return;
+	}
+	if (arg == NULL || arg[0] == '\0') {
+		ipc_write_err(client, "workspace requires arg next|prev|N");
+		return;
+	}
+	if (strcmp(arg, "next") == 0) {
+		stonefly_workspace_switch_offset(output, 1);
+		ipc_write_ok(client);
+		return;
+	}
+	if (strcmp(arg, "prev") == 0) {
+		stonefly_workspace_switch_offset(output, -1);
+		ipc_write_ok(client);
+		return;
+	}
+	int idx = atoi(arg);
+	if (idx <= 0 || !stonefly_workspace_switch_index(output, idx)) {
+		ipc_write_err(client, "unknown workspace");
+		return;
+	}
+	ipc_write_ok(client);
+}
+
+static void ipc_handle_move_to_workspace(struct stonefly_ipc_client *client,
+		const char *arg) {
+	struct stonefly_server *server = client->ipc->server;
+	struct stonefly_toplevel *focused = stonefly_focused_toplevel(server);
+	if (focused == NULL) {
+		ipc_write_err(client, "no focused window");
+		return;
+	}
+	if (arg == NULL || arg[0] == '\0') {
+		ipc_write_err(client, "move-to-workspace requires arg next|prev|N");
+		return;
+	}
+	if (strcmp(arg, "next") == 0) {
+		stonefly_workspace_move_offset(focused, 1, true);
+		ipc_write_ok(client);
+		return;
+	}
+	if (strcmp(arg, "prev") == 0) {
+		stonefly_workspace_move_offset(focused, -1, true);
+		ipc_write_ok(client);
+		return;
+	}
+	int idx = atoi(arg);
+	if (idx <= 0 || !stonefly_workspace_move_index(focused, idx, true)) {
+		ipc_write_err(client, "unknown workspace");
+		return;
+	}
+	ipc_write_ok(client);
+}
+
 static void ipc_handle_focus(struct stonefly_ipc_client *client, const char *arg) {
 	uint64_t id;
 	if (!parse_id_arg(arg, &id)) {
@@ -333,6 +414,18 @@ static void ipc_handle_request(struct stonefly_ipc_client *client, const char *l
 	}
 	if (strcmp(cmd, "outputs") == 0) {
 		ipc_handle_outputs(client);
+		return;
+	}
+	if (strcmp(cmd, "workspaces") == 0) {
+		ipc_handle_workspaces(client);
+		return;
+	}
+	if (strcmp(cmd, "workspace") == 0) {
+		ipc_handle_workspace(client, arg);
+		return;
+	}
+	if (strcmp(cmd, "move-to-workspace") == 0) {
+		ipc_handle_move_to_workspace(client, arg);
 		return;
 	}
 	if (strcmp(cmd, "focus") == 0) {
@@ -771,6 +864,53 @@ int stonefly_ipc_cmd_outputs(int argc, char **argv) {
 	}
 	free(reply);
 	stonefly_outputs_print(infos, n, stdout);
+	return 0;
+}
+
+int stonefly_ipc_cmd_workspaces(int argc, char **argv) {
+	bool as_json = false;
+
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "--json") == 0) {
+			as_json = true;
+		} else if (strcmp(argv[i], "-h") == 0 ||
+				strcmp(argv[i], "--help") == 0) {
+			printf("Usage: stonefly workspaces [--json]\n");
+			return 0;
+		} else {
+			fprintf(stderr, "Usage: stonefly workspaces [--json]\n");
+			return 1;
+		}
+	}
+
+	char *reply = NULL;
+	int rc = ipc_request("workspaces", &reply);
+	if (rc != 0) {
+		return rc;
+	}
+
+	if (reply[0] == '{' && strncmp(reply, "{\"error\":", 9) == 0) {
+		fprintf(stderr, "stonefly: %s\n", reply);
+		free(reply);
+		return 1;
+	}
+
+	if (as_json) {
+		printf("%s\n", reply);
+		free(reply);
+		return 0;
+	}
+
+	struct stonefly_workspace_info infos[STONEFLY_IPC_MAX_WORKSPACES];
+	size_t n = 0;
+	if (!stonefly_workspaces_from_json(reply, infos, STONEFLY_IPC_MAX_WORKSPACES,
+			&n)) {
+		fprintf(stderr, "stonefly: bad workspaces reply\n");
+		free(reply);
+		return 1;
+	}
+	free(reply);
+	stonefly_workspaces_print(infos, n, stdout);
 	return 0;
 }
 

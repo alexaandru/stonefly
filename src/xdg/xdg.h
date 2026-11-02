@@ -24,6 +24,7 @@ struct wlr_scene_shadow;
 struct wlr_scene;
 struct wlr_ext_foreign_toplevel_handle_v1;
 struct wlr_ext_image_capture_source_v1;
+struct stonefly_workspace;
 
 struct stonefly_toplevel {
 	enum stonefly_node_kind kind; /* STONEFLY_NODE_TOPLEVEL */
@@ -76,6 +77,9 @@ struct stonefly_toplevel {
 
 	/* Named scratchpad id, or empty when not on a pad. */
 	char scratchpad[32];
+
+	/* Per-output workspace membership; NULL for scratchpads. */
+	struct stonefly_workspace *workspace;
 
 	/* xdg-toplevel-tag-v1 (client-set; heap, may be NULL). */
 	char *tag;

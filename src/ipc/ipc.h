@@ -12,6 +12,9 @@ struct stonefly_server;
  *   {"cmd":"windows"}                 → JSON array of windows
  *   {"cmd":"layers"}                  → JSON array of layer-shell surfaces
  *   {"cmd":"outputs"}                 → JSON array of outputs
+ *   {"cmd":"workspaces"}              → JSON array of workspaces
+ *   {"cmd":"workspace","arg":"next|prev|N"} → {"ok":true}
+ *   {"cmd":"move-to-workspace","arg":"next|prev|N"} → {"ok":true}
  *   {"cmd":"focus","arg":"<id>"}      → {"ok":true}
  *   {"cmd":"close","arg":"<id>"}      → {"ok":true}
  *   {"cmd":"toggle-quick-terminal"}   → {"ok":true} (pad "term")
@@ -30,6 +33,7 @@ void stonefly_ipc_stop(struct stonefly_server *server);
 int stonefly_ipc_cmd_windows(int argc, char **argv);
 int stonefly_ipc_cmd_layers(int argc, char **argv);
 int stonefly_ipc_cmd_outputs(int argc, char **argv);
+int stonefly_ipc_cmd_workspaces(int argc, char **argv);
 int stonefly_ipc_cmd_config(int argc, char **argv);
 int stonefly_ipc_cmd_focus(int argc, char **argv);
 int stonefly_ipc_cmd_close(int argc, char **argv);

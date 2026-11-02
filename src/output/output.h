@@ -5,8 +5,10 @@
 #include <wlr/util/box.h>
 
 #include "server/server.h"
+#include "wm/workspace.h"
 
 struct wlr_output;
+struct wlr_ext_workspace_group_handle_v1;
 
 struct stonefly_output {
 	struct wl_list link;
@@ -20,6 +22,12 @@ struct stonefly_output {
 	struct wl_list layers[4];
 	struct wlr_box full;
 	struct wlr_box usable;
+
+	/* Dynamic per-output workspace strip. */
+	struct wl_list workspaces;
+	struct stonefly_workspace *active;
+	enum stonefly_layout layout; /* UNSET = inherit global */
+	struct wlr_ext_workspace_group_handle_v1 *ext_group;
 };
 
 void stonefly_output_setup(struct stonefly_server *server);

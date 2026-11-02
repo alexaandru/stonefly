@@ -5,11 +5,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wlr/types/wlr_output.h>
 #include <wlr/util/box.h>
 
+#include "output/output.h"
 #include "server/server.h"
 #include "util/json.h"
 #include "wm/wm.h"
+#include "wm/workspace.h"
 #include "xdg/xdg.h"
 
 static const char *snap_dir_name(enum stonefly_snap snap) {
@@ -76,6 +79,19 @@ size_t stonefly_windows_collect(struct stonefly_server *server,
 			!toplevel->maximized_gaps && !info->snapped;
 		copy_str(info->snap_dir, sizeof(info->snap_dir),
 			snap_dir_name(toplevel->snapped));
+		if (toplevel->workspace != NULL) {
+			info->workspace = toplevel->workspace->index + 1;
+			struct wlr_output *wo = toplevel->workspace->output->wlr_output;
+			copy_str(info->output, sizeof(info->output),
+				wo != NULL ? wo->name : "");
+		} else {
+			info->workspace = 0;
+			struct stonefly_output *out =
+				stonefly_output_for_toplevel(toplevel);
+			copy_str(info->output, sizeof(info->output),
+				out != NULL && out->wlr_output != NULL
+					? out->wlr_output->name : "");
+		}
 	}
 
 	return n;
@@ -154,6 +170,13 @@ int stonefly_windows_to_json(const struct stonefly_window_info *infos,
 			json_str(&b, w->snap_dir);
 		}
 
+		json_byte(&b, ',');
+		json_key(&b, "output");
+		json_str(&b, w->output);
+		json_byte(&b, ',');
+		json_key(&b, "workspace");
+		json_i64(&b, w->workspace);
+
 		json_byte(&b, '}');
 	}
 	json_byte(&b, ']');
@@ -210,13 +233,20 @@ static bool parse_object(struct json_scan *s, struct stonefly_window_info *out) 
 			if (!json_scan_string(s, out->snap_dir, sizeof(out->snap_dir))) {
 				return false;
 			}
+		} else if (strcmp(key, "output") == 0) {
+			if (!json_scan_string(s, out->output, sizeof(out->output))) {
+				return false;
+			}
 		} else if (strcmp(key, "x") == 0 || strcmp(key, "y") == 0 ||
-				strcmp(key, "w") == 0 || strcmp(key, "h") == 0) {
+				strcmp(key, "w") == 0 || strcmp(key, "h") == 0 ||
+				strcmp(key, "workspace") == 0) {
 			int64_t v = 0;
 			if (!json_scan_i64(s, &v)) {
 				return false;
 			}
-			if (key[0] == 'x') {
+			if (strcmp(key, "workspace") == 0) {
+				out->workspace = (int)v;
+			} else if (key[0] == 'x') {
 				out->x = (int32_t)v;
 			} else if (key[0] == 'y') {
 				out->y = (int32_t)v;

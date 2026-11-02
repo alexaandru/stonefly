@@ -14,6 +14,7 @@
 #include "decor/decor.h"
 #include "layer/layer.h"
 #include "output/output.h"
+#include "wm/workspace.h"
 
 static void output_frame(struct wl_listener *listener, void *data) {
 	(void)data;
@@ -62,6 +63,7 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 		}
 	}
 
+	stonefly_workspace_output_finish(output);
 	output->wlr_output->data = NULL;
 	wl_list_remove(&output->frame.link);
 	wl_list_remove(&output->request_state.link);
@@ -141,6 +143,7 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	struct wlr_scene_output *scene_output = wlr_scene_output_create(server->scene, wlr_output);
 	wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
 
+	stonefly_workspace_output_init(output);
 	stonefly_layer_arrange_output(output);
 	stonefly_decor_update_blur_size(server);
 }

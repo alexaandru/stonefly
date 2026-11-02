@@ -21,6 +21,7 @@
 #include "toplevel/foreign.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
+#include "wm/workspace.h"
 
 void stonefly_toplevel_layout_geom(struct stonefly_toplevel *toplevel,
 		struct wlr_box *box) {
@@ -607,7 +608,8 @@ static void minimize_link_detach(struct stonefly_toplevel *toplevel) {
 
 static bool toplevel_focusable(const struct stonefly_toplevel *toplevel) {
 	/* anim_hide: sliding out but minimized not set yet — do not re-pick. */
-	return !toplevel->minimized && !toplevel->anim_hide;
+	return !toplevel->minimized && !toplevel->anim_hide &&
+		stonefly_toplevel_workspace_visible(toplevel);
 }
 
 void stonefly_toplevel_apply_hidden(struct stonefly_toplevel *toplevel,
@@ -639,6 +641,20 @@ void stonefly_toplevel_apply_hidden(struct stonefly_toplevel *toplevel,
 void stonefly_toplevel_apply_shown(struct stonefly_toplevel *toplevel,
 		bool activate) {
 	if (toplevel->minimized) {
+		/* LIFO unminimize lands on the output's current active workspace. */
+		if (!stonefly_toplevel_is_scratchpad(toplevel)) {
+			struct stonefly_output *out = NULL;
+			if (toplevel->workspace != NULL) {
+				out = toplevel->workspace->output;
+			}
+			if (out == NULL) {
+				out = stonefly_output_for_toplevel(toplevel);
+			}
+			if (out != NULL && out->active != NULL &&
+					toplevel->workspace != out->active) {
+				stonefly_workspace_assign(toplevel, out->active);
+			}
+		}
 		toplevel->minimized = false;
 		minimize_link_detach(toplevel);
 		/* Enable at resting, then slide in from off-screen. */
@@ -670,9 +686,12 @@ void stonefly_focus_toplevel(struct stonefly_toplevel *toplevel) {
 	if (stonefly_session_locked(server)) {
 		return;
 	}
+	/* Show before reveal so LIFO unminimize can reassign to the active
+	 * workspace first (otherwise reveal would switch to the old strip). */
 	if (toplevel->minimized) {
 		stonefly_toplevel_apply_shown(toplevel, false);
 	}
+	stonefly_workspace_reveal_toplevel(toplevel);
 	server->exclusive_layer = NULL;
 	struct wlr_seat *seat = server->seat;
 	struct wlr_surface *prev_surface = seat->keyboard_state.focused_surface;
@@ -823,6 +842,9 @@ static bool focus_cycle_eligible(struct stonefly_toplevel *t,
 	if (stonefly_toplevel_is_scratchpad(t) || t->anim_hide) {
 		return false;
 	}
+	if (!include_minimized && !stonefly_toplevel_workspace_visible(t)) {
+		return false;
+	}
 	return include_minimized || !t->minimized;
 }
 
@@ -970,6 +992,38 @@ void stonefly_run_action(struct stonefly_server *server,
 		stonefly_scratchpad_claim_focused(server,
 			(cmd != NULL && cmd[0] != '\0') ? cmd : "term");
 		break;
+	case STONEFLY_ACTION_WORKSPACE_NEXT:
+	case STONEFLY_ACTION_WORKSPACE_PREV: {
+		struct stonefly_output *output = stonefly_output_at_cursor(server);
+		if (output != NULL) {
+			stonefly_workspace_switch_offset(output,
+				action == STONEFLY_ACTION_WORKSPACE_NEXT ? 1 : -1);
+		}
+		break;
+	}
+	case STONEFLY_ACTION_WORKSPACE_SWITCH: {
+		struct stonefly_output *output = stonefly_output_at_cursor(server);
+		int idx = (cmd != NULL) ? atoi(cmd) : 0;
+		if (output != NULL && idx > 0) {
+			stonefly_workspace_switch_index(output, idx);
+		}
+		break;
+	}
+	case STONEFLY_ACTION_MOVE_TO_WORKSPACE_NEXT:
+	case STONEFLY_ACTION_MOVE_TO_WORKSPACE_PREV:
+		if (focused != NULL) {
+			stonefly_workspace_move_offset(focused,
+				action == STONEFLY_ACTION_MOVE_TO_WORKSPACE_NEXT ? 1 : -1,
+				true);
+		}
+		break;
+	case STONEFLY_ACTION_MOVE_TO_WORKSPACE: {
+		int idx = (cmd != NULL) ? atoi(cmd) : 0;
+		if (focused != NULL && idx > 0) {
+			stonefly_workspace_move_index(focused, idx, true);
+		}
+		break;
+	}
 	}
 }
 

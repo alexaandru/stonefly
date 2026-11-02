@@ -9,6 +9,7 @@
 #include "config/config.h"
 #include "server/server.h"
 #include "util/json.h"
+#include "wm/workspace.h"
 
 static const char *action_name(enum stonefly_action a) {
 	switch (a) {
@@ -39,6 +40,12 @@ static const char *action_name(enum stonefly_action a) {
 	case STONEFLY_ACTION_EXEC: return "exec";
 	case STONEFLY_ACTION_SCRATCH_TOGGLE: return "scratch_toggle";
 	case STONEFLY_ACTION_SCRATCH_CLAIM: return "scratch_claim";
+	case STONEFLY_ACTION_WORKSPACE_NEXT: return "workspace_next";
+	case STONEFLY_ACTION_WORKSPACE_PREV: return "workspace_prev";
+	case STONEFLY_ACTION_WORKSPACE_SWITCH: return "workspace_switch";
+	case STONEFLY_ACTION_MOVE_TO_WORKSPACE_NEXT: return "move_to_workspace_next";
+	case STONEFLY_ACTION_MOVE_TO_WORKSPACE_PREV: return "move_to_workspace_prev";
+	case STONEFLY_ACTION_MOVE_TO_WORKSPACE: return "move_to_workspace";
 	}
 	return "unknown";
 }
@@ -159,6 +166,12 @@ static void emit_options(struct json_buf *b, const struct stonefly_config *cfg) 
 	json_byte(b, ',');
 	json_key(b, "double_tap_gap_ms");
 	json_i64(b, cfg->double_tap_gap_ms);
+	json_byte(b, ',');
+	json_key(b, "layout");
+	json_str(b, stonefly_layout_name((enum stonefly_layout)cfg->layout));
+	json_byte(b, ',');
+	json_key(b, "swipe_workspace_threshold");
+	json_i64(b, cfg->swipe_workspace_threshold);
 
 	json_byte(b, '}');
 }
