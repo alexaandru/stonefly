@@ -69,7 +69,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Geometry persist across restart | ✅ `windows.json` by river id | Schema / blacklist / MRU polish 📋 | ❌ | |
 | Window rules (app-id/title) | 🚧 center + modal parent | auto-float, size, scratchpad, AOT, force SSD 📋 | ❌ | |
 | Keyboard nudge move/resize | ❌ | 📋 high-value | ❌ | Snap exists; step nudge does not |
-| Workspaces / tags | ❌ | 📋 + river#1402 / #1390 | ❌ | FORK gap |
+| Workspaces / tags | ❌ | 📋 + river#1402 / #1390 | 🚧 | ✅ `xdg-toplevel-tag` + IPC; ❌ `ext-workspace` / rules / persist |
 | Layout engine (tile/columns/…) | ❌ | 📋 | ❌ | |
 | Focus cycle policy (MRU vs stack) | 🚧 stacking default | Decide MRU Alt+Tab 📋 | 🚧 | Stacking / MRU list front |
 | Multi-monitor focus / send | ✅ `focus_monitor` / `send_to_monitor` | — | ❌ | |
@@ -172,7 +172,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Gamma control | ✅ | — | ✅ | `zwlr_gamma_control_v1` + SceneFX scene hook (`server.c`) |
 | Xwayland | ✅ (River host) | — | ❌ | Classic X11 apps fail |
 | ext-workspace-v1 | ❌ | #1402 📋 | ❌ | |
-| xdg-toplevel-tag | ❌ | #1390 📋 | ❌ | |
+| xdg-toplevel-tag | ❌ | #1390 📋 | ✅ | `wlr_xdg_toplevel_tag_manager_v1` (`xdg.c`); stored on toplevel; shown in IPC `windows` (`tag` / `description`). No rules/persist consumer yet. |
 | Touch / gestures / virtual-keyboard | ❌ | River 0.5 items 📋 | ❌ | |
 | Presentation-time / fifo / tearing | ❌ | Shared frame clock Ideas 📋 | 🚧 | Own vsync; no protocol export |
 
@@ -218,7 +218,7 @@ River-fork brief items and where stonefly stands (no River needed).
 | P1 | #1281 urgency / xdg-activation | Blocked | ✅ |
 | P1 | #1389 system bell | Blocked | ✅ |
 | P1 | #1481 capture privacy | Blocked | ❌ |
-| P2 | #1402 workspaces, #1390 tags | Roadmap | ❌ |
+| P2 | #1402 workspaces, #1390 tags | Roadmap | 🚧 | ✅ `xdg-toplevel-tag` advertised + IPC; ❌ workspaces / rules / geometry persist |
 | P2 | Layer `set_exclusive_edge`, presentation-time | Roadmap | 🚧 exclusive zones yes; edge/proto clock no |
 | P3 | SceneFX blur / corners / shadows | Parked | 🚧 blur off (`opt.window_blur` false) / ✅ corners / ✅ shadows |
 
@@ -287,7 +287,7 @@ dump. Still open: workspaces / action allowlist / inputs.
 1. **Xwayland** (classic apps)
 2. **Capture privacy** (#1481) — screencopy exists; policy UI still missing
 3. **Real config** — ✅ shipped; remaining work listed in §10.
-4. Optional: always-on-top, multi-mon send/focus, tags (#1390)
+4. Optional: always-on-top, multi-mon send/focus; tags protocol ✅ (rules/persist still open)
 
 Shell/OSD/media stay **🌙 Noctalia** unless product asks for in-process
 chrome again.

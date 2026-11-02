@@ -219,6 +219,11 @@ void stonefly_server_finish(struct stonefly_server *server) {
 	if (server->system_bell != NULL) {
 		wl_list_remove(&server->system_bell_ring.link);
 	}
+	if (server->xdg_toplevel_tag_mgr != NULL) {
+		wl_list_remove(&server->xdg_toplevel_set_tag.link);
+		wl_list_remove(&server->xdg_toplevel_set_description.link);
+		server->xdg_toplevel_tag_mgr = NULL;
+	}
 	stonefly_foreign_toplevel_finish(server);
 	stonefly_ext_capture_finish(server);
 

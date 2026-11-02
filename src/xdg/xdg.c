@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <stdlib.h>
+#include <string.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
 #include <scenefx/types/wlr_scene.h>
@@ -8,6 +9,7 @@
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/types/wlr_xdg_system_bell_v1.h>
+#include <wlr/types/wlr_xdg_toplevel_tag_v1.h>
 #include <wlr/util/box.h>
 #include <wlr/util/edges.h>
 
@@ -35,6 +37,75 @@ static struct stonefly_toplevel *toplevel_from_surface(
 		}
 	}
 	return NULL;
+}
+
+static struct stonefly_toplevel *toplevel_from_xdg(
+		struct stonefly_server *server, struct wlr_xdg_toplevel *xdg) {
+	if (xdg == NULL) {
+		return NULL;
+	}
+	/* Mapped windows are on the list; unmapped still exist via scene data. */
+	if (xdg->base != NULL && xdg->base->data != NULL) {
+		struct wlr_scene_tree *tree = xdg->base->data;
+		if (tree->node.data != NULL) {
+			struct stonefly_toplevel *t = tree->node.data;
+			if (t->kind == STONEFLY_NODE_TOPLEVEL && t->xdg_toplevel == xdg) {
+				return t;
+			}
+		}
+	}
+	struct stonefly_toplevel *t;
+	wl_list_for_each(t, &server->toplevels, link) {
+		if (t->xdg_toplevel == xdg) {
+			return t;
+		}
+	}
+	return NULL;
+}
+
+static void replace_str(char **dst, const char *src) {
+	char *copy = NULL;
+	if (src != NULL) {
+		copy = strdup(src);
+		if (copy == NULL) {
+			return;
+		}
+	}
+	free(*dst);
+	*dst = copy;
+}
+
+static void xdg_toplevel_set_tag(struct wl_listener *listener, void *data) {
+	struct stonefly_server *server =
+		wl_container_of(listener, server, xdg_toplevel_set_tag);
+	const struct wlr_xdg_toplevel_tag_manager_v1_set_tag_event *event = data;
+	struct stonefly_toplevel *toplevel =
+		toplevel_from_xdg(server, event->toplevel);
+	if (toplevel == NULL) {
+		return;
+	}
+	replace_str(&toplevel->tag, event->tag);
+	SF_LOGI("toplevel tag",
+		sf_i64("id", (int64_t)toplevel->id),
+		sf_str("tag", toplevel->tag != NULL ? toplevel->tag : ""));
+}
+
+static void xdg_toplevel_set_description(struct wl_listener *listener,
+		void *data) {
+	struct stonefly_server *server =
+		wl_container_of(listener, server, xdg_toplevel_set_description);
+	const struct wlr_xdg_toplevel_tag_manager_v1_set_description_event *event =
+		data;
+	struct stonefly_toplevel *toplevel =
+		toplevel_from_xdg(server, event->toplevel);
+	if (toplevel == NULL) {
+		return;
+	}
+	replace_str(&toplevel->description, event->description);
+	SF_LOGI("toplevel description",
+		sf_i64("id", (int64_t)toplevel->id),
+		sf_str("description",
+			toplevel->description != NULL ? toplevel->description : ""));
 }
 
 static void request_activate(struct wl_listener *listener, void *data) {
@@ -208,6 +279,8 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&toplevel->set_app_id.link);
 	wl_list_remove(&toplevel->set_parent.link);
 
+	free(toplevel->tag);
+	free(toplevel->description);
 	free(toplevel);
 }
 
@@ -546,5 +619,18 @@ void stonefly_xdg_setup(struct stonefly_server *server) {
 		server->new_xdg_decoration.notify = server_new_xdg_decoration;
 		wl_signal_add(&server->xdg_decoration_mgr->events.new_toplevel_decoration,
 			&server->new_xdg_decoration);
+	}
+
+	/* river#1390 / MATRIX — client tags for rules / persist / IPC windows. */
+	server->xdg_toplevel_tag_mgr =
+		wlr_xdg_toplevel_tag_manager_v1_create(server->wl_display, 1);
+	if (server->xdg_toplevel_tag_mgr != NULL) {
+		server->xdg_toplevel_set_tag.notify = xdg_toplevel_set_tag;
+		wl_signal_add(&server->xdg_toplevel_tag_mgr->events.set_tag,
+			&server->xdg_toplevel_set_tag);
+		server->xdg_toplevel_set_description.notify =
+			xdg_toplevel_set_description;
+		wl_signal_add(&server->xdg_toplevel_tag_mgr->events.set_description,
+			&server->xdg_toplevel_set_description);
 	}
 }

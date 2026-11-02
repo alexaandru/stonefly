@@ -61,6 +61,9 @@ size_t stonefly_windows_collect(struct stonefly_server *server,
 			toplevel->xdg_toplevel->app_id);
 		copy_str(info->title, sizeof(info->title),
 			toplevel->xdg_toplevel->title);
+		copy_str(info->tag, sizeof(info->tag), toplevel->tag);
+		copy_str(info->description, sizeof(info->description),
+			toplevel->description);
 		info->x = geom.x;
 		info->y = geom.y;
 		info->w = geom.width;
@@ -103,6 +106,14 @@ int stonefly_windows_to_json(const struct stonefly_window_info *infos,
 		json_byte(&b, ',');
 		json_key(&b, "title");
 		json_str(&b, w->title);
+
+		json_byte(&b, ',');
+		json_key(&b, "tag");
+		json_str(&b, w->tag);
+
+		json_byte(&b, ',');
+		json_key(&b, "description");
+		json_str(&b, w->description);
 
 		json_byte(&b, ',');
 		json_key(&b, "x");
@@ -184,6 +195,15 @@ static bool parse_object(struct json_scan *s, struct stonefly_window_info *out) 
 			}
 		} else if (strcmp(key, "title") == 0) {
 			if (!json_scan_string(s, out->title, sizeof(out->title))) {
+				return false;
+			}
+		} else if (strcmp(key, "tag") == 0) {
+			if (!json_scan_string(s, out->tag, sizeof(out->tag))) {
+				return false;
+			}
+		} else if (strcmp(key, "description") == 0) {
+			if (!json_scan_string(s, out->description,
+					sizeof(out->description))) {
 				return false;
 			}
 		} else if (strcmp(key, "snap_dir") == 0) {
@@ -308,10 +328,19 @@ void stonefly_windows_print(const struct stonefly_window_info *infos,
 	}
 	for (size_t i = 0; i < n; i++) {
 		const struct stonefly_window_info *w = &infos[i];
-		fprintf(fp, "%s %llu\t%s\t%s\n",
-			w->focused ? "*" : " ",
-			(unsigned long long)w->id,
-			w->app_id,
-			w->title);
+		if (w->tag[0] != '\0') {
+			fprintf(fp, "%s %llu\t%s\t%s\ttag=%s\n",
+				w->focused ? "*" : " ",
+				(unsigned long long)w->id,
+				w->app_id,
+				w->title,
+				w->tag);
+		} else {
+			fprintf(fp, "%s %llu\t%s\t%s\n",
+				w->focused ? "*" : " ",
+				(unsigned long long)w->id,
+				w->app_id,
+				w->title);
+		}
 	}
 }

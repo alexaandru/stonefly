@@ -99,8 +99,8 @@ Same binary speaks IPC when given a subcommand. Socket path:
 `$STONEFLY_SOCKET`, else `$XDG_RUNTIME_DIR/stonefly-$WAYLAND_DISPLAY.sock`.
 
 ```sh
-stonefly windows           # human: "* id  app_id  title"
-stonefly windows --json    # JSON array (id, app_id, title, geom, flags)
+stonefly windows           # human: "* id  app_id  title  [tag=…]"
+stonefly windows --json    # JSON array (id, app_id, title, tag, description, geom, flags)
 stonefly layers            # human: namespace / layer / output / geom / excl / kbd
 stonefly layers --json     # JSON array (namespace, layer, output, geom, zones)
 stonefly outputs           # human: name*  WxH@scale  layout / usable
@@ -160,7 +160,7 @@ Still open relative to the old River-fork brief / peeble feature set:
 |---|---|---|
 | Foreign-toplevel for docks/taskbars | [#1449](https://codeberg.org/river/river/issues/1449) / [#1537](https://codeberg.org/river/river/pulls/1537) | ✅ `zwlr_foreign_toplevel_management_v1` v3 + `ext-foreign-toplevel-list-v1` |
 | Capture privacy (block window from screenshots) | [#1481](https://codeberg.org/river/river/issues/1481) | Not implemented |
-| Workspaces / tags | [#1402](https://codeberg.org/river/river/issues/1402) `ext-workspace-v1`, [#1390](https://codeberg.org/river/river/issues/1390) toplevel-tag | Not implemented |
+| Workspaces / tags | [#1402](https://codeberg.org/river/river/issues/1402) `ext-workspace-v1`, [#1390](https://codeberg.org/river/river/issues/1390) toplevel-tag | 🚧 tag protocol ✅ (`xdg.c` + IPC `windows`); workspaces / rules / persist ❌ |
 | Window previews / destination size | [#1384](https://codeberg.org/river/river/issues/1384) | ✅ ext toplevel image-capture + image-copy-capture for Noctalia switcher (`ext_capture.c`) |
 | Xwayland | peeble/river day-to-day | Not implemented |
 | Screenshots / screencopy / image-copy-capture | peeble | ✅ `zwlr_screencopy` + ext-image-copy-capture; Print binds → noctalia 🌙 |

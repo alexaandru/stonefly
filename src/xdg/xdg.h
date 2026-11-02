@@ -77,6 +77,10 @@ struct stonefly_toplevel {
 	/* Named scratchpad id, or empty when not on a pad. */
 	char scratchpad[32];
 
+	/* xdg-toplevel-tag-v1 (client-set; heap, may be NULL). */
+	char *tag;
+	char *description;
+
 	/* Logical resting position while a slide/morph runs (scene node is visual). */
 	int resting_x;
 	int resting_y;
