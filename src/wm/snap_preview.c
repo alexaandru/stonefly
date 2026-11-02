@@ -11,7 +11,7 @@
 #include "xdg/xdg.h"
 
 static void preview_colors(float fill[4], float rim[4]) {
-	const float *active = (const float *)STONEFLY_BORDER_ACTIVE;
+	const float *active = STONEFLY_BORDER_ACTIVE;
 	const float a = STONEFLY_SNAP_PREVIEW_OPACITY;
 	/* Premultiplied fill at preview opacity. */
 	fill[0] = active[0] * a;

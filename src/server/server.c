@@ -72,8 +72,9 @@ static void stonefly_update_dbus_activation_environment(void) {
 
 bool stonefly_server_init(struct stonefly_server *server) {
 	server->wl_display = wl_display_create();
+	server->session = NULL;
 	server->backend = wlr_backend_autocreate(
-		wl_display_get_event_loop(server->wl_display), NULL);
+		wl_display_get_event_loop(server->wl_display), &server->session);
 	if (server->backend == NULL) {
 		SF_LOGE("failed to create wlr_backend");
 		return false;

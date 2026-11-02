@@ -1,6 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include <assert.h>
 #include <stdlib.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
@@ -369,20 +368,35 @@ static void server_new_xdg_popup(struct wl_listener *listener, void *data) {
 	/* This event is raised when a client creates a new popup. */
 	struct wlr_xdg_popup *xdg_popup = data;
 
-	struct stonefly_popup *popup = calloc(1, sizeof(*popup));
-	popup->xdg_popup = xdg_popup;
-
 	/* Parent scene tree: xdg surfaces stash theirs on xdg_surface->data;
 	 * layer surfaces stash a popup tree on wlr_surface->data. */
 	struct wlr_scene_tree *parent_tree = NULL;
-	struct wlr_xdg_surface *xdg_parent =
-		wlr_xdg_surface_try_from_wlr_surface(xdg_popup->parent);
-	if (xdg_parent != NULL) {
-		parent_tree = xdg_parent->data;
-	} else {
-		parent_tree = xdg_popup->parent->data;
+	if (xdg_popup->parent != NULL) {
+		struct wlr_xdg_surface *xdg_parent =
+			wlr_xdg_surface_try_from_wlr_surface(xdg_popup->parent);
+		if (xdg_parent != NULL) {
+			parent_tree = xdg_parent->data;
+		} else {
+			parent_tree = xdg_popup->parent->data;
+		}
 	}
-	assert(parent_tree != NULL);
+	if (parent_tree == NULL) {
+		/* Noctalia taskbar tooltips (and similar) can arrive with a NULL
+		 * parent or a surface with no scene data. Calling
+		 * wlr_xdg_surface_try_from_wlr_surface(NULL) SEGVs (ASan: taskbar
+		 * click → foreign activate → tooltip popup). Destroy instead. */
+		SF_LOGW("xdg popup without parent scene tree; destroying");
+		wlr_xdg_popup_destroy(xdg_popup);
+		return;
+	}
+
+	struct stonefly_popup *popup = calloc(1, sizeof(*popup));
+	if (popup == NULL) {
+		wlr_xdg_popup_destroy(xdg_popup);
+		return;
+	}
+	popup->xdg_popup = xdg_popup;
+
 	xdg_popup->base->data = wlr_scene_xdg_surface_create(parent_tree, xdg_popup->base);
 
 	popup->commit.notify = xdg_popup_commit;

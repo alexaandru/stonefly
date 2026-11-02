@@ -13,6 +13,7 @@ depends="
 	"
 makedepends="
 	clang
+	compiler-rt
 	libxkbcommon-dev
 	meson
 	samurai
@@ -21,13 +22,26 @@ makedepends="
 	wayland-protocols
 	wlroots0.20-dev
 	"
-options="!check"
+# !strip: keep symbols so ASan/UBSan traces are useful while we ship sanitizer builds.
+options="!check !strip"
 source="stonefly-$pkgver.tar.gz"
 builddir="$srcdir/stonefly-$pkgver"
 
 build() {
 	export CC=clang
-	abuild-meson . output
+	# TEMPORARY: always ship a sanitizer debug build (even for "releases") so
+	# compositor crashes (taskbar, VT switch, …) get actionable traces. Keep
+	# the real release stanza below commented until crash hunting is done —
+	# then restore it and drop -Db_sanitize / !strip / compiler-rt.
+	# compiler-rt supplies libclang_rt.asan*.a for clang -fsanitize= on Alpine.
+	#
+	# abuild-meson \
+	# 	--buildtype=release \
+	# 	. output
+	abuild-meson \
+		--buildtype=debugoptimized \
+		-Db_sanitize=address,undefined \
+		. output
 	meson compile -C output
 }
 
@@ -36,5 +50,5 @@ package() {
 }
 
 sha512sums="
-dca7835daf92bc03ca40154206034df061a0450d3d4a127f465ef899d0e4d902c59b5de24d8b5e38a8997301c00ac2148c4912ce41a5a66eb897135e36a70272  stonefly-0.0.1.tar.gz
+17e130dcecab31eb41715c874241ceef7e7106fb51b3b0946058869f4a222acae4c3742c770dd5ac507dd3bb9afe816c4cf5086620661a73ced58c44260a69c3  stonefly-0.0.1.tar.gz
 "

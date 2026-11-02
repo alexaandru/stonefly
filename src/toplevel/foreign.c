@@ -265,6 +265,11 @@ static void foreign_send_handle_props(
 	zwlr_foreign_toplevel_handle_v1_send_done(handle->resource);
 }
 
+/*
+ * After `closed`, the client must destroy the handle object. Destroying the
+ * resource here races that destroy request and kills the shell with
+ * "error in client communication" (seen every gcr-prompter unmap).
+ */
 static void foreign_close_handles_for(struct stonefly_toplevel *toplevel) {
 	struct stonefly_server *server = toplevel->server;
 	struct stonefly_foreign_toplevel_handle *handle, *tmp;
@@ -275,7 +280,8 @@ static void foreign_close_handles_for(struct stonefly_toplevel *toplevel) {
 		handle->toplevel = NULL;
 		foreign_handle_clear_outputs(handle);
 		zwlr_foreign_toplevel_handle_v1_send_closed(handle->resource);
-		wl_resource_destroy(handle->resource);
+		wl_list_remove(&handle->link);
+		wl_list_init(&handle->link);
 	}
 }
 
@@ -286,7 +292,9 @@ static void foreign_handle_destroy_cb(struct wl_resource *resource) {
 		return;
 	}
 	foreign_handle_clear_outputs(handle);
-	wl_list_remove(&handle->link);
+	if (!wl_list_empty(&handle->link)) {
+		wl_list_remove(&handle->link);
+	}
 	free(handle);
 }
 
@@ -317,6 +325,7 @@ static void foreign_handle_set_minimized(struct wl_client *client,
 	if (toplevel == NULL) {
 		return;
 	}
+	SF_LOGI("foreign set_minimized", sf_i64("id", (int64_t)toplevel->id));
 	stonefly_toplevel_minimize(toplevel);
 }
 
@@ -327,6 +336,7 @@ static void foreign_handle_unset_minimized(struct wl_client *client,
 	if (toplevel == NULL) {
 		return;
 	}
+	SF_LOGI("foreign unset_minimized", sf_i64("id", (int64_t)toplevel->id));
 	stonefly_toplevel_unminimize(toplevel);
 }
 

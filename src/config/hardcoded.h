@@ -36,14 +36,13 @@
  * Inactive matches niri-ish #505050 — old silver (0.75) read as “still on”.
  * Colors are straight RGBA; decor premultiplies for SceneFX.
  */
-#define STONEFLY_BORDER_ACTIVE \
-	((float[4]){ 0.10f, 0.75f, 1.00f, 1.00f })
-#define STONEFLY_BORDER_INACTIVE \
-	((float[4]){ 0.22f, 0.22f, 0.24f, 1.00f })
-#define STONEFLY_BORDER_URGENT \
-	((float[4]){ 1.00f, 0.45f, 0.10f, 1.00f })
-#define STONEFLY_SHADOW_COLOR \
-	((float[4]){ 0.0f, 0.0f, 0.0f, 0.55f })
+/* Static storage — not compound literals. Pointers to ((float[4]){…})
+ * die at the end of the enclosing block (ASan stack-use-after-scope in
+ * stonefly_decor_set_focused → border_rgba_premul on first map/focus). */
+static const float STONEFLY_BORDER_ACTIVE[4] = { 0.10f, 0.75f, 1.00f, 1.00f };
+static const float STONEFLY_BORDER_INACTIVE[4] = { 0.22f, 0.22f, 0.24f, 1.00f };
+static const float STONEFLY_BORDER_URGENT[4] = { 1.00f, 0.45f, 0.10f, 1.00f };
+static const float STONEFLY_SHADOW_COLOR[4] = { 0.0f, 0.0f, 0.0f, 0.55f };
 /*
  * Per-window SceneFX blur plate under the client. Off for day-zero: a failed
  * / empty optimized-blur sample paints an opaque black rect and kills window

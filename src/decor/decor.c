@@ -345,11 +345,11 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 
 void stonefly_decor_refresh_border(struct stonefly_toplevel *toplevel) {
 	bool focused = stonefly_focused_toplevel(toplevel->server) == toplevel;
-	const float *color = (const float *)STONEFLY_BORDER_INACTIVE;
+	const float *color = STONEFLY_BORDER_INACTIVE;
 	if (toplevel->bell_flash || toplevel->urgent) {
-		color = (const float *)STONEFLY_BORDER_URGENT;
+		color = STONEFLY_BORDER_URGENT;
 	} else if (focused) {
-		color = (const float *)STONEFLY_BORDER_ACTIVE;
+		color = STONEFLY_BORDER_ACTIVE;
 	}
 	apply_border_color(toplevel, color);
 }
@@ -359,11 +359,11 @@ void stonefly_decor_set_focused(struct stonefly_toplevel *toplevel, bool focused
 		toplevel->urgent = false;
 	}
 	/* Use the caller-supplied focus bit: seat focus may not have moved yet. */
-	const float *color = (const float *)STONEFLY_BORDER_INACTIVE;
+	const float *color = STONEFLY_BORDER_INACTIVE;
 	if (toplevel->bell_flash || toplevel->urgent) {
-		color = (const float *)STONEFLY_BORDER_URGENT;
+		color = STONEFLY_BORDER_URGENT;
 	} else if (focused) {
-		color = (const float *)STONEFLY_BORDER_ACTIVE;
+		color = STONEFLY_BORDER_ACTIVE;
 	}
 	apply_border_color(toplevel, color);
 }

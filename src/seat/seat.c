@@ -8,6 +8,7 @@
 #include <time.h>
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
+#include <wlr/backend/session.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_cursor_shape_v1.h>
@@ -155,8 +156,27 @@ static void keyboard_handle_modifiers(
 		&keyboard->wlr_keyboard->modifiers);
 }
 
+static bool handle_vt_switch(struct stonefly_server *server, xkb_keysym_t sym) {
+	/* Ctrl+Alt+Fn is mapped by xkb to XF86Switch_VT_*; the compositor must
+	 * call wlr_session_change_vt or the switch is unreliable / can yank DRM
+	 * mid-frame (seen as mass unmap + death). */
+	if (sym < XKB_KEY_XF86Switch_VT_1 || sym > XKB_KEY_XF86Switch_VT_12) {
+		return false;
+	}
+	if (server->session == NULL) {
+		return true; /* consume; nested backend has no VTs */
+	}
+	unsigned vt = (unsigned)(sym - XKB_KEY_XF86Switch_VT_1) + 1;
+	SF_LOGI("session change_vt", sf_i64("vt", (int64_t)vt));
+	wlr_session_change_vt(server->session, vt);
+	return true;
+}
+
 static bool handle_keybinding(struct stonefly_server *server,
 		uint32_t modifiers, xkb_keysym_t sym) {
+	if (handle_vt_switch(server, sym)) {
+		return true;
+	}
 	uint32_t mods = modifiers & STONEFLY_MOD_MASK;
 	for (size_t i = 0; i < sizeof(stonefly_keybinds) / sizeof(stonefly_keybinds[0]); i++) {
 		const struct stonefly_keybind *bind = &stonefly_keybinds[i];

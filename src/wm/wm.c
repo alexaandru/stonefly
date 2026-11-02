@@ -586,7 +586,11 @@ void stonefly_focus_toplevel(struct stonefly_toplevel *toplevel) {
 	struct wlr_surface *prev_surface = seat->keyboard_state.focused_surface;
 	struct wlr_surface *surface = toplevel->xdg_toplevel->base->surface;
 	if (prev_surface == surface) {
-		/* Don't re-focus an already focused surface. */
+		/* Already focused (e.g. taskbar click on the active window before
+		 * minimize). Still raise so the request is visible. */
+		wlr_scene_node_raise_to_top(&toplevel->scene_tree->node);
+		wl_list_remove(&toplevel->link);
+		wl_list_insert(&server->toplevels, &toplevel->link);
 		return;
 	}
 	struct stonefly_toplevel *prev_toplevel = NULL;

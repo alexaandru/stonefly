@@ -9,6 +9,7 @@
 /peeble/
 
 /dist/**/*.tar.gz
+/dist/alpine/src
 
 # meson
 /output/

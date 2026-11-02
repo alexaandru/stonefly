@@ -24,6 +24,10 @@ static void output_frame(struct wl_listener *listener, void *data) {
 
 	struct wlr_scene_output *scene_output = wlr_scene_get_scene_output(
 		scene, output->wlr_output);
+	/* VT switch / session deactivate can leave a frame with no scene output. */
+	if (scene_output == NULL) {
+		return;
+	}
 
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);

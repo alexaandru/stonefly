@@ -146,11 +146,12 @@ Still open relative to the old River-fork brief / peeble feature set:
 
 | Gap | FORK / notes | Status |
 |---|---|---|
-| Foreign-toplevel activate for external docks | [#1449](https://codeberg.org/river/river/issues/1449) / [#1537](https://codeberg.org/river/river/pulls/1537) | Missing `zwlr_foreign_toplevel_management_v1` |
+| Foreign-toplevel for docks/taskbars | [#1449](https://codeberg.org/river/river/issues/1449) / [#1537](https://codeberg.org/river/river/pulls/1537) | ✅ `zwlr_foreign_toplevel_management_v1` v3 |
 | Capture privacy (block window from screenshots) | [#1481](https://codeberg.org/river/river/issues/1481) | Not implemented |
 | Workspaces / tags | [#1402](https://codeberg.org/river/river/issues/1402) `ext-workspace-v1`, [#1390](https://codeberg.org/river/river/issues/1390) toplevel-tag | Not implemented |
-| Window previews / destination size | [#1384](https://codeberg.org/river/river/issues/1384) | Not implemented |
+| Window previews / destination size | [#1384](https://codeberg.org/river/river/issues/1384) | Not implemented; Noctalia switcher wants image-capture |
 | Xwayland | peeble/river day-to-day | Not implemented |
-| Screenshots / screencopy / image-copy-capture | peeble | Not implemented |
+| Screenshots / screencopy / image-copy-capture | peeble | Protocol ❌; Print binds → noctalia 🌙 |
+| Session lock / idle / gamma / output-mgmt / clipboard | Noctalia shell needs | Not implemented — see `MATRIX.md` §9 |
 | Real config (vs `hardcoded.h`) | — | Not implemented |
 | In-process bar/OSD/media | peeble; noctalia covers bar/launcher/notifier | Deferred to shell |

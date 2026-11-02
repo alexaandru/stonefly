@@ -61,7 +61,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Cascade initial place | ✅ | — | ✅ | Gap + `(n%10)*25`, cursor output |
 | EnsureOnScreen / usable relayout | ✅ | — | ✅ | On exclusive-zone change |
 | Per-output usable area | ✅ `UsableOn` / `UsableAreaChanged` | — | ✅ | `exclusive_zone != 0` (incl. −1) |
-| Named scratchpads | ✅ multi + claim + auto_hide | Click-outside catcher 📋 | 🚧 | Hardcoded pad `term` only |
+| Named scratchpads | ✅ multi + claim + auto_hide | Click-outside catcher 📋 | 🚧 | Hardcoded pad `term` only. Spawn uses fake `app_id` (`stonefly.scratch.term`) so claim does not steal normal Super+w windows — that breaks taskbar icons (shell keys icons off app_id). Real app_id + PID claim is not enough for single-instance multi-window clients (one Ghostty PID, many windows). Proper fix later: xdg-activation / startup token (or accept first-map races); leave icon/claim as-is for now. |
 | Scratchpad claim focused | ✅ Super+t | — | ✅ | |
 | Scratchpad omit from Alt-Tab | ✅ | — | ✅ | Super+Tab too |
 | Window menu | ✅ | — | ❌ | |
@@ -96,7 +96,7 @@ hooks; on stonefly they are owned in-process.
 | Backdrop / window blur | ❌ | SceneFX P3 📋 | 🚧 | Optimized blur node exists; per-window blur off (`STONEFLY_WINDOW_BLUR 0`) |
 | Soft rounded corners (opaque) | ❌ | SceneFX P3 📋 | ✅ | 12px |
 | Drop shadows | ❌ | SceneFX P3 📋 | ✅ | |
-| Compositor border (focus/idle/urgent) | ✅ via River `SetBorders` | Urgency needs #1281 | ✅ SceneFX | Neon / charcoal inactive / amber |
+| Compositor border (focus/idle/urgent) | ✅ via River `SetBorders` | Urgency needs #1281 | ✅ SceneFX | Neon / charcoal inactive / amber. **Fixed:** `STONEFLY_BORDER_*` were compound literals; pointers into them across `else if` blocks → ASan `stack-use-after-scope` in `border_rgba_premul` on first map/focus (boot loop). Now `static const float[4]`. |
 | Layer z-order vs windows | 🚧 PlaceTop fights | river#1375 P0 📋 | ✅ | Scene trees background→overlay; xdg under `layers.toplevel` |
 | Window previews / destination size | ❌ | river#1384 📋 | ❌ | |
 | Urgency / xdg-activation | ❌ | river#1281 → border/badge 📋 | ✅ | Amber until focus |
@@ -113,7 +113,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Feature | Peeble shipped | Peeble roadmap / Ideas | Stonefly | Notes |
 |---|---|---|---|---|
 | Status bar | ✅ rich widgets | Taskbar v2, overflow modes, FuncMap 📋 | 🌙 | Noctalia |
-| Taskbar / app icons | ✅ | Middle-click close, group-by-app, urgency badge 📋 | 🌙 | |
+| Taskbar / app icons | ✅ | Middle-click close, group-by-app, urgency badge 📋 | 🌙 | Scratch `term` shows placeholder icon — see Named scratchpads note (fake app_id). **Crash fixed (source):** left-click → `foreign activate` → Noctalia tooltip `xdg_popup` with NULL parent → SEGV in `wlr_xdg_surface_try_from_wlr_surface`; `server_new_xdg_popup` now null-checks parent before try_from / destroys orphan popups. |
 | Unread title-regex badges | ✅ Slack / Gmail | Live notify unread semantics 📋 | 🌙 | |
 | Launcher | ✅ fuzzy + plugins | Grid / categories / emoji Ideas 📋 | 🌙 | Super tap → `noctalia msg panel-toggle launcher` |
 | OSD cards (vol/bright/…) | ✅ | Richer network OSD 📋 | 🌙 | XF86* / media / mic / brightness binds → `noctalia msg` |
@@ -184,6 +184,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Validate / write-default | ✅ | — | ❌ | |
 | Nano syntax highlight | ✅ `peeble.nanorc` | — | ❌ | |
 | Keybind table | ✅ Risor binds + taps | — | ✅ | Compile-time table |
+| Ctrl+Alt+Fn VT switch | ✅ via session | — | ✅ | `wlr_session_change_vt` on `XF86Switch_VT_*`; was missing (unreliable switch + DRM yank / crash on half-leave). Nested backends: no-op. |
 | Super tap / double-tap | ✅ | Regression keep-green 📋 | ✅ | Launcher / term pad |
 | Spawn / exec / exec_once | ✅ | `spawn_one` panels QoL 📋 | 🚧 | Named SPAWN_* + `STONEFLY_ACTION_EXEC` (`sh -c`); no exec_once |
 | IPC `windows` [--json] | ✅ | — | ✅ | Peeble wire shape |
@@ -193,6 +194,8 @@ notifier) on layer-shell. Peeble owns these in-process.
 | IPC `action <name>` allowlist | ❌ | 📋 | ❌ | |
 | IPC outputs / inputs | ❌ | Ideas 📋 | ❌ | |
 | Structured JSON logs | ✅ `~/.var/log/peeble/wm.log` | — | ✅ | `wm.log` + `wm.last.json` rotate |
+| APK release buildtype | ✅ | — | 🚧 | **TEMP:** clang `debugoptimized` + ASan/UBSan (`!strip`); `compiler-rt` in makedepends; release `abuild-meson --buildtype=release` kept commented until crash hunting ends |
+| APK / meson `check` | ✅ Go unit tests | — | ❌ | `options="!check"` today (common for early wlroots WMs). Reasonable first gate: `meson test` on pure helpers (json, anim easing, drag-snap geom, IPC JSON round-trip) — peeble-style, no DRM. Optional later: headless/`WLR_BACKENDS=headless` smoke start+exit. Not: full protocol suites or live Noctalia/eDP tests in abuild. |
 | Exit CPU/heap profiles | ✅ | — | ❌ | |
 
 ---
@@ -247,15 +250,39 @@ in-process shell (Noctalia stands in under stonefly).
 
 ## 9. Suggested stonefly attack order (from gaps)
 
-Aligned with stonefly README “remaining FORK gaps” and peeble day-zero
-holes that hurt without Noctalia covering them:
+Aligned with stonefly README “remaining FORK gaps”, peeble day-zero holes,
+and **Noctalia coexistence** (what the shell needs from the compositor).
+
+### Already enough for day-zero Noctalia chrome
+
+layer-shell, foreign-toplevel v3, fractional-scale, viewporter, cursor-shape,
+xdg-activation, system-bell. Bar / dock / launcher / notifier work on these.
+
+### Protocol priorities (Noctalia coexistence)
+
+| Pri | Protocol / surface | Noctalia use |
+|---|---|---|
+| P0 | `ext-session-lock-v1` | Lock screen |
+| P0 | `ext-workspace-v1` **or** stonefly IPC workspaces | Workspace indicator / switcher (else compositor-specific backends) |
+| P1 | `ext-foreign-toplevel-image-capture-source-v1` | Window-switcher thumbnails (icons without it) |
+| P1 | `zwlr_screencopy` / `ext-image-copy-capture` | Screenshots / screencast (Print binds already 🌙 noctalia) |
+| P1 | `ext-idle-notify` + idle-inhibit | Idle dim / caffeine / lock triggers |
+| P2 | `zwlr_gamma_control` / color-management | Night light |
+| P2 | `zwlr_output_management` + `zxdg_output` | Display settings / logical output names |
+| P2 | `ext-data-control` / wlr-data-control | Clipboard history |
+| P3 | xdg-decoration | SSD titlebars (optional) |
+
+Also high leverage (not a Wayland protocol): richer **stonefly IPC**
+(focus/close by id, outputs, workspaces) so Noctalia need not grow a
+Hyprland/Niri-shaped backend for stonefly.
+
+### Broader WM gaps (after / beside the above)
 
 1. **`set_tiled`** on snap/max (CSD shadow/resizer parity with peeble)
 2. **Xwayland** (classic apps)
-3. **Screencopy / ext-image-copy-capture** (protocol; UX binds already 🌙 noctalia) + optional privacy #1481
-4. **Workspaces / tags** (#1402 / #1390 shaped)
-5. **Real config** (replace `hardcoded.h` — Lua/Fennel preferred over Risor in-process)
-6. Optional: always-on-top, multi-mon send/focus, richer IPC, output-management, idle/lock/gamma
+3. **Capture privacy** (#1481) once screencopy exists
+4. **Real config** (replace `hardcoded.h` — Lua/Fennel preferred over Risor in-process)
+5. Optional: always-on-top, multi-mon send/focus, tags (#1390)
 
 Shell/OSD/media stay **🌙 Noctalia** unless product asks for in-process
 chrome again.

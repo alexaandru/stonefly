@@ -9,6 +9,7 @@
 
 struct wlr_allocator;
 struct wlr_backend;
+struct wlr_session;
 struct wlr_cursor;
 struct wlr_cursor_shape_manager_v1;
 struct wlr_layer_shell_v1;
@@ -48,6 +49,8 @@ enum stonefly_node_kind {
 struct stonefly_server {
 	struct wl_display *wl_display;
 	struct wlr_backend *backend;
+	/* DRM/seat session from autocreate; NULL under nested backends. */
+	struct wlr_session *session;
 	struct wlr_renderer *renderer;
 	struct wlr_allocator *allocator;
 	struct wlr_scene *scene;
