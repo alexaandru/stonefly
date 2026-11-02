@@ -158,6 +158,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | xdg-shell toplevels / popups | ✅ (via River) | — | ✅ | |
 | wlr-layer-shell | ✅ client | `set_exclusive_edge` when advertised 📋 | ✅ v5 server | Exclusive zones → usable |
 | wp_fractional_scale + viewporter | ✅ all chrome (`surfscale`) | — | ✅ | DRM: scale 1.5 (`STONEFLY_OUTPUT_SCALE`). Nested/headless (`session == NULL`): scale 1.0 so Umbriel embed is not double-scaled. |
+| zxdg_output_v1 | ✅ | — | ✅ | `wlr_xdg_output_manager_v1` on output layout (`server.c`). Logical size for Noctalia floating-panel margins under fractional scale. |
 | wp_cursor_shape_v1 | ✅ | `all_resize` / `dnd_ask` 📋 | ✅ v2 | Named shapes for clients |
 | XCURSOR_THEME / SIZE | ✅ | — | ✅ | |
 | wlr-output-management | ✅ `output()` | — | ❌ | Hardcoded scale; no wdisplays path |
@@ -256,8 +257,9 @@ and **Noctalia coexistence** (what the shell needs from the compositor).
 
 ### Already enough for day-zero Noctalia chrome
 
-layer-shell, foreign-toplevel v3, fractional-scale, viewporter, cursor-shape,
-xdg-activation, system-bell. Bar / dock / launcher / notifier work on these.
+layer-shell, foreign-toplevel v3, fractional-scale, viewporter, xdg-output,
+cursor-shape, xdg-activation, system-bell. Bar / dock / launcher / notifier
+work on these (launcher centering needs xdg-output under fractional scale).
 
 ### Protocol priorities (Noctalia coexistence)
 
@@ -270,7 +272,8 @@ xdg-activation, system-bell. Bar / dock / launcher / notifier work on these.
 | P1 | `ext-idle-notify` + idle-inhibit | ✅ Idle dim / caffeine / lock triggers (`session/session.c`) |
 | P1 | `zwlr-output-power-management-v1` | ✅ DPMS on/off for idle / lock (`session/session.c`) |
 | P2 | `zwlr_gamma_control` / color-management | Night light |
-| P2 | `zwlr_output_management` + `zxdg_output` | Display settings / logical output names |
+| P2 | `zxdg_output` | ✅ Logical output size/pos (`server.c`); Noctalia panel/OSD centering |
+| P2 | `zwlr_output_management` | Display settings / wdisplays (scale still hardcoded) |
 | P2 | `ext-data-control` / wlr-data-control | Clipboard history |
 | P3 | xdg-decoration | SSD titlebars (optional) |
 

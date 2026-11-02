@@ -17,6 +17,7 @@
 #include <wlr/types/wlr_viewporter.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_output_layout.h>
+#include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <scenefx/render/fx_renderer/fx_renderer.h>
 #include <scenefx/types/wlr_scene.h>
@@ -103,6 +104,13 @@ bool stonefly_server_init(struct stonefly_server *server) {
 	server->output_layout = wlr_output_layout_create(server->wl_display);
 	wl_list_init(&server->minimized);
 	wl_list_init(&server->ghosts);
+
+	/*
+	 * Logical size/position for clients (Noctalia panel centering, etc.).
+	 * Without this, shells fall back to mode/wl_output.scale (integer) and
+	 * mis-center under fractional STONEFLY_OUTPUT_SCALE.
+	 */
+	wlr_xdg_output_manager_v1_create(server->wl_display, server->output_layout);
 
 	/* Fractional-scale clients need viewporter for destination sizing. */
 	wlr_viewporter_create(server->wl_display);
