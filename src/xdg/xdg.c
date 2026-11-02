@@ -185,6 +185,7 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 
 	stonefly_foreign_toplevel_on_close(toplevel);
 	stonefly_ext_capture_on_close(toplevel);
+	/* Drop snapshot overlay before the live scene tree is destroyed. */
 	stonefly_anim_cancel(toplevel, false);
 	stonefly_scratchpad_on_destroy(toplevel);
 	stonefly_decor_finish_toplevel(toplevel);

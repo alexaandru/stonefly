@@ -9,6 +9,7 @@ stonefly_src = files(
   'output/output.c',
   'layer/layer.c',
   'seat/seat.c',
+  'session/session.c',
   'xdg/xdg.c',
   'wm/wm.c',
   'wm/scratchpad.c',

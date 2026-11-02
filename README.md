@@ -153,6 +153,7 @@ Still open relative to the old River-fork brief / peeble feature set:
 | Window previews / destination size | [#1384](https://codeberg.org/river/river/issues/1384) | ✅ ext toplevel image-capture + image-copy-capture for Noctalia switcher (`ext_capture.c`) |
 | Xwayland | peeble/river day-to-day | Not implemented |
 | Screenshots / screencopy / image-copy-capture | peeble | Protocol ❌; Print binds → noctalia 🌙 |
-| Session lock / idle / gamma / output-mgmt / clipboard | Noctalia shell needs | Not implemented — see `MATRIX.md` §9 |
+| Session lock / idle / DPMS | Noctalia auto-lock / suspend | ✅ `ext-session-lock` + idle-notify/inhibit + output-power (`session/session.c`) |
+| Gamma / output-mgmt / clipboard | Noctalia shell needs | Not implemented — see `MATRIX.md` §9 |
 | Real config (vs `hardcoded.h`) | — | Not implemented |
 | In-process bar/OSD/media | peeble; noctalia covers bar/launcher/notifier | Deferred to shell |

@@ -19,6 +19,10 @@ wayland_scanner_code = generator(
 stonefly_protocol_xmls = [
   'wlr-layer-shell-unstable-v1.xml',
   'wlr-foreign-toplevel-management-unstable-v1.xml',
+  'ext-session-lock-v1.xml',
+  'ext-idle-notify-v1.xml',
+  'idle-inhibit-unstable-v1.xml',
+  'wlr-output-power-management-unstable-v1.xml',
 ]
 
 # private-code only for protocols we implement by hand. Layer-shell is served

@@ -20,6 +20,11 @@ bool stonefly_anim_start_show(struct stonefly_toplevel *toplevel);
 bool stonefly_anim_start_hide(struct stonefly_toplevel *toplevel,
 		stonefly_anim_done_fn on_done);
 
+/* SceneFX morph: snapshot + dest_size scale of content, border/shadow lerp
+ * from→to. Client set_size once to the target; resting becomes to's origin. */
+bool stonefly_anim_start_morph(struct stonefly_toplevel *toplevel,
+		const struct wlr_box *from, const struct wlr_box *to);
+
 bool stonefly_anim_active(const struct stonefly_toplevel *toplevel);
 bool stonefly_anim_busy(struct stonefly_server *server);
 

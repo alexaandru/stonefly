@@ -13,6 +13,7 @@
 #include "layer/layer.h"
 #include "log/log.h"
 #include "output/output.h"
+#include "session/session.h"
 #include "wm/wm.h"
 
 #define STONEFLY_LAYER_SHELL_VERSION 5
@@ -58,6 +59,9 @@ bool stonefly_layout_usable_at(struct stonefly_server *server,
 
 static void layer_focus_interactive(struct stonefly_output *output) {
 	struct stonefly_server *server = output->server;
+	if (stonefly_session_locked(server)) {
+		return;
+	}
 	static const enum zwlr_layer_shell_v1_layer above[] = {
 		ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
 		ZWLR_LAYER_SHELL_V1_LAYER_TOP,

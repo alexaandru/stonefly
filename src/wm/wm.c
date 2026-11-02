@@ -16,6 +16,7 @@
 #include "layer/layer.h"
 #include "log/log.h"
 #include "output/output.h"
+#include "session/session.h"
 #include "toplevel/foreign.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
@@ -110,12 +111,21 @@ void stonefly_toplevel_restore_saved(struct stonefly_toplevel *toplevel) {
 		wlr_xdg_toplevel_set_maximized(toplevel->xdg_toplevel, false);
 		wlr_xdg_toplevel_set_fullscreen(toplevel->xdg_toplevel, false);
 	}
-	stonefly_toplevel_apply_box(toplevel, &toplevel->saved_geom);
+	struct wlr_box from;
+	stonefly_toplevel_layout_geom(toplevel, &from);
+	struct wlr_box to = toplevel->saved_geom;
 	toplevel->has_saved_geom = false;
 	toplevel->maximized_edges = false;
 	toplevel->maximized_gaps = false;
 	toplevel->fullscreen = false;
+	bool was_snapped = toplevel->snapped != STONEFLY_SNAP_NONE;
 	toplevel->snapped = STONEFLY_SNAP_NONE;
+	/* Morph only for snap/unsnap-style restores; max/fullscreen stay instant. */
+	if (was_snapped && from.width > 0 && from.height > 0 &&
+			stonefly_anim_start_morph(toplevel, &from, &to)) {
+		return;
+	}
+	stonefly_toplevel_apply_box(toplevel, &to);
 	stonefly_decor_update_geom(toplevel);
 }
 
@@ -367,8 +377,15 @@ void stonefly_toplevel_snap_in(struct stonefly_toplevel *toplevel,
 	if (box.width <= 0 || box.height <= 0) {
 		return;
 	}
-	stonefly_toplevel_apply_box(toplevel, &box);
+	struct wlr_box from;
+	stonefly_toplevel_layout_geom(toplevel, &from);
 	toplevel->snapped = edge;
+	/* start_morph retargets from the overlay when a morph is already active. */
+	if (from.width > 0 && from.height > 0 &&
+			stonefly_anim_start_morph(toplevel, &from, &box)) {
+		return;
+	}
+	stonefly_toplevel_apply_box(toplevel, &box);
 }
 
 void stonefly_toplevel_snap(struct stonefly_toplevel *toplevel,
@@ -578,10 +595,13 @@ void stonefly_focus_toplevel(struct stonefly_toplevel *toplevel) {
 	if (toplevel == NULL) {
 		return;
 	}
+	struct stonefly_server *server = toplevel->server;
+	if (stonefly_session_locked(server)) {
+		return;
+	}
 	if (toplevel->minimized) {
 		stonefly_toplevel_unminimize(toplevel);
 	}
-	struct stonefly_server *server = toplevel->server;
 	server->exclusive_layer = NULL;
 	struct wlr_seat *seat = server->seat;
 	struct wlr_surface *prev_surface = seat->keyboard_state.focused_surface;
@@ -655,6 +675,9 @@ struct stonefly_toplevel *stonefly_focused_toplevel(struct stonefly_server *serv
 }
 
 void stonefly_focus_top(struct stonefly_server *server) {
+	if (stonefly_session_locked(server)) {
+		return;
+	}
 	struct stonefly_toplevel *toplevel;
 	wl_list_for_each(toplevel, &server->toplevels, link) {
 		if (!toplevel->minimized && !stonefly_toplevel_is_scratchpad(toplevel)) {

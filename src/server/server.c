@@ -28,6 +28,7 @@
 #include "output/output.h"
 #include "seat/seat.h"
 #include "server/server.h"
+#include "session/session.h"
 #include "toplevel/ext_capture.h"
 #include "toplevel/foreign.h"
 #include "wm/drag_snap.h"
@@ -112,6 +113,8 @@ bool stonefly_server_init(struct stonefly_server *server) {
 		wlr_scene_attach_output_layout(server->scene, server->output_layout);
 
 	stonefly_layer_setup(server);
+	/* After layers so layers.lock sits above overlay. */
+	stonefly_session_setup(server);
 	stonefly_snap_preview_init(server);
 	stonefly_drag_snap_reset(&server->drag_snap);
 	stonefly_output_setup(server);
@@ -161,6 +164,7 @@ void stonefly_server_finish(struct stonefly_server *server) {
 	stonefly_snap_preview_finish(server);
 	stonefly_seat_finish(server);
 	stonefly_scratchpad_finish(server);
+	stonefly_session_finish(server);
 	stonefly_layer_finish(server);
 
 	wl_list_remove(&server->new_xdg_toplevel.link);

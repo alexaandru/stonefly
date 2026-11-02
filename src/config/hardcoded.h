@@ -27,6 +27,13 @@
 #define STONEFLY_SLIDE_DURATION_MS 200
 #define STONEFLY_SLIDE_DIR_CLOSEST 1
 
+/*
+ * Geometry morph (spirit of peeble animation("morph") for snap/unsnap).
+ * SceneFX snapshot: locked buffer + dest_size scale, border/shadow lerp.
+ * Duration 0 disables (instant apply_box).
+ */
+#define STONEFLY_MORPH_DURATION_MS 200
+
 /* SceneFX eye candy (FORK.md P3). RGBA floats 0..1. */
 #define STONEFLY_CLIENT_OPACITY 0.96f
 #define STONEFLY_CORNER_RADIUS 12

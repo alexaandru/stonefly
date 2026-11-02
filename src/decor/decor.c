@@ -495,6 +495,28 @@ static void ghost_offscreen(struct stonefly_ghost *ghost,
 	}
 }
 
+bool stonefly_decor_lock_snapshot(struct stonefly_toplevel *toplevel,
+		struct wlr_buffer **out_locked, int *out_w, int *out_h) {
+	if (toplevel == NULL || toplevel->xdg_scene_tree == NULL ||
+			out_locked == NULL || out_w == NULL || out_h == NULL) {
+		return false;
+	}
+	struct ghost_pick pick = {0};
+	wlr_scene_node_for_each_buffer(&toplevel->xdg_scene_tree->node,
+		iter_pick_buffer, &pick);
+	if (pick.buffer == NULL || pick.width <= 0 || pick.height <= 0) {
+		return false;
+	}
+	struct wlr_buffer *locked = wlr_buffer_lock(pick.buffer);
+	if (locked == NULL) {
+		return false;
+	}
+	*out_locked = locked;
+	*out_w = pick.width;
+	*out_h = pick.height;
+	return true;
+}
+
 void stonefly_ghost_try_spawn(struct stonefly_toplevel *toplevel) {
 	if (toplevel->minimized || toplevel->anim_hide) {
 		return;
@@ -503,15 +525,9 @@ void stonefly_ghost_try_spawn(struct stonefly_toplevel *toplevel) {
 		return;
 	}
 
-	struct ghost_pick pick = {0};
-	wlr_scene_node_for_each_buffer(&toplevel->xdg_scene_tree->node,
-		iter_pick_buffer, &pick);
-	if (pick.buffer == NULL || pick.width <= 0 || pick.height <= 0) {
-		return;
-	}
-
-	struct wlr_buffer *locked = wlr_buffer_lock(pick.buffer);
-	if (locked == NULL) {
+	struct wlr_buffer *locked = NULL;
+	int pick_w = 0, pick_h = 0;
+	if (!stonefly_decor_lock_snapshot(toplevel, &locked, &pick_w, &pick_h)) {
 		return;
 	}
 
@@ -523,8 +539,8 @@ void stonefly_ghost_try_spawn(struct stonefly_toplevel *toplevel) {
 
 	ghost->server = toplevel->server;
 	ghost->locked = locked;
-	ghost->width = pick.width;
-	ghost->height = pick.height;
+	ghost->width = pick_w;
+	ghost->height = pick_h;
 
 	/* xdg tree sits at (-geo.x,-geo.y) under the wrapper so geometry TL is
 	 * at wrapper (0,0). Place the full-buffer ghost the same way. */
@@ -536,7 +552,7 @@ void stonefly_ghost_try_spawn(struct stonefly_toplevel *toplevel) {
 
 	ghost->tree = wlr_scene_tree_create(toplevel->server->layers.toplevel);
 	ghost->buffer = wlr_scene_buffer_create(ghost->tree, locked);
-	wlr_scene_buffer_set_dest_size(ghost->buffer, pick.width, pick.height);
+	wlr_scene_buffer_set_dest_size(ghost->buffer, pick_w, pick_h);
 	wlr_scene_buffer_set_opacity(ghost->buffer, STONEFLY_CLIENT_OPACITY);
 	wlr_scene_buffer_set_corner_radii(ghost->buffer,
 		corner_radii_all(STONEFLY_CORNER_RADIUS));

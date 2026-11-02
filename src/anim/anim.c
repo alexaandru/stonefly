@@ -2,13 +2,17 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <wlr/types/wlr_buffer.h>
 #include <wlr/types/wlr_output.h>
+#include <wlr/types/wlr_xdg_shell.h>
+#include <scenefx/types/fx/clipped_region.h>
 #include <scenefx/types/wlr_scene.h>
 
 #include "anim/anim.h"
 #include "config/hardcoded.h"
 #include "decor/decor.h"
 #include "output/output.h"
+#include "server/server.h"
 #include "wm/wm.h"
 #include "xdg/xdg.h"
 
@@ -169,6 +173,116 @@ static void set_visual_pos(struct stonefly_toplevel *toplevel, int x, int y) {
 	wlr_scene_node_set_position(&toplevel->scene_tree->node, x, y);
 }
 
+static void morph_destroy_overlay(struct stonefly_toplevel *toplevel) {
+	if (toplevel->anim.morph_locked != NULL) {
+		wlr_buffer_unlock(toplevel->anim.morph_locked);
+		toplevel->anim.morph_locked = NULL;
+	}
+	if (toplevel->anim.morph_tree != NULL) {
+		wlr_scene_node_destroy(&toplevel->anim.morph_tree->node);
+		toplevel->anim.morph_tree = NULL;
+	}
+	toplevel->anim.morph_buffer = NULL;
+	toplevel->anim.morph_border = NULL;
+	toplevel->anim.morph_shadow = NULL;
+}
+
+/* Place snapshot + SceneFX chrome so geometry TL is at (box_x, box_y). */
+static void morph_apply_visual(struct stonefly_toplevel *toplevel,
+		int box_x, int box_y, int box_w, int box_h) {
+	if (toplevel->anim.morph_tree == NULL ||
+			toplevel->anim.capture_w <= 0 || toplevel->anim.capture_h <= 0) {
+		return;
+	}
+
+	double sx = (double)box_w / (double)toplevel->anim.capture_w;
+	double sy = (double)box_h / (double)toplevel->anim.capture_h;
+	int dest_w = (int)lround((double)toplevel->anim.buf_w * sx);
+	int dest_h = (int)lround((double)toplevel->anim.buf_h * sy);
+	if (dest_w < 1) {
+		dest_w = 1;
+	}
+	if (dest_h < 1) {
+		dest_h = 1;
+	}
+	int off_x = (int)lround((double)toplevel->anim.geo_x * sx);
+	int off_y = (int)lround((double)toplevel->anim.geo_y * sy);
+
+	wlr_scene_node_set_position(&toplevel->anim.morph_tree->node, box_x, box_y);
+	if (toplevel->anim.morph_buffer != NULL) {
+		wlr_scene_buffer_set_dest_size(toplevel->anim.morph_buffer,
+			dest_w, dest_h);
+		wlr_scene_node_set_position(&toplevel->anim.morph_buffer->node,
+			-off_x, -off_y);
+	}
+
+	const int border = STONEFLY_BORDER_THICKNESS;
+	const int radius = STONEFLY_CORNER_RADIUS;
+	const float sigma = STONEFLY_SHADOW_BLUR_SIGMA;
+	struct fx_corner_radii corners = corner_radii_all(radius);
+
+	if (toplevel->anim.morph_border != NULL) {
+		int bw = box_w + 2 * border;
+		int bh = box_h + 2 * border;
+		wlr_scene_rect_set_size(toplevel->anim.morph_border, bw, bh);
+		wlr_scene_node_set_position(&toplevel->anim.morph_border->node,
+			-border, -border);
+		wlr_scene_rect_set_corner_radii(toplevel->anim.morph_border, corners);
+		wlr_scene_rect_set_clipped_region(toplevel->anim.morph_border,
+			(struct clipped_region){
+				.area = {
+					.x = border,
+					.y = border,
+					.width = box_w,
+					.height = box_h,
+				},
+				.corners = corners,
+			});
+	}
+
+	if (toplevel->anim.morph_shadow != NULL) {
+		int sw = box_w + 2 * border + 2 * (int)sigma;
+		int sh = box_h + 2 * border + 2 * (int)sigma;
+		wlr_scene_shadow_set_size(toplevel->anim.morph_shadow, sw, sh);
+		wlr_scene_node_set_position(&toplevel->anim.morph_shadow->node,
+			-border - (int)sigma, -border - (int)sigma);
+		wlr_scene_shadow_set_clipped_region(toplevel->anim.morph_shadow,
+			(struct clipped_region){
+				.area = {
+					.x = (int)sigma,
+					.y = (int)sigma,
+					.width = box_w + 2 * border,
+					.height = box_h + 2 * border,
+				},
+				.corners = corners,
+			});
+	}
+
+	wlr_scene_node_raise_to_top(&toplevel->anim.morph_tree->node);
+}
+
+static void morph_finish(struct stonefly_toplevel *toplevel, bool show_real) {
+	morph_destroy_overlay(toplevel);
+	toplevel->anim.morph = false;
+	toplevel->anim.active = false;
+	toplevel->anim.on_done = NULL;
+
+	if (!show_real || toplevel->scene_tree == NULL) {
+		return;
+	}
+
+	toplevel->resting_x = toplevel->anim.to_x;
+	toplevel->resting_y = toplevel->anim.to_y;
+	set_visual_pos(toplevel, toplevel->anim.to_x, toplevel->anim.to_y);
+	wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
+	if (toplevel->xdg_toplevel != NULL) {
+		wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel,
+			toplevel->anim.to_w, toplevel->anim.to_h);
+	}
+	stonefly_decor_update_geom(toplevel);
+	stonefly_decor_apply_buffers(toplevel);
+}
+
 void stonefly_anim_schedule(struct stonefly_server *server) {
 	struct stonefly_output *output;
 	wl_list_for_each(output, &server->outputs, link) {
@@ -178,6 +292,21 @@ void stonefly_anim_schedule(struct stonefly_server *server) {
 
 void stonefly_anim_cancel(struct stonefly_toplevel *toplevel, bool commit_visual) {
 	if (toplevel == NULL || !toplevel->anim.active) {
+		return;
+	}
+	if (toplevel->anim.morph) {
+		if (commit_visual) {
+			/* Keep whatever frame the overlay last showed as resting. */
+			toplevel->resting_x = toplevel->anim.morph_tree != NULL
+				? toplevel->anim.morph_tree->node.x : toplevel->anim.to_x;
+			toplevel->resting_y = toplevel->anim.morph_tree != NULL
+				? toplevel->anim.morph_tree->node.y : toplevel->anim.to_y;
+			/* Jump real window to destination size/pos (overlay goes away). */
+			toplevel->anim.to_x = toplevel->resting_x;
+			toplevel->anim.to_y = toplevel->resting_y;
+		}
+		morph_finish(toplevel, true);
+		toplevel->anim_hide = false;
 		return;
 	}
 	if (commit_visual) {
@@ -216,13 +345,17 @@ static void begin_slide(struct stonefly_toplevel *toplevel,
 
 	/* Reverse mid-flight: keep remaining time (peeble Animator.beginSlide). */
 	if (toplevel->anim.active) {
-		int64_t elapsed = timespec_ns(&now) - timespec_ns(&toplevel->anim.start);
-		int64_t remain = dur_ns - elapsed;
-		if (remain > 0 && remain < dur_ns) {
-			dur_ns = remain;
+		if (toplevel->anim.morph) {
+			morph_finish(toplevel, true);
+		} else {
+			int64_t elapsed = timespec_ns(&now) - timespec_ns(&toplevel->anim.start);
+			int64_t remain = dur_ns - elapsed;
+			if (remain > 0 && remain < dur_ns) {
+				dur_ns = remain;
+			}
+			from_x = toplevel->scene_tree->node.x;
+			from_y = toplevel->scene_tree->node.y;
 		}
-		from_x = toplevel->scene_tree->node.x;
-		from_y = toplevel->scene_tree->node.y;
 	}
 
 	toplevel->resting_x = resting_x;
@@ -231,10 +364,15 @@ static void begin_slide(struct stonefly_toplevel *toplevel,
 	toplevel->anim.from_y = from_y;
 	toplevel->anim.to_x = to_x;
 	toplevel->anim.to_y = to_y;
+	toplevel->anim.from_w = 0;
+	toplevel->anim.from_h = 0;
+	toplevel->anim.to_w = 0;
+	toplevel->anim.to_h = 0;
 	toplevel->anim.start = now;
 	toplevel->anim.dur_ns = dur_ns;
 	toplevel->anim.on_done = on_done;
 	toplevel->anim.active = true;
+	toplevel->anim.morph = false;
 	toplevel->anim_hide = hide;
 
 	set_visual_pos(toplevel, from_x, from_y);
@@ -321,6 +459,170 @@ bool stonefly_anim_start_hide(struct stonefly_toplevel *toplevel,
 	return true;
 }
 
+bool stonefly_anim_start_morph(struct stonefly_toplevel *toplevel,
+		const struct wlr_box *from, const struct wlr_box *to) {
+	if (toplevel == NULL || toplevel->scene_tree == NULL ||
+			from == NULL || to == NULL) {
+		return false;
+	}
+	if (STONEFLY_MORPH_DURATION_MS <= 0) {
+		return false;
+	}
+	if (from->width <= 0 || from->height <= 0 ||
+			to->width <= 0 || to->height <= 0) {
+		return false;
+	}
+	if (from->x == to->x && from->y == to->y &&
+			from->width == to->width && from->height == to->height) {
+		return false;
+	}
+
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	int64_t dur_ns = (int64_t)STONEFLY_MORPH_DURATION_MS * 1000000LL;
+
+	struct wlr_box start = *from;
+	if (toplevel->anim.active && toplevel->anim.morph &&
+			toplevel->anim.morph_tree != NULL) {
+		/* Retarget mid-flight: keep snapshot, shorten remaining time. */
+		int64_t elapsed = timespec_ns(&now) - timespec_ns(&toplevel->anim.start);
+		int64_t remain = dur_ns - elapsed;
+		if (remain > 0 && remain < dur_ns) {
+			dur_ns = remain;
+		}
+		start.x = toplevel->anim.morph_tree->node.x;
+		start.y = toplevel->anim.morph_tree->node.y;
+		/* Approximate current size from last lerp progress. */
+		double t = 1.0;
+		if (toplevel->anim.dur_ns > 0) {
+			t = (double)elapsed / (double)toplevel->anim.dur_ns;
+		}
+		double p = ease_out_cubic(t);
+		start.width = lerp_i(toplevel->anim.from_w, toplevel->anim.to_w, p);
+		start.height = lerp_i(toplevel->anim.from_h, toplevel->anim.to_h, p);
+		if (start.width < 1) {
+			start.width = 1;
+		}
+		if (start.height < 1) {
+			start.height = 1;
+		}
+
+		toplevel->anim.from_x = start.x;
+		toplevel->anim.from_y = start.y;
+		toplevel->anim.from_w = start.width;
+		toplevel->anim.from_h = start.height;
+		toplevel->anim.to_x = to->x;
+		toplevel->anim.to_y = to->y;
+		toplevel->anim.to_w = to->width;
+		toplevel->anim.to_h = to->height;
+		toplevel->anim.start = now;
+		toplevel->anim.dur_ns = dur_ns;
+		toplevel->resting_x = to->x;
+		toplevel->resting_y = to->y;
+		wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, to->width, to->height);
+		morph_apply_visual(toplevel, start.x, start.y, start.width, start.height);
+		stonefly_anim_schedule(toplevel->server);
+		return true;
+	}
+
+	if (toplevel->anim.active) {
+		stonefly_anim_cancel(toplevel, true);
+	}
+
+	struct wlr_buffer *locked = NULL;
+	int buf_w = 0, buf_h = 0;
+	if (!stonefly_decor_lock_snapshot(toplevel, &locked, &buf_w, &buf_h)) {
+		return false;
+	}
+
+	struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
+	int geo_x = (geo->width > 0) ? geo->x : 0;
+	int geo_y = (geo->height > 0) ? geo->y : 0;
+
+	struct wlr_scene_tree *tree =
+		wlr_scene_tree_create(toplevel->server->layers.toplevel);
+	if (tree == NULL) {
+		wlr_buffer_unlock(locked);
+		return false;
+	}
+
+	struct wlr_scene_buffer *buffer = wlr_scene_buffer_create(tree, locked);
+	if (buffer == NULL) {
+		wlr_scene_node_destroy(&tree->node);
+		wlr_buffer_unlock(locked);
+		return false;
+	}
+	wlr_scene_buffer_set_opacity(buffer, STONEFLY_CLIENT_OPACITY);
+	wlr_scene_buffer_set_corner_radii(buffer,
+		corner_radii_all(STONEFLY_CORNER_RADIUS));
+
+	float border_rgba[4];
+	const float *border_src = STONEFLY_BORDER_ACTIVE;
+	float a = border_src[3] * STONEFLY_CLIENT_OPACITY;
+	border_rgba[0] = border_src[0] * a;
+	border_rgba[1] = border_src[1] * a;
+	border_rgba[2] = border_src[2] * a;
+	border_rgba[3] = a;
+	struct wlr_scene_rect *border = wlr_scene_rect_create(tree, 0, 0, border_rgba);
+
+	float shadow_a = STONEFLY_SHADOW_COLOR[3] * STONEFLY_CLIENT_OPACITY;
+	float shadow_rgba[4] = {
+		STONEFLY_SHADOW_COLOR[0] * shadow_a,
+		STONEFLY_SHADOW_COLOR[1] * shadow_a,
+		STONEFLY_SHADOW_COLOR[2] * shadow_a,
+		shadow_a,
+	};
+	struct wlr_scene_shadow *shadow = wlr_scene_shadow_create(tree,
+		0, 0, STONEFLY_CORNER_RADIUS, STONEFLY_SHADOW_BLUR_SIGMA, shadow_rgba);
+
+	/* Content above chrome. */
+	if (shadow != NULL) {
+		wlr_scene_node_lower_to_bottom(&shadow->node);
+	}
+	if (border != NULL) {
+		wlr_scene_node_lower_to_bottom(&border->node);
+		if (shadow != NULL) {
+			wlr_scene_node_lower_to_bottom(&shadow->node);
+		}
+	}
+
+	toplevel->anim.morph_tree = tree;
+	toplevel->anim.morph_buffer = buffer;
+	toplevel->anim.morph_border = border;
+	toplevel->anim.morph_shadow = shadow;
+	toplevel->anim.morph_locked = locked;
+	toplevel->anim.capture_w = from->width;
+	toplevel->anim.capture_h = from->height;
+	toplevel->anim.buf_w = buf_w;
+	toplevel->anim.buf_h = buf_h;
+	toplevel->anim.geo_x = geo_x;
+	toplevel->anim.geo_y = geo_y;
+	toplevel->anim.from_x = start.x;
+	toplevel->anim.from_y = start.y;
+	toplevel->anim.from_w = start.width;
+	toplevel->anim.from_h = start.height;
+	toplevel->anim.to_x = to->x;
+	toplevel->anim.to_y = to->y;
+	toplevel->anim.to_w = to->width;
+	toplevel->anim.to_h = to->height;
+	toplevel->anim.start = now;
+	toplevel->anim.dur_ns = dur_ns;
+	toplevel->anim.on_done = NULL;
+	toplevel->anim.active = true;
+	toplevel->anim.morph = true;
+	toplevel->anim_hide = false;
+	toplevel->resting_x = to->x;
+	toplevel->resting_y = to->y;
+
+	/* Hide the live window; client resizes toward the target off-screen. */
+	wlr_scene_node_set_enabled(&toplevel->scene_tree->node, false);
+	wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, to->width, to->height);
+
+	morph_apply_visual(toplevel, start.x, start.y, start.width, start.height);
+	stonefly_anim_schedule(toplevel->server);
+	return true;
+}
+
 void stonefly_anim_tick(struct stonefly_server *server,
 		const struct timespec *now) {
 	struct stonefly_toplevel *toplevel, *tmp;
@@ -331,9 +633,6 @@ void stonefly_anim_tick(struct stonefly_server *server,
 		if (!toplevel->anim.active) {
 			continue;
 		}
-		if (toplevel->anim_hide) {
-			wlr_scene_node_raise_to_top(&toplevel->scene_tree->node);
-		}
 
 		int64_t elapsed = timespec_ns(now) - timespec_ns(&toplevel->anim.start);
 		double t = 1.0;
@@ -341,9 +640,27 @@ void stonefly_anim_tick(struct stonefly_server *server,
 			t = (double)elapsed / (double)toplevel->anim.dur_ns;
 		}
 		double p = ease_out_cubic(t);
-		int x = lerp_i(toplevel->anim.from_x, toplevel->anim.to_x, p);
-		int y = lerp_i(toplevel->anim.from_y, toplevel->anim.to_y, p);
-		set_visual_pos(toplevel, x, y);
+
+		if (toplevel->anim.morph) {
+			int x = lerp_i(toplevel->anim.from_x, toplevel->anim.to_x, p);
+			int y = lerp_i(toplevel->anim.from_y, toplevel->anim.to_y, p);
+			int w = lerp_i(toplevel->anim.from_w, toplevel->anim.to_w, p);
+			int h = lerp_i(toplevel->anim.from_h, toplevel->anim.to_h, p);
+			if (w < 1) {
+				w = 1;
+			}
+			if (h < 1) {
+				h = 1;
+			}
+			morph_apply_visual(toplevel, x, y, w, h);
+		} else {
+			if (toplevel->anim_hide) {
+				wlr_scene_node_raise_to_top(&toplevel->scene_tree->node);
+			}
+			int x = lerp_i(toplevel->anim.from_x, toplevel->anim.to_x, p);
+			int y = lerp_i(toplevel->anim.from_y, toplevel->anim.to_y, p);
+			set_visual_pos(toplevel, x, y);
+		}
 
 		if (t >= 1.0) {
 			if (ndone < sizeof(done) / sizeof(done[0])) {
@@ -357,9 +674,12 @@ void stonefly_anim_tick(struct stonefly_server *server,
 		struct stonefly_toplevel *t = done[i];
 		stonefly_anim_done_fn on_done = t->anim.on_done;
 		bool was_hide = t->anim_hide;
+		bool was_morph = t->anim.morph;
 		t->anim.on_done = NULL;
 		t->anim_hide = false;
-		if (!was_hide) {
+		if (was_morph) {
+			morph_finish(t, true);
+		} else if (!was_hide) {
 			set_visual_pos(t, t->resting_x, t->resting_y);
 		}
 		if (on_done != NULL) {

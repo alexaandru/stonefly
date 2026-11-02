@@ -26,6 +26,12 @@ struct wlr_xdg_shell;
 struct wlr_xdg_system_bell_v1;
 struct wlr_ext_foreign_toplevel_list_v1;
 struct wlr_ext_foreign_toplevel_image_capture_source_manager_v1;
+struct wlr_session_lock_manager_v1;
+struct wlr_session_lock_v1;
+struct wlr_idle_notifier_v1;
+struct wlr_idle_inhibit_manager_v1;
+struct wlr_output_power_manager_v1;
+struct wlr_scene_rect;
 
 struct stonefly_toplevel;
 struct stonefly_output;
@@ -58,13 +64,14 @@ struct stonefly_server {
 	struct wlr_scene *scene;
 	struct wlr_scene_output_layout *scene_layout;
 
-	/* Z-order: background < bottom < blur < toplevel < top < overlay. */
+	/* Z-order: background < bottom < blur < toplevel < top < overlay < lock. */
 	struct {
 		struct wlr_scene_tree *background;
 		struct wlr_scene_tree *bottom;
 		struct wlr_scene_tree *toplevel;
 		struct wlr_scene_tree *top;
 		struct wlr_scene_tree *overlay;
+		struct wlr_scene_tree *lock;
 	} layers;
 	struct wlr_scene_optimized_blur *blur_layer;
 
@@ -140,6 +147,25 @@ struct stonefly_server {
 		int single;
 		int double_tap;
 	} tap;
+
+	/* ext-session-lock-v1 + idle + output-power (Noctalia auto-lock / DPMS). */
+	bool locked;
+	struct wlr_session_lock_manager_v1 *session_lock_mgr;
+	struct wlr_session_lock_v1 *session_lock;
+	struct wlr_scene_tree *session_lock_tree;
+	struct wlr_scene_rect *lock_blank;
+	struct wl_list lock_surfaces;
+	struct wl_listener session_lock_new;
+	struct wl_listener session_lock_new_surface;
+	struct wl_listener session_lock_unlock;
+	struct wl_listener session_lock_destroy;
+
+	struct wlr_idle_notifier_v1 *idle_notifier;
+	struct wlr_idle_inhibit_manager_v1 *idle_inhibit_mgr;
+	struct wl_listener idle_inhibitor_new;
+
+	struct wlr_output_power_manager_v1 *output_power_mgr;
+	struct wl_listener output_power_set_mode;
 };
 
 bool stonefly_server_init(struct stonefly_server *server);

@@ -89,6 +89,7 @@ hooks; on stonefly they are owned in-process.
 | Appear / map slide | ✅ `window_effect` + AppearHold hack | Map-hold fork feature 📋 | ✅ | Closest edge, 200ms ease_out; no resting flash needed |
 | Close slide (WM-initiated) | ✅ Super+q etc. | — | ✅ | |
 | Close slide (client Ctrl+W / CSD) | ❌ blocked | Last-frame ghost FORK P1 📋 | ✅ | Ghost buffer slide |
+| Snap / unsnap morph | ✅ `animation("morph")` + window_effect | — | ✅ | SceneFX snapshot: `dest_size` scale + border/shadow lerp (`STONEFLY_MORPH_DURATION_MS`); set_size once to target. Keybind snap + Super+u unsnap. |
 | Scratchpad / minimize slides | ✅ | — | ✅ | Mid-flight reverse |
 | Vsync-capped animation pacing | ❌ busy manage→render | river#1385 P0 📋 | ✅ | Own scene / frame loop |
 | Fade / scale appear | ❌ | river#1373 + Ideas 📋 | ❌ | Opacity static 0.96, not animated fade |
@@ -121,8 +122,8 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Wallpaper engine | ✅ slideshow + transitions + cache | Video/shader Ideas 📋 | 🌙 / ❌ | Layer-shell wallpaper clients OK; no in-process engine |
 | Window snap preview (WM) | ✅ | — | ✅ | In compositor (not shell) |
 | SSD / winmenu chrome | ✅ | — | ❌ | |
-| Idle ceremony / lock / DPMS | ✅ | Lock polish Ideas 📋 | ❌ | |
-| Caffeine (idle-inhibit) | ✅ | — | ❌ | |
+| Idle ceremony / lock / DPMS | ✅ | Lock polish Ideas 📋 | ✅ | `ext-session-lock-v1` + `zwlr-output-power-management-v1` (`session/session.c`). Blank retained if lock client dies. Auto-lock / PrepareForSleep are Noctalia-side on top of idle-notify. |
+| Caffeine (idle-inhibit) | ✅ | — | ✅ | `zwp_idle_inhibit_v1` → `ext-idle-notify-v1` inhibit |
 | Night light (gamma) | ✅ | Schedule timer 📋 | ❌ | |
 | Power confirm / power menu | 🚧 `confirm_power` | Dedicated power menu 📋 | ❌ | |
 | Control center panel | ❌ | Ideas 📋 | 🌙 | Noctalia-shaped |
@@ -141,7 +142,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 |---|---|---|---|---|
 | `dbus-update-activation-environment` after display | ✅ | — | ✅ | Ghostty `+new-window` path |
 | FDO Notifications server | ✅ | Live unread badge 📋 | 🌙 | |
-| logind power + PrepareForSleep | ✅ | — | ❌ | |
+| logind power + PrepareForSleep | ✅ | — | 🌙 | Compositor exposes lock + idle + DPMS; Noctalia owns PrepareForSleep / lock-before-suspend |
 | ScreenSaver Inhibit | ✅ | — | ❌ | |
 | UPower kbd / power profiles | ✅ | Richer battery 📋 | ❌ / 🌙 | |
 | Network / BT / MPRIS / weather status | ✅ | Real SSID + proxy 📋 | 🌙 | |
@@ -166,7 +167,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Foreign-toplevel management | 🚧 River read-only; bar uses Focus | Activate relay #1449/#1537 📋 | ✅ | `zwlr_foreign_toplevel_management_v1` v3 (`foreign.c`) + parallel `ext-foreign-toplevel-list-v1` (`ext_capture.c`) for capture handles |
 | xdg-activation (urgency) | ❌ | #1281 📋 | ✅ | |
 | xdg-system-bell | ❌ | #1389 📋 | ✅ | |
-| Idle-inhibit / idle-notify / session-lock | ✅ | — | ❌ | |
+| Idle-inhibit / idle-notify / session-lock | ✅ | — | ✅ | `session/session.c`: ext-session-lock-v1, ext-idle-notify-v1, zwp-idle-inhibit-v1, zwlr-output-power-management-v1 |
 | Gamma control | ✅ | — | ❌ | |
 | Xwayland | ✅ (River host) | — | ❌ | Classic X11 apps fail |
 | ext-workspace-v1 | ❌ | #1402 📋 | ❌ | |
@@ -240,7 +241,7 @@ in-process shell (Noctalia stands in under stonefly).
 | Fullscreen / always-on-top / winmenu / SSD | ✅ fullscreen / ❌ aot / ❌ winmenu / ❌ SSD |
 | Multi-mon send/focus, pointer center | ❌ |
 | Geometry persist, window rules, set_tiled | ❌ |
-| Screenshots, clipboard, idle/lock/gamma | 🌙 screenshots via noctalia / ❌ clipboard+idle+lock+gamma |
+| Screenshots, clipboard, idle/lock/gamma | 🌙 screenshots via noctalia / ✅ idle+lock+DPMS / ❌ clipboard+gamma |
 | Xwayland | ❌ |
 | Real config file | ❌ |
 | Workspaces / tiling layouts | ❌ both |
@@ -262,11 +263,12 @@ xdg-activation, system-bell. Bar / dock / launcher / notifier work on these.
 
 | Pri | Protocol / surface | Noctalia use |
 |---|---|---|
-| P0 | `ext-session-lock-v1` | Lock screen |
+| P0 | `ext-session-lock-v1` | ✅ Lock screen (`session/session.c`) |
 | P0 | `ext-workspace-v1` **or** stonefly IPC workspaces | Workspace indicator / switcher (else compositor-specific backends) |
 | P1 | `ext-foreign-toplevel-image-capture-source-v1` | ✅ Window-switcher thumbnails (`ext_capture.c`; was icons-only without it) |
 | P1 | `zwlr_screencopy` / `ext-image-copy-capture` | 🚧 `ext-image-copy-capture` ✅ (window path); `zwlr_screencopy` / output capture source ❌ (region/fullscreen) |
-| P1 | `ext-idle-notify` + idle-inhibit | Idle dim / caffeine / lock triggers |
+| P1 | `ext-idle-notify` + idle-inhibit | ✅ Idle dim / caffeine / lock triggers (`session/session.c`) |
+| P1 | `zwlr-output-power-management-v1` | ✅ DPMS on/off for idle / lock (`session/session.c`) |
 | P2 | `zwlr_gamma_control` / color-management | Night light |
 | P2 | `zwlr_output_management` + `zxdg_output` | Display settings / logical output names |
 | P2 | `ext-data-control` / wlr-data-control | Clipboard history |

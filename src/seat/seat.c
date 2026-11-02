@@ -27,6 +27,7 @@
 #include "log/log.h"
 #include "output/output.h"
 #include "seat/seat.h"
+#include "session/session.h"
 #include "wm/drag_snap.h"
 #include "wm/snap_preview.h"
 #include "wm/wm.h"
@@ -178,6 +179,10 @@ static bool handle_keybinding(struct stonefly_server *server,
 	if (handle_vt_switch(server, sym)) {
 		return true;
 	}
+	/* Session lock owns input; only VT switch escapes. */
+	if (stonefly_session_locked(server)) {
+		return false;
+	}
 	uint32_t mods = modifiers & STONEFLY_MOD_MASK;
 	for (size_t i = 0; i < sizeof(stonefly_keybinds) / sizeof(stonefly_keybinds[0]); i++) {
 		const struct stonefly_keybind *bind = &stonefly_keybinds[i];
@@ -203,6 +208,8 @@ static void keyboard_handle_key(
 	struct wlr_keyboard_key_event *event = data;
 	struct wlr_seat *seat = server->seat;
 
+	stonefly_session_notify_activity(server);
+
 	/* Translate libinput keycode -> xkbcommon */
 	uint32_t keycode = event->keycode + 8;
 	/* Get a list of keysyms based on the keymap for this keyboard */
@@ -212,25 +219,28 @@ static void keyboard_handle_key(
 
 	bool handled = false;
 	uint32_t modifiers = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
+	bool locked = stonefly_session_locked(server);
 
 	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
 		for (int i = 0; i < nsyms; i++) {
-			const struct stonefly_tapbind *tap = tapbind_for_sym(syms[i]);
-			if (tap != NULL) {
-				tap_on_press(server, tap);
-				handled = true;
-				break;
-			}
-			/* Any other key while a tap is armed → combination, not a tap. */
-			if (server->tap.armed) {
-				stonefly_tap_disarm(server);
+			if (!locked) {
+				const struct stonefly_tapbind *tap = tapbind_for_sym(syms[i]);
+				if (tap != NULL) {
+					tap_on_press(server, tap);
+					handled = true;
+					break;
+				}
+				/* Any other key while a tap is armed → combination, not a tap. */
+				if (server->tap.armed) {
+					stonefly_tap_disarm(server);
+				}
 			}
 			if (handle_keybinding(server, modifiers, syms[i])) {
 				handled = true;
 				break;
 			}
 		}
-	} else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED) {
+	} else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED && !locked) {
 		for (int i = 0; i < nsyms; i++) {
 			if (tapbind_for_sym(syms[i]) != NULL) {
 				tap_on_release(server);
@@ -241,7 +251,7 @@ static void keyboard_handle_key(
 	}
 
 	if (!handled) {
-		/* Otherwise, we pass it along to the client. */
+		/* Otherwise, we pass it along to the client (lock surface when locked). */
 		wlr_seat_set_keyboard(seat, keyboard->wlr_keyboard);
 		wlr_seat_keyboard_notify_key(seat, event->time_msec,
 			event->keycode, event->state);
@@ -505,7 +515,8 @@ static void process_cursor_motion(struct stonefly_server *server, uint32_t time)
 		return;
 	}
 
-	/* Otherwise, find the toplevel under the pointer and send the event along. */
+	/* Otherwise, find the toplevel under the pointer and send the event along.
+	 * When locked, lock surfaces / blank sit above the rest of the scene. */
 	double sx, sy;
 	struct wlr_seat *seat = server->seat;
 	struct wlr_surface *surface = NULL;
@@ -544,6 +555,7 @@ static void server_cursor_motion(struct wl_listener *listener, void *data) {
 	struct stonefly_server *server =
 		wl_container_of(listener, server, cursor_motion);
 	struct wlr_pointer_motion_event *event = data;
+	stonefly_session_notify_activity(server);
 	/* The cursor doesn't move unless we tell it to. The cursor automatically
 	 * handles constraining the motion to the output layout, as well as any
 	 * special configuration applied for the specific input device which
@@ -565,6 +577,7 @@ static void server_cursor_motion_absolute(
 	struct stonefly_server *server =
 		wl_container_of(listener, server, cursor_motion_absolute);
 	struct wlr_pointer_motion_absolute_event *event = data;
+	stonefly_session_notify_activity(server);
 	wlr_cursor_warp_absolute(server->cursor, &event->pointer->base, event->x,
 		event->y);
 	process_cursor_motion(server, event->time_msec);
@@ -604,6 +617,8 @@ static void server_cursor_button(struct wl_listener *listener, void *data) {
 		wl_container_of(listener, server, cursor_button);
 	struct wlr_pointer_button_event *event = data;
 
+	stonefly_session_notify_activity(server);
+
 	if (event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
 		bool grabbing = server->cursor_mode != STONEFLY_CURSOR_PASSTHROUGH;
 		if (server->cursor_mode == STONEFLY_CURSOR_MOVE) {
@@ -618,34 +633,38 @@ static void server_cursor_button(struct wl_listener *listener, void *data) {
 	}
 
 	/* Super+LMB move, Super+RMB resize — do not forward the press. */
-	uint32_t mods = seat_keyboard_mods(server) & STONEFLY_MOD_MASK;
-	if (mods == STONEFLY_SUPER &&
-			(event->button == BTN_LEFT || event->button == BTN_RIGHT)) {
-		stonefly_tap_disarm(server);
-		double sx, sy;
-		struct wlr_surface *surface = NULL;
-		struct stonefly_toplevel *toplevel = stonefly_desktop_toplevel_at(server,
-			server->cursor->x, server->cursor->y, &surface, &sx, &sy);
-		if (toplevel != NULL) {
-			stonefly_focus_toplevel(toplevel);
-			if (event->button == BTN_LEFT) {
-				stonefly_begin_interactive(toplevel, STONEFLY_CURSOR_MOVE, 0);
-			} else {
-				stonefly_begin_interactive(toplevel, STONEFLY_CURSOR_RESIZE,
-					resize_edges_at(toplevel, server->cursor->x,
-						server->cursor->y));
+	if (!stonefly_session_locked(server)) {
+		uint32_t mods = seat_keyboard_mods(server) & STONEFLY_MOD_MASK;
+		if (mods == STONEFLY_SUPER &&
+				(event->button == BTN_LEFT || event->button == BTN_RIGHT)) {
+			stonefly_tap_disarm(server);
+			double sx, sy;
+			struct wlr_surface *surface = NULL;
+			struct stonefly_toplevel *toplevel = stonefly_desktop_toplevel_at(server,
+				server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+			if (toplevel != NULL) {
+				stonefly_focus_toplevel(toplevel);
+				if (event->button == BTN_LEFT) {
+					stonefly_begin_interactive(toplevel, STONEFLY_CURSOR_MOVE, 0);
+				} else {
+					stonefly_begin_interactive(toplevel, STONEFLY_CURSOR_RESIZE,
+						resize_edges_at(toplevel, server->cursor->x,
+							server->cursor->y));
+				}
+				return;
 			}
-			return;
 		}
 	}
 
 	wlr_seat_pointer_notify_button(server->seat,
 		event->time_msec, event->button, event->state);
-	double sx, sy;
-	struct wlr_surface *surface = NULL;
-	struct stonefly_toplevel *toplevel = stonefly_desktop_toplevel_at(server,
-		server->cursor->x, server->cursor->y, &surface, &sx, &sy);
-	stonefly_focus_toplevel(toplevel);
+	if (!stonefly_session_locked(server)) {
+		double sx, sy;
+		struct wlr_surface *surface = NULL;
+		struct stonefly_toplevel *toplevel = stonefly_desktop_toplevel_at(server,
+			server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+		stonefly_focus_toplevel(toplevel);
+	}
 }
 
 static void server_cursor_axis(struct wl_listener *listener, void *data) {
@@ -654,6 +673,7 @@ static void server_cursor_axis(struct wl_listener *listener, void *data) {
 	struct stonefly_server *server =
 		wl_container_of(listener, server, cursor_axis);
 	struct wlr_pointer_axis_event *event = data;
+	stonefly_session_notify_activity(server);
 	/* Notify the client with pointer focus of the axis event. */
 	wlr_seat_pointer_notify_axis(server->seat,
 			event->time_msec, event->orientation, event->delta,
