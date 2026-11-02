@@ -1,9 +1,11 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -175,19 +177,155 @@ static int l_packadd(lua_State *L) {
 }
 
 static uint32_t parse_mod(const char *s) {
-	if (strcmp(s, "super") == 0 || strcmp(s, "logo") == 0) {
+	if (strcasecmp(s, "super") == 0 || strcasecmp(s, "logo") == 0
+			|| strcasecmp(s, "mod4") == 0) {
 		return STONEFLY_SUPER;
 	}
-	if (strcmp(s, "shift") == 0) {
+	if (strcasecmp(s, "shift") == 0) {
 		return STONEFLY_SHIFT;
 	}
-	if (strcmp(s, "ctrl") == 0 || strcmp(s, "control") == 0) {
+	if (strcasecmp(s, "ctrl") == 0 || strcasecmp(s, "control") == 0) {
 		return STONEFLY_CTRL;
 	}
-	if (strcmp(s, "alt") == 0 || strcmp(s, "mod1") == 0) {
+	if (strcasecmp(s, "alt") == 0 || strcasecmp(s, "mod1") == 0) {
 		return STONEFLY_ALT;
 	}
 	return 0;
+}
+
+/* Trim leading/trailing ASCII space in-place; returns start. */
+static char *trim_inplace(char *s) {
+	while (*s != '\0' && isspace((unsigned char)*s)) {
+		s++;
+	}
+	if (*s == '\0') {
+		return s;
+	}
+	char *end = s + strlen(s) - 1;
+	while (end > s && isspace((unsigned char)*end)) {
+		*end-- = '\0';
+	}
+	return s;
+}
+
+/*
+ * Resolve a key token to an xkb keysym. Single Latin-1 chars use their
+ * code point (so "q" vs "Q" stay distinct under Shift). Longer names go
+ * through xkb_keysym_from_name (case-insensitive) with a few aliases.
+ * No generated keysym table — libxkbcommon already ships the ABI map
+ * peeble had to go:generate for Go.
+ */
+static int lookup_keysym(const char *key, xkb_keysym_t *out) {
+	static const struct {
+		const char *alias;
+		const char *xkb;
+	} aliases[] = {
+		{ "esc", "Escape" },
+		{ "enter", "Return" },
+		{ "return", "Return" },
+		{ "space", "space" },
+		{ " ", "space" },
+	};
+	size_t len = strlen(key);
+	if (len == 0) {
+		return -1;
+	}
+	if (len == 1) {
+		*out = (xkb_keysym_t)(unsigned char)key[0];
+		return 0;
+	}
+	const char *name = key;
+	for (size_t i = 0; i < sizeof aliases / sizeof aliases[0]; i++) {
+		if (strcasecmp(key, aliases[i].alias) == 0) {
+			name = aliases[i].xkb;
+			break;
+		}
+	}
+	xkb_keysym_t sym = xkb_keysym_from_name(name,
+		XKB_KEYSYM_CASE_INSENSITIVE);
+	if (sym == XKB_KEY_NoSymbol) {
+		return -1;
+	}
+	*out = sym;
+	return 0;
+}
+
+/*
+ * Parse peeble/i3/sway-style chords: "Super+w", "Super+Shift+Tab", "Print".
+ * Returns 0 on success. Unknown modifier or key → -1.
+ */
+static int parse_chord(const char *s, uint32_t *mods_out, xkb_keysym_t *sym_out) {
+	char buf[128];
+	size_t n = strlen(s);
+	if (n == 0 || n >= sizeof buf) {
+		return -1;
+	}
+	memcpy(buf, s, n + 1);
+
+	char *last_plus = strrchr(buf, '+');
+	char *key;
+	uint32_t mods = 0;
+	if (last_plus == NULL) {
+		key = trim_inplace(buf);
+	} else {
+		*last_plus = '\0';
+		key = trim_inplace(last_plus + 1);
+		char *p = buf;
+		while (p != NULL && *p != '\0') {
+			char *plus = strchr(p, '+');
+			if (plus != NULL) {
+				*plus = '\0';
+			}
+			char *tok = trim_inplace(p);
+			if (*tok != '\0') {
+				uint32_t bit = parse_mod(tok);
+				if (bit == 0) {
+					return -1;
+				}
+				mods |= bit;
+			}
+			p = plus != NULL ? plus + 1 : NULL;
+		}
+	}
+	if (lookup_keysym(key, sym_out) != 0) {
+		return -1;
+	}
+	*mods_out = mods;
+	return 0;
+}
+
+/* Lone-modifier tap names → left keysym (+ caller adds right as alt). */
+static int parse_tap_mod(const char *s, xkb_keysym_t *sym_out,
+		xkb_keysym_t *sym_alt_out) {
+	if (strcasecmp(s, "super") == 0 || strcasecmp(s, "mod4") == 0
+			|| strcasecmp(s, "logo") == 0) {
+		*sym_out = XKB_KEY_Super_L;
+		*sym_alt_out = XKB_KEY_Super_R;
+		return 0;
+	}
+	if (strcasecmp(s, "alt") == 0 || strcasecmp(s, "mod1") == 0) {
+		*sym_out = XKB_KEY_Alt_L;
+		*sym_alt_out = XKB_KEY_Alt_R;
+		return 0;
+	}
+	if (strcasecmp(s, "shift") == 0) {
+		*sym_out = XKB_KEY_Shift_L;
+		*sym_alt_out = XKB_KEY_Shift_R;
+		return 0;
+	}
+	if (strcasecmp(s, "ctrl") == 0 || strcasecmp(s, "control") == 0) {
+		*sym_out = XKB_KEY_Control_L;
+		*sym_alt_out = XKB_KEY_Control_R;
+		return 0;
+	}
+	return -1;
+}
+
+/* Shift+Tab often surfaces as ISO_Left_Tab; accept both when Shift is set. */
+static void maybe_tab_alt(uint32_t mods, xkb_keysym_t sym, xkb_keysym_t *sym_alt) {
+	if (*sym_alt == 0 && sym == XKB_KEY_Tab && (mods & STONEFLY_SHIFT)) {
+		*sym_alt = XKB_KEY_ISO_Left_Tab;
+	}
 }
 
 static enum stonefly_action parse_action(const char *s) {
@@ -279,8 +417,14 @@ static void clear_scratchpads(struct stonefly_config *cfg) {
 	cfg->n_scratchpads = 0;
 }
 
+/*
+ * bind forms (peeble/i3/sway chord strings; legacy map still accepted):
+ *   bind("Super+w", { action = "spawn_ghostty" })
+ *   bind({ key = "Super+Shift+Tab", action = "focus_prev" })
+ *   bind({ mods = {"super"}, key = "w", action = "..." })  -- legacy
+ * Optional: key_alt, cmd. Shift+Tab auto-adds ISO_Left_Tab as key_alt.
+ */
 static int l_bind(lua_State *L) {
-	luaL_checktype(L, 1, LUA_TTABLE);
 	if (G == NULL) {
 		return luaL_error(L, "bind: no runtime");
 	}
@@ -289,32 +433,72 @@ static int l_bind(lua_State *L) {
 		clear_keybinds(cfg);
 		G->binds_replaced = true;
 	}
-	lua_getfield(L, 1, "mods");
-	uint32_t mods = table_mods(L, lua_gettop(L));
-	lua_pop(L, 1);
 
-	lua_getfield(L, 1, "key");
-	const char *key = luaL_checkstring(L, -1);
-	xkb_keysym_t sym = xkb_keysym_from_name(key, 0);
-	lua_pop(L, 1);
-	if (sym == XKB_KEY_NoSymbol) {
-		return luaL_error(L, "bind: unknown key %s", key);
+	int opts = 0; /* stack index of options table, or 0 */
+	uint32_t mods = 0;
+	xkb_keysym_t sym = XKB_KEY_NoSymbol;
+	const char *chord_err = NULL;
+
+	if (lua_type(L, 1) == LUA_TSTRING) {
+		const char *chord = lua_tostring(L, 1);
+		if (parse_chord(chord, &mods, &sym) != 0) {
+			return luaL_error(L, "bind: bad chord %s", chord);
+		}
+		luaL_checktype(L, 2, LUA_TTABLE);
+		opts = 2;
+	} else {
+		luaL_checktype(L, 1, LUA_TTABLE);
+		opts = 1;
+		lua_getfield(L, opts, "key");
+		const char *key = lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL;
+		lua_getfield(L, opts, "mods");
+		bool have_mods = lua_istable(L, -1);
+		if (key != NULL && !have_mods) {
+			/* Chord-in-key: { key = "Super+w", action = ... } */
+			if (parse_chord(key, &mods, &sym) != 0) {
+				chord_err = key;
+			}
+		} else if (key != NULL) {
+			/* Legacy mods+key table; preserve case for single letters. */
+			mods = table_mods(L, lua_gettop(L));
+			sym = xkb_keysym_from_name(key, 0);
+			if (sym == XKB_KEY_NoSymbol) {
+				sym = xkb_keysym_from_name(key,
+					XKB_KEYSYM_CASE_INSENSITIVE);
+			}
+			if (sym == XKB_KEY_NoSymbol && strlen(key) == 1) {
+				sym = (xkb_keysym_t)(unsigned char)key[0];
+			}
+			if (sym == XKB_KEY_NoSymbol) {
+				chord_err = key;
+			}
+		} else {
+			chord_err = "(missing key)";
+		}
+		lua_pop(L, 2);
+		if (chord_err != NULL) {
+			return luaL_error(L, "bind: unknown key %s", chord_err);
+		}
 	}
 
 	xkb_keysym_t sym_alt = 0;
-	lua_getfield(L, 1, "key_alt");
+	lua_getfield(L, opts, "key_alt");
 	if (lua_isstring(L, -1)) {
-		sym_alt = xkb_keysym_from_name(lua_tostring(L, -1),
-			0);
+		const char *alt = lua_tostring(L, -1);
+		if (lookup_keysym(alt, &sym_alt) != 0) {
+			sym_alt = xkb_keysym_from_name(alt,
+				XKB_KEYSYM_CASE_INSENSITIVE);
+		}
 	}
 	lua_pop(L, 1);
+	maybe_tab_alt(mods, sym, &sym_alt);
 
-	lua_getfield(L, 1, "action");
+	lua_getfield(L, opts, "action");
 	const char *act = luaL_checkstring(L, -1);
 	enum stonefly_action action = parse_action(act);
 	lua_pop(L, 1);
 
-	lua_getfield(L, 1, "cmd");
+	lua_getfield(L, opts, "cmd");
 	const char *cmd = lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL;
 
 	struct stonefly_keybind *nb = realloc(cfg->keybinds,
@@ -335,8 +519,13 @@ static int l_bind(lua_State *L) {
 	return 0;
 }
 
+/*
+ * tap forms:
+ *   tap("Super", { single = "spawn_launcher", double = "scratch_toggle_term" })
+ *   tap({ key = "Super", ... })           -- modifier name → L+R
+ *   tap({ key = "Super_L", key_alt = "Super_R", ... })  -- legacy
+ */
 static int l_tap(lua_State *L) {
-	luaL_checktype(L, 1, LUA_TTABLE);
 	if (G == NULL) {
 		return luaL_error(L, "tap: no runtime");
 	}
@@ -345,32 +534,56 @@ static int l_tap(lua_State *L) {
 		clear_tapbinds(cfg);
 		G->taps_replaced = true;
 	}
-	lua_getfield(L, 1, "key");
-	const char *key = luaL_checkstring(L, -1);
-	xkb_keysym_t sym = xkb_keysym_from_name(key, 0);
-	lua_pop(L, 1);
 
+	int opts = 0;
+	xkb_keysym_t sym = XKB_KEY_NoSymbol;
 	xkb_keysym_t sym_alt = 0;
-	lua_getfield(L, 1, "key_alt");
+
+	if (lua_type(L, 1) == LUA_TSTRING) {
+		const char *name = lua_tostring(L, 1);
+		if (parse_tap_mod(name, &sym, &sym_alt) != 0) {
+			return luaL_error(L, "tap: expected modifier name, got %s",
+				name);
+		}
+		luaL_checktype(L, 2, LUA_TTABLE);
+		opts = 2;
+	} else {
+		luaL_checktype(L, 1, LUA_TTABLE);
+		opts = 1;
+		lua_getfield(L, opts, "key");
+		const char *key = luaL_checkstring(L, -1);
+		lua_pop(L, 1);
+		if (parse_tap_mod(key, &sym, &sym_alt) != 0) {
+			/* Legacy physical keysym names (Super_L, …). */
+			sym = xkb_keysym_from_name(key, 0);
+			if (sym == XKB_KEY_NoSymbol) {
+				return luaL_error(L, "tap: unknown key %s", key);
+			}
+		}
+	}
+
+	lua_getfield(L, opts, "key_alt");
 	if (lua_isstring(L, -1)) {
-		sym_alt = xkb_keysym_from_name(lua_tostring(L, -1),
-			0);
+		xkb_keysym_t alt = xkb_keysym_from_name(lua_tostring(L, -1), 0);
+		if (alt != XKB_KEY_NoSymbol) {
+			sym_alt = alt;
+		}
 	}
 	lua_pop(L, 1);
 
-	lua_getfield(L, 1, "single");
+	lua_getfield(L, opts, "single");
 	enum stonefly_action single = parse_action(
 		lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL);
 	lua_pop(L, 1);
-	lua_getfield(L, 1, "double");
+	lua_getfield(L, opts, "double");
 	enum stonefly_action dbl = parse_action(
 		lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL);
 	lua_pop(L, 1);
 
-	lua_getfield(L, 1, "single_cmd");
+	lua_getfield(L, opts, "single_cmd");
 	char *scmd_c = xstrdup(lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL);
 	lua_pop(L, 1);
-	lua_getfield(L, 1, "double_cmd");
+	lua_getfield(L, opts, "double_cmd");
 	char *dcmd_c = xstrdup(lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL);
 	lua_pop(L, 1);
 

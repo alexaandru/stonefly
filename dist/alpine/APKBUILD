@@ -1,7 +1,7 @@
 # Maintainer: Alexandru Ungur <alexaandru@gmail.com>
 pkgname=stonefly
 pkgver=0.0.1
-pkgrel=2
+pkgrel=0
 pkgdesc="Wayland compositor/WM (tinywl 0.20 seed)"
 url="https://github.com/alexaandru/stonefly"
 arch="all"
@@ -51,5 +51,5 @@ package() {
 }
 
 sha512sums="
-08b3ea531dbd37babe87cb0b850a330b6179276440ff4d8a24edaf54d40accfc0772a3a48770073e83fd1b85893ee79cf37e18351664b93937259184eae90bc4  stonefly-0.0.1.tar.gz
+b689b62be1e48d3e5fc7aec0039698e14b4c3983a95ca74312f2c728b779862694c7ead254831344c2a1997fbbbe09652fb71ad17d6613d56e46065a28866f18  stonefly-0.0.1.tar.gz
 "

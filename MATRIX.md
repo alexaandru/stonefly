@@ -183,9 +183,9 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Feature | Peeble shipped | Peeble roadmap / Ideas | Stonefly | Notes |
 |---|---|---|---|---|
 | Scriptable config | ✅ Risor + live reload | Multi-file include design 📋 | ✅ | LuaJIT in-process VM (§10): Neovim-ish rtp/packpath, builtin fennel-shim (Fennel 1.6.1), Fennel-first embedded default. Open gaps in §10. |
-| Validate / write-default | ✅ `--write-config` + embed | — | 🚧 | ✅ `stonefly --write-config` (C23 `#embed` tree, refuse overwrite); validate CLI still ❌ (§10) |
+| Validate / write-default | ✅ `--write-config` + embed | — | 🚧 | ✅ `stonefly --write-config` (C23 `#embed` tree, refuse overwrite); validate CLI still ❌ (§10). **Build:** meson `embed_defaults_stamp.h` so default `*.fnl` edits rebuild `config_embed.c` (clang often omits `#embed` from depfiles — shipped chord parser + stale old binds once). |
 | Nano syntax highlight | ✅ `peeble.nanorc` | — | ❌ | |
-| Keybind table | ✅ Risor binds + taps | — | ✅ | Runtime via Fennel/Lua (`binds.fnl` / `stonefly.bind`); C defaults until first bind |
+| Keybind table | ✅ Risor `"Super+w"` chords + taps | — | ✅ | Peeble-style chords: `stonefly.bind("Super+w", {action=…})` / `tap("Super", …)`; `xkb_keysym_from_name` (no generated keysym table). Legacy `{mods=, key=}` still accepted. Shift+Tab auto `ISO_Left_Tab`. C defaults until first bind. |
 | Ctrl+Alt+Fn VT switch | ✅ via session | — | ✅ | `wlr_session_change_vt` on `XF86Switch_VT_*`; was missing (unreliable switch + DRM yank / crash on half-leave). Nested backends: no-op. |
 | Super tap / double-tap | ✅ | Regression keep-green 📋 | ✅ | Launcher / term pad |
 | Spawn / exec / exec_once | ✅ | `spawn_one` panels QoL 📋 | 🚧 | Named SPAWN_* + `STONEFLY_ACTION_EXEC` (`sh -c`); no exec_once |
@@ -301,7 +301,10 @@ overrides; C23 `#embed` of Fennel-first default tree (`src/config/default/`);
 missing user `init.lua` → embedded default; `stonefly --write-config` (refuse
 overwrite); builtin pack `fennel-shim` (Fennel 1.6.1 + Fennel-side loader);
 `stonefly.*` API (`opt` / `bind` / `tap` / `scratchpad` / `packadd` / `stdpath`);
-IPC `stonefly config [section]`; consumers read `stonefly_cfg(server)`.
+bind/tap accept peeble-style chord strings (`"Super+Shift+Tab"`, `"Super"`) via
+`parse_chord` / `parse_tap_mod` in `config_lua.c` (libxkbcommon name lookup —
+no Go-style generated keysym map); IPC `stonefly config [section]`; consumers
+read `stonefly_cfg(server)`.
 
 | Open | Status | Notes |
 |---|---|---|
