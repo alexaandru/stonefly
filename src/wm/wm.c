@@ -16,6 +16,7 @@
 #include "layer/layer.h"
 #include "log/log.h"
 #include "output/output.h"
+#include "toplevel/foreign.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
 
@@ -34,7 +35,7 @@ void stonefly_toplevel_layout_geom(struct stonefly_toplevel *toplevel,
 
 static void stonefly_toplevel_save_geom(struct stonefly_toplevel *toplevel) {
 	if (toplevel->has_saved_geom || toplevel->maximized_edges ||
-			toplevel->maximized_gaps ||
+			toplevel->maximized_gaps || toplevel->fullscreen ||
 			toplevel->snapped != STONEFLY_SNAP_NONE) {
 		return;
 	}
@@ -106,11 +107,13 @@ void stonefly_toplevel_restore_saved(struct stonefly_toplevel *toplevel) {
 	}
 	if (xdg_surface_ready(toplevel)) {
 		wlr_xdg_toplevel_set_maximized(toplevel->xdg_toplevel, false);
+		wlr_xdg_toplevel_set_fullscreen(toplevel->xdg_toplevel, false);
 	}
 	stonefly_toplevel_apply_box(toplevel, &toplevel->saved_geom);
 	toplevel->has_saved_geom = false;
 	toplevel->maximized_edges = false;
 	toplevel->maximized_gaps = false;
+	toplevel->fullscreen = false;
 	toplevel->snapped = STONEFLY_SNAP_NONE;
 	stonefly_decor_update_geom(toplevel);
 }
@@ -164,7 +167,12 @@ void stonefly_toplevel_set_max_edges(struct stonefly_toplevel *toplevel, bool wa
 			wlr_xdg_surface_schedule_configure(toplevel->xdg_toplevel->base);
 			stonefly_decor_update_geom(toplevel);
 		}
+		stonefly_foreign_toplevel_on_state_change(toplevel);
 		return;
+	}
+	if (toplevel->fullscreen) {
+		wlr_xdg_toplevel_set_fullscreen(toplevel->xdg_toplevel, false);
+		toplevel->fullscreen = false;
 	}
 	struct wlr_box out;
 	if (!stonefly_toplevel_output_box(toplevel, &out)) {
@@ -180,10 +188,80 @@ void stonefly_toplevel_set_max_edges(struct stonefly_toplevel *toplevel, bool wa
 	toplevel->maximized_edges = true;
 	/* Drop blur/border/shadow/corners immediately (commit may lag). */
 	stonefly_decor_update_geom(toplevel);
+	stonefly_foreign_toplevel_on_state_change(toplevel);
+	stonefly_foreign_toplevel_on_outputs_change(toplevel);
 }
 
 void stonefly_toplevel_toggle_max_edges(struct stonefly_toplevel *toplevel) {
 	stonefly_toplevel_set_max_edges(toplevel, !toplevel->maximized_edges);
+}
+
+static bool toplevel_full_output_box(struct stonefly_toplevel *toplevel,
+		struct wlr_output *hint, struct wlr_box *box) {
+	struct stonefly_server *server = toplevel->server;
+	struct wlr_output *wlr_output = hint;
+	if (wlr_output == NULL) {
+		struct wlr_box geom;
+		stonefly_toplevel_layout_geom(toplevel, &geom);
+		double cx = geom.x + geom.width / 2.0;
+		double cy = geom.y + geom.height / 2.0;
+		wlr_output = wlr_output_layout_output_at(server->output_layout, cx, cy);
+		if (wlr_output == NULL) {
+			wlr_output = wlr_output_layout_output_at(server->output_layout,
+				server->cursor->x, server->cursor->y);
+		}
+	}
+	if (wlr_output == NULL) {
+		return false;
+	}
+	wlr_output_layout_get_box(server->output_layout, wlr_output, box);
+	return box->width > 0 && box->height > 0;
+}
+
+void stonefly_toplevel_set_fullscreen(struct stonefly_toplevel *toplevel,
+		bool want, struct wlr_output *hint) {
+	if (!xdg_surface_ready(toplevel)) {
+		return;
+	}
+	if (want == toplevel->fullscreen) {
+		if (want) {
+			wlr_xdg_surface_schedule_configure(toplevel->xdg_toplevel->base);
+		}
+		return;
+	}
+	if (!want) {
+		wlr_xdg_toplevel_set_fullscreen(toplevel->xdg_toplevel, false);
+		toplevel->fullscreen = false;
+		if (toplevel->has_saved_geom) {
+			stonefly_toplevel_restore_saved(toplevel);
+		} else {
+			wlr_xdg_surface_schedule_configure(toplevel->xdg_toplevel->base);
+			stonefly_decor_update_geom(toplevel);
+		}
+		stonefly_foreign_toplevel_on_state_change(toplevel);
+		stonefly_foreign_toplevel_on_outputs_change(toplevel);
+		return;
+	}
+
+	if (toplevel->maximized_edges) {
+		wlr_xdg_toplevel_set_maximized(toplevel->xdg_toplevel, false);
+		toplevel->maximized_edges = false;
+	}
+	toplevel->maximized_gaps = false;
+	toplevel->snapped = STONEFLY_SNAP_NONE;
+
+	struct wlr_box out;
+	if (!toplevel_full_output_box(toplevel, hint, &out)) {
+		wlr_xdg_surface_schedule_configure(toplevel->xdg_toplevel->base);
+		return;
+	}
+	stonefly_toplevel_save_geom(toplevel);
+	wlr_xdg_toplevel_set_fullscreen(toplevel->xdg_toplevel, true);
+	stonefly_toplevel_apply_box(toplevel, &out);
+	toplevel->fullscreen = true;
+	stonefly_decor_update_geom(toplevel);
+	stonefly_foreign_toplevel_on_state_change(toplevel);
+	stonefly_foreign_toplevel_on_outputs_change(toplevel);
 }
 
 void stonefly_toplevel_set_max_gaps(struct stonefly_toplevel *toplevel, bool want) {
@@ -203,6 +281,7 @@ void stonefly_toplevel_set_max_gaps(struct stonefly_toplevel *toplevel, bool wan
 			toplevel->maximized_gaps = false;
 			wlr_xdg_surface_schedule_configure(toplevel->xdg_toplevel->base);
 		}
+		stonefly_foreign_toplevel_on_state_change(toplevel);
 		return;
 	}
 	struct wlr_box out;
@@ -220,6 +299,8 @@ void stonefly_toplevel_set_max_gaps(struct stonefly_toplevel *toplevel, bool wan
 	stonefly_box_inset_gap(&out);
 	stonefly_toplevel_apply_box(toplevel, &out);
 	toplevel->maximized_gaps = true;
+	stonefly_foreign_toplevel_on_state_change(toplevel);
+	stonefly_foreign_toplevel_on_outputs_change(toplevel);
 }
 
 void stonefly_toplevel_toggle_max_gaps(struct stonefly_toplevel *toplevel) {
@@ -473,6 +554,7 @@ static void minimize_now(struct stonefly_toplevel *toplevel) {
 		}
 		stonefly_focus_top(server);
 	}
+	stonefly_foreign_toplevel_on_state_change(toplevel);
 }
 
 void stonefly_toplevel_unminimize(struct stonefly_toplevel *toplevel) {
@@ -487,6 +569,7 @@ void stonefly_toplevel_unminimize(struct stonefly_toplevel *toplevel) {
 		toplevel->resting_x, toplevel->resting_y);
 	wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
 	stonefly_anim_start_show(toplevel);
+	stonefly_foreign_toplevel_on_state_change(toplevel);
 }
 
 void stonefly_focus_toplevel(struct stonefly_toplevel *toplevel) {
@@ -506,6 +589,7 @@ void stonefly_focus_toplevel(struct stonefly_toplevel *toplevel) {
 		/* Don't re-focus an already focused surface. */
 		return;
 	}
+	struct stonefly_toplevel *prev_toplevel = NULL;
 	if (prev_surface) {
 		/*
 		 * Deactivate the previously focused surface. This lets the client know
@@ -521,6 +605,7 @@ void stonefly_focus_toplevel(struct stonefly_toplevel *toplevel) {
 			wl_list_for_each(t, &server->toplevels, link) {
 				if (t->xdg_toplevel->base->surface == root) {
 					stonefly_decor_set_focused(t, false);
+					prev_toplevel = t;
 					break;
 				}
 			}
@@ -543,6 +628,10 @@ void stonefly_focus_toplevel(struct stonefly_toplevel *toplevel) {
 		wlr_seat_keyboard_notify_enter(seat, surface,
 			keyboard->keycodes, keyboard->num_keycodes, &keyboard->modifiers);
 	}
+	if (prev_toplevel != NULL) {
+		stonefly_foreign_toplevel_on_state_change(prev_toplevel);
+	}
+	stonefly_foreign_toplevel_on_state_change(toplevel);
 }
 
 struct stonefly_toplevel *stonefly_focused_toplevel(struct stonefly_server *server) {

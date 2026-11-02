@@ -15,6 +15,7 @@
 #include "decor/decor.h"
 #include "log/log.h"
 #include "seat/seat.h"
+#include "toplevel/foreign.h"
 #include "wm/drag_snap.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
@@ -91,6 +92,7 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	stonefly_decor_apply_buffers(toplevel);
 	/* Park off-screen then slide in (peeble open/appear). */
 	stonefly_anim_start_show(toplevel);
+	stonefly_foreign_toplevel_on_map(toplevel);
 }
 
 static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
@@ -130,6 +132,7 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	if (was_focused || stonefly_focused_toplevel(server) == NULL) {
 		stonefly_focus_top(server);
 	}
+	stonefly_foreign_toplevel_on_unmap(toplevel);
 }
 
 static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
@@ -146,6 +149,14 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 		return;
 	}
 	stonefly_decor_update_geom(toplevel);
+	stonefly_foreign_toplevel_on_outputs_change(toplevel);
+}
+
+static void xdg_toplevel_set_title(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct stonefly_toplevel *toplevel =
+		wl_container_of(listener, toplevel, set_title);
+	stonefly_foreign_toplevel_on_title_change(toplevel);
 }
 
 static void xdg_toplevel_set_app_id(struct wl_listener *listener, void *data) {
@@ -153,6 +164,14 @@ static void xdg_toplevel_set_app_id(struct wl_listener *listener, void *data) {
 	struct stonefly_toplevel *toplevel =
 		wl_container_of(listener, toplevel, set_app_id);
 	stonefly_scratchpad_try_claim(toplevel);
+	stonefly_foreign_toplevel_on_app_id_change(toplevel);
+}
+
+static void xdg_toplevel_set_parent(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct stonefly_toplevel *toplevel =
+		wl_container_of(listener, toplevel, set_parent);
+	stonefly_foreign_toplevel_on_parent_change(toplevel);
 }
 
 static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
@@ -160,6 +179,7 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	/* Called when the xdg_toplevel is destroyed. */
 	struct stonefly_toplevel *toplevel = wl_container_of(listener, toplevel, destroy);
 
+	stonefly_foreign_toplevel_on_close(toplevel);
 	stonefly_anim_cancel(toplevel, false);
 	stonefly_scratchpad_on_destroy(toplevel);
 	stonefly_decor_finish_toplevel(toplevel);
@@ -176,7 +196,9 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&toplevel->request_resize.link);
 	wl_list_remove(&toplevel->request_maximize.link);
 	wl_list_remove(&toplevel->request_fullscreen.link);
+	wl_list_remove(&toplevel->set_title.link);
 	wl_list_remove(&toplevel->set_app_id.link);
+	wl_list_remove(&toplevel->set_parent.link);
 
 	free(toplevel);
 }
@@ -260,12 +282,13 @@ static void xdg_toplevel_request_maximize(
 static void xdg_toplevel_request_fullscreen(
 		struct wl_listener *listener, void *data) {
 	(void)data;
-	/* Just as with request_maximize, we must send a configure here. */
 	struct stonefly_toplevel *toplevel =
 		wl_container_of(listener, toplevel, request_fullscreen);
-	if (toplevel->xdg_toplevel->base->initialized) {
-		wlr_xdg_surface_schedule_configure(toplevel->xdg_toplevel->base);
+	if (!toplevel->xdg_toplevel->base->initialized) {
+		return;
 	}
+	stonefly_toplevel_set_fullscreen(toplevel,
+		toplevel->xdg_toplevel->requested.fullscreen, NULL);
 }
 
 static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
@@ -307,8 +330,12 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	wl_signal_add(&xdg_toplevel->events.request_maximize, &toplevel->request_maximize);
 	toplevel->request_fullscreen.notify = xdg_toplevel_request_fullscreen;
 	wl_signal_add(&xdg_toplevel->events.request_fullscreen, &toplevel->request_fullscreen);
+	toplevel->set_title.notify = xdg_toplevel_set_title;
+	wl_signal_add(&xdg_toplevel->events.set_title, &toplevel->set_title);
 	toplevel->set_app_id.notify = xdg_toplevel_set_app_id;
 	wl_signal_add(&xdg_toplevel->events.set_app_id, &toplevel->set_app_id);
+	toplevel->set_parent.notify = xdg_toplevel_set_parent;
+	wl_signal_add(&xdg_toplevel->events.set_parent, &toplevel->set_parent);
 }
 
 static void xdg_popup_commit(struct wl_listener *listener, void *data) {

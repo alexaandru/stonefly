@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <wayland-server-core.h>
 
+#include "ipc/layers.h"
 #include "ipc/windows.h"
 #include "log/log.h"
 #include "server/server.h"
@@ -21,6 +22,7 @@
 #define STONEFLY_IPC_REPLY_CAP (64 * 1024)
 #define STONEFLY_IPC_REQ_CAP 4096
 #define STONEFLY_IPC_MAX_WINDOWS 256
+#define STONEFLY_IPC_MAX_LAYERS 256
 
 struct stonefly_ipc {
 	struct stonefly_server *server;
@@ -153,6 +155,24 @@ static void ipc_handle_windows(struct stonefly_ipc_client *client) {
 	free(out);
 }
 
+static void ipc_handle_layers(struct stonefly_ipc_client *client) {
+	struct stonefly_layer_info infos[STONEFLY_IPC_MAX_LAYERS];
+	size_t n = stonefly_layers_collect(client->ipc->server, infos,
+		STONEFLY_IPC_MAX_LAYERS);
+
+	char *out = malloc(STONEFLY_IPC_REPLY_CAP);
+	if (out == NULL) {
+		ipc_write_line(client->fd, "{\"error\":\"oom\"}");
+		return;
+	}
+	if (stonefly_layers_to_json(infos, n, out, STONEFLY_IPC_REPLY_CAP) < 0) {
+		ipc_write_line(client->fd, "{\"error\":\"layers snapshot overflow\"}");
+	} else {
+		ipc_write_line(client->fd, out);
+	}
+	free(out);
+}
+
 static void ipc_handle_request(struct stonefly_ipc_client *client, const char *line) {
 	char cmd[64];
 	if (!parse_cmd(line, cmd, sizeof(cmd))) {
@@ -162,6 +182,10 @@ static void ipc_handle_request(struct stonefly_ipc_client *client, const char *l
 
 	if (strcmp(cmd, "windows") == 0) {
 		ipc_handle_windows(client);
+		return;
+	}
+	if (strcmp(cmd, "layers") == 0) {
+		ipc_handle_layers(client);
 		return;
 	}
 
@@ -480,5 +504,51 @@ int stonefly_ipc_cmd_windows(int argc, char **argv) {
 	}
 	free(reply);
 	stonefly_windows_print(infos, n, stdout);
+	return 0;
+}
+
+int stonefly_ipc_cmd_layers(int argc, char **argv) {
+	bool as_json = false;
+
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "--json") == 0) {
+			as_json = true;
+		} else if (strcmp(argv[i], "-h") == 0 ||
+				strcmp(argv[i], "--help") == 0) {
+			printf("Usage: stonefly layers [--json]\n");
+			return 0;
+		} else {
+			fprintf(stderr, "Usage: stonefly layers [--json]\n");
+			return 1;
+		}
+	}
+
+	char *reply = NULL;
+	int rc = ipc_request("layers", &reply);
+	if (rc != 0) {
+		return rc;
+	}
+
+	if (reply[0] == '{' && strncmp(reply, "{\"error\":", 9) == 0) {
+		fprintf(stderr, "stonefly: %s\n", reply);
+		free(reply);
+		return 1;
+	}
+
+	if (as_json) {
+		printf("%s\n", reply);
+		free(reply);
+		return 0;
+	}
+
+	struct stonefly_layer_info infos[STONEFLY_IPC_MAX_LAYERS];
+	size_t n = 0;
+	if (!stonefly_layers_from_json(reply, infos, STONEFLY_IPC_MAX_LAYERS, &n)) {
+		fprintf(stderr, "stonefly: bad layers reply\n");
+		free(reply);
+		return 1;
+	}
+	free(reply);
+	stonefly_layers_print(infos, n, stdout);
 	return 0;
 }

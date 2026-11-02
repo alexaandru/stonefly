@@ -79,9 +79,9 @@ void stonefly_decor_update_blur_size(struct stonefly_server *server) {
 		layout.width, layout.height);
 }
 
-/* Edge-maximize (Super+f): no border/blur/shadow/corners — client only. */
+/* Edge-maximize / fullscreen: no border/blur/shadow/corners — client only. */
 static bool decor_chrome_on(const struct stonefly_toplevel *toplevel) {
-	return !toplevel->maximized_edges;
+	return !toplevel->maximized_edges && !toplevel->fullscreen;
 }
 
 static void decor_set_chrome_enabled(struct stonefly_toplevel *toplevel,

@@ -4,6 +4,7 @@ stonefly_src = files(
   'log/log.c',
   'ipc/ipc.c',
   'ipc/windows.c',
+  'ipc/layers.c',
   'server/server.c',
   'output/output.c',
   'layer/layer.c',
@@ -15,6 +16,7 @@ stonefly_src = files(
   'wm/snap_preview.c',
   'anim/anim.c',
   'decor/decor.c',
+  'toplevel/foreign.c',
 )
 
 stonefly_inc = include_directories('.')

@@ -44,7 +44,9 @@ struct stonefly_toplevel {
 	struct wl_listener request_resize;
 	struct wl_listener request_maximize;
 	struct wl_listener request_fullscreen;
+	struct wl_listener set_title;
 	struct wl_listener set_app_id;
+	struct wl_listener set_parent;
 
 	/* Stable for the life of this toplevel; used by IPC `windows`. */
 	uint64_t id;
@@ -53,6 +55,7 @@ struct stonefly_toplevel {
 	bool has_saved_geom;
 	bool maximized_edges;
 	bool maximized_gaps;
+	bool fullscreen;
 	enum stonefly_snap snapped;
 	bool minimized;
 	/* Demand-attention until focused (xdg-activation). */

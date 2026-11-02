@@ -7,6 +7,7 @@
 #include "xdg/xdg.h"
 
 struct stonefly_output;
+struct wlr_output;
 
 void stonefly_focus_toplevel(struct stonefly_toplevel *toplevel);
 struct stonefly_toplevel *stonefly_focused_toplevel(struct stonefly_server *server);
@@ -55,6 +56,10 @@ void stonefly_toplevel_apply_saved_at(struct stonefly_toplevel *toplevel,
 void stonefly_toplevel_unsnap(struct stonefly_toplevel *toplevel);
 void stonefly_toplevel_minimize(struct stonefly_toplevel *toplevel);
 void stonefly_toplevel_unminimize(struct stonefly_toplevel *toplevel);
+
+/* Fullscreen on hint output, or the output under the window when hint is NULL. */
+void stonefly_toplevel_set_fullscreen(struct stonefly_toplevel *toplevel,
+		bool want, struct wlr_output *hint);
 
 /* Peeble-style cascade origin for a newly mapped floating toplevel. */
 void stonefly_toplevel_place_cascade(struct stonefly_toplevel *toplevel);

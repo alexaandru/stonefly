@@ -13,6 +13,7 @@ static void usage(const char *argv0) {
 	printf("Usage:\n");
 	printf("  %s [-s startup command]   run the compositor\n", argv0);
 	printf("  %s windows [--json]       list windows via IPC\n", argv0);
+	printf("  %s layers [--json]        list layer-shell surfaces via IPC\n", argv0);
 }
 
 static int run_compositor(int argc, char *argv[]) {
@@ -52,6 +53,9 @@ int main(int argc, char *argv[]) {
 	if (argc >= 2 && argv[1][0] != '-') {
 		if (strcmp(argv[1], "windows") == 0) {
 			return stonefly_ipc_cmd_windows(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "layers") == 0) {
+			return stonefly_ipc_cmd_layers(argc - 1, argv + 1);
 		}
 		fprintf(stderr, "stonefly: unknown command %s\n", argv[1]);
 		usage(argv[0]);

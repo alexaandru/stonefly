@@ -36,7 +36,7 @@ src/
   main.c             # tiny entry (+ windows subcommand)
   util/json.*        # fixed-buffer JSON writer + scanner
   log/               # structured JSON logging (peeble slog shape)
-  ipc/               # unix-socket IPC + windows [--json]
+  ipc/               # unix-socket IPC + windows/layers [--json]
   config/hardcoded.h # day-zero knobs
   server/            # display, backend, scene, loop
   output/            # outputs + scale
@@ -99,6 +99,8 @@ Same binary speaks IPC when given a subcommand. Socket path:
 ```sh
 stonefly windows           # human: "* id  app_id  title"
 stonefly windows --json    # JSON array (id, app_id, title, geom, flags)
+stonefly layers            # human: namespace / layer / output / geom / excl / kbd
+stonefly layers --json     # JSON array (namespace, layer, output, geom, zones)
 ```
 
 Wire format matches peeble: one JSON object per line, e.g. `{"cmd":"windows"}`.

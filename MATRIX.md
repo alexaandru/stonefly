@@ -1,12 +1,11 @@
 # Peeble ↔ stonefly feature matrix
 
 Comparison of **peeble** (River companion WM + in-process shell) and
-**stonefly** (monolithic wlroots 0.20 + SceneFX compositor/WM under
-`testdata/testing/stonefly`).
+**stonefly** (monolithic wlroots 0.20 + SceneFX compositor/WM in this tree).
 
-Sources: peeble [`README.md`](../../README.md) Features,
-[`ROADMAP.md`](../../ROADMAP.md) (implemented + open + Ideas/wishlist),
-[`FORK.md`](../../FORK.md) (River-fork compositor gaps), stonefly
+Sources: peeble [`README.md`](peeble/README.md) Features,
+[`ROADMAP.md`](peeble/ROADMAP.md) (implemented + open + Ideas/wishlist),
+[`FORK.md`](peeble/FORK.md) (River-fork compositor gaps), stonefly
 [`README.md`](README.md), and the live stonefly tree.
 
 ## How to read this
@@ -49,7 +48,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Maximize to edges | ✅ | — | ✅ Super+f | Client maximized hint |
 | Maximize with gaps (WM-only) | ✅ | — | ✅ Super+m | No client maximized → rounder CSD |
 | Unmaximize / restore | ✅ | — | ✅ | Toggle paths |
-| Fullscreen (client + WM) | ✅ | — | 🚧 | Listener schedules configure only; no real fullscreen policy yet |
+| Fullscreen (client + WM) | ✅ | — | ✅ | Saved geom + full output box; client `request_fullscreen` + foreign set/unset (no WM keybind; Super+f is edge-max) |
 | Minimize / unminimize LIFO | ✅ Ctrl+Esc | — | ✅ | Unnamed scratchpad |
 | Always-on-top | ✅ | — | ❌ | Peeble winmenu / state |
 | Keyboard half-snap (arrows) | ✅ Super+arrows | — | ✅ | Gap math ports `snapBorderBox` |
@@ -76,7 +75,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Multi-monitor focus / send | ✅ `focus_monitor` / `send_to_monitor` | — | ❌ | |
 | Pointer center / cursor-follows-focus | ✅ | — | ❌ | |
 | Picture-in-picture float | ❌ | Ideas 📋 | ❌ | |
-| Dim inactive / spotlight | ❌ | Ideas 📋 (needs opacity) | 🚧 | Flat opacity 0.90 all clients; no dim-unfocused policy |
+| Dim inactive / spotlight | ❌ | Ideas 📋 (needs opacity) | 🚧 | Flat opacity 0.96 (`STONEFLY_CLIENT_OPACITY`); no dim-unfocused policy |
 
 ---
 
@@ -92,12 +91,12 @@ hooks; on stonefly they are owned in-process.
 | Close slide (client Ctrl+W / CSD) | ❌ blocked | Last-frame ghost FORK P1 📋 | ✅ | Ghost buffer slide |
 | Scratchpad / minimize slides | ✅ | — | ✅ | Mid-flight reverse |
 | Vsync-capped animation pacing | ❌ busy manage→render | river#1385 P0 📋 | ✅ | Own scene / frame loop |
-| Fade / scale appear | ❌ | river#1373 + Ideas 📋 | ❌ | Opacity static 0.90, not animated fade |
-| WM-settable per-window opacity | ❌ | river#1373 P1 📋 | 🚧 | Global `STONEFLY_CLIENT_OPACITY`; no per-window API |
-| Backdrop blur | ❌ | SceneFX P3 📋 | ✅ | Optimized blur layer |
+| Fade / scale appear | ❌ | river#1373 + Ideas 📋 | ❌ | Opacity static 0.96, not animated fade |
+| WM-settable per-window opacity | ❌ | river#1373 P1 📋 | 🚧 | Global `STONEFLY_CLIENT_OPACITY` 0.96; no per-window API |
+| Backdrop / window blur | ❌ | SceneFX P3 📋 | 🚧 | Optimized blur node exists; per-window blur off (`STONEFLY_WINDOW_BLUR 0`) |
 | Soft rounded corners (opaque) | ❌ | SceneFX P3 📋 | ✅ | 12px |
 | Drop shadows | ❌ | SceneFX P3 📋 | ✅ | |
-| Compositor border (focus/idle/urgent) | ✅ via River `SetBorders` | Urgency needs #1281 | ✅ SceneFX | Neon / silver / amber |
+| Compositor border (focus/idle/urgent) | ✅ via River `SetBorders` | Urgency needs #1281 | ✅ SceneFX | Neon / charcoal inactive / amber |
 | Layer z-order vs windows | 🚧 PlaceTop fights | river#1375 P0 📋 | ✅ | Scene trees background→overlay; xdg under `layers.toplevel` |
 | Window previews / destination size | ❌ | river#1384 📋 | ❌ | |
 | Urgency / xdg-activation | ❌ | river#1281 → border/badge 📋 | ✅ | Amber until focus |
@@ -117,7 +116,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Taskbar / app icons | ✅ | Middle-click close, group-by-app, urgency badge 📋 | 🌙 | |
 | Unread title-regex badges | ✅ Slack / Gmail | Live notify unread semantics 📋 | 🌙 | |
 | Launcher | ✅ fuzzy + plugins | Grid / categories / emoji Ideas 📋 | 🌙 | Super tap → `noctalia msg panel-toggle launcher` |
-| OSD cards (vol/bright/…) | ✅ | Richer network OSD 📋 | 🌙 | Noctalia / external |
+| OSD cards (vol/bright/…) | ✅ | Richer network OSD 📋 | 🌙 | XF86* / media / mic / brightness binds → `noctalia msg` |
 | Notification toasts | ✅ FDO server | Notification center UI Ideas 📋 | 🌙 | Noctalia notifier |
 | Wallpaper engine | ✅ slideshow + transitions + cache | Video/shader Ideas 📋 | 🌙 / ❌ | Layer-shell wallpaper clients OK; no in-process engine |
 | Window snap preview (WM) | ✅ | — | ✅ | In compositor (not shell) |
@@ -162,9 +161,9 @@ notifier) on layer-shell. Peeble owns these in-process.
 | XCURSOR_THEME / SIZE | ✅ | — | ✅ | |
 | wlr-output-management | ✅ `output()` | — | ❌ | Hardcoded scale; no wdisplays path |
 | ext-data-control clipboard | ✅ | Primary-selection history Ideas 📋 | ❌ | |
-| Screenshots (fullscreen/window/region) | ✅ ext-image-copy-capture | Include-cursor polish 📋 | ❌ | FORK remaining gap |
+| Screenshots (fullscreen/window/region) | ✅ ext-image-copy-capture | Include-cursor polish 📋 | 🌙 / ❌ | Print binds → noctalia; no in-compositor screencopy / image-copy-capture |
 | Screencast / capture_sessions | ✅ bar widget | — | ❌ | |
-| Foreign-toplevel management | 🚧 River read-only; bar uses Focus | Activate relay #1449/#1537 📋 | ❌ | External docks |
+| Foreign-toplevel management | 🚧 River read-only; bar uses Focus | Activate relay #1449/#1537 📋 | ✅ | `zwlr_foreign_toplevel_management_v1` v3 (`src/toplevel/foreign.c`) |
 | xdg-activation (urgency) | ❌ | #1281 📋 | ✅ | |
 | xdg-system-bell | ❌ | #1389 📋 | ✅ | |
 | Idle-inhibit / idle-notify / session-lock | ✅ | — | ❌ | |
@@ -186,8 +185,9 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Nano syntax highlight | ✅ `peeble.nanorc` | — | ❌ | |
 | Keybind table | ✅ Risor binds + taps | — | ✅ | Compile-time table |
 | Super tap / double-tap | ✅ | Regression keep-green 📋 | ✅ | Launcher / term pad |
-| Spawn / exec / exec_once | ✅ | `spawn_one` panels QoL 📋 | 🚧 | Fork+sh `-c` spawns; no exec_once |
+| Spawn / exec / exec_once | ✅ | `spawn_one` panels QoL 📋 | 🚧 | Named SPAWN_* + `STONEFLY_ACTION_EXEC` (`sh -c`); no exec_once |
 | IPC `windows` [--json] | ✅ | — | ✅ | Peeble wire shape |
+| IPC `layers` [--json] | ❌ | — | ✅ | Layer-shell debug snapshot (`src/ipc/layers.c`) |
 | IPC focus / close by id | ✅ | — | ❌ | |
 | IPC toggle-quick-terminal | ✅ | — | ❌ | Bind/scratchpad covers UX |
 | IPC `action <name>` allowlist | ❌ | 📋 | ❌ | |
@@ -205,7 +205,7 @@ River-fork brief items and where stonefly stands (no River needed).
 |---|---|---|---|
 | P0 | #1385 vsynced animations / `render_dirty` | Busy loop workaround | ✅ owned |
 | P0 | Map-hold / no resting flash | AppearHold Hide hack | ✅ slide from off-screen |
-| P0 | #1449 / #1537 foreign-toplevel activate | Blocked on River | ❌ still missing |
+| P0 | #1449 / #1537 foreign-toplevel activate | Blocked on River | ✅ `zwlr_foreign_toplevel_management_v1` |
 | P0 | #1375 nodes vs layer-shell z-order | PlaceTop fights | ✅ scene layers |
 | P1 | #1373 WM opacity | Blocked | 🚧 global opacity |
 | P1 | Close-ghost last-frame | Blocked for client close | ✅ |
@@ -214,7 +214,7 @@ River-fork brief items and where stonefly stands (no River needed).
 | P1 | #1481 capture privacy | Blocked | ❌ |
 | P2 | #1402 workspaces, #1390 tags | Roadmap | ❌ |
 | P2 | Layer `set_exclusive_edge`, presentation-time | Roadmap | 🚧 exclusive zones yes; edge/proto clock no |
-| P3 | SceneFX blur / corners / shadows | Parked | ✅ |
+| P3 | SceneFX blur / corners / shadows | Parked | 🚧 blur off (`WINDOW_BLUR 0`) / ✅ corners / ✅ shadows |
 
 ---
 
@@ -234,13 +234,14 @@ in-process shell (Noctalia stands in under stonefly).
 | Super tap launcher / double-tap term / Super+t claim | ✅ |
 | Spawns Ghostty / foot / nautilus / editor / QT | ✅ |
 | Named scratchpads beyond `term` | ❌ |
-| Fullscreen / always-on-top / winmenu / SSD | ❌ / 🚧 |
+| Fullscreen / always-on-top / winmenu / SSD | ✅ fullscreen / ❌ aot / ❌ winmenu / ❌ SSD |
 | Multi-mon send/focus, pointer center | ❌ |
 | Geometry persist, window rules, set_tiled | ❌ |
-| Screenshots, clipboard, idle/lock/gamma | ❌ |
+| Screenshots, clipboard, idle/lock/gamma | 🌙 screenshots via noctalia / ❌ clipboard+idle+lock+gamma |
 | Xwayland | ❌ |
 | Real config file | ❌ |
 | Workspaces / tiling layouts | ❌ both |
+| Foreign-toplevel for docks/taskbars | ✅ |
 
 ---
 
@@ -249,14 +250,12 @@ in-process shell (Noctalia stands in under stonefly).
 Aligned with stonefly README “remaining FORK gaps” and peeble day-zero
 holes that hurt without Noctalia covering them:
 
-1. **Real fullscreen** (honor `request_fullscreen` with saved geometry)
-2. **`set_tiled`** on snap/max (CSD shadow/resizer parity with peeble)
-3. **Foreign-toplevel** (`zwlr_foreign_toplevel_management_v1`) for docks
-4. **Xwayland** (classic apps)
-5. **Screenshots / screencopy / image-copy-capture** (+ optional privacy #1481)
-6. **Workspaces / tags** (#1402 / #1390 shaped)
-7. **Real config** (replace `hardcoded.h` — Lua/Fennel preferred over Risor in-process)
-8. Optional: always-on-top, multi-mon send/focus, richer IPC, output-management
+1. **`set_tiled`** on snap/max (CSD shadow/resizer parity with peeble)
+2. **Xwayland** (classic apps)
+3. **Screencopy / ext-image-copy-capture** (protocol; UX binds already 🌙 noctalia) + optional privacy #1481
+4. **Workspaces / tags** (#1402 / #1390 shaped)
+5. **Real config** (replace `hardcoded.h` — Lua/Fennel preferred over Risor in-process)
+6. Optional: always-on-top, multi-mon send/focus, richer IPC, output-management, idle/lock/gamma
 
 Shell/OSD/media stay **🌙 Noctalia** unless product asks for in-process
 chrome again.

@@ -113,6 +113,11 @@ struct stonefly_server {
 
 	uint64_t next_toplevel_id;
 
+	/* zwlr_foreign_toplevel_management_v1 */
+	struct wl_global *foreign_toplevel_global;
+	struct wl_list foreign_managers;
+	struct wl_list foreign_handles;
+
 	struct stonefly_ipc *ipc;
 
 	/* Lone-modifier tap (Super): peeble bind_tap semantics.
