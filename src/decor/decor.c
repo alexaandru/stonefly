@@ -105,9 +105,15 @@ void stonefly_decor_mark_blur_dirty(struct stonefly_server *server) {
 	wlr_scene_optimized_blur_mark_dirty(server->blur_layer);
 }
 
-/* Edge-maximize / fullscreen: no border/blur/shadow/corners — client only. */
+/* Border/shadow/corners off for edge-max and fullscreen. Blur is separate
+ * (stays on for edge-max / quick terminal; off only for true fullscreen). */
 static bool decor_chrome_on(const struct stonefly_toplevel *toplevel) {
 	return !toplevel->maximized_edges && !toplevel->fullscreen;
+}
+
+static bool decor_blur_on(const struct stonefly_toplevel *toplevel) {
+	return stonefly_cfg(toplevel->server)->window_blur
+		&& !toplevel->fullscreen;
 }
 
 /*
@@ -125,10 +131,9 @@ enum { border_overlap_px = 1 };
 
 static void decor_set_chrome_enabled(struct stonefly_toplevel *toplevel,
 		bool on) {
-	/* Per-window blur: mango-style full chrome rect over optimized wallpaper. */
 	if (toplevel->blur != NULL) {
-		bool blur_on = on && stonefly_cfg(toplevel->server)->window_blur;
-		wlr_scene_node_set_enabled(&toplevel->blur->node, blur_on);
+		wlr_scene_node_set_enabled(&toplevel->blur->node,
+			decor_blur_on(toplevel));
 	}
 	if (toplevel->border != NULL) {
 		wlr_scene_node_set_enabled(&toplevel->border->node, on);
@@ -165,11 +170,12 @@ static struct fx_corner_radii corners_for_buffer(int sx, int sy,
 		(left >= sx && left < x1 && bottom >= sy && bottom < y1) ? radius : 0);
 }
 
-/* Focused uses client_opacity; unfocused uses inactive_opacity. Edge-max
- * chrome-off paths stay fully opaque. */
+/* Focused uses client_opacity; unfocused uses inactive_opacity.
+ * Fullscreen stays opaque; edge-max (quick terminal) still gets opacity so
+ * blur can show through. */
 static float toplevel_chrome_opacity(struct stonefly_toplevel *toplevel,
 		bool focused) {
-	if (!decor_chrome_on(toplevel)) {
+	if (toplevel->fullscreen) {
 		return 1.0f;
 	}
 	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);

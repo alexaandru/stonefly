@@ -232,7 +232,8 @@ void stonefly_toplevel_set_max_edges(struct stonefly_toplevel *toplevel, bool wa
 	stonefly_toplevel_apply_box(toplevel, &out);
 	toplevel->maximized_edges = true;
 	toplevel_set_tiled(toplevel, tiled_edges_all());
-	/* Drop blur/border/shadow/corners immediately (commit may lag). */
+	/* Drop border/shadow/corners immediately (commit may lag). Blur stays
+	 * on for edge-max so quick terminal still gets backdrop blur. */
 	stonefly_decor_update_geom(toplevel);
 	stonefly_foreign_toplevel_on_state_change(toplevel);
 	stonefly_foreign_toplevel_on_outputs_change(toplevel);
