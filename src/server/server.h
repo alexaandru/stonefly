@@ -24,6 +24,8 @@ struct wlr_xcursor_manager;
 struct wlr_xdg_activation_v1;
 struct wlr_xdg_shell;
 struct wlr_xdg_system_bell_v1;
+struct wlr_ext_foreign_toplevel_list_v1;
+struct wlr_ext_foreign_toplevel_image_capture_source_manager_v1;
 
 struct stonefly_toplevel;
 struct stonefly_output;
@@ -120,6 +122,11 @@ struct stonefly_server {
 	struct wl_global *foreign_toplevel_global;
 	struct wl_list foreign_managers;
 	struct wl_list foreign_handles;
+
+	/* ext-foreign-toplevel-list + image-capture (Noctalia switcher snapshots) */
+	struct wlr_ext_foreign_toplevel_list_v1 *ext_foreign_toplevel_list;
+	struct wlr_ext_foreign_toplevel_image_capture_source_manager_v1 *ext_toplevel_capture_mgr;
+	struct wl_listener ext_toplevel_capture_request;
 
 	struct stonefly_ipc *ipc;
 

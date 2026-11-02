@@ -83,6 +83,7 @@ static const float STONEFLY_SHADOW_COLOR[4] = { 0.0f, 0.0f, 0.0f, 0.55f };
 #define STONEFLY_CMD_GHOSTTY_QT "ghostty +toggle-quick-terminal"
 #define STONEFLY_CMD_EDITOR     "gtk-launch org.gnome.TextEditor"
 #define STONEFLY_CMD_LAUNCHER   "noctalia msg panel-toggle launcher"
+#define STONEFLY_CMD_WINDOW_SWITCHER "noctalia msg window-switcher"
 
 /* Noctalia IPC (noctalia msg --help). */
 #define STONEFLY_CMD_SHOT_FULL   "noctalia msg screenshot-fullscreen"
@@ -168,7 +169,8 @@ static const struct stonefly_keybind stonefly_keybinds[] = {
 	{ STONEFLY_SUPER | STONEFLY_SHIFT, XKB_KEY_Tab, XKB_KEY_ISO_Left_Tab,
 		STONEFLY_ACTION_FOCUS_PREV, NULL },
 
-	{ STONEFLY_ALT, XKB_KEY_Tab, 0, STONEFLY_ACTION_FOCUS_NEXT_ALL, NULL },
+	{ STONEFLY_ALT, XKB_KEY_Tab, 0, STONEFLY_ACTION_EXEC,
+		STONEFLY_CMD_WINDOW_SWITCHER },
 	{ STONEFLY_ALT | STONEFLY_SHIFT, XKB_KEY_Tab, XKB_KEY_ISO_Left_Tab,
 		STONEFLY_ACTION_FOCUS_PREV_ALL, NULL },
 

@@ -21,6 +21,9 @@ enum stonefly_snap {
 struct wlr_scene_blur;
 struct wlr_scene_rect;
 struct wlr_scene_shadow;
+struct wlr_scene;
+struct wlr_ext_foreign_toplevel_handle_v1;
+struct wlr_ext_image_capture_source_v1;
 
 struct stonefly_toplevel {
 	enum stonefly_node_kind kind; /* STONEFLY_NODE_TOPLEVEL */
@@ -36,6 +39,12 @@ struct stonefly_toplevel {
 	/* Full rect + clipped_region hole (mango). Blur stays off so the underlay
 	 * is not an opaque black plate; hole lets client opacity show the desktop. */
 	struct wlr_scene_rect *border;
+
+	/* Off-screen duplicate tree for ext-image-capture (Noctalia switcher). */
+	struct wlr_ext_foreign_toplevel_handle_v1 *ext_handle;
+	struct wlr_scene *image_capture_scene;
+	struct wlr_scene_tree *image_capture_tree;
+	struct wlr_ext_image_capture_source_v1 *image_capture_source;
 	struct wl_listener map;
 	struct wl_listener unmap;
 	struct wl_listener commit;

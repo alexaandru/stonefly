@@ -43,7 +43,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 |---|---|---|---|---|
 | Stacking (no layout engine) | ✅ | — | ✅ | Both stacking-first |
 | Focus next / prev (visible) | ✅ Super+Tab | — | ✅ | Same bind shape |
-| Focus next / prev including minimized | ✅ Alt+Tab | — | ✅ | Unhides on stonefly |
+| Focus next / prev including minimized | ✅ Alt+Tab | — | 🚧 | Alt+Tab → `noctalia msg window-switcher`; Alt+Shift+Tab still `FOCUS_PREV_ALL` (unhides). Super+Tab visible-only cycle. |
 | Close focused | ✅ | — | ✅ Super+q | |
 | Maximize to edges | ✅ | — | ✅ Super+f | Client maximized hint |
 | Maximize with gaps (WM-only) | ✅ | — | ✅ Super+m | No client maximized → rounder CSD |
@@ -98,7 +98,7 @@ hooks; on stonefly they are owned in-process.
 | Drop shadows | ❌ | SceneFX P3 📋 | ✅ | |
 | Compositor border (focus/idle/urgent) | ✅ via River `SetBorders` | Urgency needs #1281 | ✅ SceneFX | Neon / charcoal inactive / amber. **Fixed:** `STONEFLY_BORDER_*` were compound literals; pointers into them across `else if` blocks → ASan `stack-use-after-scope` in `border_rgba_premul` on first map/focus (boot loop). Now `static const float[4]`. |
 | Layer z-order vs windows | 🚧 PlaceTop fights | river#1375 P0 📋 | ✅ | Scene trees background→overlay; xdg under `layers.toplevel` |
-| Window previews / destination size | ❌ | river#1384 📋 | ❌ | |
+| Window previews / destination size | ❌ | river#1384 📋 | ✅ | Noctalia switcher via `ext-foreign-toplevel-list` + image-capture-source + image-copy-capture (`ext_capture.c`); frozen snapshot per open |
 | Urgency / xdg-activation | ❌ | river#1281 → border/badge 📋 | ✅ | Amber until focus |
 | System bell | ❌ | river#1389 📋 | ✅ | 200ms amber flash |
 | Capture privacy (block window) | ❌ | river#1481 📋 | ❌ | |
@@ -161,9 +161,9 @@ notifier) on layer-shell. Peeble owns these in-process.
 | XCURSOR_THEME / SIZE | ✅ | — | ✅ | |
 | wlr-output-management | ✅ `output()` | — | ❌ | Hardcoded scale; no wdisplays path |
 | ext-data-control clipboard | ✅ | Primary-selection history Ideas 📋 | ❌ | |
-| Screenshots (fullscreen/window/region) | ✅ ext-image-copy-capture | Include-cursor polish 📋 | 🌙 / ❌ | Print binds → noctalia; no in-compositor screencopy / image-copy-capture |
+| Screenshots (fullscreen/window/region) | ✅ ext-image-copy-capture | Include-cursor polish 📋 | 🌙 / 🚧 | Print binds → noctalia. `ext-image-copy-capture` + toplevel capture source advertised (`src/toplevel/ext_capture.c`) → window-switcher snapshots + `screenshot-window`. No `zwlr_screencopy` / output capture source yet (region/fullscreen still need that on compositors without it). |
 | Screencast / capture_sessions | ✅ bar widget | — | ❌ | |
-| Foreign-toplevel management | 🚧 River read-only; bar uses Focus | Activate relay #1449/#1537 📋 | ✅ | `zwlr_foreign_toplevel_management_v1` v3 (`src/toplevel/foreign.c`) |
+| Foreign-toplevel management | 🚧 River read-only; bar uses Focus | Activate relay #1449/#1537 📋 | ✅ | `zwlr_foreign_toplevel_management_v1` v3 (`foreign.c`) + parallel `ext-foreign-toplevel-list-v1` (`ext_capture.c`) for capture handles |
 | xdg-activation (urgency) | ❌ | #1281 📋 | ✅ | |
 | xdg-system-bell | ❌ | #1389 📋 | ✅ | |
 | Idle-inhibit / idle-notify / session-lock | ✅ | — | ❌ | |
@@ -228,7 +228,7 @@ in-process shell (Noctalia stands in under stonefly).
 
 | Peeble habit | Stonefly |
 |---|---|
-| Super+Tab / Alt+Tab focus | ✅ |
+| Super+Tab focus; Alt+Tab → Noctalia switcher | ✅ |
 | Super+q close | ✅ |
 | Super+f / Super+m max | ✅ |
 | Super+arrows snap + Super+u | ✅ |
@@ -264,8 +264,8 @@ xdg-activation, system-bell. Bar / dock / launcher / notifier work on these.
 |---|---|---|
 | P0 | `ext-session-lock-v1` | Lock screen |
 | P0 | `ext-workspace-v1` **or** stonefly IPC workspaces | Workspace indicator / switcher (else compositor-specific backends) |
-| P1 | `ext-foreign-toplevel-image-capture-source-v1` | Window-switcher thumbnails (icons without it) |
-| P1 | `zwlr_screencopy` / `ext-image-copy-capture` | Screenshots / screencast (Print binds already 🌙 noctalia) |
+| P1 | `ext-foreign-toplevel-image-capture-source-v1` | ✅ Window-switcher thumbnails (`ext_capture.c`; was icons-only without it) |
+| P1 | `zwlr_screencopy` / `ext-image-copy-capture` | 🚧 `ext-image-copy-capture` ✅ (window path); `zwlr_screencopy` / output capture source ❌ (region/fullscreen) |
 | P1 | `ext-idle-notify` + idle-inhibit | Idle dim / caffeine / lock triggers |
 | P2 | `zwlr_gamma_control` / color-management | Night light |
 | P2 | `zwlr_output_management` + `zxdg_output` | Display settings / logical output names |

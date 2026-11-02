@@ -17,6 +17,7 @@ stonefly_src = files(
   'anim/anim.c',
   'decor/decor.c',
   'toplevel/foreign.c',
+  'toplevel/ext_capture.c',
 )
 
 stonefly_inc = include_directories('.')

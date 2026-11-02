@@ -28,6 +28,7 @@
 #include "output/output.h"
 #include "seat/seat.h"
 #include "server/server.h"
+#include "toplevel/ext_capture.h"
 #include "toplevel/foreign.h"
 #include "wm/drag_snap.h"
 #include "wm/scratchpad.h"
@@ -116,6 +117,7 @@ bool stonefly_server_init(struct stonefly_server *server) {
 	stonefly_output_setup(server);
 	stonefly_xdg_setup(server);
 	stonefly_foreign_toplevel_setup(server);
+	stonefly_ext_capture_setup(server);
 	stonefly_seat_setup(server);
 	stonefly_scratchpad_init(server);
 	return true;
@@ -170,6 +172,7 @@ void stonefly_server_finish(struct stonefly_server *server) {
 		wl_list_remove(&server->system_bell_ring.link);
 	}
 	stonefly_foreign_toplevel_finish(server);
+	stonefly_ext_capture_finish(server);
 
 	wl_list_remove(&server->cursor_motion.link);
 	wl_list_remove(&server->cursor_motion_absolute.link);

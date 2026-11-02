@@ -112,7 +112,8 @@ Wire format matches peeble: one JSON object per line, e.g. `{"cmd":"windows"}`.
 | **Super+Esc** / **Super+Shift+Q** | Quit |
 | **Super+q** | Close focused window |
 | **Super+Tab** / **Super+Shift+Tab** | Focus next / prev |
-| **Alt+Tab** / **Alt+Shift+Tab** | Focus next / prev (includes minimized) |
+| **Alt+Tab** | `noctalia msg window-switcher` (window snapshots when capture protocols are present) |
+| **Alt+Shift+Tab** | Focus prev including minimized |
 | **Super+f** | Toggle maximize to edges |
 | **Super+m** | Toggle maximize with gaps |
 | **Ctrl+Esc** / **Ctrl+Shift+Esc** | Minimize / unminimize (unnamed scratchpad) |
@@ -146,10 +147,10 @@ Still open relative to the old River-fork brief / peeble feature set:
 
 | Gap | FORK / notes | Status |
 |---|---|---|
-| Foreign-toplevel for docks/taskbars | [#1449](https://codeberg.org/river/river/issues/1449) / [#1537](https://codeberg.org/river/river/pulls/1537) | ✅ `zwlr_foreign_toplevel_management_v1` v3 |
+| Foreign-toplevel for docks/taskbars | [#1449](https://codeberg.org/river/river/issues/1449) / [#1537](https://codeberg.org/river/river/pulls/1537) | ✅ `zwlr_foreign_toplevel_management_v1` v3 + `ext-foreign-toplevel-list-v1` |
 | Capture privacy (block window from screenshots) | [#1481](https://codeberg.org/river/river/issues/1481) | Not implemented |
 | Workspaces / tags | [#1402](https://codeberg.org/river/river/issues/1402) `ext-workspace-v1`, [#1390](https://codeberg.org/river/river/issues/1390) toplevel-tag | Not implemented |
-| Window previews / destination size | [#1384](https://codeberg.org/river/river/issues/1384) | Not implemented; Noctalia switcher wants image-capture |
+| Window previews / destination size | [#1384](https://codeberg.org/river/river/issues/1384) | ✅ ext toplevel image-capture + image-copy-capture for Noctalia switcher (`ext_capture.c`) |
 | Xwayland | peeble/river day-to-day | Not implemented |
 | Screenshots / screencopy / image-copy-capture | peeble | Protocol ❌; Print binds → noctalia 🌙 |
 | Session lock / idle / gamma / output-mgmt / clipboard | Noctalia shell needs | Not implemented — see `MATRIX.md` §9 |

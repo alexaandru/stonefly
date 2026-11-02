@@ -14,6 +14,7 @@
 #include "decor/decor.h"
 #include "log/log.h"
 #include "seat/seat.h"
+#include "toplevel/ext_capture.h"
 #include "toplevel/foreign.h"
 #include "wm/drag_snap.h"
 #include "wm/scratchpad.h"
@@ -92,6 +93,7 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	/* Park off-screen then slide in (peeble open/appear). */
 	stonefly_anim_start_show(toplevel);
 	stonefly_foreign_toplevel_on_map(toplevel);
+	stonefly_ext_capture_on_map(toplevel);
 }
 
 static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
@@ -132,6 +134,7 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 		stonefly_focus_top(server);
 	}
 	stonefly_foreign_toplevel_on_unmap(toplevel);
+	stonefly_ext_capture_on_unmap(toplevel);
 }
 
 static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
@@ -156,6 +159,7 @@ static void xdg_toplevel_set_title(struct wl_listener *listener, void *data) {
 	struct stonefly_toplevel *toplevel =
 		wl_container_of(listener, toplevel, set_title);
 	stonefly_foreign_toplevel_on_title_change(toplevel);
+	stonefly_ext_capture_on_title_change(toplevel);
 }
 
 static void xdg_toplevel_set_app_id(struct wl_listener *listener, void *data) {
@@ -164,6 +168,7 @@ static void xdg_toplevel_set_app_id(struct wl_listener *listener, void *data) {
 		wl_container_of(listener, toplevel, set_app_id);
 	stonefly_scratchpad_try_claim(toplevel);
 	stonefly_foreign_toplevel_on_app_id_change(toplevel);
+	stonefly_ext_capture_on_app_id_change(toplevel);
 }
 
 static void xdg_toplevel_set_parent(struct wl_listener *listener, void *data) {
@@ -179,6 +184,7 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	struct stonefly_toplevel *toplevel = wl_container_of(listener, toplevel, destroy);
 
 	stonefly_foreign_toplevel_on_close(toplevel);
+	stonefly_ext_capture_on_close(toplevel);
 	stonefly_anim_cancel(toplevel, false);
 	stonefly_scratchpad_on_destroy(toplevel);
 	stonefly_decor_finish_toplevel(toplevel);
