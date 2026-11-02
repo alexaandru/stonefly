@@ -211,6 +211,10 @@ struct stonefly_server {
 
 	/* Pointer devices with gesture listeners attached. */
 	struct wl_list pointers;
+
+	/* Heap; set when user init.lua fails and we fall back to embedded/C.
+	 * Surfaced via notify-send after the display is up (peeble-style). */
+	char *config_warn;
 };
 
 bool stonefly_server_init(struct stonefly_server *server);

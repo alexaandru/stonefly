@@ -668,12 +668,26 @@ static void opt_set_number(struct stonefly_config *cfg, const char *k, double v)
 		cfg->morph_duration_ms = (int)v;
 	} else if (strcmp(k, "client_opacity") == 0) {
 		cfg->client_opacity = (float)v;
+	} else if (strcmp(k, "inactive_opacity") == 0) {
+		cfg->inactive_opacity = (float)v;
 	} else if (strcmp(k, "corner_radius") == 0) {
 		cfg->corner_radius = (int)v;
 	} else if (strcmp(k, "border_thickness") == 0) {
 		cfg->border_thickness = (int)v;
 	} else if (strcmp(k, "shadow_blur_sigma") == 0) {
 		cfg->shadow_blur_sigma = (float)v;
+	} else if (strcmp(k, "blur_num_passes") == 0) {
+		cfg->blur_num_passes = (int)v;
+	} else if (strcmp(k, "blur_radius") == 0) {
+		cfg->blur_radius = (int)v;
+	} else if (strcmp(k, "blur_noise") == 0) {
+		cfg->blur_noise = (float)v;
+	} else if (strcmp(k, "blur_brightness") == 0) {
+		cfg->blur_brightness = (float)v;
+	} else if (strcmp(k, "blur_contrast") == 0) {
+		cfg->blur_contrast = (float)v;
+	} else if (strcmp(k, "blur_saturation") == 0) {
+		cfg->blur_saturation = (float)v;
 	} else if (strcmp(k, "bell_flash_ms") == 0) {
 		cfg->bell_flash_ms = (int)v;
 	} else if (strcmp(k, "snap_threshold") == 0) {
@@ -911,8 +925,20 @@ bool stonefly_config_load(struct stonefly_server *server) {
 		SF_LOGI("config", sf_str("path", init_path));
 		ok = luaL_dofile(G->L, init_path) == LUA_OK;
 		if (!ok) {
+			const char *lua_err = lua_tostring(G->L, -1);
 			SF_LOGE("config user init failed; trying embedded",
-				sf_str("err", lua_tostring(G->L, -1)));
+				sf_str("err", lua_err != NULL ? lua_err : ""));
+			/* Remember for a desktop notification after WAYLAND_DISPLAY is up. */
+			free(server->config_warn);
+			server->config_warn = NULL;
+			{
+				char body[1024];
+				snprintf(body, sizeof body,
+					"%s\n\n%s\n\nFalling back to the default configuration.",
+					init_path,
+					lua_err != NULL ? lua_err : "(unknown Lua error)");
+				server->config_warn = strdup(body);
+			}
 			lua_pop(G->L, 1);
 			/* recreate clean state */
 			stonefly_config_lua_close(&server->config);

@@ -13,7 +13,10 @@
   :slide_dir_closest true
   :morph_duration_ms 200
   ;; chrome / SceneFX
+  ;; Focused vs unfocused opacity (hypr/mango/niri: dim is opt-in).
+  ;; Set inactive_opacity lower (e.g. 0.85) to dim unfocused windows.
   :client_opacity 0.96
+  :inactive_opacity 0.96
   :corner_radius 12
   :border_thickness 3
   :shadow_blur_sigma 20.0
@@ -21,7 +24,14 @@
   :border_inactive [0.22 0.22 0.24 1.00]
   :border_urgent [1.00 0.45 0.10 1.00]
   :shadow_color [0.0 0.0 0.0 0.55]
-  :window_blur false
+  ;; Per-window blur (needs a background/bottom wallpaper; else looks black).
+  :window_blur true
+  :blur_num_passes 2
+  :blur_radius 5
+  :blur_noise 0.02
+  :blur_brightness 0.9
+  :blur_contrast 0.9
+  :blur_saturation 1.2
   :bell_flash_ms 200
   ;; snap / taps
   :snap_threshold 26

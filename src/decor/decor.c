@@ -66,6 +66,23 @@ void stonefly_decor_setup_scene(struct stonefly_server *server) {
 	(void)server;
 }
 
+void stonefly_decor_apply_blur_params(struct stonefly_server *server) {
+	if (server == NULL || server->scene == NULL) {
+		return;
+	}
+	const struct stonefly_config *cfg = stonefly_cfg(server);
+	int passes = cfg->blur_num_passes;
+	int radius = cfg->blur_radius;
+	if (passes < 1) {
+		passes = 1;
+	}
+	if (radius < 1) {
+		radius = 1;
+	}
+	wlr_scene_set_blur_data(server->scene, passes, radius, cfg->blur_noise,
+		cfg->blur_brightness, cfg->blur_contrast, cfg->blur_saturation);
+}
+
 void stonefly_decor_update_blur_size(struct stonefly_server *server) {
 	if (server->blur_layer == NULL) {
 		return;
@@ -75,8 +92,17 @@ void stonefly_decor_update_blur_size(struct stonefly_server *server) {
 	if (layout.width <= 0 || layout.height <= 0) {
 		return;
 	}
+	/* Match mango: optimized blur covers the layout box, not just (0,0). */
+	wlr_scene_node_set_position(&server->blur_layer->node, layout.x, layout.y);
 	wlr_scene_optimized_blur_set_size(server->blur_layer,
 		layout.width, layout.height);
+}
+
+void stonefly_decor_mark_blur_dirty(struct stonefly_server *server) {
+	if (server == NULL || server->blur_layer == NULL) {
+		return;
+	}
+	wlr_scene_optimized_blur_mark_dirty(server->blur_layer);
 }
 
 /* Edge-maximize / fullscreen: no border/blur/shadow/corners — client only. */
@@ -99,13 +125,10 @@ enum { border_overlap_px = 1 };
 
 static void decor_set_chrome_enabled(struct stonefly_toplevel *toplevel,
 		bool on) {
-	/* Per-window blur optional; window_blur gates the black-plate risk. */
+	/* Per-window blur: mango-style full chrome rect over optimized wallpaper. */
 	if (toplevel->blur != NULL) {
 		bool blur_on = on && stonefly_cfg(toplevel->server)->window_blur;
 		wlr_scene_node_set_enabled(&toplevel->blur->node, blur_on);
-		if (!blur_on) {
-			wlr_scene_blur_set_transparency_mask_source(toplevel->blur, NULL);
-		}
 	}
 	if (toplevel->border != NULL) {
 		wlr_scene_node_set_enabled(&toplevel->border->node, on);
@@ -142,14 +165,29 @@ static struct fx_corner_radii corners_for_buffer(int sx, int sy,
 		(left >= sx && left < x1 && bottom >= sy && bottom < y1) ? radius : 0);
 }
 
+/* Focused uses client_opacity; unfocused uses inactive_opacity. Edge-max
+ * chrome-off paths stay fully opaque. */
+static float toplevel_chrome_opacity(struct stonefly_toplevel *toplevel,
+		bool focused) {
+	if (!decor_chrome_on(toplevel)) {
+		return 1.0f;
+	}
+	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+	return focused ? cfg->client_opacity : cfg->inactive_opacity;
+}
+
+struct apply_buffers_ctx {
+	struct stonefly_toplevel *toplevel;
+	float opacity;
+	bool chrome;
+	int radius;
+};
+
 static void iter_apply_buffers(struct wlr_scene_buffer *buffer,
 		int sx, int sy, void *user_data) {
-	struct stonefly_toplevel *toplevel = user_data;
-	bool chrome = decor_chrome_on(toplevel);
-	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+	struct apply_buffers_ctx *ctx = user_data;
 
-	wlr_scene_buffer_set_opacity(buffer,
-		chrome ? cfg->client_opacity : 1.0f);
+	wlr_scene_buffer_set_opacity(buffer, ctx->opacity);
 
 	int bw = buffer->dst_width;
 	int bh = buffer->dst_height;
@@ -166,20 +204,34 @@ static void iter_apply_buffers(struct wlr_scene_buffer *buffer,
 		}
 	}
 
-	struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
+	struct wlr_box *geo = &ctx->toplevel->xdg_toplevel->base->geometry;
 	/* Same radius as CSD / border hole — do not use outer. */
-	int radius = chrome ? cfg->corner_radius : 0;
+	int radius = ctx->chrome ? ctx->radius : 0;
 	wlr_scene_buffer_set_corner_radii(buffer,
 		corners_for_buffer(sx, sy, bw, bh, geo, radius));
 }
 
-void stonefly_decor_apply_buffers(struct stonefly_toplevel *toplevel) {
+static void decor_apply_buffers_focused(struct stonefly_toplevel *toplevel,
+		bool focused) {
 	if (toplevel->xdg_scene_tree == NULL) {
 		return;
 	}
-	decor_set_chrome_enabled(toplevel, decor_chrome_on(toplevel));
+	bool chrome = decor_chrome_on(toplevel);
+	decor_set_chrome_enabled(toplevel, chrome);
+	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+	struct apply_buffers_ctx ctx = {
+		.toplevel = toplevel,
+		.opacity = toplevel_chrome_opacity(toplevel, focused),
+		.chrome = chrome,
+		.radius = cfg->corner_radius,
+	};
 	wlr_scene_node_for_each_buffer(&toplevel->xdg_scene_tree->node,
-		iter_apply_buffers, toplevel);
+		iter_apply_buffers, &ctx);
+}
+
+void stonefly_decor_apply_buffers(struct stonefly_toplevel *toplevel) {
+	bool focused = stonefly_focused_toplevel(toplevel->server) == toplevel;
+	decor_apply_buffers_focused(toplevel, focused);
 }
 
 /* SceneFX rect colors are premultiplied (wlroots/scenefx contract). */
@@ -192,13 +244,29 @@ static void border_rgba_premul(const float src[4], float opacity, float out[4]) 
 }
 
 static void apply_border_color(struct stonefly_toplevel *toplevel,
-		const float *src) {
+		const float *src, float opacity) {
 	if (toplevel->border == NULL) {
 		return;
 	}
 	float rgba[4];
-	border_rgba_premul(src, stonefly_cfg(toplevel->server)->client_opacity, rgba);
+	border_rgba_premul(src, opacity, rgba);
 	wlr_scene_rect_set_color(toplevel->border, rgba);
+}
+
+static void apply_shadow_opacity(struct stonefly_toplevel *toplevel,
+		float opacity) {
+	if (toplevel->shadow == NULL) {
+		return;
+	}
+	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+	float shadow_a = cfg->shadow_color[3] * opacity;
+	float shadow[4] = {
+		cfg->shadow_color[0] * shadow_a,
+		cfg->shadow_color[1] * shadow_a,
+		cfg->shadow_color[2] * shadow_a,
+		shadow_a,
+	};
+	wlr_scene_shadow_set_color(toplevel->shadow, shadow);
 }
 
 void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel) {
@@ -213,8 +281,10 @@ void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel) {
 	wlr_scene_blur_set_corner_radii(toplevel->blur, corner_radii_all(inner));
 	wlr_scene_node_set_enabled(&toplevel->blur->node, cfg->window_blur);
 
+	/* New windows start unfocused until focus_toplevel runs. */
+	float start_opacity = cfg->inactive_opacity;
 	float inactive[4];
-	border_rgba_premul(cfg->border_inactive, cfg->client_opacity, inactive);
+	border_rgba_premul(cfg->border_inactive, start_opacity, inactive);
 	toplevel->border = wlr_scene_rect_create(toplevel->scene_tree, 0, 0,
 		inactive);
 	/* Hole/client = corner_radius; outer rim = inner + border. */
@@ -226,7 +296,7 @@ void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel) {
 			.corners = corner_radii_all(inner),
 		});
 
-	float shadow_a = cfg->shadow_color[3] * cfg->client_opacity;
+	float shadow_a = cfg->shadow_color[3] * start_opacity;
 	float shadow[4] = {
 		cfg->shadow_color[0] * shadow_a,
 		cfg->shadow_color[1] * shadow_a,
@@ -376,13 +446,15 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 void stonefly_decor_refresh_border(struct stonefly_toplevel *toplevel) {
 	bool focused = stonefly_focused_toplevel(toplevel->server) == toplevel;
 	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+	float opacity = toplevel_chrome_opacity(toplevel, focused);
 	const float *color = cfg->border_inactive;
 	if (toplevel->bell_flash || toplevel->urgent) {
 		color = cfg->border_urgent;
 	} else if (focused) {
 		color = cfg->border_active;
 	}
-	apply_border_color(toplevel, color);
+	apply_border_color(toplevel, color, opacity);
+	apply_shadow_opacity(toplevel, opacity);
 }
 
 void stonefly_decor_set_focused(struct stonefly_toplevel *toplevel, bool focused) {
@@ -391,13 +463,16 @@ void stonefly_decor_set_focused(struct stonefly_toplevel *toplevel, bool focused
 	}
 	/* Use the caller-supplied focus bit: seat focus may not have moved yet. */
 	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+	float opacity = toplevel_chrome_opacity(toplevel, focused);
 	const float *color = cfg->border_inactive;
 	if (toplevel->bell_flash || toplevel->urgent) {
 		color = cfg->border_urgent;
 	} else if (focused) {
 		color = cfg->border_active;
 	}
-	apply_border_color(toplevel, color);
+	apply_border_color(toplevel, color, opacity);
+	apply_shadow_opacity(toplevel, opacity);
+	decor_apply_buffers_focused(toplevel, focused);
 }
 
 void stonefly_decor_set_urgent(struct stonefly_toplevel *toplevel, bool urgent) {

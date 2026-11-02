@@ -75,7 +75,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Multi-monitor focus / send | ✅ `focus_monitor` / `send_to_monitor` | — | ❌ | |
 | Pointer center / cursor-follows-focus | ✅ | — | ❌ | |
 | Picture-in-picture float | ❌ | Ideas 📋 | ❌ | |
-| Dim inactive / spotlight | ❌ | Ideas 📋 (needs opacity) | 🚧 | Flat opacity 0.96 (`stonefly.opt.client_opacity`); no dim-unfocused policy |
+| Dim inactive / spotlight | ❌ | Ideas 📋 (needs opacity) | 🚧 | `client_opacity` (focused) + `inactive_opacity` (unfocused); both default 0.96 (opt-in like hypr/mango/niri). Lower inactive (e.g. 0.85) to dim. Applied on focus + exclusive layer steal (`decor.c`). No black dim-overlay / spotlight yet |
 
 ---
 
@@ -93,8 +93,8 @@ hooks; on stonefly they are owned in-process.
 | Scratchpad / minimize slides | ✅ | — | ✅ | Mid-flight reverse |
 | Vsync-capped animation pacing | ❌ busy manage→render | river#1385 P0 📋 | ✅ | Own scene / frame loop |
 | Fade / scale appear | ❌ | river#1373 + Ideas 📋 | ❌ | Opacity static 0.96, not animated fade |
-| WM-settable per-window opacity | ❌ | river#1373 P1 📋 | 🚧 | Global `stonefly.opt.client_opacity` 0.96; no per-window API |
-| Backdrop / window blur | ❌ | SceneFX P3 📋 | 🚧 | Optimized blur node exists; per-window blur off (`stonefly.opt.window_blur` default false) |
+| WM-settable per-window opacity | ❌ | river#1373 P1 📋 | 🚧 | Global focused/inactive opacity knobs; no per-window / rules API yet |
+| Backdrop / window blur | ❌ | SceneFX P3 📋 | 🚧 | Per-window SceneFX blur on (`window_blur` true). Optimized cache dirtied on background/bottom map/commit; layout-positioned; `blur_*` params. Needs a wallpaper — empty background still looks black |
 | Soft rounded corners (opaque) | ❌ | SceneFX P3 📋 | ✅ | `corner_radius` 12 = CSD/hole/buffer; outer rim = `corner_radius + border_thickness` |
 | Drop shadows | ❌ | SceneFX P3 📋 | ✅ | |
 | Compositor border (focus/idle/urgent) | ✅ via River `SetBorders` | Urgency needs #1281 | ✅ SceneFX | Neon / charcoal inactive / amber. **Fixed:** `STONEFLY_BORDER_*` were compound literals; pointers into them across `else if` blocks → ASan `stack-use-after-scope` in `border_rgba_premul` on first map/focus (boot loop). Now `static const float[4]`. **Fixed:** crescent/hairline vs CSD — hole+buffer use `corner_radius` (match client round); outer = radius+border (dwl); hole inset 1px under the rim for AA/scale seams. |
@@ -213,14 +213,14 @@ River-fork brief items and where stonefly stands (no River needed).
 | P0 | Map-hold / no resting flash | AppearHold Hide hack | ✅ slide from off-screen |
 | P0 | #1449 / #1537 foreign-toplevel activate | Blocked on River | ✅ `zwlr_foreign_toplevel_management_v1` |
 | P0 | #1375 nodes vs layer-shell z-order | PlaceTop fights | ✅ scene layers |
-| P1 | #1373 WM opacity | Blocked | 🚧 global opacity |
+| P1 | #1373 WM opacity | Blocked | 🚧 global focused + inactive opacity |
 | P1 | Close-ghost last-frame | Blocked for client close | ✅ |
 | P1 | #1281 urgency / xdg-activation | Blocked | ✅ |
 | P1 | #1389 system bell | Blocked | ✅ |
 | P1 | #1481 capture privacy | Blocked | ❌ |
 | P2 | #1402 workspaces, #1390 tags | Roadmap | 🚧 | ✅ `xdg-toplevel-tag` + ✅ dynamic workspaces + ✅ `ext-workspace-v1`; ❌ rules / geometry persist |
 | P2 | Layer `set_exclusive_edge`, presentation-time | Roadmap | 🚧 exclusive zones yes; edge/proto clock no |
-| P3 | SceneFX blur / corners / shadows | Parked | 🚧 blur off (`opt.window_blur` false) / ✅ corners / ✅ shadows |
+| P3 | SceneFX blur / corners / shadows | Parked | 🚧 blur on (wallpaper-backed) / ✅ corners / ✅ shadows |
 
 ---
 
@@ -300,13 +300,15 @@ chrome again.
 
 **Shipped:** LuaJIT linked in-process (`config_lua.c`); XDG dirs + `STONEFLY_*`
 overrides; C23 `#embed` of Fennel-first default tree (`src/config/default/`);
-missing user `init.lua` → embedded default; `stonefly --write-config` (refuse
-overwrite); builtin pack `fennel-shim` (Fennel 1.6.1 + Fennel-side loader);
-`stonefly.*` API (`opt` / `bind` / `tap` / `scratchpad` / `packadd` / `stdpath`);
-bind/tap accept peeble-style chord strings (`"Super+Shift+Tab"`, `"Super"`) via
-`parse_chord` / `parse_tap_mod` in `config_lua.c` (libxkbcommon name lookup —
-no Go-style generated keysym map); IPC `stonefly config [section]`; consumers
-read `stonefly_cfg(server)`.
+missing user `init.lua` → embedded default; broken user init → log + fall back
+to embedded/C and `notify-send -u critical` after display up (2s delay for
+Noctalia); `stonefly --write-config` (refuse overwrite); builtin pack
+`fennel-shim` (Fennel 1.6.1 + Fennel-side loader); `stonefly.*` API (`opt` /
+`bind` / `tap` / `scratchpad` / `packadd` / `stdpath`); bind/tap accept
+peeble-style chord strings (`"Super+Shift+Tab"`, `"Super"`) via `parse_chord` /
+`parse_tap_mod` in `config_lua.c` (libxkbcommon name lookup — no Go-style
+generated keysym map); IPC `stonefly config [section]`; consumers read
+`stonefly_cfg(server)`.
 
 | Open | Status | Notes |
 |---|---|---|

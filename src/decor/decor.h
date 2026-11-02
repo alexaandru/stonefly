@@ -11,8 +11,14 @@ struct stonefly_output;
 /* Create the optimized-blur node (call after layer trees exist). */
 void stonefly_decor_setup_scene(struct stonefly_server *server);
 
-/* Resize optimized blur to the full output layout. */
+/* Apply SceneFX global blur_data from config (after scene + config load). */
+void stonefly_decor_apply_blur_params(struct stonefly_server *server);
+
+/* Resize/position optimized blur to the full output layout. */
 void stonefly_decor_update_blur_size(struct stonefly_server *server);
+
+/* Re-render optimized blur cache (wallpaper / bottom layer changed). */
+void stonefly_decor_mark_blur_dirty(struct stonefly_server *server);
 
 /* Build blur / border / shadow under toplevel->scene_tree (wrapper). */
 void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel);
@@ -21,7 +27,7 @@ void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel);
  * Edge-maximize disables blur/border/shadow and zero corner radii.
  * Border: hole/client = corner_radius (CSD match); outer = corner_radius +
  * border_thickness; hole inset 1px so the rim covers AA hairlines.
- * Per-window blur gated by window_blur (black plate when broken). */
+ * Per-window blur gated by window_blur (needs wallpaper + dirty cache). */
 void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel);
 
 /* Apply opacity + per-buffer corner radii (corner_radius; only geometry

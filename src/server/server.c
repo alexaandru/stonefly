@@ -79,6 +79,37 @@ static void stonefly_update_dbus_activation_environment(void) {
 	}
 }
 
+/* Peeble fires a desktop notification on config fallback. Stonefly's
+ * notification daemon (Noctalia) usually starts via -s, so wait briefly. */
+static void stonefly_notify_config_warn(struct stonefly_server *server) {
+	if (server->config_warn == NULL || server->config_warn[0] == '\0') {
+		return;
+	}
+	pid_t pid = fork();
+	if (pid < 0) {
+		SF_LOGW("config warn notify fork failed",
+			sf_str("err", strerror(errno)));
+		return;
+	}
+	if (pid == 0) {
+		/* Detach from the compositor so wait is unnecessary. */
+		if (fork() == 0) {
+			sleep(2);
+			execlp("notify-send", "notify-send",
+				"-u", "critical",
+				"-a", "stonefly",
+				"-i", "dialog-error",
+				"stonefly: config load failed",
+				server->config_warn,
+				(char *)NULL);
+			_exit(127);
+		}
+		_exit(0);
+	}
+	/* Reap the intermediate child. */
+	waitpid(pid, NULL, 0);
+}
+
 bool stonefly_server_init(struct stonefly_server *server) {
 	stonefly_config_set_defaults(&server->config);
 
@@ -155,6 +186,7 @@ bool stonefly_server_init(struct stonefly_server *server) {
 		SF_LOGE("config load failed");
 		return false;
 	}
+	stonefly_decor_apply_blur_params(server);
 
 	stonefly_layer_setup(server);
 	/* After layers so layers.lock sits above overlay. */
@@ -196,6 +228,7 @@ int stonefly_server_run(struct stonefly_server *server, const char *startup_cmd)
 			_exit(1);
 		}
 	}
+	stonefly_notify_config_warn(server);
 
 	SF_LOGI("Running Wayland compositor", sf_str("display", socket));
 	wl_display_run(server->wl_display);
@@ -205,6 +238,8 @@ int stonefly_server_run(struct stonefly_server *server, const char *startup_cmd)
 void stonefly_server_finish(struct stonefly_server *server) {
 	stonefly_ipc_stop(server);
 	wl_display_destroy_clients(server->wl_display);
+	free(server->config_warn);
+	server->config_warn = NULL;
 	stonefly_config_finish(&server->config);
 
 	stonefly_ghost_finish_all(server);

@@ -221,6 +221,7 @@ void stonefly_config_set_defaults(struct stonefly_config *cfg) {
 	cfg->slide_dir_closest = 1;
 	cfg->morph_duration_ms = 200;
 	cfg->client_opacity = 0.96f;
+	cfg->inactive_opacity = 0.96f; /* match client_opacity → opt-in dim */
 	cfg->corner_radius = 12;
 	cfg->border_thickness = 3;
 	cfg->shadow_blur_sigma = 20.0f;
@@ -228,7 +229,14 @@ void stonefly_config_set_defaults(struct stonefly_config *cfg) {
 	copy4(cfg->border_inactive, (float[4]){ 0.22f, 0.22f, 0.24f, 1.00f });
 	copy4(cfg->border_urgent, (float[4]){ 1.00f, 0.45f, 0.10f, 1.00f });
 	copy4(cfg->shadow_color, (float[4]){ 0.0f, 0.0f, 0.0f, 0.55f });
-	cfg->window_blur = 0;
+	cfg->window_blur = 1;
+	/* mango-ish SceneFX defaults */
+	cfg->blur_num_passes = 2;
+	cfg->blur_radius = 5;
+	cfg->blur_noise = 0.02f;
+	cfg->blur_brightness = 0.9f;
+	cfg->blur_contrast = 0.9f;
+	cfg->blur_saturation = 1.2f;
 	cfg->bell_flash_ms = 200;
 	cfg->snap_threshold = 26;
 	cfg->snap_preview_border = 1;

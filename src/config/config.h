@@ -95,7 +95,8 @@ struct stonefly_config {
 	int slide_duration_ms;
 	int slide_dir_closest;
 	int morph_duration_ms;
-	float client_opacity;
+	float client_opacity; /* focused / active chrome */
+	float inactive_opacity; /* unfocused; default = client_opacity (no dim) */
 	int corner_radius;
 	int border_thickness;
 	float shadow_blur_sigma;
@@ -103,7 +104,14 @@ struct stonefly_config {
 	float border_inactive[4];
 	float border_urgent[4];
 	float shadow_color[4];
-	int window_blur;
+	int window_blur; /* per-window SceneFX blur behind chrome */
+	/* Global SceneFX blur_data (optimized wallpaper pass). */
+	int blur_num_passes;
+	int blur_radius;
+	float blur_noise;
+	float blur_brightness;
+	float blur_contrast;
+	float blur_saturation;
 	int bell_flash_ms;
 	int snap_threshold;
 	int snap_preview_border;

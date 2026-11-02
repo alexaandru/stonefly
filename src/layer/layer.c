@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <stdlib.h>
+#include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output.h>
@@ -10,11 +11,25 @@
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/box.h>
 
+#include "decor/decor.h"
 #include "layer/layer.h"
 #include "log/log.h"
 #include "output/output.h"
 #include "session/session.h"
 #include "wm/wm.h"
+#include "xdg/xdg.h"
+
+/* Optimized blur caches wallpaper/bottom; refresh when those layers change. */
+static void layer_maybe_dirty_blur(struct stonefly_layer_surface *layer) {
+	if (layer == NULL || layer->layer_surface == NULL) {
+		return;
+	}
+	enum zwlr_layer_shell_v1_layer z = layer->layer_surface->current.layer;
+	if (z == ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND ||
+			z == ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM) {
+		stonefly_decor_mark_blur_dirty(layer->server);
+	}
+}
 
 #define STONEFLY_LAYER_SHELL_VERSION 5
 
@@ -83,10 +98,19 @@ static void layer_focus_interactive(struct stonefly_output *output) {
 			struct wlr_surface *prev =
 				server->seat->keyboard_state.focused_surface;
 			if (prev != NULL && prev != ls->surface) {
-				struct wlr_xdg_toplevel *prev_toplevel =
+				struct wlr_xdg_toplevel *prev_xdg =
 					wlr_xdg_toplevel_try_from_wlr_surface(prev);
-				if (prev_toplevel != NULL) {
-					wlr_xdg_toplevel_set_activated(prev_toplevel, false);
+				if (prev_xdg != NULL) {
+					wlr_xdg_toplevel_set_activated(prev_xdg, false);
+					struct wlr_surface *root =
+						wlr_surface_get_root_surface(prev);
+					struct stonefly_toplevel *t;
+					wl_list_for_each(t, &server->toplevels, link) {
+						if (t->xdg_toplevel->base->surface == root) {
+							stonefly_decor_set_focused(t, false);
+							break;
+						}
+					}
 				}
 			}
 			server->exclusive_layer = layer;
@@ -183,6 +207,7 @@ static void layer_surface_map(struct wl_listener *listener, void *data) {
 	if (layer->output != NULL) {
 		stonefly_layer_arrange_output(layer->output);
 	}
+	layer_maybe_dirty_blur(layer);
 }
 
 static void layer_surface_unmap(struct wl_listener *listener, void *data) {
@@ -201,6 +226,7 @@ static void layer_surface_unmap(struct wl_listener *listener, void *data) {
 			layer->layer_surface->surface) {
 		stonefly_focus_top(server);
 	}
+	layer_maybe_dirty_blur(layer);
 }
 
 static void layer_surface_commit(struct wl_listener *listener, void *data) {
@@ -235,6 +261,11 @@ static void layer_surface_commit(struct wl_listener *listener, void *data) {
 
 	if (ls->current.committed != 0 || ls->initial_commit) {
 		stonefly_layer_arrange_output(output);
+	}
+	/* Buffer damage on wallpaper/bottom also needs a blur cache refresh. */
+	if (ls->current.committed != 0 || ls->initial_commit ||
+			ls->surface->current.committed != 0) {
+		layer_maybe_dirty_blur(layer);
 	}
 }
 
