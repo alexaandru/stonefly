@@ -728,6 +728,8 @@ void stonefly_focus_toplevel(struct stonefly_toplevel *toplevel) {
 		stonefly_foreign_toplevel_on_state_change(prev_toplevel);
 	}
 	stonefly_foreign_toplevel_on_state_change(toplevel);
+	/* After the new window owns focus so auto_hide cannot focus_top-steal. */
+	stonefly_scratchpad_on_focus_change(toplevel);
 }
 
 struct stonefly_toplevel *stonefly_focused_toplevel(struct stonefly_server *server) {

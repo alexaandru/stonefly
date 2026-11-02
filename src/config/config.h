@@ -75,6 +75,8 @@ struct stonefly_scratchpad_spec {
 	char *name;
 	char *cmd;
 	char *app_id; /* match for spawn claim; empty = first map while pending */
+	/* Hide when focus moves to another window on the same output (peeble). */
+	bool auto_hide;
 };
 
 struct stonefly_config {

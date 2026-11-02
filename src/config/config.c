@@ -343,6 +343,7 @@ void stonefly_config_set_defaults(struct stonefly_config *cfg) {
 		cfg->scratchpads[0].cmd =
 			xstrdup("ghostty --class=stonefly.scratch.term");
 		cfg->scratchpads[0].app_id = xstrdup("stonefly.scratch.term");
+		cfg->scratchpads[0].auto_hide = true;
 	} else {
 		cfg->n_scratchpads = 0;
 	}

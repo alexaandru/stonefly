@@ -55,7 +55,9 @@ usable area used by maximize/snap/cascade.
 Super tap / double-tap (peeble `bind_tap`): single →
 `noctalia msg panel-toggle launcher`; double → named scratchpad `term`
 (`ghostty --class=stonefly.scratch.term`). Super+t claims the focused
-window onto that pad. Named pads are omitted from Super+Tab.
+window onto that pad. Named pads are omitted from Super+Tab. Visible
+pads with `auto_hide` (default) slide away when focus moves to another
+window on the same output.
 
 ## Build
 

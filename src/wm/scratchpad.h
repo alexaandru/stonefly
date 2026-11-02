@@ -22,6 +22,12 @@ void stonefly_scratchpad_try_claim(struct stonefly_toplevel *toplevel);
 /* Clear pad association when the window is destroyed. */
 void stonefly_scratchpad_on_destroy(struct stonefly_toplevel *toplevel);
 
+/*
+ * Peeble Scratchpads.OnFocusChange: hide auto_hide pads when focus moves to
+ * another window on the same output. Nil / other-head focus leaves them shown.
+ */
+void stonefly_scratchpad_on_focus_change(struct stonefly_toplevel *focused);
+
 /* Named pads are omitted from Super+Tab (peeble Alt-Tab omit). */
 bool stonefly_toplevel_is_scratchpad(const struct stonefly_toplevel *toplevel);
 

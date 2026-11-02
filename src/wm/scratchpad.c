@@ -5,11 +5,16 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <wlr/types/wlr_cursor.h>
+#include <wlr/types/wlr_output.h>
+#include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_xdg_shell.h>
+#include <wlr/util/box.h>
 
 #include "anim/anim.h"
 #include "config/config.h"
 #include "log/log.h"
+#include "server/server.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
 
@@ -71,10 +76,33 @@ static void scratch_hide(struct stonefly_toplevel *toplevel) {
 		stonefly_toplevel_apply_hidden(toplevel, STONEFLY_HIDE_SCRATCH);
 		return;
 	}
+	if (toplevel->anim_hide) {
+		/* Already sliding out (toggle or prior auto_hide). */
+		return;
+	}
 	if (stonefly_anim_start_hide(toplevel, scratch_hide_now)) {
 		return;
 	}
 	scratch_hide_now(toplevel);
+}
+
+/* Peeble OutputForWindow: center-on-head, else cursor head. */
+static struct wlr_output *toplevel_output(struct stonefly_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->server == NULL) {
+		return NULL;
+	}
+	struct stonefly_server *server = toplevel->server;
+	struct wlr_box geom;
+	stonefly_toplevel_layout_geom(toplevel, &geom);
+	double cx = geom.x + geom.width / 2.0;
+	double cy = geom.y + geom.height / 2.0;
+	struct wlr_output *out =
+		wlr_output_layout_output_at(server->output_layout, cx, cy);
+	if (out == NULL && server->cursor != NULL) {
+		out = wlr_output_layout_output_at(server->output_layout,
+			server->cursor->x, server->cursor->y);
+	}
+	return out;
 }
 
 static void scratch_show(struct stonefly_toplevel *toplevel) {
@@ -270,4 +298,39 @@ void stonefly_scratchpad_claim_focused(struct stonefly_server *server,
 	}
 	scratch_claim(slot, toplevel);
 	scratch_show(toplevel);
+}
+
+void stonefly_scratchpad_on_focus_change(struct stonefly_toplevel *focused) {
+	/*
+	 * Nil focus (exclusive layer, empty desktop) leaves pads shown — same as
+	 * peeble. Click-outside catcher is a separate roadmap item.
+	 */
+	if (focused == NULL) {
+		return;
+	}
+
+	struct wlr_output *focus_out = toplevel_output(focused);
+
+	for (size_t i = 0; i < scratch_nslots; i++) {
+		struct stonefly_scratch_slot *slot = &scratch_slots[i];
+		struct stonefly_toplevel *pad = slot->toplevel;
+		if (pad == NULL || pad == focused) {
+			continue;
+		}
+		if (slot->spec == NULL || !slot->spec->auto_hide) {
+			continue;
+		}
+		if (pad->minimized || pad->anim_hide) {
+			continue;
+		}
+
+		struct wlr_output *pad_out = toplevel_output(pad);
+		if (pad_out != NULL && focus_out != NULL && pad_out != focus_out) {
+			continue;
+		}
+
+		SF_LOGD("scratchpad auto_hide",
+			sf_str("name", slot->spec->name));
+		scratch_hide(pad);
+	}
 }

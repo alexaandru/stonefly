@@ -412,6 +412,9 @@ static int l_scratchpad(lua_State *L) {
 	const char *cmd = luaL_checkstring(L, -1);
 	lua_getfield(L, 1, "app_id");
 	const char *app = lua_isstring(L, -1) ? lua_tostring(L, -1) : "";
+	lua_getfield(L, 1, "auto_hide");
+	/* Peeble default: auto_hide true when omitted. */
+	bool auto_hide = !lua_isboolean(L, -1) || lua_toboolean(L, -1);
 
 	struct stonefly_scratchpad_spec *nb = realloc(cfg->scratchpads,
 		(cfg->n_scratchpads + 1) * sizeof *nb);
@@ -423,7 +426,8 @@ static int l_scratchpad(lua_State *L) {
 	s->name = xstrdup(name);
 	s->cmd = xstrdup(cmd);
 	s->app_id = xstrdup(app);
-	lua_pop(L, 3);
+	s->auto_hide = auto_hide;
+	lua_pop(L, 4);
 	return 0;
 }
 

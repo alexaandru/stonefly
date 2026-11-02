@@ -270,6 +270,9 @@ static void emit_scratchpads(struct json_buf *b, const struct stonefly_config *c
 		json_byte(b, ',');
 		json_key(b, "app_id");
 		json_str(b, s->app_id ? s->app_id : "");
+		json_byte(b, ',');
+		json_key(b, "auto_hide");
+		json_bool(b, s->auto_hide);
 		json_byte(b, '}');
 	}
 	json_byte(b, ']');
