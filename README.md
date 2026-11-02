@@ -36,8 +36,8 @@ src/
   main.c             # tiny entry (+ windows subcommand)
   util/json.*        # fixed-buffer JSON writer + scanner
   log/               # structured JSON logging (peeble slog shape)
-  ipc/               # unix-socket IPC + windows/layers/outputs/focus/close/toggle-qt
-  config/hardcoded.h # day-zero knobs
+  ipc/               # unix-socket IPC (windows/layers/outputs/config/…)
+  config/            # LuaJIT + Fennel-first defaults (see docs/CONFIG.md)
   server/            # display, backend, scene, loop
   output/            # outputs + scale
   layer/             # wlr-layer-shell scene + exclusive zones
@@ -103,15 +103,18 @@ stonefly layers            # human: namespace / layer / output / geom / excl / k
 stonefly layers --json     # JSON array (namespace, layer, output, geom, zones)
 stonefly outputs           # human: name*  WxH@scale  layout / usable
 stonefly outputs --json    # JSON array (name, geom, scale, usable, focused)
+stonefly config            # pretty-print live config (all sections)
+stonefly config binds      # one section: options|binds|taps|scratchpads|cmds|…
+stonefly config --json     # compact JSON object / section value
 stonefly focus <id>        # focus (unminimize if needed)
 stonefly close <id>        # send xdg close
 stonefly toggle-quick-terminal  # toggle scratchpad pad "term"
 ```
 
-Wire format matches peeble: one JSON object per line, e.g. `{"cmd":"windows"}`
-or `{"cmd":"focus","arg":"42"}`.
+Wire format matches peeble: one JSON object per line, e.g. `{"cmd":"windows"}`,
+`{"cmd":"focus","arg":"42"}`, or `{"cmd":"config","arg":"binds"}`.
 
-## Keybindings (peeble-shaped, hardcoded)
+## Keybindings (peeble-shaped; override via Fennel/Lua config)
 
 | Bind | Action |
 |---|---|
@@ -161,5 +164,5 @@ Still open relative to the old River-fork brief / peeble feature set:
 | Screenshots / screencopy / image-copy-capture | peeble | ✅ `zwlr_screencopy` + ext-image-copy-capture; Print binds → noctalia 🌙 |
 | Session lock / idle / DPMS | Noctalia auto-lock / suspend | ✅ `ext-session-lock` + idle-notify/inhibit + output-power (`session/session.c`) |
 | Gamma / output-mgmt / clipboard | Noctalia shell needs | Not implemented — see `MATRIX.md` §9 |
-| Real config (vs `hardcoded.h`) | — | Not implemented |
+| Real config (vs `hardcoded.h`) | — | Spec: [`docs/CONFIG.md`](docs/CONFIG.md) (LuaJIT + fennel-shim); not coded yet |
 | In-process bar/OSD/media | peeble; noctalia covers bar/launcher/notifier | Deferred to shell |

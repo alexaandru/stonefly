@@ -446,16 +446,39 @@ static void server_new_xdg_popup(struct wl_listener *listener, void *data) {
 struct stonefly_xdg_decoration {
 	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco;
 	struct wl_listener request_mode;
+	struct wl_listener surface_commit;
 	struct wl_listener destroy;
 };
+
+/* wlroots 0.20: set_mode → schedule_configure asserts surface->initialized.
+ * Chrome binds xdg-decoration before the first commit; defer until then. */
+static void xdg_decoration_apply_csd(struct stonefly_xdg_decoration *deco) {
+	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco = deco->wlr_deco;
+	if (wlr_deco->toplevel == NULL ||
+			!wlr_deco->toplevel->base->initialized) {
+		return;
+	}
+	wlr_xdg_toplevel_decoration_v1_set_mode(wlr_deco,
+		WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
+}
 
 static void xdg_decoration_request_mode(struct wl_listener *listener,
 		void *data) {
 	(void)data;
 	struct stonefly_xdg_decoration *deco =
 		wl_container_of(listener, deco, request_mode);
-	wlr_xdg_toplevel_decoration_v1_set_mode(deco->wlr_deco,
-		WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
+	xdg_decoration_apply_csd(deco);
+}
+
+static void xdg_decoration_surface_commit(struct wl_listener *listener,
+		void *data) {
+	(void)data;
+	struct stonefly_xdg_decoration *deco =
+		wl_container_of(listener, deco, surface_commit);
+	if (!deco->wlr_deco->toplevel->base->initial_commit) {
+		return;
+	}
+	xdg_decoration_apply_csd(deco);
 }
 
 static void xdg_decoration_destroy(struct wl_listener *listener, void *data) {
@@ -463,6 +486,7 @@ static void xdg_decoration_destroy(struct wl_listener *listener, void *data) {
 	struct stonefly_xdg_decoration *deco =
 		wl_container_of(listener, deco, destroy);
 	wl_list_remove(&deco->request_mode.link);
+	wl_list_remove(&deco->surface_commit.link);
 	wl_list_remove(&deco->destroy.link);
 	free(deco);
 }
@@ -480,11 +504,14 @@ static void server_new_xdg_decoration(struct wl_listener *listener, void *data) 
 	deco->wlr_deco = wlr_deco;
 	deco->request_mode.notify = xdg_decoration_request_mode;
 	wl_signal_add(&wlr_deco->events.request_mode, &deco->request_mode);
+	deco->surface_commit.notify = xdg_decoration_surface_commit;
+	wl_signal_add(&wlr_deco->toplevel->base->surface->events.commit,
+		&deco->surface_commit);
 	deco->destroy.notify = xdg_decoration_destroy;
 	wl_signal_add(&wlr_deco->events.destroy, &deco->destroy);
 
-	wlr_xdg_toplevel_decoration_v1_set_mode(wlr_deco,
-		WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
+	/* No-op until the client's first commit (Chrome binds deco early). */
+	xdg_decoration_apply_csd(deco);
 }
 
 void stonefly_xdg_setup(struct stonefly_server *server) {

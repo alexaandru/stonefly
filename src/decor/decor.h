@@ -20,7 +20,7 @@ void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel);
 /* Sync decoration geometry after an xdg commit / resize.
  * Edge-maximize disables blur/border/shadow and zero corner radii.
  * Border is a rounded rect with clipped_region hole (mango); per-window
- * blur stays gated by STONEFLY_WINDOW_BLUR (black plate when broken). */
+ * blur stays gated by config window_blur (black plate when broken). */
 void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel);
 
 /* Apply opacity + per-buffer corner radii (only outer corners each buffer

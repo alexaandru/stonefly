@@ -24,7 +24,7 @@
 #include <wlr/util/edges.h>
 #include <xkbcommon/xkbcommon.h>
 
-#include "config/hardcoded.h"
+#include "config/config.h"
 #include "log/log.h"
 #include "output/output.h"
 #include "seat/seat.h"
@@ -41,9 +41,11 @@ static int64_t timespec_ms_since(const struct timespec *then) {
 		(now.tv_nsec - then->tv_nsec) / 1000000;
 }
 
-static const struct stonefly_tapbind *tapbind_for_sym(xkb_keysym_t sym) {
-	for (size_t i = 0; i < sizeof(stonefly_tapbinds) / sizeof(stonefly_tapbinds[0]); i++) {
-		const struct stonefly_tapbind *b = &stonefly_tapbinds[i];
+static const struct stonefly_tapbind *tapbind_for_sym(
+		struct stonefly_server *server, xkb_keysym_t sym) {
+	const struct stonefly_config *cfg = stonefly_cfg(server);
+	for (size_t i = 0; i < cfg->n_tapbinds; i++) {
+		const struct stonefly_tapbind *b = &cfg->tapbinds[i];
 		if (sym == b->sym || (b->sym_alt != 0 && sym == b->sym_alt)) {
 			return b;
 		}
@@ -69,18 +71,20 @@ static int tap_double_timer(void *data) {
 		return 0;
 	}
 	enum stonefly_action single = (enum stonefly_action)server->tap.single;
+	const char *cmd = server->tap.single_cmd;
 	server->tap.taps = 0;
 	if (single != STONEFLY_ACTION_NONE) {
-		stonefly_run_action(server, single, NULL);
+		stonefly_run_action(server, single, cmd);
 	}
 	return 0;
 }
 
-static void tap_finish(struct stonefly_server *server, enum stonefly_action action) {
+static void tap_finish(struct stonefly_server *server,
+		enum stonefly_action action, const char *cmd) {
 	tap_clear_timer(server);
 	server->tap.taps = 0;
 	if (action != STONEFLY_ACTION_NONE) {
-		stonefly_run_action(server, action, NULL);
+		stonefly_run_action(server, action, cmd);
 	}
 }
 
@@ -90,6 +94,9 @@ static void tap_on_press(struct stonefly_server *server,
 	clock_gettime(CLOCK_MONOTONIC, &server->tap.since);
 	server->tap.single = bind->single;
 	server->tap.double_tap = bind->double_tap;
+	/* Config lives for process lifetime; pointers into cfg are stable. */
+	server->tap.single_cmd = bind->single_cmd;
+	server->tap.double_cmd = bind->double_cmd;
 }
 
 static void tap_on_release(struct stonefly_server *server) {
@@ -98,18 +105,21 @@ static void tap_on_release(struct stonefly_server *server) {
 	if (!armed) {
 		return;
 	}
-	if (timespec_ms_since(&server->tap.since) > STONEFLY_TAP_MAX_HOLD_MS) {
+	const struct stonefly_config *cfg = stonefly_cfg(server);
+	if (timespec_ms_since(&server->tap.since) > cfg->tap_max_hold_ms) {
 		return;
 	}
 
 	if (server->tap.double_tap == STONEFLY_ACTION_NONE) {
-		tap_finish(server, (enum stonefly_action)server->tap.single);
+		tap_finish(server, (enum stonefly_action)server->tap.single,
+			server->tap.single_cmd);
 		return;
 	}
 
 	server->tap.taps++;
 	if (server->tap.taps >= 2) {
-		tap_finish(server, (enum stonefly_action)server->tap.double_tap);
+		tap_finish(server, (enum stonefly_action)server->tap.double_tap,
+			server->tap.double_cmd);
 		return;
 	}
 
@@ -118,14 +128,14 @@ static void tap_on_release(struct stonefly_server *server) {
 	struct wl_event_loop *loop =
 		wl_display_get_event_loop(server->wl_display);
 	server->tap.timer = wl_event_loop_add_timer(loop, tap_double_timer, server);
-	wl_event_source_timer_update(server->tap.timer, STONEFLY_DOUBLE_TAP_GAP_MS);
+	wl_event_source_timer_update(server->tap.timer, cfg->double_tap_gap_ms);
 }
 
 /* Peeble setupCursorTheme: honor XCURSOR_* so desktop and clients match. */
-static uint32_t cursor_size_from_env(void) {
+static uint32_t cursor_size_from_env(uint32_t fallback) {
 	const char *s = getenv("XCURSOR_SIZE");
 	if (s == NULL || s[0] == '\0') {
-		return STONEFLY_CURSOR_SIZE_DEFAULT;
+		return fallback;
 	}
 	char *end = NULL;
 	errno = 0;
@@ -134,8 +144,8 @@ static uint32_t cursor_size_from_env(void) {
 			v > (long)UINT32_MAX) {
 		SF_LOGW("invalid XCURSOR_SIZE, using default",
 			sf_str("value", s),
-			sf_i64("size", STONEFLY_CURSOR_SIZE_DEFAULT));
-		return STONEFLY_CURSOR_SIZE_DEFAULT;
+			sf_i64("size", fallback));
+		return fallback;
 	}
 	return (uint32_t)v;
 }
@@ -185,8 +195,9 @@ static bool handle_keybinding(struct stonefly_server *server,
 		return false;
 	}
 	uint32_t mods = modifiers & STONEFLY_MOD_MASK;
-	for (size_t i = 0; i < sizeof(stonefly_keybinds) / sizeof(stonefly_keybinds[0]); i++) {
-		const struct stonefly_keybind *bind = &stonefly_keybinds[i];
+	const struct stonefly_config *cfg = stonefly_cfg(server);
+	for (size_t i = 0; i < cfg->n_keybinds; i++) {
+		const struct stonefly_keybind *bind = &cfg->keybinds[i];
 		if (bind->mods != mods) {
 			continue;
 		}
@@ -225,7 +236,8 @@ static void keyboard_handle_key(
 	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
 		for (int i = 0; i < nsyms; i++) {
 			if (!locked) {
-				const struct stonefly_tapbind *tap = tapbind_for_sym(syms[i]);
+				const struct stonefly_tapbind *tap =
+					tapbind_for_sym(server, syms[i]);
 				if (tap != NULL) {
 					tap_on_press(server, tap);
 					handled = true;
@@ -243,7 +255,7 @@ static void keyboard_handle_key(
 		}
 	} else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED && !locked) {
 		for (int i = 0; i < nsyms; i++) {
-			if (tapbind_for_sym(syms[i]) != NULL) {
+			if (tapbind_for_sym(server, syms[i]) != NULL) {
 				tap_on_release(server);
 				handled = true;
 				break;
@@ -710,7 +722,8 @@ void stonefly_seat_setup(struct stonefly_server *server) {
 	if (theme != NULL && theme[0] == '\0') {
 		theme = NULL;
 	}
-	uint32_t size = cursor_size_from_env();
+	uint32_t size = cursor_size_from_env(
+		(uint32_t)stonefly_cfg(server)->cursor_size_default);
 	if (theme != NULL) {
 		/* Keep clients spawned after seat setup on the same size. */
 		char sizebuf[16];

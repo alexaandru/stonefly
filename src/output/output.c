@@ -10,7 +10,7 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 
 #include "anim/anim.h"
-#include "config/hardcoded.h"
+#include "config/config.h"
 #include "decor/decor.h"
 #include "layer/layer.h"
 #include "output/output.h"
@@ -151,7 +151,7 @@ float stonefly_output_scale_factor(struct stonefly_server *server) {
 	if (server->session == NULL) {
 		return 1.0f;
 	}
-	return STONEFLY_OUTPUT_SCALE;
+	return stonefly_cfg(server)->output_scale;
 }
 
 void stonefly_output_setup(struct stonefly_server *server) {

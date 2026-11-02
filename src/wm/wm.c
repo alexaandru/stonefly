@@ -65,8 +65,8 @@ bool stonefly_toplevel_output_box(struct stonefly_toplevel *toplevel,
 		server->cursor->x, server->cursor->y, box);
 }
 
-void stonefly_box_inset_gap(struct wlr_box *box) {
-	const int g = STONEFLY_GAP_SIZE;
+void stonefly_box_inset_gap(struct wlr_box *box, int gap) {
+	const int g = gap;
 	if (box->width > 2 * g) {
 		box->x += g;
 		box->width -= 2 * g;
@@ -343,7 +343,7 @@ void stonefly_toplevel_set_max_gaps(struct stonefly_toplevel *toplevel, bool wan
 	}
 	/* Gap-max: WM-only — do not inform maximized / tiled (peeble). */
 	toplevel_set_tiled(toplevel, 0);
-	stonefly_box_inset_gap(&out);
+	stonefly_box_inset_gap(&out, stonefly_cfg(toplevel->server)->gap_size);
 	stonefly_toplevel_apply_box(toplevel, &out);
 	toplevel->maximized_gaps = true;
 	stonefly_foreign_toplevel_on_state_change(toplevel);
@@ -356,8 +356,8 @@ void stonefly_toplevel_toggle_max_gaps(struct stonefly_toplevel *toplevel) {
 
 /* Peeble snapBorderBox: gap between two half-snaps is exactly GapSize. */
 struct wlr_box stonefly_wm_snap_box(enum stonefly_snap edge,
-		const struct wlr_box *usable) {
-	const int g = STONEFLY_GAP_SIZE;
+		const struct wlr_box *usable, int gap) {
+	const int g = gap;
 	struct wlr_box u = *usable;
 	int half_w = (u.width - 3 * g) / 2;
 	int half_h = (u.height - 3 * g) / 2;
@@ -409,7 +409,8 @@ void stonefly_toplevel_snap_in(struct stonefly_toplevel *toplevel,
 		toplevel->maximized_edges = false;
 	}
 	toplevel->maximized_gaps = false;
-	struct wlr_box box = stonefly_wm_snap_box(edge, usable);
+	struct wlr_box box = stonefly_wm_snap_box(edge, usable,
+		stonefly_cfg(toplevel->server)->gap_size);
 	if (box.width <= 0 || box.height <= 0) {
 		return;
 	}
@@ -477,7 +478,7 @@ void stonefly_toplevel_ensure_on_screen(struct stonefly_toplevel *toplevel) {
 		return;
 	}
 	struct wlr_box area = usable;
-	stonefly_box_inset_gap(&area);
+	stonefly_box_inset_gap(&area, stonefly_cfg(toplevel->server)->gap_size);
 	if (area.width <= 0 || area.height <= 0) {
 		return;
 	}
@@ -543,10 +544,11 @@ void stonefly_wm_relayout_output(struct stonefly_output *output) {
 			stonefly_cover_fractional_gap(toplevel->server, &out);
 			stonefly_toplevel_apply_box(toplevel, &out);
 		} else if (toplevel->maximized_gaps) {
-			stonefly_box_inset_gap(&out);
+			stonefly_box_inset_gap(&out, stonefly_cfg(server)->gap_size);
 			stonefly_toplevel_apply_box(toplevel, &out);
 		} else if (toplevel->snapped != STONEFLY_SNAP_NONE) {
-			struct wlr_box box = stonefly_wm_snap_box(toplevel->snapped, &out);
+			struct wlr_box box = stonefly_wm_snap_box(toplevel->snapped, &out,
+				stonefly_cfg(server)->gap_size);
 			if (box.width > 0 && box.height > 0) {
 				stonefly_toplevel_apply_box(toplevel, &box);
 			}
@@ -575,7 +577,8 @@ void stonefly_toplevel_place_cascade(struct stonefly_toplevel *toplevel) {
 			return;
 		}
 	}
-	stonefly_box_inset_gap(&out);
+	const struct stonefly_config *cfg = stonefly_cfg(server);
+	stonefly_box_inset_gap(&out, cfg->gap_size);
 
 	/* Count already-mapped siblings (caller inserts after place). */
 	size_t n = 0;
@@ -585,7 +588,8 @@ void stonefly_toplevel_place_cascade(struct stonefly_toplevel *toplevel) {
 			n++;
 		}
 	}
-	int offset = (int)(n % STONEFLY_CASCADE_WRAP) * STONEFLY_CASCADE_STEP;
+	int wrap = cfg->cascade_wrap > 0 ? cfg->cascade_wrap : 1;
+	int offset = (int)(n % (size_t)wrap) * cfg->cascade_step;
 	int x = out.x + offset;
 	int y = out.y + offset;
 	wlr_scene_node_set_position(&toplevel->scene_tree->node, x, y);
@@ -925,22 +929,22 @@ void stonefly_run_action(struct stonefly_server *server,
 		}
 		break;
 	case STONEFLY_ACTION_SPAWN_FOOT:
-		stonefly_spawn_cmd(STONEFLY_CMD_FOOT);
+		stonefly_spawn_cmd(stonefly_cfg(server)->cmd_foot);
 		break;
 	case STONEFLY_ACTION_SPAWN_NAUTILUS:
-		stonefly_spawn_cmd(STONEFLY_CMD_NAUTILUS);
+		stonefly_spawn_cmd(stonefly_cfg(server)->cmd_nautilus);
 		break;
 	case STONEFLY_ACTION_SPAWN_GHOSTTY:
-		stonefly_spawn_cmd(STONEFLY_CMD_GHOSTTY);
+		stonefly_spawn_cmd(stonefly_cfg(server)->cmd_ghostty);
 		break;
 	case STONEFLY_ACTION_SPAWN_GHOSTTY_QT:
-		stonefly_spawn_cmd(STONEFLY_CMD_GHOSTTY_QT);
+		stonefly_spawn_cmd(stonefly_cfg(server)->cmd_ghostty_qt);
 		break;
 	case STONEFLY_ACTION_SPAWN_EDITOR:
-		stonefly_spawn_cmd(STONEFLY_CMD_EDITOR);
+		stonefly_spawn_cmd(stonefly_cfg(server)->cmd_editor);
 		break;
 	case STONEFLY_ACTION_SPAWN_LAUNCHER:
-		stonefly_spawn_cmd(STONEFLY_CMD_LAUNCHER);
+		stonefly_spawn_cmd(stonefly_cfg(server)->cmd_launcher);
 		break;
 	case STONEFLY_ACTION_EXEC:
 		if (cmd != NULL && cmd[0] != '\0') {
@@ -955,6 +959,14 @@ void stonefly_run_action(struct stonefly_server *server,
 		break;
 	case STONEFLY_ACTION_SCRATCH_CLAIM_TERM:
 		stonefly_scratchpad_claim_focused(server, "term");
+		break;
+	case STONEFLY_ACTION_SCRATCH_TOGGLE:
+		stonefly_scratchpad_toggle(server,
+			(cmd != NULL && cmd[0] != '\0') ? cmd : "term");
+		break;
+	case STONEFLY_ACTION_SCRATCH_CLAIM:
+		stonefly_scratchpad_claim_focused(server,
+			(cmd != NULL && cmd[0] != '\0') ? cmd : "term");
 		break;
 	}
 }

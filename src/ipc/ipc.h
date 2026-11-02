@@ -15,6 +15,9 @@ struct stonefly_server;
  *   {"cmd":"focus","arg":"<id>"}      → {"ok":true}
  *   {"cmd":"close","arg":"<id>"}      → {"ok":true}
  *   {"cmd":"toggle-quick-terminal"}   → {"ok":true} (pad "term")
+ *   {"cmd":"config"}                  → full live config JSON object
+ *   {"cmd":"config","arg":"binds"}    → one section (options|binds|taps|
+ *                                       scratchpads|cmds|inputs|outputs)
  *
  * Socket: $STONEFLY_SOCKET, else
  * $XDG_RUNTIME_DIR/stonefly-$WAYLAND_DISPLAY.sock.
@@ -27,6 +30,7 @@ void stonefly_ipc_stop(struct stonefly_server *server);
 int stonefly_ipc_cmd_windows(int argc, char **argv);
 int stonefly_ipc_cmd_layers(int argc, char **argv);
 int stonefly_ipc_cmd_outputs(int argc, char **argv);
+int stonefly_ipc_cmd_config(int argc, char **argv);
 int stonefly_ipc_cmd_focus(int argc, char **argv);
 int stonefly_ipc_cmd_close(int argc, char **argv);
 int stonefly_ipc_cmd_toggle_quick_terminal(int argc, char **argv);

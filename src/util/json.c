@@ -97,6 +97,13 @@ void json_i64(struct json_buf *b, int64_t v) {
 	json_raw(b, tmp);
 }
 
+void json_f64(struct json_buf *b, double v) {
+	char tmp[64];
+	/* Enough digits for RGBA / scale knobs; avoid locale commas. */
+	snprintf(tmp, sizeof(tmp), "%.6g", v);
+	json_raw(b, tmp);
+}
+
 void json_bool(struct json_buf *b, bool v) {
 	json_raw(b, v ? "true" : "false");
 }

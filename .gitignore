@@ -14,3 +14,6 @@
 # meson
 /output/
 /build/
+
+# local recovery artifacts (zip / worktree dumps)
+/recovery/

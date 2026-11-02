@@ -24,7 +24,7 @@ struct stonefly_output {
 
 void stonefly_output_setup(struct stonefly_server *server);
 
-/* DRM seat: STONEFLY_OUTPUT_SCALE. Nested/headless (no session): 1.0. */
+/* DRM seat: config output_scale. Nested/headless (no session): 1.0. */
 float stonefly_output_scale_factor(struct stonefly_server *server);
 
 #endif

@@ -4,15 +4,17 @@
 #include <scenefx/types/fx/clipped_region.h>
 #include <scenefx/types/wlr_scene.h>
 
-#include "config/hardcoded.h"
+#include "config/config.h"
 #include "server/server.h"
 #include "wm/snap_preview.h"
 #include "wm/wm.h"
 #include "xdg/xdg.h"
 
-static void preview_colors(float fill[4], float rim[4]) {
-	const float *active = STONEFLY_BORDER_ACTIVE;
-	const float a = STONEFLY_SNAP_PREVIEW_OPACITY;
+static void preview_colors(struct stonefly_server *server,
+		float fill[4], float rim[4]) {
+	const struct stonefly_config *cfg = stonefly_cfg(server);
+	const float *active = cfg->border_active;
+	const float a = cfg->snap_preview_opacity;
 	/* Premultiplied fill at preview opacity. */
 	fill[0] = active[0] * a;
 	fill[1] = active[1] * a;
@@ -32,7 +34,7 @@ void stonefly_snap_preview_init(struct stonefly_server *server) {
 	p->server = server;
 	p->tree = wlr_scene_tree_create(server->layers.overlay);
 	float fill[4], rim[4];
-	preview_colors(fill, rim);
+	preview_colors(server, fill, rim);
 	p->fill = wlr_scene_rect_create(p->tree, 0, 0, fill);
 	p->rim = wlr_scene_rect_create(p->tree, 0, 0, rim);
 	wlr_scene_node_set_enabled(&p->tree->node, false);
@@ -74,13 +76,15 @@ void stonefly_snap_preview_show(struct stonefly_server *server,
 		return;
 	}
 
-	struct wlr_box box = stonefly_wm_snap_box((enum stonefly_snap)edge, usable);
+	const struct stonefly_config *cfg = stonefly_cfg(server);
+	struct wlr_box box = stonefly_wm_snap_box((enum stonefly_snap)edge, usable,
+		cfg->gap_size);
 	if (box.width <= 0 || box.height <= 0) {
 		stonefly_snap_preview_hide(server);
 		return;
 	}
 
-	const int bw = STONEFLY_SNAP_PREVIEW_BORDER;
+	const int bw = cfg->snap_preview_border;
 	wlr_scene_rect_set_size(p->fill, box.width, box.height);
 	wlr_scene_rect_set_size(p->rim, box.width, box.height);
 	wlr_scene_node_set_position(&p->fill->node, 0, 0);

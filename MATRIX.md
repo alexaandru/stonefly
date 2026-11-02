@@ -65,7 +65,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Scratchpad claim focused | ✅ Super+t | — | ✅ | |
 | Scratchpad omit from Alt-Tab | ✅ | — | ✅ | Super+Tab too |
 | Window menu | ✅ | — | ❌ | |
-| SSD titlebars | ✅ River `use_ssd` | Polish / force-SSD rules 📋 | 🚧 | `xdg-decoration` advertised, prefers CSD. SceneFX border/blur only; no SSD titlebar paint yet. |
+| SSD titlebars | ✅ River `use_ssd` | Polish / force-SSD rules 📋 | 🚧 | `xdg-decoration` advertised, prefers CSD. SceneFX border/blur only; no SSD titlebar paint yet. **Fixed:** Chrome binds deco before first commit; early `set_mode` → `schedule_configure` asserted `surface->initialized` (session abort). Now defer CSD until initialized / initial commit. |
 | Geometry persist across restart | ✅ `windows.json` by river id | Schema / blacklist / MRU polish 📋 | ❌ | |
 | Window rules (app-id/title) | 🚧 center + modal parent | auto-float, size, scratchpad, AOT, force SSD 📋 | ❌ | |
 | Keyboard nudge move/resize | ❌ | 📋 high-value | ❌ | Snap exists; step nudge does not |
@@ -182,8 +182,8 @@ notifier) on layer-shell. Peeble owns these in-process.
 
 | Feature | Peeble shipped | Peeble roadmap / Ideas | Stonefly | Notes |
 |---|---|---|---|---|
-| Scriptable config | ✅ Risor + live reload | Multi-file include design 📋 | ❌ | `hardcoded.h` knobs only |
-| Validate / write-default | ✅ | — | ❌ | |
+| Scriptable config | ✅ Risor + live reload | Multi-file include design 📋 | 🚧 | Spec: [`docs/CONFIG.md`](docs/CONFIG.md) — LuaJIT + Neovim rtp/packpath; first pack = fennel-shim from `fennel-nvim/`. Consumers use `stonefly_cfg(server)` / `server->config`; `hardcoded.h` is a shim. |
+| Validate / write-default | ✅ `--write-config` + embed | — | 🚧 | C23 `#embed` Fennel-first tree + `stonefly --write-config` (refuse overwrite); validate CLI still open |
 | Nano syntax highlight | ✅ `peeble.nanorc` | — | ❌ | |
 | Keybind table | ✅ Risor binds + taps | — | ✅ | Compile-time table |
 | Ctrl+Alt+Fn VT switch | ✅ via session | — | ✅ | `wlr_session_change_vt` on `XF86Switch_VT_*`; was missing (unreliable switch + DRM yank / crash on half-leave). Nested backends: no-op. |
@@ -193,6 +193,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | IPC `layers` [--json] | ❌ | — | ✅ | Layer-shell debug snapshot (`src/ipc/layers.c`) |
 | IPC focus / close by id | ✅ | — | ✅ | `{"cmd":"focus\|close","arg":"<id>"}` + CLI (`ipc.c`) |
 | IPC toggle-quick-terminal | ✅ | — | ✅ | Toggles scratchpad pad `"term"` (same as Super+Return) |
+| IPC `config` [section] | ❌ | — | ✅ | Live `server->config` dump (`ipc/config.c`); sections options/binds/taps/scratchpads/cmds/inputs/outputs |
 | IPC `action <name>` allowlist | ❌ | 📋 | ❌ | |
 | IPC outputs / inputs | ❌ | Ideas 📋 | 🚧 | `outputs` ✅ (`ipc/outputs.c`); inputs ❌ |
 | Structured JSON logs | ✅ `~/.var/log/peeble/wm.log` | — | ✅ | `wm.log` + `wm.last.json` rotate |
@@ -244,7 +245,7 @@ in-process shell (Noctalia stands in under stonefly).
 | Geometry persist, window rules, set_tiled | ❌ persist/rules / ✅ set_tiled |
 | Screenshots, clipboard, idle/lock/gamma | 🌙 noctalia binds + ✅ screencopy/ext-capture / ✅ idle+lock+DPMS / ✅ clipboard+gamma |
 | Xwayland | ❌ |
-| Real config file | ❌ |
+| Real config file | 🚧 LuaJIT + Fennel-first embed (`docs/CONFIG.md`); rebuild to verify |
 | Workspaces / tiling layouts | ❌ both |
 | Foreign-toplevel for docks/taskbars | ✅ |
 
@@ -275,17 +276,17 @@ work on these (launcher centering needs xdg-output under fractional scale).
 | P2 | `zxdg_output` | ✅ Logical output size/pos (`server.c`); Noctalia panel/OSD centering |
 | P2 | `zwlr_output_management` | Display settings / wdisplays (scale still hardcoded) |
 | P2 | `ext-data-control` / wlr-data-control | ✅ Clipboard history (`server.c`); primary-selection wired |
-| P3 | xdg-decoration | ✅ Manager advertised; always prefers **client-side** (no SSD painting yet) |
+| P3 | xdg-decoration | ✅ Manager advertised; always prefers **client-side** (no SSD painting yet). **Fixed:** defer `set_mode` until `xdg_surface` initialized (Chrome early bind aborted wlroots 0.20) |
 
 Also high leverage (not a Wayland protocol): richer **stonefly IPC**.
-Done crumbs: focus/close by id, outputs, toggle-quick-terminal. Still open:
-workspaces / action allowlist / inputs.
+Done crumbs: focus/close by id, outputs, toggle-quick-terminal, live `config`
+dump. Still open: workspaces / action allowlist / inputs.
 
 ### Broader WM gaps (after / beside the above)
 
 1. **Xwayland** (classic apps)
 2. **Capture privacy** (#1481) — screencopy exists; policy UI still missing
-3. **Real config** (replace `hardcoded.h` — Lua/Fennel preferred over Risor in-process)
+3. **Real config** — 🚧 in tree: LuaJIT + `#embed` Fennel-first default + fennel-shim 1.6.1 (`docs/CONFIG.md`); abuild verify next
 4. Optional: always-on-top, multi-mon send/focus, tags (#1390)
 
 Shell/OSD/media stay **🌙 Noctalia** unless product asks for in-process

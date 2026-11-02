@@ -24,6 +24,7 @@ void json_raw(struct json_buf *b, const char *s);
 void json_byte(struct json_buf *b, char c);
 void json_str(struct json_buf *b, const char *s);
 void json_i64(struct json_buf *b, int64_t v);
+void json_f64(struct json_buf *b, double v);
 void json_bool(struct json_buf *b, bool v);
 
 /* Emit "key": */

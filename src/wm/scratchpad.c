@@ -8,7 +8,7 @@
 #include <wlr/types/wlr_xdg_shell.h>
 
 #include "anim/anim.h"
-#include "config/hardcoded.h"
+#include "config/config.h"
 #include "log/log.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
@@ -27,8 +27,8 @@ struct stonefly_scratch_pending {
 	bool active;
 };
 
-/* Day-zero: one slot per hardcoded spec (small, fixed). */
-static struct stonefly_scratch_slot scratch_slots[8];
+/* One slot per configured pad (capped at STONEFLY_SCRATCHPAD_MAX). */
+static struct stonefly_scratch_slot scratch_slots[STONEFLY_SCRATCHPAD_MAX];
 static size_t scratch_nslots;
 static struct stonefly_scratch_pending scratch_pending;
 
@@ -139,13 +139,13 @@ static void scratch_spawn(struct stonefly_server *server,
 }
 
 void stonefly_scratchpad_init(struct stonefly_server *server) {
-	(void)server;
-	scratch_nslots = stonefly_scratchpad_count();
+	const struct stonefly_config *cfg = stonefly_cfg(server);
+	scratch_nslots = cfg->n_scratchpads;
 	if (scratch_nslots > sizeof(scratch_slots) / sizeof(scratch_slots[0])) {
 		scratch_nslots = sizeof(scratch_slots) / sizeof(scratch_slots[0]);
 	}
 	for (size_t i = 0; i < scratch_nslots; i++) {
-		scratch_slots[i].spec = &stonefly_scratchpads[i];
+		scratch_slots[i].spec = &cfg->scratchpads[i];
 		scratch_slots[i].toplevel = NULL;
 	}
 	pending_clear();

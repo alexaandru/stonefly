@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-#include "config/hardcoded.h"
+#include "config/config.h"
 #include "xdg/xdg.h"
 
 struct stonefly_output;
@@ -33,8 +33,8 @@ void stonefly_wm_relayout_output(struct stonefly_output *output);
 /* Pull a floating toplevel into the gap-inset usable area (gap-max if oversized). */
 void stonefly_toplevel_ensure_on_screen(struct stonefly_toplevel *toplevel);
 
-/* Inset box by STONEFLY_GAP_SIZE on every side (clamped). */
-void stonefly_box_inset_gap(struct wlr_box *box);
+/* Inset box by gap on every side (clamped). */
+void stonefly_box_inset_gap(struct wlr_box *box, int gap);
 
 void stonefly_toplevel_set_max_edges(struct stonefly_toplevel *toplevel, bool want);
 void stonefly_toplevel_toggle_max_edges(struct stonefly_toplevel *toplevel);
@@ -46,7 +46,7 @@ void stonefly_toplevel_snap_in(struct stonefly_toplevel *toplevel,
 		enum stonefly_snap edge, const struct wlr_box *usable);
 /* Peeble snapBorderBox geometry (layout coords). */
 struct wlr_box stonefly_wm_snap_box(enum stonefly_snap edge,
-		const struct wlr_box *usable);
+		const struct wlr_box *usable, int gap);
 /* Remember floating geom as PreSnap if none is stored yet. */
 void stonefly_toplevel_capture_geom(struct stonefly_toplevel *toplevel,
 		const struct wlr_box *box);
@@ -80,7 +80,7 @@ void stonefly_toplevel_set_fullscreen(struct stonefly_toplevel *toplevel,
 /* Peeble-style cascade origin for a newly mapped floating toplevel. */
 void stonefly_toplevel_place_cascade(struct stonefly_toplevel *toplevel);
 
-/* cmd is used when action == STONEFLY_ACTION_EXEC; pass NULL otherwise. */
+/* cmd: EXEC string, or scratchpad name for SCRATCH_TOGGLE/CLAIM; else NULL. */
 void stonefly_run_action(struct stonefly_server *server,
 		enum stonefly_action action, const char *cmd);
 

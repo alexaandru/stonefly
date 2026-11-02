@@ -7,7 +7,7 @@
 #include <scenefx/types/wlr_scene.h>
 
 #include "anim/anim.h"
-#include "config/hardcoded.h"
+#include "config/config.h"
 #include "decor/decor.h"
 #include "output/output.h"
 #include "server/server.h"
@@ -92,14 +92,13 @@ static enum stonefly_slide_dir closest_dir(int x, int y, int w, int h,
 static void resolve_dir(struct stonefly_toplevel *toplevel,
 		int resting_x, int resting_y, int w, int h,
 		enum stonefly_slide_dir *out) {
-#if STONEFLY_SLIDE_DIR_CLOSEST
-	struct wlr_box area;
-	if (stonefly_toplevel_output_box(toplevel, &area)) {
-		*out = closest_dir(resting_x, resting_y, w, h, &area);
-		return;
+	if (stonefly_cfg(toplevel->server)->slide_dir_closest) {
+		struct wlr_box area;
+		if (stonefly_toplevel_output_box(toplevel, &area)) {
+			*out = closest_dir(resting_x, resting_y, w, h, &area);
+			return;
+		}
 	}
-#endif
-	(void)toplevel;
 	(void)resting_x;
 	(void)resting_y;
 	(void)w;
@@ -272,7 +271,8 @@ static void begin_slide(struct stonefly_toplevel *toplevel,
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
-	int64_t dur_ns = (int64_t)STONEFLY_SLIDE_DURATION_MS * 1000000LL;
+	int64_t dur_ns =
+		(int64_t)stonefly_cfg(toplevel->server)->slide_duration_ms * 1000000LL;
 
 	/* Reverse mid-flight: keep remaining time (peeble Animator.beginSlide). */
 	if (toplevel->anim.active) {
@@ -319,7 +319,7 @@ bool stonefly_anim_start_show(struct stonefly_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->scene_tree == NULL) {
 		return false;
 	}
-	if (STONEFLY_SLIDE_DURATION_MS <= 0) {
+	if (stonefly_cfg(toplevel->server)->slide_duration_ms <= 0) {
 		return false;
 	}
 
@@ -356,7 +356,7 @@ bool stonefly_anim_start_hide(struct stonefly_toplevel *toplevel,
 	if (toplevel == NULL || toplevel->scene_tree == NULL) {
 		return false;
 	}
-	if (STONEFLY_SLIDE_DURATION_MS <= 0) {
+	if (stonefly_cfg(toplevel->server)->slide_duration_ms <= 0) {
 		return false;
 	}
 
@@ -398,7 +398,7 @@ bool stonefly_anim_start_morph(struct stonefly_toplevel *toplevel,
 			from == NULL || to == NULL) {
 		return false;
 	}
-	if (STONEFLY_MORPH_DURATION_MS <= 0) {
+	if (stonefly_cfg(toplevel->server)->morph_duration_ms <= 0) {
 		return false;
 	}
 	if (from->width <= 0 || from->height <= 0 ||
@@ -416,7 +416,8 @@ bool stonefly_anim_start_morph(struct stonefly_toplevel *toplevel,
 
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
-	int64_t dur_ns = (int64_t)STONEFLY_MORPH_DURATION_MS * 1000000LL;
+	int64_t dur_ns =
+		(int64_t)stonefly_cfg(toplevel->server)->morph_duration_ms * 1000000LL;
 
 	struct wlr_box start = *from;
 	if (toplevel->anim.active && toplevel->anim.morph) {

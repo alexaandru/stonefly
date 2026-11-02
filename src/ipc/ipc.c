@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <wayland-server-core.h>
 
+#include "ipc/config.h"
 #include "ipc/layers.h"
 #include "ipc/outputs.h"
 #include "ipc/windows.h"
@@ -291,6 +292,29 @@ static void ipc_handle_toggle_quick_terminal(struct stonefly_ipc_client *client)
 	ipc_write_ok(client);
 }
 
+static void ipc_handle_config(struct stonefly_ipc_client *client, const char *arg) {
+	char *out = malloc(STONEFLY_IPC_REPLY_CAP);
+	if (out == NULL) {
+		ipc_write_line(client->fd, "{\"error\":\"oom\"}");
+		return;
+	}
+	const char *section = (arg != NULL && arg[0] != '\0') ? arg : NULL;
+	int n = stonefly_config_to_json(client->ipc->server, section, out,
+		STONEFLY_IPC_REPLY_CAP);
+	if (n < 0) {
+		free(out);
+		if (section != NULL) {
+			ipc_write_err(client,
+				"unknown config section (options|binds|taps|scratchpads|cmds|inputs|outputs)");
+		} else {
+			ipc_write_line(client->fd, "{\"error\":\"config snapshot overflow\"}");
+		}
+		return;
+	}
+	ipc_write_line(client->fd, out);
+	free(out);
+}
+
 static void ipc_handle_request(struct stonefly_ipc_client *client, const char *line) {
 	char cmd[64];
 	char arg[128];
@@ -321,6 +345,10 @@ static void ipc_handle_request(struct stonefly_ipc_client *client, const char *l
 	}
 	if (strcmp(cmd, "toggle-quick-terminal") == 0) {
 		ipc_handle_toggle_quick_terminal(client);
+		return;
+	}
+	if (strcmp(cmd, "config") == 0) {
+		ipc_handle_config(client, arg);
 		return;
 	}
 
@@ -814,4 +842,49 @@ int stonefly_ipc_cmd_toggle_quick_terminal(int argc, char **argv) {
 		return rc;
 	}
 	return ipc_print_ok_reply(reply);
+}
+
+int stonefly_ipc_cmd_config(int argc, char **argv) {
+	bool as_json = false;
+	const char *section = NULL;
+
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "--json") == 0) {
+			as_json = true;
+		} else if (strcmp(argv[i], "-h") == 0 ||
+				strcmp(argv[i], "--help") == 0) {
+			printf("Usage: stonefly config [section] [--json]\n");
+			printf("Sections: options binds taps scratchpads cmds inputs outputs\n");
+			printf("Omit section for the full live config.\n");
+			return 0;
+		} else if (argv[i][0] == '-') {
+			fprintf(stderr, "Usage: stonefly config [section] [--json]\n");
+			return 1;
+		} else if (section == NULL) {
+			section = argv[i];
+		} else {
+			fprintf(stderr, "Usage: stonefly config [section] [--json]\n");
+			return 1;
+		}
+	}
+
+	char *reply = NULL;
+	int rc = ipc_request_arg("config", section, &reply);
+	if (rc != 0) {
+		return rc;
+	}
+
+	if (reply[0] == '{' && strncmp(reply, "{\"error\":", 9) == 0) {
+		fprintf(stderr, "stonefly: %s\n", reply);
+		free(reply);
+		return 1;
+	}
+
+	if (as_json) {
+		printf("%s\n", reply);
+	} else {
+		stonefly_config_print_json(reply, stdout);
+	}
+	free(reply);
+	return 0;
 }

@@ -1,20 +1,19 @@
 # Maintainer: Alexandru Ungur <alexaandru@gmail.com>
 pkgname=stonefly
 pkgver=0.0.1
-pkgrel=0
+pkgrel=1
 pkgdesc="Wayland compositor/WM (tinywl 0.20 seed)"
 url="https://github.com/alexaandru/stonefly"
 arch="all"
 license="MIT"
-depends="
-	foot
-	scenefx
-	wlroots0.20
-	"
+# Runtime: only shared libs the binary actually links.
+# clang / meson / *-dev are build-only — never put them in depends.
+# foot/ghostty/noctalia are spawn targets from config, not package deps.
 makedepends="
 	clang
 	compiler-rt
 	libxkbcommon-dev
+	luajit-dev
 	meson
 	samurai
 	scenefx-dev
@@ -28,6 +27,8 @@ source="stonefly-$pkgver.tar.gz"
 builddir="$srcdir/stonefly-$pkgver"
 
 build() {
+	# clang is the *build* compiler only (ASan needs compiler-rt on Alpine).
+	# Users never need clang installed to run the APK.
 	export CC=clang
 	# TEMPORARY: always ship a sanitizer debug build (even for "releases") so
 	# compositor crashes (taskbar, VT switch, …) get actionable traces. Keep
@@ -50,5 +51,5 @@ package() {
 }
 
 sha512sums="
-c6406ccf1ff6bb9cf056c9fb776ac3f07893504e6a53eb64d1b96d4be9253cc7eff210dbc536e5c23f9a21df5e250cf583477e0347266a407dfc6329567f3060  stonefly-0.0.1.tar.gz
+f59e008c5e520a107b704397fc091bccfffff25a6c3c61d23ca13dc1c90cdb3ef50f28ce7c3ee4bbab14874ae758f9a3ea46a055def93fb5114e0ae7364de0bd  stonefly-0.0.1.tar.gz
 "

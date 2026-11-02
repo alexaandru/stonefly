@@ -44,6 +44,7 @@ struct stonefly_ipc;
 struct stonefly_layer_surface;
 struct stonefly_snap_preview;
 
+#include "config/config.h"
 #include "wm/drag_snap.h"
 
 enum stonefly_cursor_mode {
@@ -151,8 +152,9 @@ struct stonefly_server {
 
 	struct stonefly_ipc *ipc;
 
-	/* Lone-modifier tap (Super): peeble bind_tap semantics.
-	 * single/double_tap hold stonefly_action values from hardcoded.h. */
+	struct stonefly_config config;
+
+	/* Lone-modifier tap (Super): peeble bind_tap semantics. */
 	struct {
 		bool armed;
 		struct timespec since;
@@ -160,6 +162,8 @@ struct stonefly_server {
 		struct wl_event_source *timer;
 		int single;
 		int double_tap;
+		char *single_cmd;
+		char *double_cmd;
 	} tap;
 
 	/* ext-session-lock-v1 + idle + output-power (Noctalia auto-lock / DPMS). */

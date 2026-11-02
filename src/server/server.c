@@ -79,6 +79,8 @@ static void stonefly_update_dbus_activation_environment(void) {
 }
 
 bool stonefly_server_init(struct stonefly_server *server) {
+	stonefly_config_set_defaults(&server->config);
+
 	server->wl_display = wl_display_create();
 	server->session = NULL;
 	server->backend = wlr_backend_autocreate(
@@ -147,6 +149,12 @@ bool stonefly_server_init(struct stonefly_server *server) {
 	/* Noctalia region/fullscreen screenshots + lock desktop capture. */
 	wlr_screencopy_manager_v1_create(server->wl_display);
 
+	/* Config before seat/scratchpad/output consumers read policy. */
+	if (!stonefly_config_load(server)) {
+		SF_LOGE("config load failed");
+		return false;
+	}
+
 	stonefly_layer_setup(server);
 	/* After layers so layers.lock sits above overlay. */
 	stonefly_session_setup(server);
@@ -194,6 +202,7 @@ int stonefly_server_run(struct stonefly_server *server, const char *startup_cmd)
 void stonefly_server_finish(struct stonefly_server *server) {
 	stonefly_ipc_stop(server);
 	wl_display_destroy_clients(server->wl_display);
+	stonefly_config_finish(&server->config);
 
 	stonefly_ghost_finish_all(server);
 	stonefly_snap_preview_finish(server);

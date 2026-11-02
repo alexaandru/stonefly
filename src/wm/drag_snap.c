@@ -5,7 +5,7 @@
 #include <wlr/types/wlr_xdg_shell.h>
 #include <scenefx/types/wlr_scene.h>
 
-#include "config/hardcoded.h"
+#include "config/config.h"
 #include "layer/layer.h"
 #include "server/server.h"
 #include "wm/drag_snap.h"
@@ -185,9 +185,10 @@ void stonefly_drag_snap_motion(struct stonefly_server *server) {
 	int y = drag->start_y + dy;
 
 	struct wlr_box usable;
-	const int threshold = STONEFLY_SNAP_THRESHOLD;
-	const int border = STONEFLY_BORDER_THICKNESS;
-	const int gap = STONEFLY_GAP_SIZE;
+	const struct stonefly_config *cfg = stonefly_cfg(server);
+	const int threshold = cfg->snap_threshold;
+	const int border = cfg->border_thickness;
+	const int gap = cfg->gap_size;
 
 	if (threshold > 0 && pointer_usable(server, &usable) &&
 			drag->width > 0 && drag->height > 0) {
@@ -224,9 +225,10 @@ static bool snap_candidate(struct stonefly_toplevel *toplevel,
 		const struct wlr_box *usable, enum stonefly_snap *out) {
 	struct wlr_box geom;
 	stonefly_toplevel_layout_geom(toplevel, &geom);
-	const int b = STONEFLY_BORDER_THICKNESS;
-	const int g = STONEFLY_GAP_SIZE;
-	const int threshold = STONEFLY_SNAP_THRESHOLD;
+	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+	const int b = cfg->border_thickness;
+	const int g = cfg->gap_size;
+	const int threshold = cfg->snap_threshold;
 
 	int left = geom.x - b;
 	int right = geom.x + geom.width + b;

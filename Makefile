@@ -8,8 +8,8 @@ TARBALL := $(APORT)/stonefly-$(PKGVER).tar.gz
 
 # Directory mtimes do not bump when a file inside src/ changes — depend on
 # every packed path so `make apk` cannot ship a stale tree.
-SRC_FILES := $(shell find src protocol -type f \( -name '*.c' -o -name '*.h' -o -name '*.xml' -o -name 'meson.build' \) | sort)
-PACK_META := meson.build LICENSE LICENSE.tinywl README.md
+SRC_FILES := $(shell find src protocol runtime -type f \( -name '*.c' -o -name '*.h' -o -name '*.xml' -o -name '*.lua' -o -name '*.fnl' -o -name 'meson.build' \) 2>/dev/null | sort)
+PACK_META := meson.build LICENSE LICENSE.tinywl README.md docs/CONFIG.md
 
 .PHONY: apk dist-tarball clean
 
@@ -19,7 +19,7 @@ $(TARBALL): $(PACK_META) $(SRC_FILES)
 	mkdir -p "$(APORT)"
 	tar -C "$(ROOT)" -czf "$(TARBALL)" \
 		--transform 's,^,stonefly-$(PKGVER)/,' \
-		meson.build src protocol LICENSE LICENSE.tinywl README.md
+		meson.build src protocol runtime docs LICENSE LICENSE.tinywl README.md
 
 # checksum + build; APK lands under $$REPODEST/testing/x86_64/.
 apk: $(TARBALL)
