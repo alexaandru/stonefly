@@ -54,6 +54,22 @@ void stonefly_toplevel_capture_geom(struct stonefly_toplevel *toplevel,
 void stonefly_toplevel_apply_saved_at(struct stonefly_toplevel *toplevel,
 		int x, int y);
 void stonefly_toplevel_unsnap(struct stonefly_toplevel *toplevel);
+
+/* How a window is hidden: LIFO unnamed stack (Ctrl+Esc / CSD / foreign) vs
+ * named scratchpad (off that stack). Both set minimized + foreign state. */
+enum stonefly_hide_kind {
+	STONEFLY_HIDE_LIFO = 0,
+	STONEFLY_HIDE_SCRATCH,
+};
+
+/* Sole place for hide side effects: flag, list membership, scene, foreign,
+ * defocus + focus_top when the hidden window had focus. */
+void stonefly_toplevel_apply_hidden(struct stonefly_toplevel *toplevel,
+		enum stonefly_hide_kind kind);
+/* Clear hidden state (scene + foreign). If activate, also focus_toplevel. */
+void stonefly_toplevel_apply_shown(struct stonefly_toplevel *toplevel,
+		bool activate);
+
 void stonefly_toplevel_minimize(struct stonefly_toplevel *toplevel);
 void stonefly_toplevel_unminimize(struct stonefly_toplevel *toplevel);
 

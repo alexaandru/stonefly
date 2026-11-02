@@ -49,7 +49,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Maximize with gaps (WM-only) | ✅ | — | ✅ Super+m | No client maximized → rounder CSD |
 | Unmaximize / restore | ✅ | — | ✅ | Toggle paths |
 | Fullscreen (client + WM) | ✅ | — | ✅ | Saved geom + full output box; client `request_fullscreen` + foreign set/unset (no WM keybind; Super+f is edge-max) |
-| Minimize / unminimize LIFO | ✅ Ctrl+Esc | — | ✅ | Unnamed scratchpad |
+| Minimize / unminimize LIFO | ✅ Ctrl+Esc | — | ✅ | Unnamed scratchpad. Shared `apply_hidden`/`apply_shown` (LIFO vs scratch). `xdg request_minimize` → CSD/SSD buttons. |
 | Always-on-top | ✅ | — | ❌ | Peeble winmenu / state |
 | Keyboard half-snap (arrows) | ✅ Super+arrows | — | ✅ | Gap math ports `snapBorderBox` |
 | Unsnap / restore PreSnap | ✅ Super+u | — | ✅ | |
@@ -61,7 +61,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Cascade initial place | ✅ | — | ✅ | Gap + `(n%10)*25`, cursor output |
 | EnsureOnScreen / usable relayout | ✅ | — | ✅ | On exclusive-zone change |
 | Per-output usable area | ✅ `UsableOn` / `UsableAreaChanged` | — | ✅ | `exclusive_zone != 0` (incl. −1) |
-| Named scratchpads | ✅ multi + claim + auto_hide | Click-outside catcher 📋 | 🚧 | Hardcoded pad `term` only. Spawn uses fake `app_id` (`stonefly.scratch.term`) so claim does not steal normal Super+w windows — that breaks taskbar icons (shell keys icons off app_id). Real app_id + PID claim is not enough for single-instance multi-window clients (one Ghostty PID, many windows). Proper fix later: xdg-activation / startup token (or accept first-map races); leave icon/claim as-is for now. |
+| Named scratchpads | ✅ multi + claim + auto_hide | Click-outside catcher 📋 | 🚧 | Hardcoded pad `term` only. Spawn uses fake `app_id` (`stonefly.scratch.term`) so claim does not steal normal Super+w windows — that breaks taskbar icons (shell keys icons off app_id). Real app_id + PID claim is not enough for single-instance multi-window clients (one Ghostty PID, many windows). Proper fix later: xdg-activation / startup token (or accept first-map races); leave icon/claim as-is for now. Hide/show via `apply_hidden(SCRATCH)` / `apply_shown` (same foreign/defocus as LIFO; `focus_top` skips `anim_hide`). |
 | Scratchpad claim focused | ✅ Super+t | — | ✅ | |
 | Scratchpad omit from Alt-Tab | ✅ | — | ✅ | Super+Tab too |
 | Window menu | ✅ | — | ❌ | |
@@ -155,7 +155,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 
 | Feature | Peeble shipped | Peeble roadmap / FORK | Stonefly | Notes |
 |---|---|---|---|---|
-| xdg-shell toplevels / popups | ✅ (via River) | — | ✅ | |
+| xdg-shell toplevels / popups | ✅ (via River) | — | ✅ | `request_minimize` → `stonefly_toplevel_minimize` / unminimize (CSD buttons). |
 | wlr-layer-shell | ✅ client | `set_exclusive_edge` when advertised 📋 | ✅ v5 server | Exclusive zones → usable |
 | wp_fractional_scale + viewporter | ✅ all chrome (`surfscale`) | — | ✅ | DRM: scale 1.5 (`STONEFLY_OUTPUT_SCALE`). Nested/headless (`session == NULL`): scale 1.0 so Umbriel embed is not double-scaled. |
 | zxdg_output_v1 | ✅ | — | ✅ | `wlr_xdg_output_manager_v1` on output layout (`server.c`). Logical size for Noctalia floating-panel margins under fractional scale. |

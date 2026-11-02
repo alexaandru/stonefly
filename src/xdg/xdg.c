@@ -201,6 +201,7 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&toplevel->request_move.link);
 	wl_list_remove(&toplevel->request_resize.link);
 	wl_list_remove(&toplevel->request_maximize.link);
+	wl_list_remove(&toplevel->request_minimize.link);
 	wl_list_remove(&toplevel->request_fullscreen.link);
 	wl_list_remove(&toplevel->set_title.link);
 	wl_list_remove(&toplevel->set_app_id.link);
@@ -285,6 +286,25 @@ static void xdg_toplevel_request_maximize(
 	stonefly_toplevel_set_max_edges(toplevel, toplevel->xdg_toplevel->requested.maximized);
 }
 
+static void xdg_toplevel_request_minimize(
+		struct wl_listener *listener, void *data) {
+	(void)data;
+	/* CSD/SSD minimize buttons and clients that request minimize. */
+	struct stonefly_toplevel *toplevel =
+		wl_container_of(listener, toplevel, request_minimize);
+	if (!toplevel->xdg_toplevel->base->initialized) {
+		return;
+	}
+	if (toplevel->xdg_toplevel->requested.minimized) {
+		stonefly_toplevel_minimize(toplevel);
+	} else {
+		/* Unset without forcing focus — matches foreign unset_minimized. */
+		stonefly_toplevel_unminimize(toplevel);
+	}
+	/* Minimize does not always schedule a configure; ack the request. */
+	wlr_xdg_surface_schedule_configure(toplevel->xdg_toplevel->base);
+}
+
 static void xdg_toplevel_request_fullscreen(
 		struct wl_listener *listener, void *data) {
 	(void)data;
@@ -334,6 +354,8 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	wl_signal_add(&xdg_toplevel->events.request_resize, &toplevel->request_resize);
 	toplevel->request_maximize.notify = xdg_toplevel_request_maximize;
 	wl_signal_add(&xdg_toplevel->events.request_maximize, &toplevel->request_maximize);
+	toplevel->request_minimize.notify = xdg_toplevel_request_minimize;
+	wl_signal_add(&xdg_toplevel->events.request_minimize, &toplevel->request_minimize);
 	toplevel->request_fullscreen.notify = xdg_toplevel_request_fullscreen;
 	wl_signal_add(&xdg_toplevel->events.request_fullscreen, &toplevel->request_fullscreen);
 	toplevel->set_title.notify = xdg_toplevel_set_title;

@@ -5,7 +5,6 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-#include <scenefx/types/wlr_scene.h>
 #include <wlr/types/wlr_xdg_shell.h>
 
 #include "anim/anim.h"
@@ -62,17 +61,14 @@ static void pending_clear(void) {
 }
 
 static void scratch_hide_now(struct stonefly_toplevel *toplevel) {
-	if (toplevel->minimized) {
-		return;
-	}
-	toplevel->minimized = true;
-	wlr_scene_node_set_enabled(&toplevel->scene_tree->node, false);
-	/* Named pads stay off the unnamed Ctrl+Esc LIFO stack. */
-	wl_list_init(&toplevel->minimize_link);
+	/* Off LIFO; apply_hidden owns flag/scene/foreign/defocus. */
+	stonefly_toplevel_apply_hidden(toplevel, STONEFLY_HIDE_SCRATCH);
 }
 
 static void scratch_hide(struct stonefly_toplevel *toplevel) {
 	if (toplevel->minimized) {
+		/* Already hidden (e.g. Ctrl+Esc): reclassify off the LIFO stack. */
+		stonefly_toplevel_apply_hidden(toplevel, STONEFLY_HIDE_SCRATCH);
 		return;
 	}
 	if (stonefly_anim_start_hide(toplevel, scratch_hide_now)) {
@@ -83,11 +79,11 @@ static void scratch_hide(struct stonefly_toplevel *toplevel) {
 
 static void scratch_show(struct stonefly_toplevel *toplevel) {
 	if (stonefly_anim_active(toplevel) && toplevel->anim_hide) {
-		/* Reverse an in-flight hide (peeble StartShow mid-flight). */
+		/* Reverse an in-flight hide (peeble beginSlide mid-flight). */
 		stonefly_anim_start_show(toplevel);
 	}
-	/* focus_toplevel → unminimize starts the show slide when hidden. */
-	stonefly_focus_toplevel(toplevel);
+	/* apply_shown + focus via focus_toplevel. */
+	stonefly_toplevel_apply_shown(toplevel, true);
 }
 
 static void scratch_claim(struct stonefly_scratch_slot *slot,
@@ -240,11 +236,9 @@ void stonefly_scratchpad_toggle(struct stonefly_server *server, const char *name
 				(stonefly_anim_active(toplevel) && toplevel->anim_hide)) {
 			scratch_show(toplevel);
 		} else {
-			bool was_focused = stonefly_focused_toplevel(server) == toplevel;
+			/* Defocus runs in apply_hidden after minimized is set (same as
+			 * Ctrl+Esc), so focus_top cannot re-pick this window mid-slide. */
 			scratch_hide(toplevel);
-			if (was_focused) {
-				stonefly_focus_top(server);
-			}
 		}
 		return;
 	}

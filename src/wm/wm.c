@@ -556,38 +556,68 @@ void stonefly_toplevel_place_cascade(struct stonefly_toplevel *toplevel) {
 	toplevel->resting_y = y;
 }
 
-static void minimize_now(struct stonefly_toplevel *toplevel) {
-	if (toplevel->minimized) {
-		return;
+/* minimize_link is either self-linked (off stack) or in server->minimized. */
+static void minimize_link_detach(struct stonefly_toplevel *toplevel) {
+	if (toplevel->minimize_link.next != &toplevel->minimize_link) {
+		wl_list_remove(&toplevel->minimize_link);
 	}
-	struct stonefly_server *server = toplevel->server;
-	toplevel->minimized = true;
-	wlr_scene_node_set_enabled(&toplevel->scene_tree->node, false);
-	wl_list_insert(&server->minimized, &toplevel->minimize_link);
+	wl_list_init(&toplevel->minimize_link);
+}
 
-	bool was_focused = stonefly_focused_toplevel(server) == toplevel;
+static bool toplevel_focusable(const struct stonefly_toplevel *toplevel) {
+	/* anim_hide: sliding out but minimized not set yet — do not re-pick. */
+	return !toplevel->minimized && !toplevel->anim_hide;
+}
+
+void stonefly_toplevel_apply_hidden(struct stonefly_toplevel *toplevel,
+		enum stonefly_hide_kind kind) {
+	struct stonefly_server *server = toplevel->server;
+	const bool was_hidden = toplevel->minimized;
+	const bool was_focused = stonefly_focused_toplevel(server) == toplevel;
+
+	minimize_link_detach(toplevel);
+	if (kind == STONEFLY_HIDE_LIFO) {
+		wl_list_insert(&server->minimized, &toplevel->minimize_link);
+	}
+
+	if (!was_hidden) {
+		toplevel->minimized = true;
+		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, false);
+	}
+
 	if (was_focused) {
 		if (xdg_surface_ready(toplevel)) {
 			wlr_xdg_toplevel_set_activated(toplevel->xdg_toplevel, false);
 		}
+		stonefly_decor_set_focused(toplevel, false);
 		stonefly_focus_top(server);
 	}
 	stonefly_foreign_toplevel_on_state_change(toplevel);
 }
 
-void stonefly_toplevel_unminimize(struct stonefly_toplevel *toplevel) {
-	if (!toplevel->minimized) {
-		return;
+void stonefly_toplevel_apply_shown(struct stonefly_toplevel *toplevel,
+		bool activate) {
+	if (toplevel->minimized) {
+		toplevel->minimized = false;
+		minimize_link_detach(toplevel);
+		/* Enable at resting, then slide in from off-screen. */
+		wlr_scene_node_set_position(&toplevel->scene_tree->node,
+			toplevel->resting_x, toplevel->resting_y);
+		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
+		stonefly_anim_start_show(toplevel);
+		stonefly_foreign_toplevel_on_state_change(toplevel);
 	}
-	toplevel->minimized = false;
-	wl_list_remove(&toplevel->minimize_link);
-	wl_list_init(&toplevel->minimize_link);
-	/* Enable at resting, then slide in from off-screen. */
-	wlr_scene_node_set_position(&toplevel->scene_tree->node,
-		toplevel->resting_x, toplevel->resting_y);
-	wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
-	stonefly_anim_start_show(toplevel);
-	stonefly_foreign_toplevel_on_state_change(toplevel);
+	if (activate) {
+		stonefly_focus_toplevel(toplevel);
+	}
+}
+
+static void minimize_now(struct stonefly_toplevel *toplevel) {
+	stonefly_toplevel_apply_hidden(toplevel, STONEFLY_HIDE_LIFO);
+}
+
+void stonefly_toplevel_unminimize(struct stonefly_toplevel *toplevel) {
+	stonefly_toplevel_apply_shown(toplevel, false);
 }
 
 void stonefly_focus_toplevel(struct stonefly_toplevel *toplevel) {
@@ -600,7 +630,7 @@ void stonefly_focus_toplevel(struct stonefly_toplevel *toplevel) {
 		return;
 	}
 	if (toplevel->minimized) {
-		stonefly_toplevel_unminimize(toplevel);
+		stonefly_toplevel_apply_shown(toplevel, false);
 	}
 	server->exclusive_layer = NULL;
 	struct wlr_seat *seat = server->seat;
@@ -680,14 +710,15 @@ void stonefly_focus_top(struct stonefly_server *server) {
 	}
 	struct stonefly_toplevel *toplevel;
 	wl_list_for_each(toplevel, &server->toplevels, link) {
-		if (!toplevel->minimized && !stonefly_toplevel_is_scratchpad(toplevel)) {
+		if (toplevel_focusable(toplevel)
+				&& !stonefly_toplevel_is_scratchpad(toplevel)) {
 			stonefly_focus_toplevel(toplevel);
 			return;
 		}
 	}
 	/* Fall back to a visible scratchpad if nothing else remains. */
 	wl_list_for_each(toplevel, &server->toplevels, link) {
-		if (!toplevel->minimized) {
+		if (toplevel_focusable(toplevel)) {
 			stonefly_focus_toplevel(toplevel);
 			return;
 		}
@@ -746,7 +777,7 @@ static void stonefly_spawn_cmd(const char *cmd) {
 
 static bool focus_cycle_eligible(struct stonefly_toplevel *t,
 		bool include_minimized) {
-	if (stonefly_toplevel_is_scratchpad(t)) {
+	if (stonefly_toplevel_is_scratchpad(t) || t->anim_hide) {
 		return false;
 	}
 	return include_minimized || !t->minimized;
