@@ -140,8 +140,9 @@ notifier) on layer-shell. Peeble owns these in-process.
 
 | Feature | Peeble shipped | Peeble roadmap | Stonefly | Notes |
 |---|---|---|---|---|
-| `dbus-update-activation-environment` after display | ✅ | — | ✅ | Ghostty `+new-window` path |
-| FDO Notifications server | ✅ | Live unread badge 📋 | 🌙 | |
+| `UpdateActivationEnvironment` after display | ✅ | — | ✅ | In-process sd-bus (was shell `dbus-update-activation-environment --all`). Ghostty `+new-window` path |
+| FDO Notifications client (config warn) | ✅ | — | ✅ | sd-bus `Notify`; wait ≤20s on `NameOwnerChanged` for `org.freedesktop.Notifications` (Noctalia via `-s`), else log + bail toast-only |
+| FDO Notifications server | ✅ | Live unread badge 📋 | 🌙 | Noctalia owns the server |
 | logind power + PrepareForSleep | ✅ | — | 🌙 | Compositor exposes lock + idle + DPMS; Noctalia owns PrepareForSleep / lock-before-suspend |
 | ScreenSaver Inhibit | ✅ | — | ❌ | |
 | UPower kbd / power profiles | ✅ | Richer battery 📋 | ❌ / 🌙 | |
@@ -301,8 +302,9 @@ chrome again.
 **Shipped:** LuaJIT linked in-process (`config_lua.c`); XDG dirs + `STONEFLY_*`
 overrides; C23 `#embed` of Fennel-first default tree (`src/config/default/`);
 missing user `init.lua` → embedded default; broken user init → log + fall back
-to embedded/C and `notify-send -u critical` after display up (2s delay for
-Noctalia); `stonefly --write-config` (refuse overwrite); builtin pack
+to embedded/C and FDO `Notify` (urgency=critical) after display up — subscribe
+to `NameOwnerChanged` for `org.freedesktop.Notifications`, wait ≤20s (Noctalia
+usually via `-s`), else warn and skip the toast; `stonefly --write-config` (refuse overwrite); builtin pack
 `fennel-shim` (Fennel 1.6.1 + Fennel-side loader); `stonefly.*` API (`opt` /
 `bind` / `tap` / `scratchpad` / `packadd` / `stdpath`); bind/tap accept
 peeble-style chord strings (`"Super+Shift+Tab"`, `"Super"`) via `parse_chord` /

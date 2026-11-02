@@ -46,6 +46,7 @@ struct stonefly_keyboard;
 struct stonefly_ipc;
 struct stonefly_layer_surface;
 struct stonefly_snap_preview;
+struct stonefly_dbus_notify;
 
 #include "config/config.h"
 #include "wm/drag_snap.h"
@@ -213,8 +214,10 @@ struct stonefly_server {
 	struct wl_list pointers;
 
 	/* Heap; set when user init.lua fails and we fall back to embedded/C.
-	 * Surfaced via notify-send after the display is up (peeble-style). */
+	 * Surfaced via FDO Notifications after the display is up (peeble-style). */
 	char *config_warn;
+	/* Pending NameOwnerChanged wait + Notify (owned by dbus.c). */
+	struct stonefly_dbus_notify *config_notify;
 };
 
 bool stonefly_server_init(struct stonefly_server *server);

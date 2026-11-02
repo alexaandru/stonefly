@@ -835,13 +835,8 @@ static bool eval_buffer(struct lua_runtime *rt, const char *name,
 }
 
 static bool write_embed_tree_to(const char *dir) {
-	if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
-		/* try parents via config write helper path — best effort */
-		char cmd[PATH_MAX_SF + 32];
-		snprintf(cmd, sizeof cmd, "mkdir -p '%s'", dir);
-		if (system(cmd) != 0) {
-			return false;
-		}
+	if (stonefly_mkdir_p(dir) != 0) {
+		return false;
 	}
 	for (size_t i = 0; i < stonefly_default_files_len; i++) {
 		const struct stonefly_embed_file *f = &stonefly_default_files[i];

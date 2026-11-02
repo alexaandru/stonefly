@@ -12,6 +12,7 @@ license="MIT"
 makedepends="
 	clang
 	compiler-rt
+	elogind-dev
 	libxkbcommon-dev
 	luajit-dev
 	meson
@@ -51,5 +52,5 @@ package() {
 }
 
 sha512sums="
-891520dcd16c9b21453b088932fd037dbaceeb83f41f8536ab8befb9e7404c652d6509bda706570df37c20908ed12eb383d7c40e7ce55e4d9479e3946844747a  stonefly-0.0.1.tar.gz
+1c615c1583cb2c3f0a8d1bdd58799262167049c3063c36856c77ca3d533afa807bc84a95f0b98bbb16ad4ae7746429ffbec88a8c7c8b7b5846030d00b9cdcade  stonefly-0.0.1.tar.gz
 "

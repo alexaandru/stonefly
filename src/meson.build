@@ -2,6 +2,7 @@ stonefly_src = files(
   'main.c',
   'util/json.c',
   'log/log.c',
+  'dbus/dbus.c',
   'ipc/ipc.c',
   'ipc/windows.c',
   'ipc/layers.c',
@@ -31,6 +32,12 @@ stonefly_src = files(
 stonefly_inc = include_directories('.')
 
 luajit = dependency('luajit')
+
+# Alpine: elogind provides libsystemd.pc → sd-bus. Prefer libsystemd name.
+libsystemd = dependency('libsystemd', required: false)
+if not libsystemd.found()
+  libsystemd = dependency('libelogind', required: true)
+endif
 
 stonefly_datadir = get_option('prefix') / get_option('datadir') / 'stonefly'
 
@@ -71,6 +78,7 @@ executable(
     wayland_server,
     xkbcommon,
     luajit,
+    libsystemd,
     meson.get_compiler('c').find_library('m'),
     stonefly_protocols_dep,
   ],

@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
 #include <unistd.h>
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
@@ -27,6 +26,7 @@
 #include <scenefx/render/fx_renderer/fx_renderer.h>
 #include <scenefx/types/wlr_scene.h>
 
+#include "dbus/dbus.h"
 #include "decor/decor.h"
 #include "ipc/ipc.h"
 #include "layer/layer.h"
@@ -42,73 +42,6 @@
 #include "wm/snap_preview.h"
 #include "wm/workspace.h"
 #include "xdg/xdg.h"
-
-/*
- * Peeble runs the same helper at session start. D-Bus-activated apps
- * (Ghostty via `ghostty +new-window`, etc.) inherit the activation
- * environment from the session bus — not from the keybind's fork.
- * Without this, WAYLAND_DISPLAY stays stale and those clients flash
- * then die under a nested/TTY stonefly session.
- */
-static void stonefly_update_dbus_activation_environment(void) {
-	pid_t pid = fork();
-	if (pid < 0) {
-		SF_LOGW("dbus-update-activation-environment fork failed",
-			sf_str("err", strerror(errno)));
-		return;
-	}
-	if (pid == 0) {
-		execlp("dbus-update-activation-environment",
-			"dbus-update-activation-environment", "--all",
-			(char *)NULL);
-		_exit(127);
-	}
-
-	int status = 0;
-	if (waitpid(pid, &status, 0) < 0) {
-		SF_LOGW("dbus-update-activation-environment wait failed",
-			sf_str("err", strerror(errno)));
-		return;
-	}
-	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-		int code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-		char codebuf[16];
-		snprintf(codebuf, sizeof(codebuf), "%d", code);
-		SF_LOGW("dbus-update-activation-environment failed",
-			sf_str("exit", codebuf));
-	}
-}
-
-/* Peeble fires a desktop notification on config fallback. Stonefly's
- * notification daemon (Noctalia) usually starts via -s, so wait briefly. */
-static void stonefly_notify_config_warn(struct stonefly_server *server) {
-	if (server->config_warn == NULL || server->config_warn[0] == '\0') {
-		return;
-	}
-	pid_t pid = fork();
-	if (pid < 0) {
-		SF_LOGW("config warn notify fork failed",
-			sf_str("err", strerror(errno)));
-		return;
-	}
-	if (pid == 0) {
-		/* Detach from the compositor so wait is unnecessary. */
-		if (fork() == 0) {
-			sleep(2);
-			execlp("notify-send", "notify-send",
-				"-u", "critical",
-				"-a", "stonefly",
-				"-i", "dialog-error",
-				"stonefly: config load failed",
-				server->config_warn,
-				(char *)NULL);
-			_exit(127);
-		}
-		_exit(0);
-	}
-	/* Reap the intermediate child. */
-	waitpid(pid, NULL, 0);
-}
 
 bool stonefly_server_init(struct stonefly_server *server) {
 	stonefly_config_set_defaults(&server->config);
@@ -218,7 +151,7 @@ int stonefly_server_run(struct stonefly_server *server, const char *startup_cmd)
 	}
 
 	setenv("WAYLAND_DISPLAY", socket, true);
-	stonefly_update_dbus_activation_environment();
+	stonefly_dbus_update_activation_environment();
 	if (!stonefly_ipc_start(server)) {
 		SF_LOGW("ipc not available");
 	}
@@ -228,7 +161,8 @@ int stonefly_server_run(struct stonefly_server *server, const char *startup_cmd)
 			_exit(1);
 		}
 	}
-	stonefly_notify_config_warn(server);
+	/* After -s so Noctalia can claim org.freedesktop.Notifications. */
+	stonefly_dbus_notify_config_warn(server);
 
 	SF_LOGI("Running Wayland compositor", sf_str("display", socket));
 	wl_display_run(server->wl_display);
@@ -236,6 +170,8 @@ int stonefly_server_run(struct stonefly_server *server, const char *startup_cmd)
 }
 
 void stonefly_server_finish(struct stonefly_server *server) {
+	/* Drop bus watches before the display/event loop goes away. */
+	stonefly_dbus_finish(server);
 	stonefly_ipc_stop(server);
 	wl_display_destroy_clients(server->wl_display);
 	free(server->config_warn);

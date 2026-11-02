@@ -85,9 +85,10 @@ int stonefly_config_init_path(char *buf, size_t n) {
 	return 0;
 }
 
-static int mkdir_p(const char *path) {
+int stonefly_mkdir_p(const char *path) {
 	char tmp[512];
-	if (snprintf(tmp, sizeof tmp, "%s", path) >= (int)sizeof tmp) {
+	if (path == NULL ||
+			snprintf(tmp, sizeof tmp, "%s", path) >= (int)sizeof tmp) {
 		return -1;
 	}
 	size_t len = strlen(tmp);
@@ -154,7 +155,7 @@ int stonefly_config_write_default(void) {
 			path);
 		return 1;
 	}
-	if (mkdir_p(dir) != 0) {
+	if (stonefly_mkdir_p(dir) != 0) {
 		SF_LOGE("write-config mkdir", sf_str("dir", dir),
 			sf_str("err", strerror(errno)));
 		return 1;

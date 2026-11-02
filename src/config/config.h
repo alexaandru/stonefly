@@ -151,6 +151,9 @@ int stonefly_data_dir(char *buf, size_t n);
 int stonefly_cache_dir(char *buf, size_t n);
 int stonefly_config_init_path(char *buf, size_t n);
 
+/* Recursive mkdir (mkdir -p); 0 = ok. */
+int stonefly_mkdir_p(const char *path);
+
 /* Write embedded default tree; refuse if init.lua exists. 0 = ok. */
 int stonefly_config_write_default(void);
 
