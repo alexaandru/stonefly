@@ -86,9 +86,11 @@ static bool decor_chrome_on(const struct stonefly_toplevel *toplevel) {
 
 static void decor_set_chrome_enabled(struct stonefly_toplevel *toplevel,
 		bool on) {
+	/* Per-window blur optional; STONEFLY_WINDOW_BLUR gates the black-plate risk. */
 	if (toplevel->blur != NULL) {
-		wlr_scene_node_set_enabled(&toplevel->blur->node, on);
-		if (!on) {
+		bool blur_on = on && STONEFLY_WINDOW_BLUR;
+		wlr_scene_node_set_enabled(&toplevel->blur->node, blur_on);
+		if (!blur_on) {
 			wlr_scene_blur_set_transparency_mask_source(toplevel->blur, NULL);
 		}
 	}
@@ -100,37 +102,22 @@ static void decor_set_chrome_enabled(struct stonefly_toplevel *toplevel,
 	}
 }
 
+/*
+ * Opacity + corner radii on every buffer under the window (main surface and
+ * CSD subsurfaces). The rounded look is mostly the border ring; client radii
+ * keep titlebars from looking pointy inside the hole.
+ */
 static void iter_apply_buffers(struct wlr_scene_buffer *buffer,
 		int sx, int sy, void *user_data) {
 	(void)sx;
 	(void)sy;
 	struct stonefly_toplevel *toplevel = user_data;
-
-	struct wlr_scene_surface *scene_surface =
-		wlr_scene_surface_try_from_buffer(buffer);
-	if (scene_surface == NULL) {
-		return;
-	}
-
-	struct wlr_xdg_surface *xdg_surface =
-		wlr_xdg_surface_try_from_wlr_surface(scene_surface->surface);
-	if (xdg_surface == NULL ||
-			xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
-		return;
-	}
-
 	bool chrome = decor_chrome_on(toplevel);
+
 	wlr_scene_buffer_set_opacity(buffer,
 		chrome ? STONEFLY_CLIENT_OPACITY : 1.0f);
-
-	if (wlr_subsurface_try_from_wlr_surface(xdg_surface->surface) == NULL) {
-		wlr_scene_buffer_set_corner_radii(buffer,
-			corner_radii_all(chrome ? STONEFLY_CORNER_RADIUS : 0));
-		if (chrome && toplevel->blur != NULL) {
-			wlr_scene_blur_set_transparency_mask_source(
-				toplevel->blur, buffer);
-		}
-	}
+	wlr_scene_buffer_set_corner_radii(buffer,
+		corner_radii_all(chrome ? STONEFLY_CORNER_RADIUS : 0));
 }
 
 void stonefly_decor_apply_buffers(struct stonefly_toplevel *toplevel) {
@@ -142,13 +129,13 @@ void stonefly_decor_apply_buffers(struct stonefly_toplevel *toplevel) {
 		iter_apply_buffers, toplevel);
 }
 
-/* Border rects stay opaque in the shader unless alpha is scaled to match
- * client opacity — otherwise the ring looks solid while the window is 0.90. */
-static void border_rgba(const float src[4], float out[4]) {
-	out[0] = src[0];
-	out[1] = src[1];
-	out[2] = src[2];
-	out[3] = src[3] * STONEFLY_CLIENT_OPACITY;
+/* SceneFX rect colors are premultiplied (wlroots/scenefx contract). */
+static void border_rgba_premul(const float src[4], float out[4]) {
+	float a = src[3] * STONEFLY_CLIENT_OPACITY;
+	out[0] = src[0] * a;
+	out[1] = src[1] * a;
+	out[2] = src[2] * a;
+	out[3] = a;
 }
 
 static void apply_border_color(struct stonefly_toplevel *toplevel,
@@ -157,7 +144,7 @@ static void apply_border_color(struct stonefly_toplevel *toplevel,
 		return;
 	}
 	float rgba[4];
-	border_rgba(src, rgba);
+	border_rgba_premul(src, rgba);
 	wlr_scene_rect_set_color(toplevel->border, rgba);
 }
 
@@ -169,20 +156,27 @@ void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel) {
 	toplevel->blur = wlr_scene_blur_create(toplevel->scene_tree, 0, 0);
 	wlr_scene_blur_set_should_only_blur_bottom_layer(toplevel->blur, true);
 	wlr_scene_blur_set_corner_radii(toplevel->blur, corner_radii_all(radius));
+	wlr_scene_node_set_enabled(&toplevel->blur->node, STONEFLY_WINDOW_BLUR);
 
 	float inactive[4];
-	border_rgba(STONEFLY_BORDER_INACTIVE, inactive);
+	border_rgba_premul(STONEFLY_BORDER_INACTIVE, inactive);
 	toplevel->border = wlr_scene_rect_create(toplevel->scene_tree, 0, 0,
 		inactive);
-	wlr_scene_rect_set_corner_radii(toplevel->border,
-		corner_radii_all(radius + border));
+	/* Mango: outer and hole share the same corner radii. */
+	wlr_scene_rect_set_corner_radii(toplevel->border, corner_radii_all(radius));
 	wlr_scene_node_set_position(&toplevel->border->node, -border, -border);
+	wlr_scene_rect_set_clipped_region(toplevel->border,
+		(struct clipped_region){
+			.area = { .x = border, .y = border, .width = 0, .height = 0 },
+			.corners = corner_radii_all(radius),
+		});
 
+	float shadow_a = STONEFLY_SHADOW_COLOR[3] * STONEFLY_CLIENT_OPACITY;
 	float shadow[4] = {
-		STONEFLY_SHADOW_COLOR[0],
-		STONEFLY_SHADOW_COLOR[1],
-		STONEFLY_SHADOW_COLOR[2],
-		STONEFLY_SHADOW_COLOR[3] * STONEFLY_CLIENT_OPACITY,
+		STONEFLY_SHADOW_COLOR[0] * shadow_a,
+		STONEFLY_SHADOW_COLOR[1] * shadow_a,
+		STONEFLY_SHADOW_COLOR[2] * shadow_a,
+		shadow_a,
 	};
 	toplevel->shadow = wlr_scene_shadow_create(toplevel->scene_tree,
 		0, 0, radius, sigma, shadow);
@@ -226,13 +220,12 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 	const int border = chrome ? STONEFLY_BORDER_THICKNESS : 0;
 	const int radius = chrome ? STONEFLY_CORNER_RADIUS : 0;
 	const float sigma = chrome ? STONEFLY_SHADOW_BLUR_SIGMA : 0.0f;
+	struct fx_corner_radii corners = corner_radii_all(radius);
 
 	/*
 	 * Do NOT shift xdg_scene_tree by -geo. wlr_scene_xdg_surface_create
 	 * already places its subsurface child at (-geo.x,-geo.y) on every
-	 * commit so geometry TL sits at the xdg tree origin. Shifting the
-	 * outer tree again double-applied the inset (border appeared ~geo
-	 * px down-right of the client — often 15–20px on GTK CSDs).
+	 * commit so geometry TL sits at the xdg tree origin.
 	 */
 	wlr_scene_node_set_position(&toplevel->xdg_scene_tree->node, 0, 0);
 	decor_clip_xdg_surface(toplevel, geo);
@@ -240,28 +233,35 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 	if (toplevel->blur != NULL) {
 		wlr_scene_blur_set_size(toplevel->blur, geo->width, geo->height);
 		wlr_scene_node_set_position(&toplevel->blur->node, 0, 0);
-		wlr_scene_blur_set_corner_radii(toplevel->blur,
-			corner_radii_all(radius));
+		wlr_scene_blur_set_corner_radii(toplevel->blur, corners);
 	}
 
 	int border_w = geo->width + 2 * border;
 	int border_h = geo->height + 2 * border;
 	if (toplevel->border != NULL) {
+		struct clipped_region hole = {
+			.area = {
+				.x = border,
+				.y = border,
+				.width = geo->width,
+				.height = geo->height,
+			},
+			.corners = corners,
+		};
 		wlr_scene_rect_set_size(toplevel->border, border_w, border_h);
 		wlr_scene_node_set_position(&toplevel->border->node,
 			-border, -border);
-		wlr_scene_rect_set_corner_radii(toplevel->border,
-			corner_radii_all(radius + border));
-		wlr_scene_rect_set_clipped_region(toplevel->border,
-			(struct clipped_region){
-				.area = {
-					.x = border,
-					.y = border,
-					.width = geo->width,
-					.height = geo->height,
-				},
-				.corners = corner_radii_all(radius),
-			});
+		wlr_scene_rect_set_corner_radii(toplevel->border, corners);
+		wlr_scene_rect_set_clipped_region(toplevel->border, hole);
+		SF_LOGD("decor border hole",
+			sf_i64("id", (int64_t)toplevel->id),
+			sf_i64("rect_w", border_w),
+			sf_i64("rect_h", border_h),
+			sf_i64("hole_x", hole.area.x),
+			sf_i64("hole_y", hole.area.y),
+			sf_i64("hole_w", hole.area.width),
+			sf_i64("hole_h", hole.area.height),
+			sf_i64("radius", radius));
 	}
 
 	if (toplevel->shadow != NULL) {
@@ -278,12 +278,11 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 					.width = border_w,
 					.height = border_h,
 				},
-				.corners = corner_radii_all(radius + border),
+				.corners = corners,
 			});
 	}
 
 	struct wlr_surface *surf = toplevel->xdg_toplevel->base->surface;
-	/* DEBUG: main sets SF_LOG_DEBUG — grep wm.log for "decor geom" / "decor clip". */
 	SF_LOGD("decor geom",
 		sf_i64("id", (int64_t)toplevel->id),
 		sf_str("app_id",
@@ -301,10 +300,7 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 		sf_i64("surf_w", surf != NULL ? surf->current.width : 0),
 		sf_i64("surf_h", surf != NULL ? surf->current.height : 0),
 		sf_i64("border", border),
-		sf_i64("border_x", toplevel->border != NULL
-			? toplevel->border->node.x : 0),
-		sf_i64("border_y", toplevel->border != NULL
-			? toplevel->border->node.y : 0));
+		sf_bool("window_blur", STONEFLY_WINDOW_BLUR));
 
 	stonefly_decor_apply_buffers(toplevel);
 }
@@ -381,8 +377,7 @@ void stonefly_decor_finish_toplevel(struct stonefly_toplevel *toplevel) {
 	}
 	toplevel->bell_flash = false;
 
-	/* Wrapper owns blur/shadow/border (+ xdg child if still linked).
-	 * Without this, closing a client leaves an opaque border rect behind. */
+	/* Wrapper owns blur/shadow/border (+ xdg child if still linked). */
 	if (toplevel->scene_tree != NULL) {
 		wlr_scene_node_destroy(&toplevel->scene_tree->node);
 		toplevel->scene_tree = NULL;

@@ -33,6 +33,8 @@ struct stonefly_toplevel {
 	struct wlr_scene_tree *xdg_scene_tree;
 	struct wlr_scene_blur *blur;
 	struct wlr_scene_shadow *shadow;
+	/* Full rect + clipped_region hole (mango). Blur stays off so the underlay
+	 * is not an opaque black plate; hole lets client opacity show the desktop. */
 	struct wlr_scene_rect *border;
 	struct wl_listener map;
 	struct wl_listener unmap;

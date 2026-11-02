@@ -27,19 +27,30 @@
 #define STONEFLY_SLIDE_DIR_CLOSEST 1
 
 /* SceneFX eye candy (FORK.md P3). RGBA floats 0..1. */
-#define STONEFLY_CLIENT_OPACITY 0.90f
+#define STONEFLY_CLIENT_OPACITY 0.96f
 #define STONEFLY_CORNER_RADIUS 12
 #define STONEFLY_BORDER_THICKNESS 3
 #define STONEFLY_SHADOW_BLUR_SIGMA 20.0f
-/* Neon blue (active) / silver (inactive) / amber (urgent + bell flash). */
+/*
+ * Neon blue (active) / dim charcoal (inactive) / amber (urgent + bell).
+ * Inactive matches niri-ish #505050 — old silver (0.75) read as “still on”.
+ * Colors are straight RGBA; decor premultiplies for SceneFX.
+ */
 #define STONEFLY_BORDER_ACTIVE \
 	((float[4]){ 0.10f, 0.75f, 1.00f, 1.00f })
 #define STONEFLY_BORDER_INACTIVE \
-	((float[4]){ 0.75f, 0.75f, 0.78f, 1.00f })
+	((float[4]){ 0.22f, 0.22f, 0.24f, 1.00f })
 #define STONEFLY_BORDER_URGENT \
 	((float[4]){ 1.00f, 0.45f, 0.10f, 1.00f })
 #define STONEFLY_SHADOW_COLOR \
 	((float[4]){ 0.0f, 0.0f, 0.0f, 0.55f })
+/*
+ * Per-window SceneFX blur plate under the client. Off for day-zero: a failed
+ * / empty optimized-blur sample paints an opaque black rect and kills window
+ * opacity (niri FAQ: border-as-background shows through translucent clients).
+ * Mango keeps blur; re-enable once wallpaper blur looks right.
+ */
+#define STONEFLY_WINDOW_BLUR 0
 /* Visual system-bell flash duration (FORK.md #1389). */
 #define STONEFLY_BELL_FLASH_MS 200
 
