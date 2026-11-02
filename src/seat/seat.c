@@ -25,6 +25,7 @@
 
 #include "config/hardcoded.h"
 #include "log/log.h"
+#include "output/output.h"
 #include "seat/seat.h"
 #include "wm/drag_snap.h"
 #include "wm/snap_preview.h"
@@ -688,7 +689,8 @@ void stonefly_seat_setup(struct stonefly_server *server) {
 		setenv("XCURSOR_SIZE", sizebuf, 1);
 	}
 	server->cursor_mgr = wlr_xcursor_manager_create(theme, size);
-	wlr_xcursor_manager_load(server->cursor_mgr, STONEFLY_OUTPUT_SCALE);
+	wlr_xcursor_manager_load(server->cursor_mgr,
+		stonefly_output_scale_factor(server));
 	SF_LOGI("cursor theme",
 		sf_str("theme", theme != NULL ? theme : ""),
 		sf_i64("size", size));

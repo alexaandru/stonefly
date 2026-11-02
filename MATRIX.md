@@ -113,7 +113,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Feature | Peeble shipped | Peeble roadmap / Ideas | Stonefly | Notes |
 |---|---|---|---|---|
 | Status bar | ✅ rich widgets | Taskbar v2, overflow modes, FuncMap 📋 | 🌙 | Noctalia |
-| Taskbar / app icons | ✅ | Middle-click close, group-by-app, urgency badge 📋 | 🌙 | Scratch `term` shows placeholder icon — see Named scratchpads note (fake app_id). **Crash fixed (source):** left-click → `foreign activate` → Noctalia tooltip `xdg_popup` with NULL parent → SEGV in `wlr_xdg_surface_try_from_wlr_surface`; `server_new_xdg_popup` now null-checks parent before try_from / destroys orphan popups. |
+| Taskbar / app icons | ✅ | Middle-click close, group-by-app, urgency badge 📋 | 🌙 | Scratch `term` placeholder icon — see Named scratchpads. **Crash:** taskbar tooltip `xdg_popup` with no parent scene tree. Null-check alone insufficient — `wlr_xdg_popup_destroy` inside `new_popup` still SEGVs in wlroots. Now parents orphans to `layers.overlay` (idle-destroy only on OOM). |
 | Unread title-regex badges | ✅ Slack / Gmail | Live notify unread semantics 📋 | 🌙 | |
 | Launcher | ✅ fuzzy + plugins | Grid / categories / emoji Ideas 📋 | 🌙 | Super tap → `noctalia msg panel-toggle launcher` |
 | OSD cards (vol/bright/…) | ✅ | Richer network OSD 📋 | 🌙 | XF86* / media / mic / brightness binds → `noctalia msg` |
@@ -156,7 +156,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 |---|---|---|---|---|
 | xdg-shell toplevels / popups | ✅ (via River) | — | ✅ | |
 | wlr-layer-shell | ✅ client | `set_exclusive_edge` when advertised 📋 | ✅ v5 server | Exclusive zones → usable |
-| wp_fractional_scale + viewporter | ✅ all chrome (`surfscale`) | — | ✅ | Output scale 1.5 hardcoded |
+| wp_fractional_scale + viewporter | ✅ all chrome (`surfscale`) | — | ✅ | DRM: scale 1.5 (`STONEFLY_OUTPUT_SCALE`). Nested/headless (`session == NULL`): scale 1.0 so Umbriel embed is not double-scaled. |
 | wp_cursor_shape_v1 | ✅ | `all_resize` / `dnd_ask` 📋 | ✅ v2 | Named shapes for clients |
 | XCURSOR_THEME / SIZE | ✅ | — | ✅ | |
 | wlr-output-management | ✅ `output()` | — | ❌ | Hardcoded scale; no wdisplays path |

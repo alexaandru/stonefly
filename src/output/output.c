@@ -82,10 +82,11 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	wlr_output_init_render(wlr_output, server->allocator, server->renderer);
 
 	/* The output may be disabled, switch it on. */
+	float scale = stonefly_output_scale_factor(server);
 	struct wlr_output_state state;
 	wlr_output_state_init(&state);
 	wlr_output_state_set_enabled(&state, true);
-	wlr_output_state_set_scale(&state, STONEFLY_OUTPUT_SCALE);
+	wlr_output_state_set_scale(&state, scale);
 
 	/* Some backends don't have modes. DRM+KMS does, and we need to set a mode
 	 * before we can use the output. The mode is a tuple of (width, height,
@@ -101,7 +102,7 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	wlr_output_commit_state(wlr_output, &state);
 	wlr_output_state_finish(&state);
 
-	wlr_xcursor_manager_load(server->cursor_mgr, STONEFLY_OUTPUT_SCALE);
+	wlr_xcursor_manager_load(server->cursor_mgr, scale);
 
 	/* Allocates and configures our state for this output */
 	struct stonefly_output *output = calloc(1, sizeof(*output));
@@ -144,6 +145,14 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	stonefly_decor_update_blur_size(server);
 }
 
+
+float stonefly_output_scale_factor(struct stonefly_server *server) {
+	/* Nested Wayland / headless: no DRM session — parent already scaled. */
+	if (server->session == NULL) {
+		return 1.0f;
+	}
+	return STONEFLY_OUTPUT_SCALE;
+}
 
 void stonefly_output_setup(struct stonefly_server *server) {
 	wl_list_init(&server->outputs);

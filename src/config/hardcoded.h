@@ -6,7 +6,8 @@
 #include <xkbcommon/xkbcommon.h>
 #include <wlr/types/wlr_keyboard.h>
 
-/* Output / HiDPI */
+/* Output / HiDPI — DRM seats only; nested/headless use 1.0 via
+ * stonefly_output_scale_factor() (parent compositor already scaled). */
 #define STONEFLY_OUTPUT_SCALE 1.5f
 
 /* Compositor xcursor size when XCURSOR_SIZE is unset (peeble default). */

@@ -75,9 +75,10 @@ void stonefly_box_inset_gap(struct wlr_box *box) {
 	}
 }
 
-static void stonefly_cover_fractional_gap(struct wlr_box *box) {
+static void stonefly_cover_fractional_gap(struct stonefly_server *server,
+		struct wlr_box *box) {
 	/* Same class of gap as peeble at non-integer scale: grow 1 logical px. */
-	float scale = STONEFLY_OUTPUT_SCALE;
+	float scale = stonefly_output_scale_factor(server);
 	if (scale != (float)(int)scale) {
 		box->width += 1;
 		box->height += 1;
@@ -182,7 +183,7 @@ void stonefly_toplevel_set_max_edges(struct stonefly_toplevel *toplevel, bool wa
 	stonefly_toplevel_save_geom(toplevel);
 	toplevel->snapped = STONEFLY_SNAP_NONE;
 	toplevel->maximized_gaps = false;
-	stonefly_cover_fractional_gap(&out);
+	stonefly_cover_fractional_gap(toplevel->server, &out);
 	wlr_xdg_toplevel_set_maximized(toplevel->xdg_toplevel, true);
 	stonefly_toplevel_apply_box(toplevel, &out);
 	toplevel->maximized_edges = true;
@@ -485,7 +486,7 @@ void stonefly_wm_relayout_output(struct stonefly_output *output) {
 			continue;
 		}
 		if (toplevel->maximized_edges) {
-			stonefly_cover_fractional_gap(&out);
+			stonefly_cover_fractional_gap(toplevel->server, &out);
 			stonefly_toplevel_apply_box(toplevel, &out);
 		} else if (toplevel->maximized_gaps) {
 			stonefly_box_inset_gap(&out);

@@ -363,9 +363,13 @@ static void xdg_popup_destroy(struct wl_listener *listener, void *data) {
 	free(popup);
 }
 
+static void xdg_popup_destroy_idle(void *data) {
+	wlr_xdg_popup_destroy(data);
+}
+
 static void server_new_xdg_popup(struct wl_listener *listener, void *data) {
-	(void)listener;
-	/* This event is raised when a client creates a new popup. */
+	struct stonefly_server *server =
+		wl_container_of(listener, server, new_xdg_popup);
 	struct wlr_xdg_popup *xdg_popup = data;
 
 	/* Parent scene tree: xdg surfaces stash theirs on xdg_surface->data;
@@ -381,18 +385,19 @@ static void server_new_xdg_popup(struct wl_listener *listener, void *data) {
 		}
 	}
 	if (parent_tree == NULL) {
-		/* Noctalia taskbar tooltips (and similar) can arrive with a NULL
-		 * parent or a surface with no scene data. Calling
-		 * wlr_xdg_surface_try_from_wlr_surface(NULL) SEGVs (ASan: taskbar
-		 * click → foreign activate → tooltip popup). Destroy instead. */
-		SF_LOGW("xdg popup without parent scene tree; destroying");
-		wlr_xdg_popup_destroy(xdg_popup);
-		return;
+		/* Noctalia taskbar tooltips often lack a resolvable parent tree.
+		 * wlr_xdg_popup_destroy() inside this signal SEGVs in wlroots
+		 * (ASan after "destroying" warn). Parent to overlay instead. */
+		SF_LOGW("xdg popup without parent scene tree; using overlay");
+		parent_tree = server->layers.overlay;
 	}
 
 	struct stonefly_popup *popup = calloc(1, sizeof(*popup));
 	if (popup == NULL) {
-		wlr_xdg_popup_destroy(xdg_popup);
+		struct wl_display *display = wl_client_get_display(
+			wl_resource_get_client(xdg_popup->base->resource));
+		wl_event_loop_add_idle(wl_display_get_event_loop(display),
+			xdg_popup_destroy_idle, xdg_popup);
 		return;
 	}
 	popup->xdg_popup = xdg_popup;
