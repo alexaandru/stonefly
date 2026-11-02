@@ -116,7 +116,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Status bar | ✅ rich widgets | Taskbar v2, overflow modes, FuncMap 📋 | 🌙 | Noctalia |
 | Taskbar / app icons | ✅ | Middle-click close, group-by-app, urgency badge 📋 | 🌙 | Scratch `term` placeholder icon — see Named scratchpads. **Crash:** taskbar tooltip `xdg_popup` with no parent scene tree. Null-check alone insufficient — `wlr_xdg_popup_destroy` inside `new_popup` still SEGVs in wlroots. Now parents orphans to `layers.overlay` (idle-destroy only on OOM). |
 | Unread title-regex badges | ✅ Slack / Gmail | Live notify unread semantics 📋 | 🌙 | |
-| Launcher | ✅ fuzzy + plugins | Grid / categories / emoji Ideas 📋 | 🌙 | Super tap → `noctalia msg panel-toggle launcher`. OTP provider plugin shipped under `dist/noctalia/launcher/provider/otp/` (install into Noctalia config). |
+| Launcher | ✅ fuzzy + plugins | Grid / categories / emoji Ideas 📋 | 🌙 | Super tap → `noctalia msg panel-toggle launcher`. OTP provider under `dist/noctalia/launcher/provider/otp/` — path source must be additive; a lone `[[plugins.source]]` replaces default `official`+`community` git sources (restore via `plugins source add` or keep those blocks in config). |
 | OSD cards (vol/bright/…) | ✅ | Richer network OSD 📋 | 🌙 | XF86* / media / mic / brightness binds → `noctalia msg` |
 | Notification toasts | ✅ FDO server | Notification center UI Ideas 📋 | 🌙 | Noctalia notifier |
 | Wallpaper engine | ✅ slideshow + transitions + cache | Video/shader Ideas 📋 | 🌙 / ❌ | Layer-shell wallpaper clients OK; no in-process engine |

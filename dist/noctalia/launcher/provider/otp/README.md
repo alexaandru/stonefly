@@ -52,13 +52,12 @@ Layout Noctalia expects (a **parent** directory of plugin folders):
     README.md
 ```
 
-```toml
-[[plugins.source]]
-name     = "stonefly-otp"    # flat name only — see Pitfalls
-kind     = "path"
-location = "/home/alex/Personal/Config/noctalia"   # parent of otp/
-enabled  = true
+**Important:** a declared `[[plugins.source]]` list **replaces** Noctalia’s
+default sources. Keep the built-in `official` and `community` git sources in
+that list (or you will only see your path plugins). Safer: add the path source
+via IPC / Settings (additive) instead of rewriting the whole array by hand.
 
+```toml
 [plugins]
 enabled = [
   "noctalia/screen_recorder",
@@ -66,6 +65,27 @@ enabled = [
   "noctalia/wallhaven",
   "stonefly/otp",
 ]
+auto_update = "all"
+
+# Defaults — keep these if you declare any [[plugins.source]]
+[[plugins.source]]
+name     = "official"
+kind     = "git"
+location = "https://github.com/noctalia-dev/official-plugins"
+enabled  = true
+
+[[plugins.source]]
+name     = "community"
+kind     = "git"
+location = "https://github.com/noctalia-dev/community-plugins"
+enabled  = true
+
+# Local OTP path source (additive alongside the builtins)
+[[plugins.source]]
+name     = "stonefly-otp"    # flat name only — see Pitfalls
+kind     = "path"
+location = "/home/alex/Personal/Config/noctalia"   # parent of otp/
+enabled  = true
 ```
 
 Copy or symlink this directory into that tree:
@@ -79,13 +99,31 @@ ln -sfn "$(pwd)/dist/noctalia/launcher/provider/otp" \
 Or point `location` at `…/stonefly/dist/noctalia/launcher/provider` and skip the
 extra symlink (that directory already contains `otp/`).
 
+Prefer additive registration (does not wipe builtins):
+
 ```sh
+noctalia msg plugins source add stonefly-otp path /home/alex/Personal/Config/noctalia
 noctalia msg plugins enable stonefly/otp
-noctalia msg plugins list   # expect: stonefly/otp [stonefly-otp] 1.0.0 enabled …
+noctalia msg plugins source list
+noctalia msg plugins list   # expect stonefly/otp plus noctalia/* from official
 ```
 
 **Settings → Plugins → Add source** can register the same parent path; then
 toggle **OTP** on.
+
+#### Restoring wiped builtins
+
+If `plugins source list` only shows your path source, put the defaults back:
+
+```sh
+noctalia msg plugins source add official git https://github.com/noctalia-dev/official-plugins
+noctalia msg plugins source add community git https://github.com/noctalia-dev/community-plugins
+noctalia msg plugins update official
+noctalia msg plugins update community
+```
+
+Or re-add the two `[[plugins.source]]` git blocks above in `config.toml` and
+`noctalia msg config-reload`.
 
 ### B. XDG data local plugins (alternative)
 
@@ -119,6 +157,7 @@ global = true
 
 | Mistake | Result |
 | --- | --- |
+| Only your path `[[plugins.source]]` in config | Wipes default `official` + `community`; `noctalia/*` plugins disappear |
 | `location` = the `otp/` folder itself | Empty catalog; `plugins list` shows nothing from this source |
 | Source `name = "stonefly/otp"` (slash) | Source dropped entirely (names must be flat: `a-z0-9._-`) |
 | Manifest `id = "otp"` | Rejected; must be `author/plugin` (`stonefly/otp`) |
