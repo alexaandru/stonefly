@@ -84,6 +84,19 @@ static bool decor_chrome_on(const struct stonefly_toplevel *toplevel) {
 	return !toplevel->maximized_edges && !toplevel->fullscreen;
 }
 
+/*
+ * Config corner_radius matches CSD content rounding (Ghostty/GTK). The neon
+ * rim sits outside that, so outer = inner + border (dwl/scenefx convention).
+ * Using outer=config and hole=config-border left a crescent: hole cut inside
+ * the client's opaque arc and showed wallpaper through CSD AA.
+ * border_overlap_px: pull the hole in so the rim covers the 1px AA hairline.
+ */
+static int outer_corner_radius(int inner, int border) {
+	return inner > 0 ? inner + border : 0;
+}
+
+enum { border_overlap_px = 1 };
+
 static void decor_set_chrome_enabled(struct stonefly_toplevel *toplevel,
 		bool on) {
 	/* Per-window blur optional; window_blur gates the black-plate risk. */
@@ -154,6 +167,7 @@ static void iter_apply_buffers(struct wlr_scene_buffer *buffer,
 	}
 
 	struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
+	/* Same radius as CSD / border hole — do not use outer. */
 	int radius = chrome ? cfg->corner_radius : 0;
 	wlr_scene_buffer_set_corner_radii(buffer,
 		corners_for_buffer(sx, sy, bw, bh, geo, radius));
@@ -189,26 +203,27 @@ static void apply_border_color(struct stonefly_toplevel *toplevel,
 
 void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel) {
 	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
-	const int radius = cfg->corner_radius;
+	const int inner = cfg->corner_radius;
 	const int border = cfg->border_thickness;
+	const int outer = outer_corner_radius(inner, border);
 	const float sigma = cfg->shadow_blur_sigma;
 
 	toplevel->blur = wlr_scene_blur_create(toplevel->scene_tree, 0, 0);
 	wlr_scene_blur_set_should_only_blur_bottom_layer(toplevel->blur, true);
-	wlr_scene_blur_set_corner_radii(toplevel->blur, corner_radii_all(radius));
+	wlr_scene_blur_set_corner_radii(toplevel->blur, corner_radii_all(inner));
 	wlr_scene_node_set_enabled(&toplevel->blur->node, cfg->window_blur);
 
 	float inactive[4];
 	border_rgba_premul(cfg->border_inactive, cfg->client_opacity, inactive);
 	toplevel->border = wlr_scene_rect_create(toplevel->scene_tree, 0, 0,
 		inactive);
-	/* Mango: outer and hole share the same corner radii. */
-	wlr_scene_rect_set_corner_radii(toplevel->border, corner_radii_all(radius));
+	/* Hole/client = corner_radius; outer rim = inner + border. */
+	wlr_scene_rect_set_corner_radii(toplevel->border, corner_radii_all(outer));
 	wlr_scene_node_set_position(&toplevel->border->node, -border, -border);
 	wlr_scene_rect_set_clipped_region(toplevel->border,
 		(struct clipped_region){
 			.area = { .x = border, .y = border, .width = 0, .height = 0 },
-			.corners = corner_radii_all(radius),
+			.corners = corner_radii_all(inner),
 		});
 
 	float shadow_a = cfg->shadow_color[3] * cfg->client_opacity;
@@ -219,7 +234,7 @@ void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel) {
 		shadow_a,
 	};
 	toplevel->shadow = wlr_scene_shadow_create(toplevel->scene_tree,
-		0, 0, radius, sigma, shadow);
+		0, 0, outer, sigma, shadow);
 	wlr_scene_node_set_position(&toplevel->shadow->node,
 		-border - (int)sigma, -border - (int)sigma);
 
@@ -259,9 +274,11 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 	const bool chrome = decor_chrome_on(toplevel);
 	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
 	const int border = chrome ? cfg->border_thickness : 0;
-	const int radius = chrome ? cfg->corner_radius : 0;
+	const int inner = chrome ? cfg->corner_radius : 0;
+	const int outer = chrome ? outer_corner_radius(inner, border) : 0;
 	const float sigma = chrome ? cfg->shadow_blur_sigma : 0.0f;
-	struct fx_corner_radii corners = corner_radii_all(radius);
+	struct fx_corner_radii outer_corners = corner_radii_all(outer);
+	struct fx_corner_radii inner_corners = corner_radii_all(inner);
 
 	/*
 	 * Do NOT shift xdg_scene_tree by -geo. wlr_scene_xdg_surface_create
@@ -274,25 +291,32 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 	if (toplevel->blur != NULL) {
 		wlr_scene_blur_set_size(toplevel->blur, geo->width, geo->height);
 		wlr_scene_node_set_position(&toplevel->blur->node, 0, 0);
-		wlr_scene_blur_set_corner_radii(toplevel->blur, corners);
+		wlr_scene_blur_set_corner_radii(toplevel->blur, inner_corners);
 	}
 
 	int border_w = geo->width + 2 * border;
 	int border_h = geo->height + 2 * border;
 	if (toplevel->border != NULL) {
+		/* Inset hole by overlap so the rim covers client AA / scale hairlines. */
+		int ov = (chrome && border > 0) ? border_overlap_px : 0;
+		if (ov * 2 >= geo->width || ov * 2 >= geo->height) {
+			ov = 0;
+		}
 		struct clipped_region hole = {
 			.area = {
-				.x = border,
-				.y = border,
-				.width = geo->width,
-				.height = geo->height,
+				.x = border + ov,
+				.y = border + ov,
+				.width = geo->width - 2 * ov,
+				.height = geo->height - 2 * ov,
 			},
-			.corners = corners,
+			.corners = ov > 0
+				? corner_radii_all(inner > ov ? inner - ov : 0)
+				: inner_corners,
 		};
 		wlr_scene_rect_set_size(toplevel->border, border_w, border_h);
 		wlr_scene_node_set_position(&toplevel->border->node,
 			-border, -border);
-		wlr_scene_rect_set_corner_radii(toplevel->border, corners);
+		wlr_scene_rect_set_corner_radii(toplevel->border, outer_corners);
 		wlr_scene_rect_set_clipped_region(toplevel->border, hole);
 		SF_LOGD("decor border hole",
 			sf_i64("id", (int64_t)toplevel->id),
@@ -302,7 +326,9 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 			sf_i64("hole_y", hole.area.y),
 			sf_i64("hole_w", hole.area.width),
 			sf_i64("hole_h", hole.area.height),
-			sf_i64("radius", radius));
+			sf_i64("outer_r", outer),
+			sf_i64("inner_r", inner),
+			sf_i64("overlap", ov));
 	}
 
 	if (toplevel->shadow != NULL) {
@@ -311,6 +337,7 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 		wlr_scene_shadow_set_size(toplevel->shadow, sw, sh);
 		wlr_scene_node_set_position(&toplevel->shadow->node,
 			-border - (int)sigma, -border - (int)sigma);
+		/* Clip follows the outer border silhouette. */
 		wlr_scene_shadow_set_clipped_region(toplevel->shadow,
 			(struct clipped_region){
 				.area = {
@@ -319,7 +346,7 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 					.width = border_w,
 					.height = border_h,
 				},
-				.corners = corners,
+				.corners = outer_corners,
 			});
 	}
 

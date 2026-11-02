@@ -95,9 +95,9 @@ hooks; on stonefly they are owned in-process.
 | Fade / scale appear | ❌ | river#1373 + Ideas 📋 | ❌ | Opacity static 0.96, not animated fade |
 | WM-settable per-window opacity | ❌ | river#1373 P1 📋 | 🚧 | Global `stonefly.opt.client_opacity` 0.96; no per-window API |
 | Backdrop / window blur | ❌ | SceneFX P3 📋 | 🚧 | Optimized blur node exists; per-window blur off (`stonefly.opt.window_blur` default false) |
-| Soft rounded corners (opaque) | ❌ | SceneFX P3 📋 | ✅ | 12px |
+| Soft rounded corners (opaque) | ❌ | SceneFX P3 📋 | ✅ | `corner_radius` 12 = CSD/hole/buffer; outer rim = `corner_radius + border_thickness` |
 | Drop shadows | ❌ | SceneFX P3 📋 | ✅ | |
-| Compositor border (focus/idle/urgent) | ✅ via River `SetBorders` | Urgency needs #1281 | ✅ SceneFX | Neon / charcoal inactive / amber. **Fixed:** `STONEFLY_BORDER_*` were compound literals; pointers into them across `else if` blocks → ASan `stack-use-after-scope` in `border_rgba_premul` on first map/focus (boot loop). Now `static const float[4]`. |
+| Compositor border (focus/idle/urgent) | ✅ via River `SetBorders` | Urgency needs #1281 | ✅ SceneFX | Neon / charcoal inactive / amber. **Fixed:** `STONEFLY_BORDER_*` were compound literals; pointers into them across `else if` blocks → ASan `stack-use-after-scope` in `border_rgba_premul` on first map/focus (boot loop). Now `static const float[4]`. **Fixed:** crescent/hairline vs CSD — hole+buffer use `corner_radius` (match client round); outer = radius+border (dwl); hole inset 1px under the rim for AA/scale seams. |
 | Layer z-order vs windows | 🚧 PlaceTop fights | river#1375 P0 📋 | ✅ | Scene trees background→overlay; xdg under `layers.toplevel` |
 | Window previews / destination size | ❌ | river#1384 📋 | ✅ | Noctalia switcher via `ext-foreign-toplevel-list` + image-capture-source + image-copy-capture (`ext_capture.c`); frozen snapshot per open |
 | Urgency / xdg-activation | ❌ | river#1281 → border/badge 📋 | ✅ | Amber until focus |
