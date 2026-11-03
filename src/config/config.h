@@ -133,7 +133,8 @@ struct stonefly_config {
 
 	/* SSD titlebars: never|auto|prefer_ssd|always (enum stonefly_ssd_mode). */
 	int ssd_mode;
-	int ssd_height; /* logical px; default 28 */
+	int ssd_height;	   /* logical px; default 28 */
+	int ssd_font_size; /* fcft pt; default 17 */
 
 	char *cmd_foot;
 	char *cmd_nautilus;

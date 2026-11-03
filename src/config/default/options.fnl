@@ -50,6 +50,7 @@
   ;; auto: SSD when client prefers server-side or has no preference.
   :ssd_mode "auto"
   :ssd_height 28
+  :ssd_font_size 17
   ;; Capture privacy (#1481): comma-separated app_id substrings, or a table.
   ;; Matching windows get capture_blocked on map / app_id change.
   ;; :capture_block_app_ids "keepass,bitwarden"

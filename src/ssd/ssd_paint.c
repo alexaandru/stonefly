@@ -12,22 +12,61 @@
 enum {
 	btn_icon_num = 2,
 	btn_icon_den = 5, /* ~0.4 of box */
+	ssd_font_pt_default = 17,
+	ssd_font_pt_min = 8,
+	ssd_font_pt_max = 72,
 };
 
 static struct fcft_font *title_font;
+static int title_font_pt;
+static bool fcft_ready;
 
-bool stonefly_ssd_paint_init(void) {
-	if (title_font != NULL) {
+bool stonefly_ssd_paint_ensure_font(int size_pt) {
+	if (size_pt < ssd_font_pt_min) {
+		size_pt = ssd_font_pt_min;
+	}
+	if (size_pt > ssd_font_pt_max) {
+		size_pt = ssd_font_pt_max;
+	}
+	if (title_font != NULL && title_font_pt == size_pt) {
 		return true;
 	}
-	fcft_init(FCFT_LOG_COLORIZE_NEVER, false, FCFT_LOG_CLASS_ERROR);
+	if (!fcft_ready) {
+		fcft_init(FCFT_LOG_COLORIZE_NEVER, false, FCFT_LOG_CLASS_ERROR);
+		fcft_ready = true;
+	}
+	if (title_font != NULL) {
+		fcft_destroy(title_font);
+		title_font = NULL;
+	}
+	/* "size=NN" — avoid snprintf size_t/int tidy noise (pt is 8..72). */
+	char attrs[8];
+	attrs[0] = 's';
+	attrs[1] = 'i';
+	attrs[2] = 'z';
+	attrs[3] = 'e';
+	attrs[4] = '=';
+	if (size_pt >= 10) {
+		attrs[5] = (char)('0' + size_pt / 10);
+		attrs[6] = (char)('0' + size_pt % 10);
+		attrs[7] = '\0';
+	} else {
+		attrs[5] = (char)('0' + size_pt);
+		attrs[6] = '\0';
+	}
 	const char *names[] = {"sans"};
-	title_font = fcft_from_name(1, names, "size=11");
+	title_font = fcft_from_name(1, names, attrs);
 	if (title_font == NULL) {
-		SF_LOGW("ssd: fcft font load failed; title text disabled");
+		SF_LOGW("ssd: fcft font load failed; title text disabled", sf_i64("size", size_pt));
+		title_font_pt = 0;
 		return false;
 	}
+	title_font_pt = size_pt;
 	return true;
+}
+
+bool stonefly_ssd_paint_init(void) {
+	return stonefly_ssd_paint_ensure_font(ssd_font_pt_default);
 }
 
 void stonefly_ssd_paint_fini(void) {
@@ -35,7 +74,11 @@ void stonefly_ssd_paint_fini(void) {
 		fcft_destroy(title_font);
 		title_font = NULL;
 	}
-	fcft_fini();
+	title_font_pt = 0;
+	if (fcft_ready) {
+		fcft_fini();
+		fcft_ready = false;
+	}
 }
 
 static int mini(int a, int b) {
@@ -273,11 +316,12 @@ void stonefly_ssd_paint_titlebar(uint8_t *pix, int buf_w, int buf_h, const char 
 	memset(pix, 0, (size_t)buf_w * (size_t)buf_h * 4);
 	fill_rect(pix, buf_w, buf_h, 0, 0, buf_w, buf_h, fill);
 
+	/* Black glyphs on neon/charcoal fill (unfocused slightly softer). */
 	uint8_t fg[4];
 	if (focused) {
-		nrgba_to_bgra(0xf0, 0xf0, 0xf0, 0xff, fg);
+		nrgba_to_bgra(0x00, 0x00, 0x00, 0xff, fg);
 	} else {
-		nrgba_to_bgra(0xb0, 0xb0, 0xb0, 0xff, fg);
+		nrgba_to_bgra(0x33, 0x33, 0x33, 0xff, fg);
 	}
 
 	draw_title(pix, buf_w, buf_h, title, lay->title_left, lay->title_right, fg);

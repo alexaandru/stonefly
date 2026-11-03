@@ -694,6 +694,15 @@ static void opt_set_number(struct stonefly_config *cfg, const char *k, double v)
 	} else if (strcmp(k, "ssd_height") == 0) {
 		int h = (int)v;
 		cfg->ssd_height = h < 16 ? 16 : h;
+	} else if (strcmp(k, "ssd_font_size") == 0) {
+		int s = (int)v;
+		if (s < 8) {
+			s = 8;
+		}
+		if (s > 72) {
+			s = 72;
+		}
+		cfg->ssd_font_size = s;
 	}
 }
 

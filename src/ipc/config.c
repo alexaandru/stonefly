@@ -240,6 +240,9 @@ static void emit_options(struct json_buf *b, const struct stonefly_config *cfg) 
 	json_key(b, "ssd_height");
 	json_i64(b, cfg->ssd_height);
 	json_byte(b, ',');
+	json_key(b, "ssd_font_size");
+	json_i64(b, cfg->ssd_font_size);
+	json_byte(b, ',');
 	json_key(b, "capture_block_app_ids");
 	json_str(b, cfg->capture_block_app_ids ? cfg->capture_block_app_ids : "");
 

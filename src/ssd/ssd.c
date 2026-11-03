@@ -90,8 +90,8 @@ static struct {
 } ssd_ptr;
 
 void stonefly_ssd_setup(struct stonefly_server *server) {
-	(void)server;
-	stonefly_ssd_paint_init();
+	const struct stonefly_config *cfg = stonefly_cfg(server);
+	stonefly_ssd_paint_ensure_font(cfg->ssd_font_size);
 }
 
 void stonefly_ssd_finish(struct stonefly_server *server) {
@@ -265,6 +265,8 @@ void stonefly_ssd_update(struct stonefly_toplevel *toplevel) {
 	struct stonefly_ssd_layout lay;
 	stonefly_ssd_layout_title(width, height, &lay);
 
+	stonefly_ssd_paint_ensure_font(cfg->ssd_font_size);
+
 	bool focused = stonefly_focused_toplevel(toplevel->server) == toplevel;
 	uint8_t fill[4];
 	ssd_fill_color(toplevel, focused, fill);
@@ -298,6 +300,7 @@ void stonefly_ssd_set_focused(struct stonefly_toplevel *toplevel, bool focused) 
 	struct stonefly_ssd *ssd = toplevel->ssd;
 	struct stonefly_ssd_layout lay;
 	stonefly_ssd_layout_title(ssd->width, ssd->height, &lay);
+	stonefly_ssd_paint_ensure_font(stonefly_cfg(toplevel->server)->ssd_font_size);
 	uint8_t fill[4];
 	ssd_fill_color(toplevel, focused, fill);
 	const char *title = toplevel->xdg_toplevel->title;

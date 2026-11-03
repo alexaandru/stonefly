@@ -76,6 +76,20 @@ void stonefly_box_inset_gap(struct wlr_box *box, int gap) {
 	}
 }
 
+/*
+ * Content origin is the scene_tree; SSD is drawn above it. Gap-max / snap fill
+ * usable as content — reserve titlebar height so it stays below exclusive
+ * zones (Noctalia bar), matching cascade / ensure-on-screen.
+ */
+static void box_inset_ssd_top(struct stonefly_toplevel *toplevel, struct wlr_box *box) {
+	int inset = stonefly_ssd_top_inset(toplevel);
+	if (inset <= 0 || box->height <= inset) {
+		return;
+	}
+	box->y += inset;
+	box->height -= inset;
+}
+
 static void stonefly_cover_fractional_gap(struct stonefly_server *server, struct wlr_box *box) {
 	/* Same class of gap as peeble at non-integer scale: grow 1 logical px. */
 	float scale = stonefly_output_scale_factor(server);
@@ -342,6 +356,7 @@ void stonefly_toplevel_set_max_gaps(struct stonefly_toplevel *toplevel, bool wan
 	/* Gap-max: WM-only — do not inform maximized / tiled (peeble). */
 	toplevel_set_tiled(toplevel, 0);
 	stonefly_box_inset_gap(&out, stonefly_cfg(toplevel->server)->gap_size);
+	box_inset_ssd_top(toplevel, &out);
 	stonefly_toplevel_apply_box(toplevel, &out);
 	toplevel->maximized_gaps = true;
 	stonefly_foreign_toplevel_on_state_change(toplevel);
@@ -408,6 +423,10 @@ void stonefly_toplevel_snap_in(struct stonefly_toplevel *toplevel, enum stonefly
 	toplevel->maximized_gaps = false;
 	struct wlr_box box =
 		stonefly_wm_snap_box(edge, usable, stonefly_cfg(toplevel->server)->gap_size);
+	if (box.width <= 0 || box.height <= 0) {
+		return;
+	}
+	box_inset_ssd_top(toplevel, &box);
 	if (box.width <= 0 || box.height <= 0) {
 		return;
 	}
@@ -538,10 +557,12 @@ void stonefly_wm_relayout_output(struct stonefly_output *output) {
 			stonefly_toplevel_apply_box(toplevel, &out);
 		} else if (toplevel->maximized_gaps) {
 			stonefly_box_inset_gap(&out, stonefly_cfg(server)->gap_size);
+			box_inset_ssd_top(toplevel, &out);
 			stonefly_toplevel_apply_box(toplevel, &out);
 		} else if (toplevel->snapped != STONEFLY_SNAP_NONE) {
 			struct wlr_box box = stonefly_wm_snap_box(toplevel->snapped, &out,
 								  stonefly_cfg(server)->gap_size);
+			box_inset_ssd_top(toplevel, &box);
 			if (box.width > 0 && box.height > 0) {
 				stonefly_toplevel_apply_box(toplevel, &box);
 			}

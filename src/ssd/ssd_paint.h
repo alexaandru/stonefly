@@ -13,6 +13,8 @@ void stonefly_ssd_paint_titlebar(uint8_t *pix, int buf_w, int buf_h, const char 
 
 /* Shared fcft face for title text. NULL if load failed. */
 bool stonefly_ssd_paint_init(void);
+/* Reload face when ssd_font_size changes (no-op if size already loaded). */
+bool stonefly_ssd_paint_ensure_font(int size_pt);
 void stonefly_ssd_paint_fini(void);
 
 #endif /* STONEFLY_SSD_PAINT_H */

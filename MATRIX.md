@@ -46,7 +46,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Focus next / prev including minimized | ✅ Alt+Tab | — | 🚧 | Alt+Tab → `noctalia msg window-switcher`; Alt+Shift+Tab still `FOCUS_PREV_ALL` (unhides). Super+Tab visible-only cycle. |
 | Close focused | ✅ | — | ✅ Super+q | |
 | Maximize to edges | ✅ | — | ✅ Super+f | Client maximized hint |
-| Maximize with gaps (WM-only) | ✅ | — | ✅ Super+m | No client maximized → rounder CSD |
+| Maximize with gaps (WM-only) | ✅ | — | ✅ Super+m | No client maximized → rounder CSD. **Fixed:** gap-max/snap content box now insets by `stonefly_ssd_top_inset` so the SSD titlebar stays below exclusive zones (Noctalia bar) instead of sitting half under it. |
 | Unmaximize / restore | ✅ | — | ✅ | Toggle paths |
 | Fullscreen (client + WM) | ✅ | — | ✅ | Saved geom + full output box; client `request_fullscreen` + foreign set/unset (no WM keybind; Super+f is edge-max) |
 | Minimize / unminimize LIFO | ✅ Ctrl+Esc | — | ✅ | Unnamed scratchpad. Shared `apply_hidden`/`apply_shown` (LIFO vs scratch). `xdg request_minimize` → CSD/SSD buttons. |
@@ -65,7 +65,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Scratchpad claim focused | ✅ Super+t | — | ✅ | |
 | Scratchpad omit from Alt-Tab | ✅ | — | ✅ | Super+Tab too |
 | Window menu | ✅ | — | ❌ | |
-| SSD titlebars | ✅ River `use_ssd` | Polish / force-SSD rules 📋 | ✅ | `ssd_mode` (`auto`/`prefer_ssd`/`always`/`never`, default `auto`) + `ssd_height` (28). Honors client `request_mode` within policy; fcft+pixman titlebar (title, min/max/close); hide on fullscreen/edge-max; TopInset in ensure-on-screen. Pointer: drag, dblclick gap-max, buttons. Per-app overrides / winmenu still open. **Fixed:** Chrome early bind — defer `set_mode` until `xdg_surface` initialized. **Fixed:** square titlebar “horns” over rounded chrome — SSD buffer uses outer `corner_radii_top`; client buffers skip top radii while SSD is shown. |
+| SSD titlebars | ✅ River `use_ssd` | Polish / force-SSD rules 📋 | ✅ | `ssd_mode` (`auto`/`prefer_ssd`/`always`/`never`, default `auto`) + `ssd_height` (28) + `ssd_font_size` (17, fcft). Black title/button glyphs on border-colored fill. Honors client `request_mode` within policy; fcft+pixman titlebar (title, min/max/close); hide on fullscreen/edge-max; TopInset in ensure-on-screen / cascade / gap-max / snap. Pointer: drag, dblclick gap-max, buttons. Per-app overrides / winmenu still open. **Fixed:** Chrome early bind — defer `set_mode` until `xdg_surface` initialized. **Fixed:** square titlebar “horns” over rounded chrome — SSD buffer uses outer `corner_radii_top`; client buffers skip top radii while SSD is shown. **Fixed:** gap-max/snap ignored SSD height so the bar sat under Noctalia. |
 | Geometry persist across restart | ✅ `windows.json` by river id | Schema / blacklist / MRU polish 📋 | ❌ | |
 | Window rules (app-id/title) | 🚧 center + modal parent | auto-float, size, scratchpad, AOT, force SSD 📋 | ❌ | |
 | Keyboard nudge move/resize | ❌ | 📋 high-value | ❌ | Snap exists; step nudge does not |

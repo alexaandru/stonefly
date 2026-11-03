@@ -242,6 +242,7 @@ void stonefly_config_set_defaults(struct stonefly_config *cfg) {
 	cfg->swipe_workspace_natural = 1;
 	cfg->ssd_mode = 1; /* STONEFLY_SSD_AUTO */
 	cfg->ssd_height = 28;
+	cfg->ssd_font_size = 17;
 
 	cfg->cmd_foot = xstrdup("foot");
 	cfg->cmd_nautilus = xstrdup("nautilus");
