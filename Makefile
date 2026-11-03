@@ -32,7 +32,7 @@ $(TARBALL): $(PACK_META) $(SRC_FILES)
 		.clang-format .clang-tidy .cppcheck-suppress
 
 # checksum + build; APK lands under $$REPODEST/testing/x86_64/.
-apk: $(TARBALL)
+apk: fmt $(TARBALL)
 	cd "$(APORT)" && abuild checksum && abuild -r 2>&1 | tee build.log
 
 # --- style / static analysis (tools from abuild checkdepends) ---

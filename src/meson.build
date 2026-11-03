@@ -25,6 +25,7 @@ stonefly_src = files(
   'ipc/workspaces.c',
   'anim/anim.c',
   'decor/decor.c',
+  'effect/background_effect.c',
   'ssd/ssd.c',
   'ssd/ssd_policy.c',
   'ssd/ssd_layout.c',

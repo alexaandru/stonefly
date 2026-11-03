@@ -23,6 +23,7 @@ stonefly_protocol_xmls = [
   'ext-idle-notify-v1.xml',
   'idle-inhibit-unstable-v1.xml',
   'wlr-output-power-management-unstable-v1.xml',
+  'ext-background-effect-v1.xml',
 ]
 
 # private-code only for protocols we implement by hand. Layer-shell is served
@@ -30,6 +31,7 @@ stonefly_protocol_xmls = [
 # need xdg-shell private-code linked as well.
 stonefly_protocol_code_xmls = [
   'wlr-foreign-toplevel-management-unstable-v1.xml',
+  'ext-background-effect-v1.xml',
 ]
 
 stonefly_protocol_headers = []

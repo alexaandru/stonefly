@@ -26,6 +26,7 @@ struct wlr_xdg_shell;
 struct wlr_xdg_system_bell_v1;
 struct wlr_xdg_decoration_manager_v1;
 struct wlr_xdg_toplevel_tag_manager_v1;
+struct wlr_xdg_toplevel_icon_manager_v1;
 struct wlr_ext_foreign_toplevel_list_v1;
 struct wlr_ext_foreign_toplevel_image_capture_source_manager_v1;
 struct wlr_ext_data_control_manager_v1;
@@ -118,6 +119,13 @@ struct stonefly_server {
 	struct wlr_xdg_toplevel_tag_manager_v1 *xdg_toplevel_tag_mgr;
 	struct wl_listener xdg_toplevel_set_tag;
 	struct wl_listener xdg_toplevel_set_description;
+
+	/* xdg-toplevel-icon-v1 — per-window icon name / buffers for IPC / SSD. */
+	struct wlr_xdg_toplevel_icon_manager_v1 *xdg_toplevel_icon_mgr;
+	struct wl_listener xdg_toplevel_set_icon;
+
+	/* ext-background-effect-v1 — client blur region → client_blur gate. */
+	struct wl_global *background_effect_global;
 
 	/* Noctalia night light / clipboard history (wlroots helpers). */
 	struct wlr_gamma_control_manager_v1 *gamma_control_mgr;

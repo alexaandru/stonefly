@@ -47,8 +47,8 @@ bool stonefly_ssd_node_is_titlebar(struct wlr_scene_node *node,
 				   struct stonefly_toplevel **out_toplevel);
 
 /* Handle press/release on titlebar. Returns true if consumed (do not forward). */
-bool stonefly_ssd_pointer_button(struct stonefly_server *server,
-				 struct stonefly_toplevel *toplevel, double sx, double sy,
+bool stonefly_ssd_pointer_button(struct stonefly_server *server, struct stonefly_toplevel *toplevel,
+				 double sx, double sy,
 				 const struct wlr_pointer_button_event *event);
 
 /* Clear in-flight titlebar press state (e.g. after a titlebar-started move). */

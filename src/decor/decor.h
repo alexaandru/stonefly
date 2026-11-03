@@ -24,10 +24,14 @@ void stonefly_decor_mark_blur_dirty(struct stonefly_server *server);
 void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel);
 
 /* Sync decoration geometry after an xdg commit / resize.
- * Edge-maximize: border/shadow/corners off; blur stays if window_blur.
- * Fullscreen: blur off too. Border hole/client = corner_radius; outer =
- * corner_radius + border_thickness; hole inset 1px for AA hairlines. */
+ * Edge-maximize: border/shadow/corners off; blur stays if window_blur
+ * or client_blur (ext-background-effect-v1). Fullscreen: blur off too.
+ * Border hole/client = corner_radius; outer = corner_radius +
+ * border_thickness; hole inset 1px for AA hairlines. */
 void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel);
+
+/* Re-evaluate SceneFX blur node enable (window_blur / client_blur / fullscreen). */
+void stonefly_decor_refresh_blur(struct stonefly_toplevel *toplevel);
 
 /* Apply opacity + per-buffer corner radii (corner_radius; only geometry
  * outer corners each buffer covers — avoids foot CSD titlebar/body

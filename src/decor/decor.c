@@ -112,7 +112,8 @@ static bool decor_chrome_on(const struct stonefly_toplevel *toplevel) {
 }
 
 static bool decor_blur_on(const struct stonefly_toplevel *toplevel) {
-	return stonefly_cfg(toplevel->server)->window_blur && !toplevel->fullscreen;
+	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+	return (cfg->window_blur || toplevel->client_blur) && !toplevel->fullscreen;
 }
 
 /*
@@ -130,10 +131,15 @@ enum {
 	border_overlap_px = 1
 };
 
-static void decor_set_chrome_enabled(struct stonefly_toplevel *toplevel, bool on) {
-	if (toplevel->blur != NULL) {
-		wlr_scene_node_set_enabled(&toplevel->blur->node, decor_blur_on(toplevel));
+void stonefly_decor_refresh_blur(struct stonefly_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->blur == NULL) {
+		return;
 	}
+	wlr_scene_node_set_enabled(&toplevel->blur->node, decor_blur_on(toplevel));
+}
+
+static void decor_set_chrome_enabled(struct stonefly_toplevel *toplevel, bool on) {
+	stonefly_decor_refresh_blur(toplevel);
 	if (toplevel->border != NULL) {
 		wlr_scene_node_set_enabled(&toplevel->border->node, on);
 	}
@@ -277,7 +283,7 @@ void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel) {
 	/* blur_xray: sample optimized wallpaper only. Off: blur real backdrop. */
 	wlr_scene_blur_set_should_only_blur_bottom_layer(toplevel->blur, cfg->blur_xray != 0);
 	wlr_scene_blur_set_corner_radii(toplevel->blur, corner_radii_all(inner));
-	wlr_scene_node_set_enabled(&toplevel->blur->node, cfg->window_blur);
+	stonefly_decor_refresh_blur(toplevel);
 
 	/* New windows start unfocused until focus_toplevel runs. */
 	float start_opacity = cfg->inactive_opacity;

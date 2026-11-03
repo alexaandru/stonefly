@@ -94,7 +94,7 @@ hooks; on stonefly they are owned in-process.
 | Vsync-capped animation pacing | ❌ busy manage→render | river#1385 P0 📋 | ✅ | Own scene / frame loop |
 | Fade / scale appear | ❌ | river#1373 + Ideas 📋 | ❌ | Opacity static 0.96, not animated fade |
 | WM-settable per-window opacity | ❌ | river#1373 P1 📋 | 🚧 | Global focused/inactive opacity knobs; no per-window / rules API yet |
-| Backdrop / window blur | ❌ | SceneFX P3 📋 | 🚧 | Per-window SceneFX blur (`window_blur`). Default `blur_xray false` → blur real backdrop (other clients); `true` → wallpaper/optimized underlay only (mango xray). Edge-max / quick terminal keeps blur+opacity (border/shadow still off); fullscreen drops blur |
+| Backdrop / window blur | ❌ | SceneFX P3 📋 | ✅ | Per-window SceneFX blur (`window_blur`) or client `ext-background-effect-v1` (`client_blur`). Gate: `(window_blur or client_blur) and not fullscreen`. Default `blur_xray false` → blur real backdrop; `true` → wallpaper/optimized underlay only. Edge-max / QT keeps blur+opacity; fullscreen drops blur. v1: non-empty blur region → full-window SceneFX (no region mask yet) |
 | Soft rounded corners (opaque) | ❌ | SceneFX P3 📋 | ✅ | `corner_radius` 12 = CSD/hole/buffer; outer rim = `corner_radius + border_thickness` |
 | Drop shadows | ❌ | SceneFX P3 📋 | ✅ | |
 | Compositor border (focus/idle/urgent) | ✅ via River `SetBorders` | Urgency needs #1281 | ✅ SceneFX | Neon / charcoal inactive / amber. **Fixed:** `STONEFLY_BORDER_*` were compound literals; pointers into them across `else if` blocks → ASan `stack-use-after-scope` in `border_rgba_premul` on first map/focus (boot loop). Now `static const float[4]`. **Fixed:** crescent/hairline vs CSD — hole+buffer use `corner_radius` (match client round); outer = radius+border (dwl); hole inset 1px under the rim for AA/scale seams. |
@@ -174,6 +174,9 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Xwayland | ✅ (River host) | — | ❌ | Classic X11 apps fail |
 | ext-workspace-v1 | ❌ | #1402 📋 | ✅ | Per-output group + per-workspace handle; activate/create commit → switch/compact (`workspace.c`) |
 | xdg-toplevel-tag | ❌ | #1390 📋 | ✅ | `wlr_xdg_toplevel_tag_manager_v1` (`xdg.c`); stored on toplevel; shown in IPC `windows` (`tag` / `description`). No rules/persist consumer yet. |
+| xdg-toplevel-icon-v1 | ❌ | — | ✅ | `wlr_xdg_toplevel_icon_manager_v1` (`xdg.c`); preferred sizes 16–64; ref icon + `icon_name` on toplevel; IPC `windows` field `icon_name`. Buffers unused by Noctalia yet (warn silence for Foot). |
+| ext-background-effect-v1 | ❌ | — | ✅ | Hand protocol (`protocol/ext-background-effect-v1.xml` + `src/effect/background_effect.c`); capability `blur`; non-empty region → `client_blur` → SceneFX full-window blur. xdg toplevels only this pass. |
+| text-input / IME | ❌ | — | ❌ | `zwp_text_input_v3` + `zwp_input_method_v2` — wlroots helpers exist; stonefly does not advertise. Foot disables IME (CJK/OSK/fcitx/ibus). Needs seat relay + popup placement + IM client — later project. |
 | Touch / gestures / virtual-keyboard | ❌ | River 0.5 items 📋 | ✅ | Touch seat caps + cursor→`wlr_seat_touch_notify_*` (`seat.c`). Gestures: `pointer_gestures_v1` + 3-finger workspace swipe (`swipe_workspace_natural`). `zwp_virtual_keyboard_v1` (attach like keyboard; compositor binds skipped). Also: `zwp_relative_pointer_manager_v1` + `zwp_pointer_constraints_v1` (lock/confine + cursor hint). |
 | Presentation-time / fifo / tearing | ❌ | Shared frame clock Ideas 📋 | 🚧 | ✅ `wp_presentation` via `wlr_presentation_create(display, backend)` (`server.c`; SceneFX samples). ✅ `wp_tearing_control_v1` advertised (hint log only; no async page-flip). ❌ `wp_fifo_v1` still open (no simple wlroots helper). |
 

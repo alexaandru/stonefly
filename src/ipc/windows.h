@@ -15,6 +15,7 @@ struct stonefly_window_info {
 	char title[256];
 	char tag[128];	       /* xdg-toplevel-tag; empty when unset */
 	char description[256]; /* translated tag description; empty when unset */
+	char icon_name[128];   /* xdg-toplevel-icon name; empty when unset */
 	int32_t x;
 	int32_t y;
 	int32_t w;

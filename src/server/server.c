@@ -30,6 +30,7 @@
 
 #include "dbus/dbus.h"
 #include "decor/decor.h"
+#include "effect/background_effect.h"
 #include "ipc/ipc.h"
 #include "layer/layer.h"
 #include "log/log.h"
@@ -152,6 +153,7 @@ bool stonefly_server_init(struct stonefly_server *server) {
 	stonefly_ssd_setup(server);
 	stonefly_xdg_setup(server);
 	stonefly_foreign_toplevel_setup(server);
+	stonefly_background_effect_setup(server);
 	stonefly_ext_capture_setup(server);
 	stonefly_seat_setup(server);
 	stonefly_scratchpad_init(server);
@@ -220,6 +222,11 @@ void stonefly_server_finish(struct stonefly_server *server) {
 		wl_list_remove(&server->xdg_toplevel_set_description.link);
 		server->xdg_toplevel_tag_mgr = NULL;
 	}
+	if (server->xdg_toplevel_icon_mgr != NULL) {
+		wl_list_remove(&server->xdg_toplevel_set_icon.link);
+		server->xdg_toplevel_icon_mgr = NULL;
+	}
+	stonefly_background_effect_finish(server);
 	stonefly_foreign_toplevel_finish(server);
 	stonefly_ext_capture_finish(server);
 	stonefly_workspace_finish(server);

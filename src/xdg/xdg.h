@@ -25,6 +25,7 @@ struct wlr_scene;
 struct wlr_ext_foreign_toplevel_handle_v1;
 struct wlr_ext_image_capture_source_v1;
 struct wlr_xdg_toplevel_decoration_v1;
+struct wlr_xdg_toplevel_icon_v1;
 struct stonefly_workspace;
 struct stonefly_ssd;
 
@@ -88,6 +89,13 @@ struct stonefly_toplevel {
 	/* xdg-toplevel-tag-v1 (client-set; heap, may be NULL). */
 	char *tag;
 	char *description;
+
+	/* xdg-toplevel-icon-v1 (ref'd icon + cached name for IPC). */
+	struct wlr_xdg_toplevel_icon_v1 *icon;
+	char *icon_name;
+
+	/* ext-background-effect-v1: non-empty blur region requested. */
+	bool client_blur;
 
 	/* xdg-decoration: client preference + compositor SSD titlebar. */
 	bool want_ssd;

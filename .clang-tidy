@@ -32,7 +32,7 @@ WarningsAsErrors: '*'
 
 # Diagnostics from headers only when they are *our* modules — not Meson
 # generated *-protocol.h under stonefly.p/, embed stamps, or /usr includes.
-HeaderFilterRegex: '(\.\./)?src/(anim|config|dbus|decor|ipc|layer|log|output|seat|server|session|toplevel|util|wm|xdg)/'
+HeaderFilterRegex: '(\.\./)?src/(anim|config|dbus|decor|effect|ipc|layer|log|output|seat|server|session|ssd|toplevel|util|wm|xdg)/'
 FormatStyle: file
 
 CheckOptions:

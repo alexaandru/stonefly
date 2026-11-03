@@ -9,6 +9,7 @@
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/types/wlr_xdg_system_bell_v1.h>
+#include <wlr/types/wlr_xdg_toplevel_icon_v1.h>
 #include <wlr/types/wlr_xdg_toplevel_tag_v1.h>
 #include <wlr/util/box.h>
 #include <wlr/util/edges.h>
@@ -101,6 +102,31 @@ static void xdg_toplevel_set_description(struct wl_listener *listener, void *dat
 	replace_str(&toplevel->description, event->description);
 	SF_LOGI("toplevel description", sf_i64("id", (int64_t)toplevel->id),
 		sf_str("description", toplevel->description != NULL ? toplevel->description : ""));
+}
+
+static void xdg_toplevel_set_icon(struct wl_listener *listener, void *data) {
+	struct stonefly_server *server = wl_container_of(listener, server, xdg_toplevel_set_icon);
+	const struct wlr_xdg_toplevel_icon_manager_v1_set_icon_event *event = data;
+	struct stonefly_toplevel *toplevel = toplevel_from_xdg(server, event->toplevel);
+	if (toplevel == NULL) {
+		return;
+	}
+
+	if (toplevel->icon != NULL) {
+		wlr_xdg_toplevel_icon_v1_unref(toplevel->icon);
+		toplevel->icon = NULL;
+	}
+	free(toplevel->icon_name);
+	toplevel->icon_name = NULL;
+
+	if (event->icon != NULL) {
+		toplevel->icon = wlr_xdg_toplevel_icon_v1_ref(event->icon);
+		if (event->icon->name != NULL) {
+			toplevel->icon_name = strdup(event->icon->name);
+		}
+	}
+	SF_LOGI("toplevel icon", sf_i64("id", (int64_t)toplevel->id),
+		sf_str("name", toplevel->icon_name != NULL ? toplevel->icon_name : ""));
 }
 
 static void request_activate(struct wl_listener *listener, void *data) {
@@ -281,6 +307,11 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&toplevel->set_app_id.link);
 	wl_list_remove(&toplevel->set_parent.link);
 
+	if (toplevel->icon != NULL) {
+		wlr_xdg_toplevel_icon_v1_unref(toplevel->icon);
+		toplevel->icon = NULL;
+	}
+	free(toplevel->icon_name);
 	free(toplevel->tag);
 	free(toplevel->description);
 	free(toplevel);
@@ -624,5 +655,17 @@ void stonefly_xdg_setup(struct stonefly_server *server) {
 		server->xdg_toplevel_set_description.notify = xdg_toplevel_set_description;
 		wl_signal_add(&server->xdg_toplevel_tag_mgr->events.set_description,
 			      &server->xdg_toplevel_set_description);
+	}
+
+	/* xdg-toplevel-icon-v1 — silence Foot warn; store for IPC / future SSD. */
+	server->xdg_toplevel_icon_mgr =
+		wlr_xdg_toplevel_icon_manager_v1_create(server->wl_display, 1);
+	if (server->xdg_toplevel_icon_mgr != NULL) {
+		static int icon_sizes[] = {16, 24, 32, 48, 64};
+		wlr_xdg_toplevel_icon_manager_v1_set_sizes(server->xdg_toplevel_icon_mgr,
+							   icon_sizes, 5);
+		server->xdg_toplevel_set_icon.notify = xdg_toplevel_set_icon;
+		wl_signal_add(&server->xdg_toplevel_icon_mgr->events.set_icon,
+			      &server->xdg_toplevel_set_icon);
 	}
 }

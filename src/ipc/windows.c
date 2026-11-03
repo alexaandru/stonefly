@@ -64,6 +64,7 @@ size_t stonefly_windows_collect(struct stonefly_server *server, struct stonefly_
 		copy_str(info->title, sizeof(info->title), toplevel->xdg_toplevel->title);
 		copy_str(info->tag, sizeof(info->tag), toplevel->tag);
 		copy_str(info->description, sizeof(info->description), toplevel->description);
+		copy_str(info->icon_name, sizeof(info->icon_name), toplevel->icon_name);
 		info->x = geom.x;
 		info->y = geom.y;
 		info->w = geom.width;
@@ -125,6 +126,10 @@ int stonefly_windows_to_json(const struct stonefly_window_info *infos, size_t n,
 		json_byte(&b, ',');
 		json_key(&b, "description");
 		json_str(&b, w->description);
+
+		json_byte(&b, ',');
+		json_key(&b, "icon_name");
+		json_str(&b, w->icon_name);
 
 		json_byte(&b, ',');
 		json_key(&b, "x");
@@ -225,6 +230,10 @@ static bool parse_object(struct json_scan *s, struct stonefly_window_info *out) 
 			}
 		} else if (strcmp(key, "description") == 0) {
 			if (!json_scan_string(s, out->description, sizeof(out->description))) {
+				return false;
+			}
+		} else if (strcmp(key, "icon_name") == 0) {
+			if (!json_scan_string(s, out->icon_name, sizeof(out->icon_name))) {
 				return false;
 			}
 		} else if (strcmp(key, "snap_dir") == 0) {
@@ -356,16 +365,17 @@ void stonefly_windows_print(const struct stonefly_window_info *infos, size_t n, 
 	}
 	for (size_t i = 0; i < n; i++) {
 		const struct stonefly_window_info *w = &infos[i];
+		fprintf(fp, "%s %llu\t%s\t%s", w->focused ? "*" : " ", (unsigned long long)w->id,
+			w->app_id, w->title);
 		if (w->tag[0] != '\0') {
-			fprintf(fp, "%s %llu\t%s\t%s\ttag=%s%s\n", w->focused ? "*" : " ",
-				(unsigned long long)w->id, w->app_id, w->title, w->tag,
-				w->capture_blocked ? "\tcapture=blocked" : "");
-		} else if (w->capture_blocked) {
-			fprintf(fp, "%s %llu\t%s\t%s\tcapture=blocked\n", w->focused ? "*" : " ",
-				(unsigned long long)w->id, w->app_id, w->title);
-		} else {
-			fprintf(fp, "%s %llu\t%s\t%s\n", w->focused ? "*" : " ",
-				(unsigned long long)w->id, w->app_id, w->title);
+			fprintf(fp, "\ttag=%s", w->tag);
 		}
+		if (w->icon_name[0] != '\0') {
+			fprintf(fp, "\ticon=%s", w->icon_name);
+		}
+		if (w->capture_blocked) {
+			fprintf(fp, "\tcapture=blocked");
+		}
+		fputc('\n', fp);
 	}
 }

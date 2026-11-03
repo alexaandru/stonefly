@@ -21,7 +21,7 @@ bool stonefly_ssd_paint_init(void) {
 		return true;
 	}
 	fcft_init(FCFT_LOG_COLORIZE_NEVER, false, FCFT_LOG_CLASS_ERROR);
-	const char *names[] = { "sans" };
+	const char *names[] = {"sans"};
 	title_font = fcft_from_name(1, names, "size=11");
 	if (title_font == NULL) {
 		SF_LOGW("ssd: fcft font load failed; title text disabled");
@@ -144,19 +144,21 @@ static size_t utf8_to_utf32(const char *s, uint32_t *out, size_t max) {
 	size_t n = 0;
 	const unsigned char *p = (const unsigned char *)s;
 	while (*p != '\0' && n < max) {
+		uint32_t b0 = p[0];
 		uint32_t cp;
-		if ((*p & 0x80) == 0) {
-			cp = *p++;
-		} else if ((*p & 0xe0) == 0xc0 && p[1] != 0) {
-			cp = (uint32_t)(p[0] & 0x1f) << 6 | (p[1] & 0x3f);
+		if ((b0 & 0x80u) == 0) {
+			cp = b0;
+			p += 1;
+		} else if ((b0 & 0xe0u) == 0xc0u && p[1] != 0) {
+			cp = (b0 & 0x1fu) << 6u | ((uint32_t)p[1] & 0x3fu);
 			p += 2;
-		} else if ((*p & 0xf0) == 0xe0 && p[1] != 0 && p[2] != 0) {
-			cp = (uint32_t)(p[0] & 0x0f) << 12 | (uint32_t)(p[1] & 0x3f) << 6 |
-			     (p[2] & 0x3f);
+		} else if ((b0 & 0xf0u) == 0xe0u && p[1] != 0 && p[2] != 0) {
+			cp = (b0 & 0x0fu) << 12u | ((uint32_t)p[1] & 0x3fu) << 6u |
+			     ((uint32_t)p[2] & 0x3fu);
 			p += 3;
-		} else if ((*p & 0xf8) == 0xf0 && p[1] != 0 && p[2] != 0 && p[3] != 0) {
-			cp = (uint32_t)(p[0] & 0x07) << 18 | (uint32_t)(p[1] & 0x3f) << 12 |
-			     (uint32_t)(p[2] & 0x3f) << 6 | (p[3] & 0x3f);
+		} else if ((b0 & 0xf8u) == 0xf0u && p[1] != 0 && p[2] != 0 && p[3] != 0) {
+			cp = (b0 & 0x07u) << 18u | ((uint32_t)p[1] & 0x3fu) << 12u |
+			     ((uint32_t)p[2] & 0x3fu) << 6u | ((uint32_t)p[3] & 0x3fu);
 			p += 4;
 		} else {
 			p++;
@@ -178,11 +180,9 @@ static int measure_run(const struct fcft_glyph *const *glyphs, size_t count) {
 }
 
 static void blit_glyphs(uint8_t *pix, int buf_w, int buf_h, int x, int baseline,
-			const struct fcft_glyph *const *glyphs, size_t count,
-			pixman_color_t fg) {
+			const struct fcft_glyph *const *glyphs, size_t count, pixman_color_t fg) {
 	pixman_image_t *dst =
-		pixman_image_create_bits(PIXMAN_a8r8g8b8, buf_w, buf_h, (uint32_t *)pix,
-					 buf_w * 4);
+		pixman_image_create_bits(PIXMAN_a8r8g8b8, buf_w, buf_h, (uint32_t *)pix, buf_w * 4);
 	if (dst == NULL) {
 		return;
 	}
@@ -237,8 +237,8 @@ static void draw_title(uint8_t *pix, int buf_w, int buf_h, const char *title, in
 	} else {
 		count = 0;
 		for (size_t i = 0; i < n; i++) {
-			const struct fcft_glyph *g =
-				fcft_rasterize_char_utf32(title_font, cps[i], FCFT_SUBPIXEL_DEFAULT);
+			const struct fcft_glyph *g = fcft_rasterize_char_utf32(
+				title_font, cps[i], FCFT_SUBPIXEL_DEFAULT);
 			single[count++] = g;
 		}
 		glyphs = single;

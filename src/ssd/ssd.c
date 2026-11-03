@@ -1,6 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include <drm_fourcc.h>
 #include <linux/input-event-codes.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,13 +37,17 @@ static void ssd_buffer_destroy(struct wlr_buffer *wlr_buffer) {
 	free(buf);
 }
 
+/* 'AR24' LE — same bits as DRM_FORMAT_ARGB8888; avoid fourcc_code (signed
+ * char shifts trip clang-tidy bugprone-signed-bitwise). */
+static const uint32_t ssd_drm_format_argb8888 = 0x34325241u;
+
 static bool ssd_buffer_begin_data_ptr_access(struct wlr_buffer *wlr_buffer, uint32_t flags,
 					     void **data, uint32_t *format, size_t *stride) {
 	struct stonefly_ssd_buffer *buf = wl_container_of(wlr_buffer, buf, base);
-	if (flags & WLR_BUFFER_DATA_PTR_ACCESS_WRITE) {
+	if ((flags & (uint32_t)WLR_BUFFER_DATA_PTR_ACCESS_WRITE) != 0) {
 		return false;
 	}
-	*format = DRM_FORMAT_ARGB8888;
+	*format = ssd_drm_format_argb8888;
 	*data = buf->data;
 	*stride = buf->stride;
 	return true;
@@ -350,8 +353,8 @@ void stonefly_ssd_pointer_reset(void) {
 	ssd_ptr.press_title = false;
 }
 
-bool stonefly_ssd_pointer_button(struct stonefly_server *server,
-				 struct stonefly_toplevel *toplevel, double sx, double sy,
+bool stonefly_ssd_pointer_button(struct stonefly_server *server, struct stonefly_toplevel *toplevel,
+				 double sx, double sy,
 				 const struct wlr_pointer_button_event *event) {
 	if (server == NULL || toplevel == NULL || toplevel->ssd == NULL || event == NULL) {
 		return false;
@@ -382,7 +385,7 @@ bool stonefly_ssd_pointer_button(struct stonefly_server *server,
 			if (ssd_ptr.last_bar == toplevel) {
 				int64_t dt = timespec_ms(&now) - timespec_ms(&ssd_ptr.last_click);
 				if (dt >= 0 && dt < ssd_dblclick_ms) {
-					ssd_ptr.last_click = (struct timespec){ 0 };
+					ssd_ptr.last_click = (struct timespec){0};
 					ssd_ptr.last_bar = NULL;
 					ssd_ptr.press_title = false;
 					ssd_ptr.pressed = STONEFLY_SSD_BTN_NONE;
