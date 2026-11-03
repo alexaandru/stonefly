@@ -64,7 +64,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Nested `ipc exit` teardown SEGV | — | — | ✅ | `workspace_finish` destroys per-output ws scene trees before root scene destroy — avoids double `wlr_scene_node_destroy` from later `output_destroy` |
 | EnsureOnScreen / usable relayout | ✅ | — | ✅ | On exclusive-zone change |
 | Per-output usable area | ✅ `UsableOn` / `UsableAreaChanged` | — | ✅ | `exclusive_zone != 0` (incl. −1) |
-| Named scratchpads | ✅ multi + claim + auto_hide | Click-outside catcher 📋 | 🚧 | Pad `term` (+ config). Spawn uses fake `app_id` (`stonefly.scratch.term`) so claim does not steal normal Super+w windows — that breaks taskbar icons (shell keys icons off app_id). Real app_id + PID claim is not enough for single-instance multi-window clients (one Ghostty PID, many windows). Proper fix later: xdg-activation / startup token (or accept first-map races); leave icon/claim as-is for now. Hide/show via `apply_hidden(SCRATCH)` / `apply_shown` (same foreign/defocus as LIFO; `focus_top` skips `anim_hide`). **`auto_hide`:** peeble `OnFocusChange` — hide when focus moves to another window on the same output (click / Super+Tab); other-head or nil (layer/empty) leaves pad shown. Spec key `auto_hide` (default true). |
+| Named scratchpads | ✅ multi + claim + auto_hide | Click-outside catcher 📋 | ✅ | Multi via `scratchpads.fnl` + `stonefly.scratchpad` / `scratch_toggle`/`scratch_claim` (cmd = pad name). Default ships `term` only. Spawn uses fake `app_id` (`stonefly.scratch.term`) so claim does not steal normal Super+w windows — that breaks taskbar icons (shell keys icons off app_id). Real app_id + PID claim is not enough for single-instance multi-window clients (one Ghostty PID, many windows). Proper fix later: xdg-activation / startup token (or accept first-map races); leave icon/claim as-is for now. Hide/show via `apply_hidden(SCRATCH)` / `apply_shown` (same foreign/defocus as LIFO; `focus_top` skips `anim_hide`). **`auto_hide`:** peeble `OnFocusChange` — hide when focus moves to another window on the same output (click / Super+Tab); other-head or nil (layer/empty) leaves pad shown. Spec key `auto_hide` (default true). Click-outside catcher still ❌. |
 | Scratchpad claim focused | ✅ Super+t | — | ✅ | |
 | Scratchpad omit from Alt-Tab | ✅ | — | ✅ | Super+Tab too |
 | Window menu | ✅ | — | ❌ | |
@@ -72,7 +72,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Geometry persist across restart | ✅ `windows.json` by river id | Schema / blacklist / MRU polish 📋 | ❌ | |
 | Window rules (app-id/title) | 🚧 center + modal parent | auto-float, size, scratchpad, AOT, force SSD 📋 | ❌ | |
 | Keyboard nudge move/resize | ❌ | 📋 high-value | ❌ | Snap exists; step nudge does not |
-| Workspaces / tags | ❌ | 📋 + river#1402 / #1390 | 🚧 | Dynamic per-output strip (`workspace.c`): trailing empty, compact on empty, Super+Page/1–9 + Shift move-follow, IPC `workspaces`/`workspace`/`move-to-workspace` (`strtol` index parse), windows `{output,workspace}`. ✅ `ext-workspace-v1` group/handle sync. ✅ 3-finger vertical swipe (`swipe_workspace_threshold`, `swipe_workspace_natural` default true = content tracks finger). ❌ persist / named rules / switch anim |
+| Workspaces / tags | ❌ | 📋 + river#1402 / #1390 | ✅ | Dynamic per-output strip (`workspace.c`): trailing empty, compact on empty, Super+Page/1–9 + Shift move-follow, IPC `workspaces`/`workspace`/`move-to-workspace` (`strtol` index parse), windows `{output,workspace}`. ✅ `ext-workspace-v1` group/handle sync. ✅ 3-finger vertical swipe (`swipe_workspace_threshold`, `swipe_workspace_natural` default true = content tracks finger). ✅ `xdg-toplevel-tag` stored + IPC. ❌ geometry persist / named window rules / switch anim. Layout engines separate row (`stacking` only). |
 | Layout engine (tile/columns/…) | ❌ | 📋 | 🚧 | Resolve `workspace → output → global` (`stonefly_layout`); only `stacking` implemented. `columns`/`tile` enum + `apply_layout` hook reserved. Global `stonefly.opt.layout`. |
 | Focus cycle policy (MRU vs stack) | 🚧 stacking default | Decide MRU Alt+Tab 📋 | 🚧 | Stacking / MRU list front |
 | Multi-monitor focus / send | ✅ `focus_monitor` / `send_to_monitor` | — | ❌ | |
@@ -226,9 +226,9 @@ River-fork brief items and where stonefly stands (no River needed).
 | P1 | #1281 urgency / xdg-activation | Blocked | ✅ |
 | P1 | #1389 system bell | Blocked | ✅ |
 | P1 | #1481 capture privacy | Blocked | ✅ |
-| P2 | #1402 workspaces, #1390 tags | Roadmap | 🚧 | ✅ `xdg-toplevel-tag` + ✅ dynamic workspaces + ✅ `ext-workspace-v1`; ❌ rules / geometry persist |
+| P2 | #1402 workspaces, #1390 tags | Roadmap | ✅ | ✅ `xdg-toplevel-tag` + ✅ dynamic workspaces + ✅ `ext-workspace-v1`; ❌ rules / geometry persist / switch anim |
 | P2 | Layer `set_exclusive_edge`, presentation-time | Roadmap | ✅ exclusive_edge via scene configure; ✅ presentation-time; ❌ fifo |
-| P3 | SceneFX blur / corners / shadows | Parked | 🚧 blur on (wallpaper-backed) / ✅ corners / ✅ shadows |
+| P3 | SceneFX blur / corners / shadows | Parked | ✅ | ✅ blur (default `blur_xray false` = real backdrop; `true` = wallpaper-only) / ✅ corners / ✅ shadows |
 
 ---
 
@@ -250,14 +250,14 @@ in-process shell (Noctalia stands in under stonefly).
 | Ctrl+Esc minimize LIFO | ✅ |
 | Super tap launcher / double-tap term / Super+t claim | ✅ |
 | Spawns Ghostty / foot / nautilus / editor / QT | ✅ |
-| Named scratchpads beyond `term` | ❌ |
+| Named scratchpads beyond `term` | ✅ via `scratchpads.fnl` (default only `term`) |
 | Fullscreen / always-on-top / winmenu / SSD | ✅ fullscreen / ❌ aot / ❌ winmenu / ✅ SSD |
 | Multi-mon send/focus, pointer center | ❌ |
 | Geometry persist, window rules, set_tiled | ❌ persist/rules / ✅ set_tiled |
 | Screenshots, clipboard, idle/lock/gamma | 🌙 noctalia binds + ✅ screencopy/ext-capture / ✅ idle+lock+DPMS / ✅ clipboard+gamma |
 | Xwayland | ❌ |
 | Real config file | ✅ LuaJIT + Fennel-first embed + `--write-config` + IPC `config`; open items in §10 |
-| Workspaces / tiling layouts | 🚧 workspaces (stacking) / ❌ tiling engines |
+| Workspaces / tiling layouts | ✅ workspaces (stacking) / ❌ tiling engines (`columns`/`tile` reserved) |
 | Foreign-toplevel for docks/taskbars | ✅ |
 
 ---
@@ -296,9 +296,9 @@ Done crumbs: focus/close by id, outputs, workspaces, toggle-quick-terminal, live
 ### Broader WM gaps (after / beside the above)
 
 1. **Xwayland** (classic apps)
-2. **Capture privacy** (#1481) — ✅ compositor policy (IPC + `capture_block_app_ids`); shell UI still optional
+2. **Capture privacy** (#1481) — ✅ compositor policy (IPC + `capture_block_app_ids`); shell UI still optional; full-output screencopy blanking still open
 3. **Real config** — ✅ shipped; remaining work listed in §10.
-4. Optional: always-on-top, multi-mon send/focus; tags protocol ✅ (rules/persist still open); `wp_fifo_v1` still open
+4. Optional: always-on-top, multi-mon send/focus; tiling engines (`columns`/`tile`); geometry persist / window rules (tag protocol ✅); `wp_fifo_v1` still open
 
 Seat-side day-zero: ✅ touch, virtual-keyboard, relative-pointer, pointer-constraints
 (`seat.c`). Still open among input: tablet.

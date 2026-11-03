@@ -105,6 +105,10 @@ stonefly layers            # human: namespace / layer / output / geom / excl / k
 stonefly layers --json     # JSON array (namespace, layer, output, geom, zones)
 stonefly outputs           # human: name*  WxH@scale  layout / usable
 stonefly outputs --json    # JSON array (name, geom, scale, usable, focused)
+stonefly workspaces        # human: per-output strip (* = active)
+stonefly workspaces --json # JSON array (output, index, name, active, …)
+stonefly workspace next|prev|N
+stonefly move-to-workspace next|prev|N
 stonefly config            # pretty-print live config (all sections)
 stonefly config binds      # one section: options|binds|taps|scratchpads|cmds|…
 stonefly config --json     # compact JSON object / section value
@@ -131,6 +135,9 @@ Wire format matches peeble: one JSON object per line, e.g. `{"cmd":"windows"}`,
 | **Ctrl+Esc** / **Ctrl+Shift+Esc** | Minimize / unminimize (unnamed scratchpad) |
 | **Super+Left/Right/Up/Down** | Snap to half (with gaps) |
 | **Super+u** | Unsnap / restore |
+| **Super+Prior/Next** / **Super+1–9** | Workspace prev/next / switch (per-output strip) |
+| **Super+Shift+Prior/Next** / **Super+Shift+1–9** | Move focused window (follow) |
+| **3-finger vertical swipe** | Workspace next/prev (`swipe_workspace_natural`) |
 | **Super+LMB** | Move window (magnetic edge snap + preview) |
 | **Super+RMB** | Resize window (edges nearest pointer) |
 | **Super+w** | spawn `ghostty +new-window` |
@@ -143,12 +150,12 @@ Default output scale is **1.5** (`stonefly.opt.scale`) with `wp_fractional_scale
 
 ## Notes
 
-- SceneFX 0.5 (`scenefx` / `scenefx-dev`): `fx_renderer_create`, per-window blur + drop shadow + 12px rounded corners, 3px border (neon-blue focused / silver idle / amber urgent), client opacity **0.90**.
+- SceneFX 0.5 (`scenefx` / `scenefx-dev`): `fx_renderer_create`, per-window blur + drop shadow + 12px rounded corners, 3px border (neon-blue focused / silver idle / amber urgent), focused/inactive opacity **0.96** (dim is opt-in via `inactive_opacity`).
 - Presentation: peeble-style slide in/out (`ease_out`, 200ms, closest usable edge) on map, close, minimize/unminimize, and scratchpad show/hide. Client Ctrl+W / CSD close uses a last-frame **ghost** slide (FORK.md close-ghost).
 - Urgency: `xdg-activation-v1` → amber border until focus (never steals focus). IPC `windows.urgent`, `set-urgent` / `unset-urgent`. System bell: `xdg-system-bell-v1` → 200ms amber flash.
 - Usable area: layer exclusive zones (`exclusive_zone != 0`, including `-1`) shrink the box used by max/snap/cascade. When the bar’s zone arrives after map, floaters are EnsureOnScreen’d (gap-max if oversized).
 - Drag-snap (peeble parity): Super+LMB / CSD move has magnetic edge resistance (`snap_threshold` 26, push-through `4×`), neon half-snap preview on `layers.overlay` (SceneFX rects), release-to-snap / push-through cancel, PrepareDrag float from snap/max keeping PreSnap.
-- No Xwayland or real config file yet (layer-shell is implemented).
+- No Xwayland yet. Config is LuaJIT + Fennel-first (`stonefly --write-config` / `stonefly config`); layer-shell is implemented.
 - `LICENSE.tinywl` is upstream’s MIT notice for the seed.
 
 ## FORK.md → stonefly (remaining gaps)
@@ -160,12 +167,12 @@ Still open relative to the old River-fork brief / peeble feature set:
 | Gap | FORK / notes | Status |
 |---|---|---|
 | Foreign-toplevel for docks/taskbars | [#1449](https://codeberg.org/river/river/issues/1449) / [#1537](https://codeberg.org/river/river/pulls/1537) | ✅ `zwlr_foreign_toplevel_management_v1` v3 + `ext-foreign-toplevel-list-v1` |
-| Capture privacy (block window from screenshots) | [#1481](https://codeberg.org/river/river/issues/1481) | Not implemented |
-| Workspaces / tags | [#1402](https://codeberg.org/river/river/issues/1402) `ext-workspace-v1`, [#1390](https://codeberg.org/river/river/issues/1390) toplevel-tag | 🚧 dynamic per-output workspaces + `ext-workspace-v1` + IPC (`workspace.c`); tag protocol ✅; rules / persist ❌. Layout resolve workspace→output→global (`stacking` only; columns/tile reserved) |
+| Capture privacy (block window from screenshots) | [#1481](https://codeberg.org/river/river/issues/1481) | ✅ per-toplevel (`capture_blocked` + IPC/config); full-output screencopy blanking still open |
+| Workspaces / tags | [#1402](https://codeberg.org/river/river/issues/1402) `ext-workspace-v1`, [#1390](https://codeberg.org/river/river/issues/1390) toplevel-tag | ✅ dynamic per-output workspaces + `ext-workspace-v1` + IPC + swipe (`workspace.c`); tag protocol ✅; rules / persist / switch anim ❌. Layout resolve workspace→output→global (`stacking` only; columns/tile reserved) |
 | Window previews / destination size | [#1384](https://codeberg.org/river/river/issues/1384) | ✅ ext toplevel image-capture + image-copy-capture for Noctalia switcher (`ext_capture.c`) |
 | Xwayland | peeble/river day-to-day | Not implemented |
 | Screenshots / screencopy / image-copy-capture | peeble | ✅ `zwlr_screencopy` + ext-image-copy-capture; Print binds → noctalia 🌙 |
 | Session lock / idle / DPMS | Noctalia auto-lock / suspend | ✅ `ext-session-lock` + idle-notify/inhibit + output-power (`session/session.c`) |
-| Gamma / output-mgmt / clipboard | Noctalia shell needs | ✅ gamma + clipboard (`server.c`); ❌ wlr-output-management — see `MATRIX.md` §9 |
+| Gamma / output-mgmt / clipboard | Noctalia shell needs | ✅ gamma + clipboard (`server.c`) + ✅ `zwlr-output-management` (`output.c`) — see `MATRIX.md` §9 |
 | Real config (vs `hardcoded.h`) | — | ✅ LuaJIT + Fennel-first; `stonefly --write-config` / `stonefly config`; open items in MATRIX §10 |
 | In-process bar/OSD/media | peeble; noctalia covers bar/launcher/notifier | Deferred to shell |
