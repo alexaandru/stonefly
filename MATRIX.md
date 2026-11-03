@@ -91,7 +91,7 @@ hooks; on stonefly they are owned in-process.
 |---|---|---|---|---|
 | Appear / map slide | ✅ `window_effect` + AppearHold hack | Map-hold fork feature 📋 | ✅ | Closest edge, 200ms ease_out; no resting flash needed |
 | Close slide (WM-initiated) | ✅ Super+q etc. | — | ✅ | |
-| Close slide (client Ctrl+W / CSD) | ❌ blocked | Last-frame ghost FORK P1 📋 | ✅ | Ghost buffer slide |
+| Close slide (client Ctrl+W / CSD) | ❌ blocked | Last-frame ghost FORK P1 📋 | ✅ | Cached last-frame ghost: refresh `close_snap` each mapped commit; unmap slides it (live scene buffer is often NULL after GTK/terminal null-buffer commit). Skipped when WM hide already ran (`anim_hide`). |
 | Snap / unsnap / max morph | ✅ `animation("morph")` + window_effect | — | ✅ | Live peeble-style: each tick `set_position` + `set_size` (`morph_duration_ms`); SceneFX chrome follows commits. Snap, gap-max, edge-max enter/leave; Super+u unsnap. Mid-flight retarget. Fullscreen stays instant. |
 | Scratchpad / minimize slides | ✅ | — | ✅ | Mid-flight reverse |
 | Vsync-capped animation pacing | ❌ busy manage→render | river#1385 P0 📋 | ✅ | Own scene / frame loop |
@@ -222,7 +222,7 @@ River-fork brief items and where stonefly stands (no River needed).
 | P0 | #1449 / #1537 foreign-toplevel activate | Blocked on River | ✅ `zwlr_foreign_toplevel_management_v1` |
 | P0 | #1375 nodes vs layer-shell z-order | PlaceTop fights | ✅ scene layers |
 | P1 | #1373 WM opacity | Blocked | 🚧 global focused + inactive opacity |
-| P1 | Close-ghost last-frame | Blocked for client close | ✅ |
+| P1 | Close-ghost last-frame | Blocked for client close | ✅ cached `close_snap` → ghost slide |
 | P1 | #1281 urgency / xdg-activation | Blocked | ✅ |
 | P1 | #1389 system bell | Blocked | ✅ |
 | P1 | #1481 capture privacy | Blocked | ✅ |

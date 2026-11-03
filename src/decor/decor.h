@@ -56,11 +56,17 @@ void stonefly_decor_ring_bell(struct stonefly_toplevel *toplevel);
  * Call from toplevel destroy — otherwise close leaves a leftover border. */
 void stonefly_decor_finish_toplevel(struct stonefly_toplevel *toplevel);
 
-/* Lock the main toplevel buffer for close-ghost snapshot slides. */
+/* Lock a live scene buffer for close-ghost (fails after NULL-buffer unmap). */
 bool stonefly_decor_lock_snapshot(struct stonefly_toplevel *toplevel,
 				  struct wlr_buffer **out_locked, int *out_w, int *out_h);
 
-/* Client-initiated unmap: snapshot last buffer and slide it out. */
+/* Keep last good frame while mapped; retain prior frame if pick fails. */
+void stonefly_decor_refresh_close_snap(struct stonefly_toplevel *toplevel);
+
+/* Unlock and clear toplevel->close_snap. */
+void stonefly_decor_clear_close_snap(struct stonefly_toplevel *toplevel);
+
+/* Client-initiated unmap: slide cached last frame (FORK.md close-ghost). */
 void stonefly_ghost_try_spawn(struct stonefly_toplevel *toplevel);
 
 /* Advance / destroy finished ghosts (called from anim tick). */

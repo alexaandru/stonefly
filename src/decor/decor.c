@@ -417,6 +417,7 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 
 	stonefly_decor_apply_buffers(toplevel);
 	stonefly_ssd_update(toplevel);
+	stonefly_decor_refresh_close_snap(toplevel);
 }
 
 void stonefly_decor_refresh_border(struct stonefly_toplevel *toplevel) {
@@ -495,6 +496,7 @@ void stonefly_decor_finish_toplevel(struct stonefly_toplevel *toplevel) {
 		toplevel->bell_timer = NULL;
 	}
 	toplevel->bell_flash = false;
+	stonefly_decor_clear_close_snap(toplevel);
 
 	/* Wrapper owns blur/shadow/border (+ xdg child if still linked). */
 	if (toplevel->scene_tree != NULL) {
@@ -510,12 +512,30 @@ void stonefly_decor_finish_toplevel(struct stonefly_toplevel *toplevel) {
 /* ---- close ghost (FORK.md last-frame freeze) ---- */
 
 struct ghost_pick {
-	struct wlr_scene_buffer *scene_buffer;
 	struct wlr_buffer *buffer;
 	int width, height;
 };
 
-static void iter_pick_buffer(struct wlr_scene_buffer *buffer, int sx, int sy, void *user_data) {
+static void buffer_dims(struct wlr_scene_buffer *buffer, int *w, int *h) {
+	*w = buffer->dst_width;
+	*h = buffer->dst_height;
+	if (*w > 0 && *h > 0) {
+		return;
+	}
+	struct wlr_scene_surface *ss = wlr_scene_surface_try_from_buffer(buffer);
+	if (ss == NULL) {
+		return;
+	}
+	if (*w <= 0) {
+		*w = ss->surface->current.width;
+	}
+	if (*h <= 0) {
+		*h = ss->surface->current.height;
+	}
+}
+
+/* Prefer the root xdg-toplevel buffer (not a subsurface). */
+static void iter_pick_toplevel(struct wlr_scene_buffer *buffer, int sx, int sy, void *user_data) {
 	(void)sx;
 	(void)sy;
 	struct ghost_pick *pick = user_data;
@@ -533,10 +553,36 @@ static void iter_pick_buffer(struct wlr_scene_buffer *buffer, int sx, int sy, vo
 	if (wlr_subsurface_try_from_wlr_surface(ss->surface) != NULL) {
 		return;
 	}
-	pick->scene_buffer = buffer;
+	int w = 0, h = 0;
+	buffer_dims(buffer, &w, &h);
+	if (w <= 0 || h <= 0) {
+		return;
+	}
 	pick->buffer = buffer->buffer;
-	pick->width = buffer->dst_width > 0 ? buffer->dst_width : ss->surface->current.width;
-	pick->height = buffer->dst_height > 0 ? buffer->dst_height : ss->surface->current.height;
+	pick->width = w;
+	pick->height = h;
+}
+
+/* Fallback: largest buffer in the xdg tree (subsurface-heavy CSDs). */
+static void iter_pick_largest(struct wlr_scene_buffer *buffer, int sx, int sy, void *user_data) {
+	(void)sx;
+	(void)sy;
+	struct ghost_pick *pick = user_data;
+	if (buffer->buffer == NULL) {
+		return;
+	}
+	int w = 0, h = 0;
+	buffer_dims(buffer, &w, &h);
+	if (w <= 0 || h <= 0) {
+		return;
+	}
+	if (pick->buffer != NULL &&
+	    (int64_t)w * (int64_t)h <= (int64_t)pick->width * (int64_t)pick->height) {
+		return;
+	}
+	pick->buffer = buffer->buffer;
+	pick->width = w;
+	pick->height = h;
 }
 
 static void ghost_destroy(struct stonefly_ghost *ghost) {
@@ -578,7 +624,11 @@ bool stonefly_decor_lock_snapshot(struct stonefly_toplevel *toplevel,
 		return false;
 	}
 	struct ghost_pick pick = {0};
-	wlr_scene_node_for_each_buffer(&toplevel->xdg_scene_tree->node, iter_pick_buffer, &pick);
+	wlr_scene_node_for_each_buffer(&toplevel->xdg_scene_tree->node, iter_pick_toplevel, &pick);
+	if (pick.buffer == NULL) {
+		wlr_scene_node_for_each_buffer(&toplevel->xdg_scene_tree->node, iter_pick_largest,
+					       &pick);
+	}
 	if (pick.buffer == NULL || pick.width <= 0 || pick.height <= 0) {
 		return false;
 	}
@@ -592,17 +642,59 @@ bool stonefly_decor_lock_snapshot(struct stonefly_toplevel *toplevel,
 	return true;
 }
 
+void stonefly_decor_clear_close_snap(struct stonefly_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->close_snap == NULL) {
+		return;
+	}
+	wlr_buffer_unlock(toplevel->close_snap);
+	toplevel->close_snap = NULL;
+	toplevel->close_snap_w = 0;
+	toplevel->close_snap_h = 0;
+}
+
+void stonefly_decor_refresh_close_snap(struct stonefly_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->xdg_toplevel == NULL ||
+	    toplevel->xdg_toplevel->base == NULL || toplevel->xdg_toplevel->base->surface == NULL) {
+		return;
+	}
+	/* Only cache while mapped; keep the prior frame across the NULL commit
+	 * that precedes client unmap (GTK/gedit, many terminals). */
+	if (!toplevel->xdg_toplevel->base->surface->mapped) {
+		return;
+	}
+	struct wlr_buffer *locked = NULL;
+	int w = 0, h = 0;
+	if (!stonefly_decor_lock_snapshot(toplevel, &locked, &w, &h)) {
+		return;
+	}
+	if (toplevel->close_snap != NULL) {
+		wlr_buffer_unlock(toplevel->close_snap);
+	}
+	toplevel->close_snap = locked;
+	toplevel->close_snap_w = w;
+	toplevel->close_snap_h = h;
+}
+
 void stonefly_ghost_try_spawn(struct stonefly_toplevel *toplevel) {
 	if (toplevel->minimized || toplevel->anim_hide) {
 		return;
 	}
-	if (toplevel->xdg_scene_tree == NULL) {
+	if (toplevel->scene_tree == NULL) {
 		return;
 	}
 
+	/* Prefer the cached last frame — live scene buffers are often already
+	 * NULL by unmap (client attached a null buffer). */
 	struct wlr_buffer *locked = NULL;
 	int pick_w = 0, pick_h = 0;
-	if (!stonefly_decor_lock_snapshot(toplevel, &locked, &pick_w, &pick_h)) {
+	if (toplevel->close_snap != NULL) {
+		locked = toplevel->close_snap;
+		pick_w = toplevel->close_snap_w;
+		pick_h = toplevel->close_snap_h;
+		toplevel->close_snap = NULL;
+		toplevel->close_snap_w = 0;
+		toplevel->close_snap_h = 0;
+	} else if (!stonefly_decor_lock_snapshot(toplevel, &locked, &pick_w, &pick_h)) {
 		return;
 	}
 
@@ -627,7 +719,18 @@ void stonefly_ghost_try_spawn(struct stonefly_toplevel *toplevel) {
 
 	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
 	ghost->tree = wlr_scene_tree_create(toplevel->server->layers.toplevel);
+	if (ghost->tree == NULL) {
+		wlr_buffer_unlock(locked);
+		free(ghost);
+		return;
+	}
 	ghost->buffer = wlr_scene_buffer_create(ghost->tree, locked);
+	if (ghost->buffer == NULL) {
+		wlr_scene_node_destroy(&ghost->tree->node);
+		wlr_buffer_unlock(locked);
+		free(ghost);
+		return;
+	}
 	wlr_scene_buffer_set_dest_size(ghost->buffer, pick_w, pick_h);
 	wlr_scene_buffer_set_opacity(ghost->buffer, cfg->client_opacity);
 	wlr_scene_buffer_set_corner_radii(ghost->buffer, corner_radii_all(cfg->corner_radius));
@@ -650,6 +753,8 @@ void stonefly_ghost_try_spawn(struct stonefly_toplevel *toplevel) {
 
 	wl_list_insert(&toplevel->server->ghosts, &ghost->link);
 	stonefly_anim_schedule(toplevel->server);
+	SF_LOGI("close ghost", sf_i64("id", (int64_t)toplevel->id), sf_i64("w", (int64_t)pick_w),
+		sf_i64("h", (int64_t)pick_h));
 }
 
 void stonefly_ghost_tick(struct stonefly_server *server, const struct timespec *now) {

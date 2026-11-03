@@ -18,6 +18,7 @@ enum stonefly_snap {
 	STONEFLY_SNAP_BOTTOM,
 };
 
+struct wlr_buffer;
 struct wlr_scene_blur;
 struct wlr_scene_rect;
 struct wlr_scene_shadow;
@@ -103,6 +104,11 @@ struct stonefly_toplevel {
 	int ssd_set_mode;
 	struct wlr_xdg_toplevel_decoration_v1 *decoration;
 	struct stonefly_ssd *ssd;
+
+	/* Last good client buffer for Ctrl+W / CSD close-ghost (NULL-buffer unmap). */
+	struct wlr_buffer *close_snap;
+	int close_snap_w;
+	int close_snap_h;
 
 	/* Logical resting position while a slide/morph runs (scene node is visual). */
 	int resting_x;

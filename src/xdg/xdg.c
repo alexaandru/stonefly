@@ -189,6 +189,7 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 		stonefly_focus_toplevel(toplevel);
 	}
 	stonefly_decor_apply_buffers(toplevel);
+	stonefly_decor_refresh_close_snap(toplevel);
 	/* Park off-screen then slide in (peeble open/appear). */
 	stonefly_anim_start_show(toplevel);
 	stonefly_foreign_toplevel_on_map(toplevel);
@@ -208,7 +209,7 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 
 	bool was_focused = stonefly_focused_toplevel(server) == toplevel;
 
-	/* Client Ctrl+W / CSD close: snapshot + slide (FORK.md close-ghost). */
+	/* Client Ctrl+W / CSD close: slide cached last frame (FORK.md close-ghost). */
 	stonefly_ghost_try_spawn(toplevel);
 	stonefly_anim_cancel(toplevel, false);
 	stonefly_scratchpad_on_destroy(toplevel);
