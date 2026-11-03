@@ -132,6 +132,9 @@ static void xdg_toplevel_set_icon(struct wl_listener *listener, void *data) {
 		sf_str("name", toplevel->icon_name != NULL ? toplevel->icon_name : ""));
 }
 
+/* Never steal focus: every activate becomes demand-attention (amber until
+ * focus). Valid-token focus (niri/hypr style) is deferred; shells see urgency
+ * via IPC windows.urgent / set-urgent. */
 static void request_activate(struct wl_listener *listener, void *data) {
 	struct stonefly_server *server = wl_container_of(listener, server, request_activate);
 	const struct wlr_xdg_activation_v1_request_activate_event *event = data;

@@ -147,6 +147,18 @@ static void stonefly_toplevel_apply_box(struct stonefly_toplevel *toplevel,
 	wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, box->width, box->height);
 }
 
+/* Snap / gap-max / edge-max share peeble ApplyManage morph. Fullscreen stays
+ * instant (chrome policy). Falls back to apply_box when morph is disabled. */
+static bool toplevel_try_morph_to(struct stonefly_toplevel *toplevel, const struct wlr_box *to) {
+	struct wlr_box from;
+	stonefly_toplevel_layout_geom(toplevel, &from);
+	if (from.width > 0 && from.height > 0 && stonefly_anim_start_morph(toplevel, &from, to)) {
+		return true;
+	}
+	stonefly_toplevel_apply_box(toplevel, to);
+	return false;
+}
+
 void stonefly_toplevel_restore_saved(struct stonefly_toplevel *toplevel) {
 	if (!toplevel->has_saved_geom) {
 		return;
@@ -155,22 +167,22 @@ void stonefly_toplevel_restore_saved(struct stonefly_toplevel *toplevel) {
 		wlr_xdg_toplevel_set_maximized(toplevel->xdg_toplevel, false);
 		wlr_xdg_toplevel_set_fullscreen(toplevel->xdg_toplevel, false);
 	}
-	struct wlr_box from;
-	stonefly_toplevel_layout_geom(toplevel, &from);
 	struct wlr_box to = toplevel->saved_geom;
 	toplevel->has_saved_geom = false;
+	bool was_snapped = toplevel->snapped != STONEFLY_SNAP_NONE;
+	bool was_max = toplevel->maximized_edges || toplevel->maximized_gaps;
+	bool was_fullscreen = toplevel->fullscreen;
 	toplevel->maximized_edges = false;
 	toplevel->maximized_gaps = false;
 	toplevel->fullscreen = false;
-	bool was_snapped = toplevel->snapped != STONEFLY_SNAP_NONE;
 	toplevel->snapped = STONEFLY_SNAP_NONE;
 	toplevel_set_tiled(toplevel, 0);
-	/* Live morph only for snap/unsnap restores; max/fullscreen stay instant. */
-	if (was_snapped && from.width > 0 && from.height > 0 &&
-	    stonefly_anim_start_morph(toplevel, &from, &to)) {
-		return;
+	/* Morph snap and max restores; fullscreen leave stays instant. */
+	if (!was_fullscreen && (was_snapped || was_max)) {
+		toplevel_try_morph_to(toplevel, &to);
+	} else {
+		stonefly_toplevel_apply_box(toplevel, &to);
 	}
-	stonefly_toplevel_apply_box(toplevel, &to);
 	stonefly_decor_update_geom(toplevel);
 }
 
@@ -239,9 +251,9 @@ void stonefly_toplevel_set_max_edges(struct stonefly_toplevel *toplevel, bool wa
 	toplevel->maximized_gaps = false;
 	stonefly_cover_fractional_gap(toplevel->server, &out);
 	wlr_xdg_toplevel_set_maximized(toplevel->xdg_toplevel, true);
-	stonefly_toplevel_apply_box(toplevel, &out);
 	toplevel->maximized_edges = true;
 	toplevel_set_tiled(toplevel, tiled_edges_all());
+	toplevel_try_morph_to(toplevel, &out);
 	/* Drop border/shadow/corners immediately (commit may lag). Blur stays
 	 * on for edge-max so quick terminal still gets backdrop blur. */
 	stonefly_decor_update_geom(toplevel);
@@ -357,8 +369,9 @@ void stonefly_toplevel_set_max_gaps(struct stonefly_toplevel *toplevel, bool wan
 	toplevel_set_tiled(toplevel, 0);
 	stonefly_box_inset_gap(&out, stonefly_cfg(toplevel->server)->gap_size);
 	box_inset_ssd_top(toplevel, &out);
-	stonefly_toplevel_apply_box(toplevel, &out);
 	toplevel->maximized_gaps = true;
+	toplevel_try_morph_to(toplevel, &out);
+	stonefly_decor_update_geom(toplevel);
 	stonefly_foreign_toplevel_on_state_change(toplevel);
 	stonefly_foreign_toplevel_on_outputs_change(toplevel);
 }
@@ -430,15 +443,10 @@ void stonefly_toplevel_snap_in(struct stonefly_toplevel *toplevel, enum stonefly
 	if (box.width <= 0 || box.height <= 0) {
 		return;
 	}
-	struct wlr_box from;
-	stonefly_toplevel_layout_geom(toplevel, &from);
 	toplevel->snapped = edge;
 	toplevel_set_tiled(toplevel, tiled_edges_for(edge));
 	/* start_morph retargets from the current live rect when already morphing. */
-	if (from.width > 0 && from.height > 0 && stonefly_anim_start_morph(toplevel, &from, &box)) {
-		return;
-	}
-	stonefly_toplevel_apply_box(toplevel, &box);
+	toplevel_try_morph_to(toplevel, &box);
 }
 
 void stonefly_toplevel_snap(struct stonefly_toplevel *toplevel, enum stonefly_snap edge) {

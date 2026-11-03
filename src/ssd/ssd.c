@@ -258,8 +258,6 @@ void stonefly_ssd_update(struct stonefly_toplevel *toplevel) {
 			return;
 		}
 		ssd->scene_buf->node.data = ssd;
-		/* Above xdg content; border/shadow stay below via decor init order. */
-		wlr_scene_node_raise_to_top(&ssd->scene_buf->node);
 	}
 
 	struct stonefly_ssd_layout lay;
@@ -281,13 +279,18 @@ void stonefly_ssd_update(struct stonefly_toplevel *toplevel) {
 
 	wlr_scene_node_set_position(&ssd->scene_buf->node, -border, -height);
 	/*
-	 * SSD spans the outer chrome width and sits above the rounded border.
-	 * Round the top corners to the outer rim radius so the bar does not
-	 * poke square "horns" past the border silhouette.
+	 * SSD spans the outer chrome width under the border rim. Round top
+	 * corners to the outer radius so the bar matches the rim silhouette;
+	 * then raise the border above the SSD so urgency/focus color is not
+	 * clipped by the titlebar.
 	 */
 	int inner = cfg->corner_radius;
 	int outer = inner > 0 ? inner + border : 0;
 	wlr_scene_buffer_set_corner_radii(ssd->scene_buf, corner_radii_top(outer));
+	wlr_scene_node_raise_to_top(&ssd->scene_buf->node);
+	if (toplevel->border != NULL) {
+		wlr_scene_node_raise_to_top(&toplevel->border->node);
+	}
 	wlr_scene_node_set_enabled(&ssd->scene_buf->node, true);
 	ssd->visible = true;
 }

@@ -19,6 +19,8 @@ struct stonefly_server;
  *   {"cmd":"close","arg":"<id>"}      → {"ok":true}
  *   {"cmd":"block-capture","arg":"<id>"}   → {"ok":true}
  *   {"cmd":"unblock-capture","arg":"<id>"} → {"ok":true}
+ *   {"cmd":"set-urgent","arg":"<id>"}      → {"ok":true}
+ *   {"cmd":"unset-urgent","arg":"<id>"}    → {"ok":true}
  *   {"cmd":"toggle-quick-terminal"}   → {"ok":true} (pad "term")
  *   {"cmd":"config"}                  → full live config JSON object
  *   {"cmd":"config","arg":"binds"}    → one section (options|binds|taps|
@@ -41,6 +43,8 @@ int stonefly_ipc_cmd_focus(int argc, char **argv);
 int stonefly_ipc_cmd_close(int argc, char **argv);
 int stonefly_ipc_cmd_block_capture(int argc, char **argv);
 int stonefly_ipc_cmd_unblock_capture(int argc, char **argv);
+int stonefly_ipc_cmd_set_urgent(int argc, char **argv);
+int stonefly_ipc_cmd_unset_urgent(int argc, char **argv);
 int stonefly_ipc_cmd_toggle_quick_terminal(int argc, char **argv);
 /* Terminate the compositor that owns STONEFLY_SOCKET / WAYLAND_DISPLAY. */
 int stonefly_ipc_cmd_exit(int argc, char **argv);

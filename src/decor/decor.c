@@ -370,18 +370,21 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 	int border_h = geo->height + ssd_h + 2 * border;
 	if (toplevel->border != NULL) {
 		/* Inset hole by overlap so the rim covers client AA / scale hairlines.
-		 * Hole covers client content only; SSD titlebar fills the top band. */
+		 * Hole punches content + SSD so the rim can sit above the titlebar
+		 * without painting solid border color over it (ssd_update raises
+		 * the border node above the SSD buffer). */
 		int ov = (chrome && border > 0) ? border_overlap_px : 0;
-		if (ov * 2 >= geo->width || ov * 2 >= geo->height) {
+		int hole_h = geo->height + ssd_h;
+		if (ov * 2 >= geo->width || ov * 2 >= hole_h) {
 			ov = 0;
 		}
 		struct clipped_region hole = {
 			.area =
 				{
 					.x = border + ov,
-					.y = border + ssd_h + ov,
+					.y = border + ov,
 					.width = geo->width - 2 * ov,
-					.height = geo->height - 2 * ov,
+					.height = hole_h - 2 * ov,
 				},
 			.corners = ov > 0 ? corner_radii_all(inner > ov ? inner - ov : 0)
 					  : inner_corners,

@@ -25,6 +25,7 @@ struct stonefly_window_info {
 	bool maximized_to_edges;
 	bool minimized;
 	bool snapped;
+	bool urgent;
 	bool capture_blocked;
 	char snap_dir[16]; /* empty when not snapped */
 	char output[64];

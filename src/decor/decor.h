@@ -7,6 +7,7 @@
 struct stonefly_server;
 struct stonefly_toplevel;
 struct stonefly_output;
+struct wlr_buffer;
 
 /* Create the optimized-blur node (call after layer trees exist). */
 void stonefly_decor_setup_scene(struct stonefly_server *server);

@@ -73,6 +73,7 @@ size_t stonefly_windows_collect(struct stonefly_server *server, struct stonefly_
 		info->maximized_to_edges = toplevel->maximized_edges;
 		info->minimized = toplevel->minimized;
 		info->snapped = toplevel->snapped != STONEFLY_SNAP_NONE;
+		info->urgent = toplevel->urgent;
 		info->capture_blocked = toplevel->capture_blocked;
 		info->floating =
 			!info->maximized_to_edges && !toplevel->maximized_gaps && !info->snapped;
@@ -163,6 +164,10 @@ int stonefly_windows_to_json(const struct stonefly_window_info *infos, size_t n,
 		json_byte(&b, ',');
 		json_key(&b, "snapped");
 		json_bool(&b, w->snapped);
+
+		json_byte(&b, ',');
+		json_key(&b, "urgent");
+		json_bool(&b, w->urgent);
 
 		json_byte(&b, ',');
 		json_key(&b, "capture_blocked");
@@ -265,7 +270,7 @@ static bool parse_object(struct json_scan *s, struct stonefly_window_info *out) 
 		} else if (strcmp(key, "focused") == 0 || strcmp(key, "floating") == 0 ||
 			   strcmp(key, "maximized_to_edges") == 0 ||
 			   strcmp(key, "minimized") == 0 || strcmp(key, "snapped") == 0 ||
-			   strcmp(key, "capture_blocked") == 0) {
+			   strcmp(key, "urgent") == 0 || strcmp(key, "capture_blocked") == 0) {
 			bool v = false;
 			if (!json_scan_bool(s, &v)) {
 				return false;
@@ -280,6 +285,8 @@ static bool parse_object(struct json_scan *s, struct stonefly_window_info *out) 
 				out->minimized = v;
 			} else if (strcmp(key, "snapped") == 0) {
 				out->snapped = v;
+			} else if (strcmp(key, "urgent") == 0) {
+				out->urgent = v;
 			} else {
 				out->capture_blocked = v;
 			}
@@ -372,6 +379,9 @@ void stonefly_windows_print(const struct stonefly_window_info *infos, size_t n, 
 		}
 		if (w->icon_name[0] != '\0') {
 			fprintf(fp, "\ticon=%s", w->icon_name);
+		}
+		if (w->urgent) {
+			fprintf(fp, "\turgent");
 		}
 		if (w->capture_blocked) {
 			fprintf(fp, "\tcapture=blocked");

@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <wayland-server-core.h>
 
+#include "decor/decor.h"
 #include "ipc/config.h"
 #include "ipc/layers.h"
 #include "ipc/outputs.h"
@@ -391,6 +392,22 @@ static void ipc_handle_block_capture(struct stonefly_ipc_client *client, const c
 	ipc_write_ok(client);
 }
 
+static void ipc_handle_urgent(struct stonefly_ipc_client *client, const char *arg, bool urgent) {
+	uint64_t id;
+	if (!parse_id_arg(arg, &id)) {
+		ipc_write_err(client, urgent ? "set-urgent requires numeric id arg"
+					     : "unset-urgent requires numeric id arg");
+		return;
+	}
+	struct stonefly_toplevel *toplevel = toplevel_by_id(client->ipc->server, id);
+	if (toplevel == NULL) {
+		ipc_write_err(client, "no window with that id");
+		return;
+	}
+	stonefly_decor_set_urgent(toplevel, urgent);
+	ipc_write_ok(client);
+}
+
 static void ipc_handle_toggle_quick_terminal(struct stonefly_ipc_client *client) {
 	stonefly_scratchpad_toggle(client->ipc->server, STONEFLY_IPC_QUICK_TERM);
 	ipc_write_ok(client);
@@ -473,6 +490,14 @@ static void ipc_handle_request(struct stonefly_ipc_client *client, const char *l
 	}
 	if (strcmp(cmd, "unblock-capture") == 0) {
 		ipc_handle_block_capture(client, arg, false);
+		return;
+	}
+	if (strcmp(cmd, "set-urgent") == 0) {
+		ipc_handle_urgent(client, arg, true);
+		return;
+	}
+	if (strcmp(cmd, "unset-urgent") == 0) {
+		ipc_handle_urgent(client, arg, false);
 		return;
 	}
 	if (strcmp(cmd, "toggle-quick-terminal") == 0) {
@@ -1047,6 +1072,15 @@ int stonefly_ipc_cmd_block_capture(int argc, char **argv) {
 int stonefly_ipc_cmd_unblock_capture(int argc, char **argv) {
 	return ipc_cmd_capture_block(argc, argv, "unblock-capture",
 				     "Usage: stonefly unblock-capture <id>");
+}
+
+int stonefly_ipc_cmd_set_urgent(int argc, char **argv) {
+	return ipc_cmd_capture_block(argc, argv, "set-urgent", "Usage: stonefly set-urgent <id>");
+}
+
+int stonefly_ipc_cmd_unset_urgent(int argc, char **argv) {
+	return ipc_cmd_capture_block(argc, argv, "unset-urgent",
+				     "Usage: stonefly unset-urgent <id>");
 }
 
 int stonefly_ipc_cmd_toggle_quick_terminal(int argc, char **argv) {

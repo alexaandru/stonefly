@@ -45,9 +45,9 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Focus next / prev (visible) | ✅ Super+Tab | — | ✅ | Same bind shape |
 | Focus next / prev including minimized | ✅ Alt+Tab | — | 🚧 | Alt+Tab → `noctalia msg window-switcher`; Alt+Shift+Tab still `FOCUS_PREV_ALL` (unhides). Super+Tab visible-only cycle. |
 | Close focused | ✅ | — | ✅ Super+q | |
-| Maximize to edges | ✅ | — | ✅ Super+f | Client maximized hint |
-| Maximize with gaps (WM-only) | ✅ | — | ✅ Super+m | No client maximized → rounder CSD. **Fixed:** gap-max/snap content box now insets by `stonefly_ssd_top_inset` so the SSD titlebar stays below exclusive zones (Noctalia bar) instead of sitting half under it. |
-| Unmaximize / restore | ✅ | — | ✅ | Toggle paths |
+| Maximize to edges | ✅ | — | ✅ Super+f | Client maximized hint. Live morph (`morph_duration_ms`) like snap. |
+| Maximize with gaps (WM-only) | ✅ | — | ✅ Super+m | No client maximized → rounder CSD. **Fixed:** gap-max/snap content box now insets by `stonefly_ssd_top_inset` so the SSD titlebar stays below exclusive zones (Noctalia bar) instead of sitting half under it. Live morph like snap. |
+| Unmaximize / restore | ✅ | — | ✅ | Toggle paths; morph restore for gap/edge max + snap (fullscreen leave stays instant) |
 | Fullscreen (client + WM) | ✅ | — | ✅ | Saved geom + full output box; client `request_fullscreen` + foreign set/unset (no WM keybind; Super+f is edge-max) |
 | Minimize / unminimize LIFO | ✅ Ctrl+Esc | — | ✅ | Unnamed scratchpad. Shared `apply_hidden`/`apply_shown` (LIFO vs scratch). `xdg request_minimize` → CSD/SSD buttons. |
 | Always-on-top | ✅ | — | ❌ | Peeble winmenu / state |
@@ -61,13 +61,14 @@ items that needed River protocol land *in-process* on stonefly instead.
 | `set_tiled` on snap/max | ✅ | — | ✅ | `wlr_xdg_toplevel_set_tiled` on snap / edge-max / restore / unsnap (`wm.c`); gap-max stays untiled (peeble). |
 | Cascade initial place | ✅ | — | ✅ | Gap + `(n%10)*25`, cursor output |
 | Nested client disconnect (parent UAF) | — | — | ✅ | Clear `xdg_toplevel->base->data` before destroying scene tree — Ctrl-C nested used to ASan-abort the parent in `toplevel_from_xdg` |
+| Nested `ipc exit` teardown SEGV | — | — | ✅ | `workspace_finish` destroys per-output ws scene trees before root scene destroy — avoids double `wlr_scene_node_destroy` from later `output_destroy` |
 | EnsureOnScreen / usable relayout | ✅ | — | ✅ | On exclusive-zone change |
 | Per-output usable area | ✅ `UsableOn` / `UsableAreaChanged` | — | ✅ | `exclusive_zone != 0` (incl. −1) |
 | Named scratchpads | ✅ multi + claim + auto_hide | Click-outside catcher 📋 | 🚧 | Pad `term` (+ config). Spawn uses fake `app_id` (`stonefly.scratch.term`) so claim does not steal normal Super+w windows — that breaks taskbar icons (shell keys icons off app_id). Real app_id + PID claim is not enough for single-instance multi-window clients (one Ghostty PID, many windows). Proper fix later: xdg-activation / startup token (or accept first-map races); leave icon/claim as-is for now. Hide/show via `apply_hidden(SCRATCH)` / `apply_shown` (same foreign/defocus as LIFO; `focus_top` skips `anim_hide`). **`auto_hide`:** peeble `OnFocusChange` — hide when focus moves to another window on the same output (click / Super+Tab); other-head or nil (layer/empty) leaves pad shown. Spec key `auto_hide` (default true). |
 | Scratchpad claim focused | ✅ Super+t | — | ✅ | |
 | Scratchpad omit from Alt-Tab | ✅ | — | ✅ | Super+Tab too |
 | Window menu | ✅ | — | ❌ | |
-| SSD titlebars | ✅ River `use_ssd` | Polish / force-SSD rules 📋 | ✅ | `ssd_mode` (`auto`/`prefer_ssd`/`always`/`never`, default `auto`) + `ssd_height` (28) + `ssd_font_size` (17, fcft). Black title/button glyphs on border-colored fill. Honors client `request_mode` within policy; fcft+pixman titlebar (title, min/max/close); hide on fullscreen/edge-max; TopInset in ensure-on-screen / cascade / gap-max / snap. Pointer: drag, dblclick gap-max, buttons. Per-app overrides / winmenu still open. **Fixed:** Chrome early bind — defer `set_mode` until `xdg_surface` initialized. **Fixed:** square titlebar “horns” over rounded chrome — SSD buffer uses outer `corner_radii_top`; client buffers skip top radii while SSD is shown. **Fixed:** gap-max/snap ignored SSD height so the bar sat under Noctalia. |
+| SSD titlebars | ✅ River `use_ssd` | Polish / force-SSD rules 📋 | ✅ | `ssd_mode` (`auto`/`prefer_ssd`/`always`/`never`, default `auto`) + `ssd_height` (28) + `ssd_font_size` (17, fcft). Black title/button glyphs on border-colored fill. Honors client `request_mode` within policy; fcft+pixman titlebar (title, min/max/close); hide on fullscreen/edge-max; TopInset in ensure-on-screen / cascade / gap-max / snap. Pointer: drag, dblclick gap-max, buttons. Per-app overrides / winmenu still open. **Fixed:** Chrome early bind — defer `set_mode` until `xdg_surface` initialized. **Fixed:** square titlebar “horns” over rounded chrome — SSD buffer uses outer `corner_radii_top`; client buffers skip top radii while SSD is shown. **Fixed:** gap-max/snap ignored SSD height so the bar sat under Noctalia. **Fixed:** SSD used to paint over the border rim (urgent amber clipped at titlebar); border hole now punches content+SSD and the border node is raised above the SSD. |
 | Geometry persist across restart | ✅ `windows.json` by river id | Schema / blacklist / MRU polish 📋 | ❌ | |
 | Window rules (app-id/title) | 🚧 center + modal parent | auto-float, size, scratchpad, AOT, force SSD 📋 | ❌ | |
 | Keyboard nudge move/resize | ❌ | 📋 high-value | ❌ | Snap exists; step nudge does not |
@@ -91,7 +92,7 @@ hooks; on stonefly they are owned in-process.
 | Appear / map slide | ✅ `window_effect` + AppearHold hack | Map-hold fork feature 📋 | ✅ | Closest edge, 200ms ease_out; no resting flash needed |
 | Close slide (WM-initiated) | ✅ Super+q etc. | — | ✅ | |
 | Close slide (client Ctrl+W / CSD) | ❌ blocked | Last-frame ghost FORK P1 📋 | ✅ | Ghost buffer slide |
-| Snap / unsnap morph | ✅ `animation("morph")` + window_effect | — | ✅ | Live peeble-style: each tick `set_position` + `set_size` (`STONEFLY_MORPH_DURATION_MS`); SceneFX chrome follows commits. Keybind snap + Super+u unsnap. Mid-flight retarget. |
+| Snap / unsnap / max morph | ✅ `animation("morph")` + window_effect | — | ✅ | Live peeble-style: each tick `set_position` + `set_size` (`morph_duration_ms`); SceneFX chrome follows commits. Snap, gap-max, edge-max enter/leave; Super+u unsnap. Mid-flight retarget. Fullscreen stays instant. |
 | Scratchpad / minimize slides | ✅ | — | ✅ | Mid-flight reverse |
 | Vsync-capped animation pacing | ❌ busy manage→render | river#1385 P0 📋 | ✅ | Own scene / frame loop |
 | Fade / scale appear | ❌ | river#1373 + Ideas 📋 | ❌ | Opacity static 0.96, not animated fade |
@@ -102,8 +103,8 @@ hooks; on stonefly they are owned in-process.
 | Compositor border (focus/idle/urgent) | ✅ via River `SetBorders` | Urgency needs #1281 | ✅ SceneFX | Neon / charcoal inactive / amber. **Fixed:** `STONEFLY_BORDER_*` were compound literals; pointers into them across `else if` blocks → ASan `stack-use-after-scope` in `border_rgba_premul` on first map/focus (boot loop). Now `static const float[4]`. **Fixed:** crescent/hairline vs CSD — hole+buffer use `corner_radius` (match client round); outer = radius+border (dwl); hole inset 1px under the rim for AA/scale seams. |
 | Layer z-order vs windows | 🚧 PlaceTop fights | river#1375 P0 📋 | ✅ | Scene trees background→overlay; xdg under `layers.toplevel` |
 | Window previews / destination size | ❌ | river#1384 📋 | ✅ | Noctalia switcher via `ext-foreign-toplevel-list` + image-capture-source + image-copy-capture (`ext_capture.c`); frozen snapshot per open |
-| Urgency / xdg-activation | ❌ | river#1281 → border/badge 📋 | ✅ | Amber until focus |
-| System bell | ❌ | river#1389 📋 | ✅ | 200ms amber flash |
+| Urgency / xdg-activation | ❌ | river#1281 → border/badge 📋 | ✅ | Amber until focus; never steals focus. IPC `windows.urgent` + `set-urgent` / `unset-urgent`. zwlr-foreign has no URGENT bit (upstream #132). |
+| System bell | ❌ | river#1389 📋 | ✅ | 200ms amber flash (`bell_flash_ms`); does not stick urgency |
 | Capture privacy (block window) | ❌ | river#1481 📋 | ✅ | Per-window `capture_blocked` on toplevel; reject ext-image-capture accept. Config `opt.capture_block_app_ids` (comma list / Lua table) on map/app_id. IPC `block-capture` / `unblock-capture` + windows JSON field. |
 
 ---
@@ -169,8 +170,8 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Screenshots (fullscreen/window/region) | ✅ ext-image-copy-capture | Include-cursor polish 📋 | 🌙 / ✅ | Print binds → noctalia. `ext-image-copy-capture` + toplevel capture (`ext_capture.c`) + `zwlr_screencopy_manager_v1` (`server.c`). Capture privacy (#1481) ✅ for toplevel image-capture. |
 | Screencast / capture_sessions | ✅ bar widget | — | ❌ | |
 | Foreign-toplevel management | 🚧 River read-only; bar uses Focus | Activate relay #1449/#1537 📋 | ✅ | `zwlr_foreign_toplevel_management_v1` v3 (`foreign.c`) + parallel `ext-foreign-toplevel-list-v1` (`ext_capture.c`) for capture handles |
-| xdg-activation (urgency) | ❌ | #1281 📋 | ✅ | |
-| xdg-system-bell | ❌ | #1389 📋 | ✅ | |
+| xdg-activation (urgency) | ❌ | #1281 📋 | ✅ | Amber until focus; never steals focus. IPC `urgent` / set-unset. |
+| xdg-system-bell | ❌ | #1389 📋 | ✅ | Visual flash only (`bell_flash_ms`). |
 | Idle-inhibit / idle-notify / session-lock | ✅ | — | ✅ | `session/session.c`: ext-session-lock-v1, ext-idle-notify-v1, zwp-idle-inhibit-v1, zwlr-output-power-management-v1 |
 | Gamma control | ✅ | — | ✅ | `zwlr_gamma_control_v1` + SceneFX scene hook (`server.c`) |
 | Xwayland | ✅ (River host) | — | ❌ | Classic X11 apps fail |

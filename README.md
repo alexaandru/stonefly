@@ -145,7 +145,7 @@ Default output scale is **1.5** (`stonefly.opt.scale`) with `wp_fractional_scale
 
 - SceneFX 0.5 (`scenefx` / `scenefx-dev`): `fx_renderer_create`, per-window blur + drop shadow + 12px rounded corners, 3px border (neon-blue focused / silver idle / amber urgent), client opacity **0.90**.
 - Presentation: peeble-style slide in/out (`ease_out`, 200ms, closest usable edge) on map, close, minimize/unminimize, and scratchpad show/hide. Client Ctrl+W / CSD close uses a last-frame **ghost** slide (FORK.md close-ghost).
-- Urgency: `xdg-activation-v1` → amber border until focus. System bell: `xdg-system-bell-v1` → 200ms amber flash.
+- Urgency: `xdg-activation-v1` → amber border until focus (never steals focus). IPC `windows.urgent`, `set-urgent` / `unset-urgent`. System bell: `xdg-system-bell-v1` → 200ms amber flash.
 - Usable area: layer exclusive zones (`exclusive_zone != 0`, including `-1`) shrink the box used by max/snap/cascade. When the bar’s zone arrives after map, floaters are EnsureOnScreen’d (gap-max if oversized).
 - Drag-snap (peeble parity): Super+LMB / CSD move has magnetic edge resistance (`snap_threshold` 26, push-through `4×`), neon half-snap preview on `layers.overlay` (SceneFX rects), release-to-snap / push-through cancel, PrepareDrag float from snap/max keeping PreSnap.
 - No Xwayland or real config file yet (layer-shell is implemented).

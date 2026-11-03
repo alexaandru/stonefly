@@ -610,6 +610,14 @@ void stonefly_workspace_setup(struct stonefly_server *server) {
 }
 
 void stonefly_workspace_finish(struct stonefly_server *server) {
+	/* Destroy per-output workspace scene trees while the root scene is still
+	 * alive. Otherwise server_finish's wlr_scene_node_destroy(root) frees them
+	 * first, then backend output_destroy → workspace_output_finish double-frees
+	 * (ASan SEGV in wl_list_remove on nested ipc exit). */
+	struct stonefly_output *output;
+	wl_list_for_each(output, &server->outputs, link) {
+		stonefly_workspace_output_finish(output);
+	}
 	if (server->ext_workspace_mgr != NULL) {
 		wl_list_remove(&server->ext_workspace_commit.link);
 		/* Manager is destroyed with the display. */
