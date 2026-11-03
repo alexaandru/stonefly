@@ -55,7 +55,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Unsnap / restore PreSnap | ✅ Super+u | — | ✅ | |
 | Drag move (Super+LMB) | ✅ | — | ✅ | WM xcursor via `stonefly_seat_apply_grab_cursor` (`grabbing`→fallbacks). Clear client pointer focus before set; re-assert each grab motion so a client `set_cursor` surface cannot stick. SSD titlebar hover shows move face. |
 | Drag resize (Super+RMB) | ✅ | — | ✅ | Edges nearest pointer; same grab-cursor helper. Works on edge-max too (kept for now). |
-| Border/corner mouse resize | — | — | ✅ | Hover + LMB on hit band (`resize_border_in` 3 / `resize_border_out` 1); edge cursors; Super+RMB kept. Also works while edge-max (kept). SSD titlebar center still moves (top `in` px / corners resize). |
+| Border/corner mouse resize | — | — | ✅ | Hover + LMB on hit band (`resize_border_in` 3 / `resize_border_out` 1); edge cursors; Super+RMB kept. Also works while edge-max (kept). SSD titlebar center still moves (top `in` px / corners resize). **Fixed:** hit band used to `pointer_clear_focus` on motion, which sent leave while still over client content and dropped button release if the drag entered the band — Chrome side-panel kept resizing after mouse-up; Ghostty/terminal selection/primary felt flaky. Now keep enter/motion on the surface in the inner band (WM still owns the resize cursor; client `set_cursor` ignored in-band) and honor implicit grab (`button_count > 0`) until release. |
 | Magnetic drag-snap + resistance | ✅ threshold 26, 4× push-through | — | ✅ | `drag_snap.c` parity |
 | Snap preview overlay | ✅ SHM layer-shell | Configurable fill color/opacity 📋 | ✅ SceneFX overlay rects | Border 1, fill 40% active |
 | `set_tiled` on snap/max | ✅ | — | ✅ | `wlr_xdg_toplevel_set_tiled` on snap / edge-max / restore / unsnap (`wm.c`); gap-max stays untiled (peeble). |
@@ -246,7 +246,7 @@ in-process shell (Noctalia stands in under stonefly).
 | Super+Page / Super+1–9 workspaces; Shift moves follow | ✅ |
 | 3-finger vertical swipe workspaces (`swipe_workspace_natural`) | ✅ |
 | Super+LMB/RMB move/resize + magnetic snap + preview | ✅ |
-| Border/corner LMB resize (`resize_border_in`/`out`) | ✅ |
+| Border/corner LMB resize (`resize_border_in`/`out`) | ✅ (implicit grab mid-drag) |
 | Ctrl+Esc minimize LIFO | ✅ |
 | Super tap launcher / double-tap term / Super+t claim | ✅ |
 | Spawns Ghostty / foot / nautilus / editor / QT | ✅ |

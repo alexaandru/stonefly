@@ -658,6 +658,14 @@ static void server_new_input(struct wl_listener *listener, void *data) {
 	seat_update_capabilities(server);
 }
 
+/* True when the pointer sits in the WM border/corner resize hit band. */
+static bool seat_pointer_in_border_resize(struct stonefly_server *server) {
+	uint32_t edges = 0;
+	return border_resize_toplevel_at(server, server->cursor->x, server->cursor->y, &edges) !=
+		       NULL &&
+	       edges != 0;
+}
+
 static void seat_request_cursor(struct wl_listener *listener, void *data) {
 	struct stonefly_server *server = wl_container_of(listener, server, request_cursor);
 	/* This event is raised by the seat when a client provides a cursor image */
@@ -665,6 +673,10 @@ static void seat_request_cursor(struct wl_listener *listener, void *data) {
 	struct wlr_seat_client *focused_client = server->seat->pointer_state.focused_client;
 	/* WM interactive move/resize owns the face; ignore client images. */
 	if (server->cursor_mode != STONEFLY_CURSOR_PASSTHROUGH) {
+		return;
+	}
+	/* Border hit band shows a resize face while still forwarding enter/motion. */
+	if (seat_pointer_in_border_resize(server)) {
 		return;
 	}
 	/* This can be sent by any client, so we check to make sure this one is
@@ -687,6 +699,9 @@ static void seat_request_set_cursor_shape(struct wl_listener *listener, void *da
 	struct wlr_cursor_shape_manager_v1_request_set_shape_event *event = data;
 
 	if (server->cursor_mode != STONEFLY_CURSOR_PASSTHROUGH) {
+		return;
+	}
+	if (seat_pointer_in_border_resize(server)) {
 		return;
 	}
 	if (event->seat_client != server->seat->pointer_state.focused_client) {
@@ -955,6 +970,57 @@ static void process_cursor_resize(struct stonefly_server *server) {
 	stonefly_seat_apply_grab_cursor(server);
 }
 
+struct seat_surface_coords_ctx {
+	struct wlr_surface *target;
+	double cursor_x;
+	double cursor_y;
+	double sx;
+	double sy;
+	bool found;
+};
+
+static void seat_surface_coords_iter(struct wlr_scene_buffer *buffer, int sx, int sy,
+				     void *user_data) {
+	(void)sx;
+	(void)sy;
+	struct seat_surface_coords_ctx *ctx = user_data;
+	if (ctx->found) {
+		return;
+	}
+	struct wlr_scene_surface *ss = wlr_scene_surface_try_from_buffer(buffer);
+	if (ss == NULL || ss->surface != ctx->target) {
+		return;
+	}
+	int lx = 0;
+	int ly = 0;
+	if (!wlr_scene_node_coords(&buffer->node, &lx, &ly)) {
+		return;
+	}
+	ctx->sx = ctx->cursor_x - (double)lx;
+	ctx->sy = ctx->cursor_y - (double)ly;
+	ctx->found = true;
+}
+
+/* Layout cursor → surface-local for an arbitrary scene-backed surface. */
+static bool seat_pointer_surface_coords(struct stonefly_server *server, struct wlr_surface *surface,
+					double *sx, double *sy) {
+	if (surface == NULL) {
+		return false;
+	}
+	struct seat_surface_coords_ctx ctx = {
+		.target = surface,
+		.cursor_x = server->cursor->x,
+		.cursor_y = server->cursor->y,
+	};
+	wlr_scene_node_for_each_buffer(&server->scene->tree.node, seat_surface_coords_iter, &ctx);
+	if (!ctx.found) {
+		return false;
+	}
+	*sx = ctx.sx;
+	*sy = ctx.sy;
+	return true;
+}
+
 static void process_cursor_motion(struct stonefly_server *server, uint32_t time) {
 	/* If the mode is non-passthrough, delegate to those functions. */
 	if (server->cursor_mode == STONEFLY_CURSOR_MOVE) {
@@ -972,8 +1038,33 @@ static void process_cursor_motion(struct stonefly_server *server, uint32_t time)
 	struct wlr_surface *surface = NULL;
 	struct stonefly_toplevel *toplevel = stonefly_desktop_toplevel_at(
 		server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+	bool buttons_down = seat->pointer_state.button_count > 0;
+	struct wlr_surface *grabbed = buttons_down ? seat->pointer_state.focused_surface : NULL;
 
-	/* Border/corner hit band: WM owns the face; do not forward to the client. */
+	/*
+	 * Implicit grab: while any button is held, keep sending motion to the
+	 * press surface. Clearing focus here drops the matching release (Chrome
+	 * side-panel resize keeps going; terminal selection/primary goes weird).
+	 */
+	if (grabbed != NULL) {
+		double gsx;
+		double gsy;
+		if (surface == grabbed) {
+			gsx = sx;
+			gsy = sy;
+		} else if (!seat_pointer_surface_coords(server, grabbed, &gsx, &gsy)) {
+			gsx = seat->pointer_state.sx;
+			gsy = seat->pointer_state.sy;
+		}
+		wlr_seat_pointer_notify_motion(seat, time, gsx, gsy);
+		return;
+	}
+
+	/*
+	 * Border/corner hit band: WM owns the resize cursor. Keep client pointer
+	 * focus when a surface is still under the cursor (inner band) so leave
+	 * does not cancel selection; ignore client set_cursor while in-band.
+	 */
 	if (!stonefly_session_locked(server)) {
 		uint32_t bedges = 0;
 		struct stonefly_toplevel *border_tl = border_resize_toplevel_at(
@@ -982,7 +1073,12 @@ static void process_cursor_motion(struct stonefly_server *server, uint32_t time)
 			(void)toplevel;
 			wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr,
 					       stonefly_resize_xcursor_name(bedges));
-			wlr_seat_pointer_clear_focus(seat);
+			if (surface != NULL) {
+				wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
+				wlr_seat_pointer_notify_motion(seat, time, sx, sy);
+			} else {
+				wlr_seat_pointer_clear_focus(seat);
+			}
 			return;
 		}
 	}
