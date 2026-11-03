@@ -202,7 +202,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | IPC outputs / inputs | ❌ | Ideas 📋 | 🚧 | `outputs` ✅ (`ipc/outputs.c`); inputs ❌ |
 | Structured JSON logs | ✅ `~/.var/log/peeble/wm.log` | — | ✅ | `wm.log` + `wm.last.json` rotate |
 | APK release buildtype | ✅ | — | 🚧 | **TEMP:** clang `debugoptimized` + ASan/UBSan (`!strip`); `compiler-rt` in makedepends; release `abuild-meson --buildtype=release` kept commented until crash hunting ends |
-| APK / meson `check` | ✅ Go unit tests | — | 🚧 | `check()` runs `make style-check` (fmt-check/cppcheck/tidy). `ipc.c` tidy findings cleared (signed-bitwise, widening, atoi→strtol, ArrayBound, branch-clone). Still no `meson test` suite; pure-helper tests remain a reasonable next gate. |
+| APK / meson `check` | ✅ Go unit tests | — | 🚧 | `check()` runs `make style-check` (fmt-check/cppcheck/tidy). Still no `meson test` suite — owned harness + unit gate planned in §11. |
 | Exit CPU/heap profiles | ✅ | — | ❌ | |
 
 ---
@@ -334,6 +334,55 @@ generated keysym map); IPC `stonefly config [section]`; consumers read
 
 Entry points: `src/config/`, `runtime/pack/dist/opt/fennel-shim/`,
 `stonefly --write-config`, `stonefly config`.
+
+---
+
+## 11. Testing
+
+Stonefly has **no** `meson test` suite yet. Peeble uses Go **stdlib
+`testing` only** (no assert/testify). C has no equivalent package, so
+stonefly will **own a small harness** rather than pull Criterion, Check,
+cmocka, Unity, or fluent `expect()` headers.
+
+### Policy
+
+| Rule | Choice |
+|---|---|
+| Framework | Project-owned runner (~tens of lines): register named cases, run, exit non-zero on failure |
+| Checks | Plain comparisons + **thin owned wrappers** (`sf_test_eq_int`, `sf_test_streq`, …) — helpers, not a DSL |
+| Macros | No assert/testify-shaped `ASSERT_*` / `cr_assert` / `expect().toEqual` hell; a couple of fail/report macros is fine |
+| Dependencies | No new Alpine `checkdepends` for a test framework; stdio/stdlib/string only |
+| Style | Same house C as `./src` (tabs, K&R, `/* */`, `stonefly_*` / `sf_test_*`) |
+| Build | Meson `test()` binaries that link **selected** `.c` units — not `main.c` + full compositor |
+
+“Simple” means **owned and readable**, not “only raw `if` forever.” Thin
+wrappers that print got/want and mark failure are encouraged.
+
+### Suites
+
+| Suite | Status | Scope | Gate |
+|---|---|---|---|
+| Unit | 📋 | Pure helpers first: `util/json`, IPC argv/section parse, layout/geometry math, config decode — no display server | Next `meson test` / abuild `check()` add-on beside `style-check` |
+| Integration | 📋 later | Headless / virtual WL (wlroots headless or stonefly flag) + client/IPC drivers | Separate Meson suite tag (e.g. `integration`); skip by default until stable |
+
+### Peeble ↔ stonefly
+
+| | Peeble | Stonefly |
+|---|---|---|
+| Unit style | `testing` + `if` / `t.Fatal*` | Owned harness + thin wrappers (same spirit) |
+| Where tests live | `*_test.go` beside packages | Planned `tests/` (or per-module test binaries); layout TBD at scaffold |
+| CI / APK `check()` | `go test` | Today: `make style-check` only; unit binaries TBD (§6 row) |
+
+### Non-goals (for now)
+
+- Third-party C unit frameworks as `checkdepends`
+- Mocking frameworks / linker `--wrap` as the default story
+- Running the full compositor under every `meson test`
+- Collapsing unit + headless integration into one binary
+
+When scaffolding: add Meson `test()` entries, keep `pkgrel`/`pkgver`
+untouched unless asked, and point this chapter’s Unit row ✅ when the first
+helper binary is green under abuild `check()`.
 
 ---
 
