@@ -37,6 +37,7 @@
 #include "seat/seat.h"
 #include "server/server.h"
 #include "session/session.h"
+#include "ssd/ssd.h"
 #include "toplevel/ext_capture.h"
 #include "toplevel/foreign.h"
 #include "wm/drag_snap.h"
@@ -148,6 +149,7 @@ bool stonefly_server_init(struct stonefly_server *server) {
 	/* Before outputs so each head can create an ext-workspace group. */
 	stonefly_workspace_setup(server);
 	stonefly_output_setup(server);
+	stonefly_ssd_setup(server);
 	stonefly_xdg_setup(server);
 	stonefly_foreign_toplevel_setup(server);
 	stonefly_ext_capture_setup(server);
@@ -192,6 +194,7 @@ void stonefly_server_finish(struct stonefly_server *server) {
 	/* Drop bus watches before the display/event loop goes away. */
 	stonefly_dbus_finish(server);
 	stonefly_ipc_stop(server);
+	stonefly_ssd_finish(server);
 	wl_display_destroy_clients(server->wl_display);
 	free(server->config_warn);
 	server->config_warn = NULL;

@@ -64,10 +64,11 @@ enum stonefly_cursor_mode {
 	STONEFLY_CURSOR_RESIZE,
 };
 
-/* Discriminator for scene node->data (toplevel vs layer). First field. */
+/* Discriminator for scene node->data (toplevel vs layer vs SSD). First field. */
 enum stonefly_node_kind {
 	STONEFLY_NODE_TOPLEVEL = 1,
 	STONEFLY_NODE_LAYER = 2,
+	STONEFLY_NODE_SSD = 3,
 };
 
 struct stonefly_server {
@@ -109,7 +110,7 @@ struct stonefly_server {
 	struct wlr_xdg_system_bell_v1 *system_bell;
 	struct wl_listener system_bell_ring;
 
-	/* Prefer client-side decorations (no SSD painting yet). */
+	/* xdg-decoration: mode from ssd_mode + client request_mode. */
 	struct wlr_xdg_decoration_manager_v1 *xdg_decoration_mgr;
 	struct wl_listener new_xdg_decoration;
 

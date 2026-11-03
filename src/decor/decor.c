@@ -16,6 +16,7 @@
 #include "log/log.h"
 #include "output/output.h"
 #include "server/server.h"
+#include "ssd/ssd.h"
 #include "wm/wm.h"
 #include "xdg/xdg.h"
 
@@ -317,10 +318,6 @@ static void decor_clip_xdg_surface(struct stonefly_toplevel *toplevel, const str
 	struct wlr_scene_node *child;
 	wl_list_for_each(child, &toplevel->xdg_scene_tree->children, link) {
 		wlr_scene_subsurface_tree_set_clip(child, geo);
-		SF_LOGD("decor clip", sf_i64("id", (int64_t)toplevel->id),
-			sf_i64("child_x", child->x), sf_i64("child_y", child->y),
-			sf_i64("geo_x", geo->x), sf_i64("geo_y", geo->y),
-			sf_i64("geo_w", geo->width), sf_i64("geo_h", geo->height));
 		return;
 	}
 	SF_LOGW("decor clip: no subsurface child", sf_i64("id", (int64_t)toplevel->id));
@@ -338,6 +335,8 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 	const int inner = chrome ? cfg->corner_radius : 0;
 	const int outer = chrome ? outer_corner_radius(inner, border) : 0;
 	const float sigma = chrome ? cfg->shadow_blur_sigma : 0.0f;
+	/* Titlebar sits above content; border/shadow/blur wrap both. */
+	const int ssd_h = chrome ? stonefly_ssd_top_inset(toplevel) : 0;
 	struct fx_corner_radii outer_corners = corner_radii_all(outer);
 	struct fx_corner_radii inner_corners = corner_radii_all(inner);
 
@@ -350,15 +349,16 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 	decor_clip_xdg_surface(toplevel, geo);
 
 	if (toplevel->blur != NULL) {
-		wlr_scene_blur_set_size(toplevel->blur, geo->width, geo->height);
-		wlr_scene_node_set_position(&toplevel->blur->node, 0, 0);
+		wlr_scene_blur_set_size(toplevel->blur, geo->width, geo->height + ssd_h);
+		wlr_scene_node_set_position(&toplevel->blur->node, 0, -ssd_h);
 		wlr_scene_blur_set_corner_radii(toplevel->blur, inner_corners);
 	}
 
 	int border_w = geo->width + 2 * border;
-	int border_h = geo->height + 2 * border;
+	int border_h = geo->height + ssd_h + 2 * border;
 	if (toplevel->border != NULL) {
-		/* Inset hole by overlap so the rim covers client AA / scale hairlines. */
+		/* Inset hole by overlap so the rim covers client AA / scale hairlines.
+		 * Hole covers client content only; SSD titlebar fills the top band. */
 		int ov = (chrome && border > 0) ? border_overlap_px : 0;
 		if (ov * 2 >= geo->width || ov * 2 >= geo->height) {
 			ov = 0;
@@ -367,7 +367,7 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 			.area =
 				{
 					.x = border + ov,
-					.y = border + ov,
+					.y = border + ssd_h + ov,
 					.width = geo->width - 2 * ov,
 					.height = geo->height - 2 * ov,
 				},
@@ -375,14 +375,9 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 					  : inner_corners,
 		};
 		wlr_scene_rect_set_size(toplevel->border, border_w, border_h);
-		wlr_scene_node_set_position(&toplevel->border->node, -border, -border);
+		wlr_scene_node_set_position(&toplevel->border->node, -border, -ssd_h - border);
 		wlr_scene_rect_set_corner_radii(toplevel->border, outer_corners);
 		wlr_scene_rect_set_clipped_region(toplevel->border, hole);
-		SF_LOGD("decor border hole", sf_i64("id", (int64_t)toplevel->id),
-			sf_i64("rect_w", border_w), sf_i64("rect_h", border_h),
-			sf_i64("hole_x", hole.area.x), sf_i64("hole_y", hole.area.y),
-			sf_i64("hole_w", hole.area.width), sf_i64("hole_h", hole.area.height),
-			sf_i64("outer_r", outer), sf_i64("inner_r", inner), sf_i64("overlap", ov));
 	}
 
 	if (toplevel->shadow != NULL) {
@@ -390,7 +385,7 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 		int sh = border_h + 2 * (int)sigma;
 		wlr_scene_shadow_set_size(toplevel->shadow, sw, sh);
 		wlr_scene_node_set_position(&toplevel->shadow->node, -border - (int)sigma,
-					    -border - (int)sigma);
+					    -ssd_h - border - (int)sigma);
 		/* Clip follows the outer border silhouette. */
 		wlr_scene_shadow_set_clipped_region(toplevel->shadow,
 						    (struct clipped_region){
@@ -405,21 +400,8 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 						    });
 	}
 
-	struct wlr_surface *surf = toplevel->xdg_toplevel->base->surface;
-	SF_LOGD("decor geom", sf_i64("id", (int64_t)toplevel->id),
-		sf_str("app_id", toplevel->xdg_toplevel->app_id != NULL
-					 ? toplevel->xdg_toplevel->app_id
-					 : ""),
-		sf_bool("chrome", chrome), sf_i64("wrap_x", toplevel->scene_tree->node.x),
-		sf_i64("wrap_y", toplevel->scene_tree->node.y),
-		sf_i64("xdg_x", toplevel->xdg_scene_tree->node.x),
-		sf_i64("xdg_y", toplevel->xdg_scene_tree->node.y), sf_i64("geo_x", geo->x),
-		sf_i64("geo_y", geo->y), sf_i64("geo_w", geo->width), sf_i64("geo_h", geo->height),
-		sf_i64("surf_w", surf != NULL ? surf->current.width : 0),
-		sf_i64("surf_h", surf != NULL ? surf->current.height : 0), sf_i64("border", border),
-		sf_bool("window_blur", cfg->window_blur));
-
 	stonefly_decor_apply_buffers(toplevel);
+	stonefly_ssd_update(toplevel);
 }
 
 void stonefly_decor_refresh_border(struct stonefly_toplevel *toplevel) {
@@ -440,6 +422,7 @@ void stonefly_decor_set_focused(struct stonefly_toplevel *toplevel, bool focused
 	if (focused) {
 		toplevel->urgent = false;
 	}
+	stonefly_ssd_set_focused(toplevel, focused);
 	/* Use the caller-supplied focus bit: seat focus may not have moved yet. */
 	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
 	float opacity = toplevel_chrome_opacity(toplevel, focused);

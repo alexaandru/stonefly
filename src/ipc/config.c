@@ -8,6 +8,7 @@
 
 #include "config/config.h"
 #include "server/server.h"
+#include "ssd/ssd_policy.h"
 #include "util/json.h"
 #include "wm/workspace.h"
 
@@ -232,6 +233,12 @@ static void emit_options(struct json_buf *b, const struct stonefly_config *cfg) 
 	json_byte(b, ',');
 	json_key(b, "swipe_workspace_natural");
 	json_bool(b, cfg->swipe_workspace_natural != 0);
+	json_byte(b, ',');
+	json_key(b, "ssd_mode");
+	json_str(b, stonefly_ssd_mode_name((enum stonefly_ssd_mode)cfg->ssd_mode));
+	json_byte(b, ',');
+	json_key(b, "ssd_height");
+	json_i64(b, cfg->ssd_height);
 	json_byte(b, ',');
 	json_key(b, "capture_block_app_ids");
 	json_str(b, cfg->capture_block_app_ids ? cfg->capture_block_app_ids : "");

@@ -46,6 +46,10 @@
   ;; true = natural (finger up → next / content moves with finger);
   ;; false = classic (finger down → next).
   :swipe_workspace_natural true
+  ;; SSD titlebars — never | auto | prefer_ssd | always
+  ;; auto: SSD when client prefers server-side or has no preference.
+  :ssd_mode "auto"
+  :ssd_height 28
   ;; Capture privacy (#1481): comma-separated app_id substrings, or a table.
   ;; Matching windows get capture_blocked on map / app_id change.
   ;; :capture_block_app_ids "keepass,bitwarden"

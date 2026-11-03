@@ -24,7 +24,9 @@ struct wlr_scene_shadow;
 struct wlr_scene;
 struct wlr_ext_foreign_toplevel_handle_v1;
 struct wlr_ext_image_capture_source_v1;
+struct wlr_xdg_toplevel_decoration_v1;
 struct stonefly_workspace;
+struct stonefly_ssd;
 
 struct stonefly_toplevel {
 	enum stonefly_node_kind kind; /* STONEFLY_NODE_TOPLEVEL */
@@ -86,6 +88,13 @@ struct stonefly_toplevel {
 	/* xdg-toplevel-tag-v1 (client-set; heap, may be NULL). */
 	char *tag;
 	char *description;
+
+	/* xdg-decoration: client preference + compositor SSD titlebar. */
+	bool want_ssd;
+	/* Last mode we passed to set_mode (avoid configure storms). */
+	int ssd_set_mode;
+	struct wlr_xdg_toplevel_decoration_v1 *decoration;
+	struct stonefly_ssd *ssd;
 
 	/* Logical resting position while a slide/morph runs (scene node is visual). */
 	int resting_x;

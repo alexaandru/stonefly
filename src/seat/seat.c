@@ -37,6 +37,7 @@
 #include "output/output.h"
 #include "seat/seat.h"
 #include "session/session.h"
+#include "ssd/ssd.h"
 #include "wm/drag_snap.h"
 #include "wm/snap_preview.h"
 #include "wm/wm.h"
@@ -788,14 +789,20 @@ static void seat_request_set_primary_selection(struct wl_listener *listener, voi
 struct stonefly_toplevel *stonefly_desktop_toplevel_at(struct stonefly_server *server, double lx,
 						       double ly, struct wlr_surface **surface,
 						       double *sx, double *sy) {
-	/* This returns the topmost node in the scene at the given layout coords.
-	 * We only care about surface nodes as we are specifically looking for a
-	 * surface in the surface tree of a stonefly_toplevel. */
+	/* Topmost buffer at layout coords. Client surfaces or compositor SSD. */
 	struct wlr_scene_node *node = wlr_scene_node_at(&server->scene->tree.node, lx, ly, sx, sy);
 	if (node == NULL || node->type != WLR_SCENE_NODE_BUFFER) {
 		return NULL;
 	}
 	struct wlr_scene_buffer *scene_buffer = wlr_scene_buffer_from_node(node);
+
+	/* SSD titlebar: no wlr_surface; node.data is stonefly_ssd. */
+	struct stonefly_toplevel *ssd_tl = NULL;
+	if (stonefly_ssd_node_is_titlebar(node, &ssd_tl)) {
+		*surface = NULL;
+		return ssd_tl;
+	}
+
 	struct wlr_scene_surface *scene_surface = wlr_scene_surface_try_from_buffer(scene_buffer);
 	if (!scene_surface) {
 		return NULL;
@@ -1027,7 +1034,22 @@ static void server_cursor_button(struct wl_listener *listener, void *data) {
 			stonefly_drag_snap_finish(server);
 		}
 		stonefly_reset_cursor_mode(server);
-		if (!grabbing) {
+		/* Titlebar-initiated move: drop pending button state. */
+		if (grabbing) {
+			stonefly_ssd_pointer_reset();
+		}
+		if (!grabbing && !stonefly_session_locked(server)) {
+			double sx, sy;
+			struct wlr_surface *surface = NULL;
+			struct stonefly_toplevel *toplevel = stonefly_desktop_toplevel_at(
+				server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+			if (toplevel != NULL && surface == NULL && toplevel->ssd != NULL &&
+			    stonefly_ssd_pointer_button(server, toplevel, sx, sy, event)) {
+				return;
+			}
+			wlr_seat_pointer_notify_button(server->seat, event->time_msec,
+						       event->button, event->state);
+		} else if (!grabbing) {
 			wlr_seat_pointer_notify_button(server->seat, event->time_msec,
 						       event->button, event->state);
 		}
@@ -1060,14 +1082,23 @@ static void server_cursor_button(struct wl_listener *listener, void *data) {
 		}
 	}
 
-	wlr_seat_pointer_notify_button(server->seat, event->time_msec, event->button, event->state);
 	if (!stonefly_session_locked(server)) {
 		double sx, sy;
 		struct wlr_surface *surface = NULL;
 		struct stonefly_toplevel *toplevel = stonefly_desktop_toplevel_at(
 			server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+		/* SSD titlebar: no client surface; consume button locally. */
+		if (toplevel != NULL && surface == NULL && toplevel->ssd != NULL &&
+		    stonefly_ssd_pointer_button(server, toplevel, sx, sy, event)) {
+			return;
+		}
+		wlr_seat_pointer_notify_button(server->seat, event->time_msec, event->button,
+					       event->state);
 		stonefly_focus_toplevel(toplevel);
+		return;
 	}
+
+	wlr_seat_pointer_notify_button(server->seat, event->time_msec, event->button, event->state);
 }
 
 static void server_cursor_axis(struct wl_listener *listener, void *data) {

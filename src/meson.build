@@ -25,6 +25,10 @@ stonefly_src = files(
   'ipc/workspaces.c',
   'anim/anim.c',
   'decor/decor.c',
+  'ssd/ssd.c',
+  'ssd/ssd_policy.c',
+  'ssd/ssd_layout.c',
+  'ssd/ssd_paint.c',
   'toplevel/foreign.c',
   'toplevel/ext_capture.c',
 )
@@ -32,6 +36,8 @@ stonefly_src = files(
 stonefly_inc = include_directories('.')
 
 luajit = dependency('luajit')
+fcft = dependency('fcft')
+pixman = dependency('pixman-1')
 
 # Alpine: elogind provides libsystemd.pc → sd-bus. Prefer libsystemd name.
 libsystemd = dependency('libsystemd', required: false)
@@ -79,6 +85,8 @@ executable(
     xkbcommon,
     luajit,
     libsystemd,
+    fcft,
+    pixman,
     meson.get_compiler('c').find_library('m'),
     stonefly_protocols_dep,
   ],

@@ -131,6 +131,10 @@ struct stonefly_config {
 	 * Classic (false): finger points at the destination (down → next). */
 	int swipe_workspace_natural;
 
+	/* SSD titlebars: never|auto|prefer_ssd|always (enum stonefly_ssd_mode). */
+	int ssd_mode;
+	int ssd_height; /* logical px; default 28 */
+
 	char *cmd_foot;
 	char *cmd_nautilus;
 	char *cmd_ghostty;

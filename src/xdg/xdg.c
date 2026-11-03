@@ -18,6 +18,7 @@
 #include "log/log.h"
 #include "output/output.h"
 #include "seat/seat.h"
+#include "ssd/ssd.h"
 #include "toplevel/ext_capture.h"
 #include "toplevel/foreign.h"
 #include "wm/drag_snap.h"
@@ -233,6 +234,7 @@ static void xdg_toplevel_set_title(struct wl_listener *listener, void *data) {
 	struct stonefly_toplevel *toplevel = wl_container_of(listener, toplevel, set_title);
 	stonefly_foreign_toplevel_on_title_change(toplevel);
 	stonefly_ext_capture_on_title_change(toplevel);
+	stonefly_ssd_update(toplevel);
 }
 
 static void xdg_toplevel_set_app_id(struct wl_listener *listener, void *data) {
@@ -259,6 +261,7 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	/* Drop snapshot overlay before the live scene tree is destroyed. */
 	stonefly_anim_cancel(toplevel, false);
 	stonefly_scratchpad_on_destroy(toplevel);
+	stonefly_ssd_destroy(toplevel);
 	stonefly_decor_finish_toplevel(toplevel);
 
 	if (toplevel->minimized) {
@@ -505,8 +508,9 @@ static void server_new_xdg_popup(struct wl_listener *listener, void *data) {
 	wl_signal_add(&xdg_popup->events.destroy, &popup->destroy);
 }
 
-/* Prefer CSD until stonefly paints real SSD titlebars. */
+/* Honor client request_mode within ssd_mode; paint SSD when SERVER_SIDE. */
 struct stonefly_xdg_decoration {
+	struct stonefly_server *server;
 	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco;
 	struct wl_listener request_mode;
 	struct wl_listener surface_commit;
@@ -515,19 +519,19 @@ struct stonefly_xdg_decoration {
 
 /* wlroots 0.20: set_mode → schedule_configure asserts surface->initialized.
  * Chrome binds xdg-decoration before the first commit; defer until then. */
-static void xdg_decoration_apply_csd(struct stonefly_xdg_decoration *deco) {
+static void xdg_decoration_apply(struct stonefly_xdg_decoration *deco) {
 	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco = deco->wlr_deco;
 	if (wlr_deco->toplevel == NULL || !wlr_deco->toplevel->base->initialized) {
 		return;
 	}
-	wlr_xdg_toplevel_decoration_v1_set_mode(wlr_deco,
-						WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
+	struct stonefly_toplevel *toplevel = toplevel_from_xdg(deco->server, wlr_deco->toplevel);
+	stonefly_ssd_decoration_apply(toplevel, wlr_deco);
 }
 
 static void xdg_decoration_request_mode(struct wl_listener *listener, void *data) {
 	(void)data;
 	struct stonefly_xdg_decoration *deco = wl_container_of(listener, deco, request_mode);
-	xdg_decoration_apply_csd(deco);
+	xdg_decoration_apply(deco);
 }
 
 static void xdg_decoration_surface_commit(struct wl_listener *listener, void *data) {
@@ -536,12 +540,21 @@ static void xdg_decoration_surface_commit(struct wl_listener *listener, void *da
 	if (!deco->wlr_deco->toplevel->base->initial_commit) {
 		return;
 	}
-	xdg_decoration_apply_csd(deco);
+	xdg_decoration_apply(deco);
 }
 
 static void xdg_decoration_destroy(struct wl_listener *listener, void *data) {
 	(void)data;
 	struct stonefly_xdg_decoration *deco = wl_container_of(listener, deco, destroy);
+	struct stonefly_toplevel *toplevel =
+		toplevel_from_xdg(deco->server, deco->wlr_deco->toplevel);
+	if (toplevel != NULL && toplevel->decoration == deco->wlr_deco) {
+		toplevel->decoration = NULL;
+		toplevel->want_ssd = false;
+		toplevel->ssd_set_mode = 0;
+		stonefly_ssd_destroy(toplevel);
+		stonefly_decor_update_geom(toplevel);
+	}
 	wl_list_remove(&deco->request_mode.link);
 	wl_list_remove(&deco->surface_commit.link);
 	wl_list_remove(&deco->destroy.link);
@@ -550,13 +563,13 @@ static void xdg_decoration_destroy(struct wl_listener *listener, void *data) {
 
 static void server_new_xdg_decoration(struct wl_listener *listener, void *data) {
 	struct stonefly_server *server = wl_container_of(listener, server, new_xdg_decoration);
-	(void)server;
 	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco = data;
 
 	struct stonefly_xdg_decoration *deco = calloc(1, sizeof(*deco));
 	if (deco == NULL) {
 		return;
 	}
+	deco->server = server;
 	deco->wlr_deco = wlr_deco;
 	deco->request_mode.notify = xdg_decoration_request_mode;
 	wl_signal_add(&wlr_deco->events.request_mode, &deco->request_mode);
@@ -566,7 +579,7 @@ static void server_new_xdg_decoration(struct wl_listener *listener, void *data) 
 	wl_signal_add(&wlr_deco->events.destroy, &deco->destroy);
 
 	/* No-op until the client's first commit (Chrome binds deco early). */
-	xdg_decoration_apply_csd(deco);
+	xdg_decoration_apply(deco);
 }
 
 void stonefly_xdg_setup(struct stonefly_server *server) {
@@ -592,7 +605,7 @@ void stonefly_xdg_setup(struct stonefly_server *server) {
 		wl_signal_add(&server->system_bell->events.ring, &server->system_bell_ring);
 	}
 
-	/* MATRIX §9 P3 — advertise decoration; always prefer client-side for now. */
+	/* MATRIX §9 P3 — advertise decoration; mode from ssd_mode + client request. */
 	/* wlroots 0.20: create(display) only (no version arg). */
 	server->xdg_decoration_mgr = wlr_xdg_decoration_manager_v1_create(server->wl_display);
 	if (server->xdg_decoration_mgr != NULL) {

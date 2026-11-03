@@ -240,6 +240,8 @@ void stonefly_config_set_defaults(struct stonefly_config *cfg) {
 	cfg->layout = 0; /* STONEFLY_LAYOUT_STACKING */
 	cfg->swipe_workspace_threshold = 80;
 	cfg->swipe_workspace_natural = 1;
+	cfg->ssd_mode = 1; /* STONEFLY_SSD_AUTO */
+	cfg->ssd_height = 28;
 
 	cfg->cmd_foot = xstrdup("foot");
 	cfg->cmd_nautilus = xstrdup("nautilus");

@@ -18,6 +18,7 @@
 #include "config/config_lua.h"
 #include "log/log.h"
 #include "server/server.h"
+#include "ssd/ssd_policy.h"
 #include "wm/workspace.h"
 
 #ifndef STONEFLY_DATADIR
@@ -690,6 +691,9 @@ static void opt_set_number(struct stonefly_config *cfg, const char *k, double v)
 		cfg->double_tap_gap_ms = (int)v;
 	} else if (strcmp(k, "swipe_workspace_threshold") == 0) {
 		cfg->swipe_workspace_threshold = (int)v;
+	} else if (strcmp(k, "ssd_height") == 0) {
+		int h = (int)v;
+		cfg->ssd_height = h < 16 ? 16 : h;
 	}
 }
 
@@ -741,6 +745,8 @@ static int l_opt_newindex(lua_State *L) {
 			cfg->capture_block_app_ids = xstrdup(s);
 		} else if (strcmp(k, "layout") == 0) {
 			cfg->layout = (int)stonefly_layout_parse(s);
+		} else if (strcmp(k, "ssd_mode") == 0) {
+			cfg->ssd_mode = (int)stonefly_ssd_mode_parse(s);
 		}
 		return 0;
 	}

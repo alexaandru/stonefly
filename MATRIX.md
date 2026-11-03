@@ -65,7 +65,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Scratchpad claim focused | ✅ Super+t | — | ✅ | |
 | Scratchpad omit from Alt-Tab | ✅ | — | ✅ | Super+Tab too |
 | Window menu | ✅ | — | ❌ | |
-| SSD titlebars | ✅ River `use_ssd` | Polish / force-SSD rules 📋 | 🚧 | `xdg-decoration` advertised, prefers CSD. SceneFX border/blur only; no SSD titlebar paint yet. **Fixed:** Chrome binds deco before first commit; early `set_mode` → `schedule_configure` asserted `surface->initialized` (session abort). Now defer CSD until initialized / initial commit. |
+| SSD titlebars | ✅ River `use_ssd` | Polish / force-SSD rules 📋 | ✅ | `ssd_mode` (`auto`/`prefer_ssd`/`always`/`never`, default `auto`) + `ssd_height` (28). Honors client `request_mode` within policy; fcft+pixman titlebar (title, min/max/close); hide on fullscreen/edge-max; TopInset in ensure-on-screen. Pointer: drag, dblclick gap-max, buttons. Per-app overrides / winmenu still open. **Fixed:** Chrome early bind — defer `set_mode` until `xdg_surface` initialized. |
 | Geometry persist across restart | ✅ `windows.json` by river id | Schema / blacklist / MRU polish 📋 | ❌ | |
 | Window rules (app-id/title) | 🚧 center + modal parent | auto-float, size, scratchpad, AOT, force SSD 📋 | ❌ | |
 | Keyboard nudge move/resize | ❌ | 📋 high-value | ❌ | Snap exists; step nudge does not |
@@ -121,7 +121,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Notification toasts | ✅ FDO server | Notification center UI Ideas 📋 | 🌙 | Noctalia notifier |
 | Wallpaper engine | ✅ slideshow + transitions + cache | Video/shader Ideas 📋 | 🌙 / ❌ | Layer-shell wallpaper clients OK; no in-process engine |
 | Window snap preview (WM) | ✅ | — | ✅ | In compositor (not shell) |
-| SSD / winmenu chrome | ✅ | — | ❌ | |
+| SSD / winmenu chrome | ✅ | — | 🚧 | SSD titlebars ✅; winmenu ❌ |
 | Idle ceremony / lock / DPMS | ✅ | Lock polish Ideas 📋 | ✅ | `ext-session-lock-v1` + `zwlr-output-power-management-v1` (`session/session.c`). Blank retained if lock client dies. Auto-lock / PrepareForSleep are Noctalia-side on top of idle-notify. |
 | Caffeine (idle-inhibit) | ✅ | — | ✅ | `zwp_idle_inhibit_v1` → `ext-idle-notify-v1` inhibit |
 | Night light (gamma) | ✅ | Schedule timer 📋 | ✅ | `zwlr_gamma_control_v1` + SceneFX `wlr_scene_set_gamma_control_manager_v1` (`server.c`). Schedule stays Noctalia-side. |
@@ -243,7 +243,7 @@ in-process shell (Noctalia stands in under stonefly).
 | Super tap launcher / double-tap term / Super+t claim | ✅ |
 | Spawns Ghostty / foot / nautilus / editor / QT | ✅ |
 | Named scratchpads beyond `term` | ❌ |
-| Fullscreen / always-on-top / winmenu / SSD | ✅ fullscreen / ❌ aot / ❌ winmenu / ❌ SSD |
+| Fullscreen / always-on-top / winmenu / SSD | ✅ fullscreen / ❌ aot / ❌ winmenu / ✅ SSD |
 | Multi-mon send/focus, pointer center | ❌ |
 | Geometry persist, window rules, set_tiled | ❌ persist/rules / ✅ set_tiled |
 | Screenshots, clipboard, idle/lock/gamma | 🌙 noctalia binds + ✅ screencopy/ext-capture / ✅ idle+lock+DPMS / ✅ clipboard+gamma |
@@ -279,7 +279,7 @@ work on these (launcher centering needs xdg-output under fractional scale).
 | P2 | `zxdg_output` | ✅ Logical output size/pos (`server.c`); Noctalia panel/OSD centering |
 | P2 | `zwlr_output_management` | ✅ Display settings / wdisplays / kanshi (`output.c` manager apply/test + set_configuration) |
 | P2 | `ext-data-control` / wlr-data-control | ✅ Clipboard history (`server.c`); primary-selection wired |
-| P3 | xdg-decoration | ✅ Manager advertised; always prefers **client-side** (no SSD painting yet). **Fixed:** defer `set_mode` until `xdg_surface` initialized (Chrome early bind aborted wlroots 0.20) |
+| P3 | xdg-decoration | ✅ Manager + SSD: honor client `request_mode` within `ssd_mode` (`auto` default); fcft titlebar when SERVER_SIDE. **Fixed:** defer `set_mode` until `xdg_surface` initialized (Chrome early bind aborted wlroots 0.20) |
 
 Also high leverage (not a Wayland protocol): richer **stonefly IPC**.
 Done crumbs: focus/close by id, outputs, workspaces, toggle-quick-terminal, live

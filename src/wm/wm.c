@@ -19,6 +19,7 @@
 #include "log/log.h"
 #include "output/output.h"
 #include "session/session.h"
+#include "ssd/ssd.h"
 #include "toplevel/foreign.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
@@ -477,6 +478,7 @@ void stonefly_toplevel_ensure_on_screen(struct stonefly_toplevel *toplevel) {
 
 	struct wlr_box geom;
 	stonefly_toplevel_layout_geom(toplevel, &geom);
+	int top_inset = stonefly_ssd_top_inset(toplevel);
 	if (geom.width <= 0 || geom.height <= 0) {
 		/* Size unknown: at least park the cascade origin inside usable. */
 		int x = toplevel->resting_x;
@@ -484,8 +486,8 @@ void stonefly_toplevel_ensure_on_screen(struct stonefly_toplevel *toplevel) {
 		if (x < area.x) {
 			x = area.x;
 		}
-		if (y < area.y) {
-			y = area.y;
+		if (y < area.y + top_inset) {
+			y = area.y + top_inset;
 		}
 		if (x != toplevel->resting_x || y != toplevel->resting_y) {
 			toplevel_set_resting(toplevel, x, y);
@@ -493,11 +495,10 @@ void stonefly_toplevel_ensure_on_screen(struct stonefly_toplevel *toplevel) {
 		return;
 	}
 
-	if (geom.width > area.width || geom.height > area.height) {
+	if (geom.width > area.width || geom.height + top_inset > area.height) {
 		stonefly_toplevel_set_max_gaps(toplevel, true);
 		return;
 	}
-
 	int x = geom.x;
 	int y = geom.y;
 	if (x + geom.width > area.x + area.width) {
@@ -509,8 +510,8 @@ void stonefly_toplevel_ensure_on_screen(struct stonefly_toplevel *toplevel) {
 	if (x < area.x) {
 		x = area.x;
 	}
-	if (y < area.y) {
-		y = area.y;
+	if (y < area.y + top_inset) {
+		y = area.y + top_inset;
 	}
 	if (x == geom.x && y == geom.y) {
 		return;
@@ -581,8 +582,9 @@ void stonefly_toplevel_place_cascade(struct stonefly_toplevel *toplevel) {
 	}
 	int wrap = cfg->cascade_wrap > 0 ? cfg->cascade_wrap : 1;
 	int offset = (int)(n % (size_t)wrap) * cfg->cascade_step;
+	int top_inset = stonefly_ssd_top_inset(toplevel);
 	int x = out.x + offset;
-	int y = out.y + offset;
+	int y = out.y + top_inset + offset;
 	wlr_scene_node_set_position(&toplevel->scene_tree->node, x, y);
 	toplevel->resting_x = x;
 	toplevel->resting_y = y;
