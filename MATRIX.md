@@ -60,6 +60,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Snap preview overlay | ✅ SHM layer-shell | Configurable fill color/opacity 📋 | ✅ SceneFX overlay rects | Border 1, fill 40% active |
 | `set_tiled` on snap/max | ✅ | — | ✅ | `wlr_xdg_toplevel_set_tiled` on snap / edge-max / restore / unsnap (`wm.c`); gap-max stays untiled (peeble). |
 | Cascade initial place | ✅ | — | ✅ | Gap + `(n%10)*25`, cursor output |
+| Nested client disconnect (parent UAF) | — | — | ✅ | Clear `xdg_toplevel->base->data` before destroying scene tree — Ctrl-C nested used to ASan-abort the parent in `toplevel_from_xdg` |
 | EnsureOnScreen / usable relayout | ✅ | — | ✅ | On exclusive-zone change |
 | Per-output usable area | ✅ `UsableOn` / `UsableAreaChanged` | — | ✅ | `exclusive_zone != 0` (incl. −1) |
 | Named scratchpads | ✅ multi + claim + auto_hide | Click-outside catcher 📋 | 🚧 | Pad `term` (+ config). Spawn uses fake `app_id` (`stonefly.scratch.term`) so claim does not steal normal Super+w windows — that breaks taskbar icons (shell keys icons off app_id). Real app_id + PID claim is not enough for single-instance multi-window clients (one Ghostty PID, many windows). Proper fix later: xdg-activation / startup token (or accept first-map races); leave icon/claim as-is for now. Hide/show via `apply_hidden(SCRATCH)` / `apply_shown` (same foreign/defocus as LIFO; `focus_top` skips `anim_hide`). **`auto_hide`:** peeble `OnFocusChange` — hide when focus moves to another window on the same output (click / Super+Tab); other-head or nil (layer/empty) leaves pad shown. Spec key `auto_hide` (default true). |
@@ -198,6 +199,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | IPC `layers` [--json] | ❌ | — | ✅ | Layer-shell debug snapshot (`src/ipc/layers.c`) |
 | IPC focus / close by id | ✅ | — | ✅ | `{"cmd":"focus\|close","arg":"<id>"}` + CLI (`ipc.c`) |
 | IPC toggle-quick-terminal | ✅ | — | ✅ | Toggles scratchpad pad `"term"` (same as Super+Return) |
+| IPC `exit` / `quit` | — | — | ✅ | `wl_display_terminate` on the compositor that owns `STONEFLY_SOCKET` / `WAYLAND_DISPLAY` (nested-safe) |
 | IPC `config` [section] | ❌ | — | ✅ | Live `server->config` dump (`ipc/config.c`); sections options/binds/taps/scratchpads/cmds/inputs/outputs; argv parse de-cloned (`ipc.c`) |
 | IPC `action <name>` allowlist | ❌ | 📋 | ❌ | |
 | IPC outputs / inputs | ❌ | Ideas 📋 | 🚧 | `outputs` ✅ (`ipc/outputs.c`); inputs ❌ |

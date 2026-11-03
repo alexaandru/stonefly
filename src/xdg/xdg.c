@@ -291,6 +291,12 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	stonefly_anim_cancel(toplevel, false);
 	stonefly_scratchpad_on_destroy(toplevel);
 	stonefly_ssd_destroy(toplevel);
+	/* Client teardown can still emit tag/icon/deco signals that resolve the
+	 * toplevel via base->data; clear before freeing the scene tree or parent
+	 * aborts on nested-session disconnect (ASan heap-use-after-free). */
+	if (toplevel->xdg_toplevel != NULL && toplevel->xdg_toplevel->base != NULL) {
+		toplevel->xdg_toplevel->base->data = NULL;
+	}
 	stonefly_decor_finish_toplevel(toplevel);
 
 	if (toplevel->minimized) {

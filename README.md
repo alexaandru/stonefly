@@ -111,6 +111,7 @@ stonefly config --json     # compact JSON object / section value
 stonefly focus <id>        # focus (unminimize if needed)
 stonefly close <id>        # send xdg close
 stonefly toggle-quick-terminal  # toggle scratchpad pad "term"
+stonefly exit              # quit this WAYLAND_DISPLAY session (nested-safe)
 ```
 
 Wire format matches peeble: one JSON object per line, e.g. `{"cmd":"windows"}`,

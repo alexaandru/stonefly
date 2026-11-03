@@ -42,5 +42,7 @@ int stonefly_ipc_cmd_close(int argc, char **argv);
 int stonefly_ipc_cmd_block_capture(int argc, char **argv);
 int stonefly_ipc_cmd_unblock_capture(int argc, char **argv);
 int stonefly_ipc_cmd_toggle_quick_terminal(int argc, char **argv);
+/* Terminate the compositor that owns STONEFLY_SOCKET / WAYLAND_DISPLAY. */
+int stonefly_ipc_cmd_exit(int argc, char **argv);
 
 #endif

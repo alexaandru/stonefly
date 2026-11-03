@@ -396,6 +396,14 @@ static void ipc_handle_toggle_quick_terminal(struct stonefly_ipc_client *client)
 	ipc_write_ok(client);
 }
 
+/* Stop this compositor only (socket is per WAYLAND_DISPLAY / STONEFLY_SOCKET). */
+static void ipc_handle_exit(struct stonefly_ipc_client *client) {
+	struct stonefly_server *server = client->ipc->server;
+	ipc_write_ok(client);
+	SF_LOGI("ipc exit");
+	wl_display_terminate(server->wl_display);
+}
+
 static void ipc_handle_config(struct stonefly_ipc_client *client, const char *arg) {
 	char *out = malloc(STONEFLY_IPC_REPLY_CAP);
 	if (out == NULL) {
@@ -473,6 +481,10 @@ static void ipc_handle_request(struct stonefly_ipc_client *client, const char *l
 	}
 	if (strcmp(cmd, "config") == 0) {
 		ipc_handle_config(client, arg);
+		return;
+	}
+	if (strcmp(cmd, "exit") == 0 || strcmp(cmd, "quit") == 0) {
+		ipc_handle_exit(client);
 		return;
 	}
 
@@ -1049,6 +1061,26 @@ int stonefly_ipc_cmd_toggle_quick_terminal(int argc, char **argv) {
 
 	char *reply = NULL;
 	int rc = ipc_request("toggle-quick-terminal", &reply);
+	if (rc != 0) {
+		return rc;
+	}
+	return ipc_print_ok_reply(reply);
+}
+
+int stonefly_ipc_cmd_exit(int argc, char **argv) {
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+			printf("Usage: stonefly exit\n");
+			printf("  Quit the compositor for WAYLAND_DISPLAY / STONEFLY_SOCKET.\n");
+			printf("  Nested: run with that session's WAYLAND_DISPLAY set.\n");
+			return 0;
+		}
+		fprintf(stderr, "Usage: stonefly exit\n");
+		return 1;
+	}
+
+	char *reply = NULL;
+	int rc = ipc_request("exit", &reply);
 	if (rc != 0) {
 		return rc;
 	}
