@@ -75,6 +75,7 @@ static void seat_update_capabilities(struct stonefly_server *server);
 static void stonefly_constraint_activate(struct stonefly_server *server,
 					 struct wlr_pointer_constraint_v1 *constraint);
 static void stonefly_constraint_deactivate(struct stonefly_server *server, bool warp_hint);
+static void process_cursor_motion(struct stonefly_server *server, uint32_t time);
 
 static int64_t timespec_ms_since(const struct timespec *then) {
 	struct timespec now;
@@ -658,6 +659,10 @@ static void seat_request_cursor(struct wl_listener *listener, void *data) {
 	/* This event is raised by the seat when a client provides a cursor image */
 	struct wlr_seat_pointer_request_set_cursor_event *event = data;
 	struct wlr_seat_client *focused_client = server->seat->pointer_state.focused_client;
+	/* WM interactive move/resize owns the face; ignore client images. */
+	if (server->cursor_mode != STONEFLY_CURSOR_PASSTHROUGH) {
+		return;
+	}
 	/* This can be sent by any client, so we check to make sure this one is
 	 * actually has pointer focus first. */
 	if (focused_client == event->seat_client) {
@@ -876,6 +881,12 @@ void stonefly_reset_cursor_mode(struct stonefly_server *server) {
 	}
 	server->cursor_mode = STONEFLY_CURSOR_PASSTHROUGH;
 	server->grabbed_toplevel = NULL;
+	/* Re-enter under the pointer so the client (or empty-desktop default) face
+	 * replaces the WM grabbing/resize xcursor without waiting for motion. */
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	uint32_t msec = (uint32_t)((uint64_t)now.tv_sec * 1000u + (uint64_t)now.tv_nsec / 1000000u);
+	process_cursor_motion(server, msec);
 }
 
 static void process_cursor_move(struct stonefly_server *server) {

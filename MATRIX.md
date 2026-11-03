@@ -53,8 +53,8 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Always-on-top | ✅ | — | ❌ | Peeble winmenu / state |
 | Keyboard half-snap (arrows) | ✅ Super+arrows | — | ✅ | Gap math ports `snapBorderBox` |
 | Unsnap / restore PreSnap | ✅ Super+u | — | ✅ | |
-| Drag move (Super+LMB) | ✅ | — | ✅ | |
-| Drag resize (Super+RMB) | ✅ | — | ✅ | Edges nearest pointer |
+| Drag move (Super+LMB) | ✅ | — | ✅ | WM xcursor `grabbing` for the grab (SSD titlebar + CSD `request_move` too) |
+| Drag resize (Super+RMB) | ✅ | — | ✅ | Edges nearest pointer; WM xcursor via local `resize_xcursor_name` (wlroots mapping; avoids enum bitflag cast for tidy) |
 | Magnetic drag-snap + resistance | ✅ threshold 26, 4× push-through | — | ✅ | `drag_snap.c` parity |
 | Snap preview overlay | ✅ SHM layer-shell | Configurable fill color/opacity 📋 | ✅ SceneFX overlay rects | Border 1, fill 40% active |
 | `set_tiled` on snap/max | ✅ | — | ✅ | `wlr_xdg_toplevel_set_tiled` on snap / edge-max / restore / unsnap (`wm.c`); gap-max stays untiled (peeble). |
@@ -160,7 +160,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | wlr-layer-shell | ✅ client | `set_exclusive_edge` when advertised 📋 | ✅ v5 server | Exclusive zones → usable. `set_exclusive_edge` consumed by wlroots 0.20 `wlr_scene_layer_surface_v1_configure` via `get_exclusive_edge` (no stonefly-side extra). |
 | wp_fractional_scale + viewporter | ✅ all chrome (`surfscale`) | — | ✅ | DRM: scale 1.5 (`STONEFLY_OUTPUT_SCALE`). Nested/headless (`session == NULL`): scale 1.0 so Umbriel embed is not double-scaled. |
 | zxdg_output_v1 | ✅ | — | ✅ | `wlr_xdg_output_manager_v1` on output layout (`server.c`). Logical size for Noctalia floating-panel margins under fractional scale. |
-| wp_cursor_shape_v1 | ✅ | `all_resize` / `dnd_ask` 📋 | ✅ v2 | Named shapes for clients |
+| wp_cursor_shape_v1 | ✅ | `all_resize` / `dnd_ask` 📋 | ✅ v2 | Named shapes for clients. WM interactive move/resize sets compositor xcursor (`grabbing` / edge resize) and ignores client `set_cursor` / shape while grabbing; release rebases under pointer. |
 | XCURSOR_THEME / SIZE | ✅ | — | ✅ | `seat.c`: strdup theme before `setenv` (getenv ptr invalid after setenv). Nested/headless (`session == NULL`): use config `cursor_size` (not inherited HiDPI `XCURSOR_SIZE`) and strip `-NNpx` theme suffixes (`Hackneyed-36px` → `Hackneyed`) — same “parent already scaled” rule as `output_scale` 1.0. |
 | wlr-output-management | ✅ `output()` | — | ✅ | `wlr_output_manager_v1` apply/test (`output.c`); `wlr_output_head_v1_state_apply` + layout pos; `set_configuration` on new/destroy/apply/request_state. |
 | ext-data-control clipboard | ✅ | Primary-selection history Ideas 📋 | ✅ | `ext-data-control-v1` + legacy `wlr-data-control-v1` + `wp_primary_selection` (`server.c` / seat). |
