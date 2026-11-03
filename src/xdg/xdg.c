@@ -26,8 +26,8 @@
 #include "wm/wm.h"
 #include "xdg/xdg.h"
 
-static struct stonefly_toplevel *toplevel_from_surface(
-		struct stonefly_server *server, struct wlr_surface *surface) {
+static struct stonefly_toplevel *toplevel_from_surface(struct stonefly_server *server,
+						       struct wlr_surface *surface) {
 	if (surface == NULL) {
 		return NULL;
 	}
@@ -41,8 +41,8 @@ static struct stonefly_toplevel *toplevel_from_surface(
 	return NULL;
 }
 
-static struct stonefly_toplevel *toplevel_from_xdg(
-		struct stonefly_server *server, struct wlr_xdg_toplevel *xdg) {
+static struct stonefly_toplevel *toplevel_from_xdg(struct stonefly_server *server,
+						   struct wlr_xdg_toplevel *xdg) {
 	if (xdg == NULL) {
 		return NULL;
 	}
@@ -78,44 +78,34 @@ static void replace_str(char **dst, const char *src) {
 }
 
 static void xdg_toplevel_set_tag(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server =
-		wl_container_of(listener, server, xdg_toplevel_set_tag);
+	struct stonefly_server *server = wl_container_of(listener, server, xdg_toplevel_set_tag);
 	const struct wlr_xdg_toplevel_tag_manager_v1_set_tag_event *event = data;
-	struct stonefly_toplevel *toplevel =
-		toplevel_from_xdg(server, event->toplevel);
+	struct stonefly_toplevel *toplevel = toplevel_from_xdg(server, event->toplevel);
 	if (toplevel == NULL) {
 		return;
 	}
 	replace_str(&toplevel->tag, event->tag);
-	SF_LOGI("toplevel tag",
-		sf_i64("id", (int64_t)toplevel->id),
+	SF_LOGI("toplevel tag", sf_i64("id", (int64_t)toplevel->id),
 		sf_str("tag", toplevel->tag != NULL ? toplevel->tag : ""));
 }
 
-static void xdg_toplevel_set_description(struct wl_listener *listener,
-		void *data) {
+static void xdg_toplevel_set_description(struct wl_listener *listener, void *data) {
 	struct stonefly_server *server =
 		wl_container_of(listener, server, xdg_toplevel_set_description);
-	const struct wlr_xdg_toplevel_tag_manager_v1_set_description_event *event =
-		data;
-	struct stonefly_toplevel *toplevel =
-		toplevel_from_xdg(server, event->toplevel);
+	const struct wlr_xdg_toplevel_tag_manager_v1_set_description_event *event = data;
+	struct stonefly_toplevel *toplevel = toplevel_from_xdg(server, event->toplevel);
 	if (toplevel == NULL) {
 		return;
 	}
 	replace_str(&toplevel->description, event->description);
-	SF_LOGI("toplevel description",
-		sf_i64("id", (int64_t)toplevel->id),
-		sf_str("description",
-			toplevel->description != NULL ? toplevel->description : ""));
+	SF_LOGI("toplevel description", sf_i64("id", (int64_t)toplevel->id),
+		sf_str("description", toplevel->description != NULL ? toplevel->description : ""));
 }
 
 static void request_activate(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server =
-		wl_container_of(listener, server, request_activate);
+	struct stonefly_server *server = wl_container_of(listener, server, request_activate);
 	const struct wlr_xdg_activation_v1_request_activate_event *event = data;
-	struct stonefly_toplevel *toplevel =
-		toplevel_from_surface(server, event->surface);
+	struct stonefly_toplevel *toplevel = toplevel_from_surface(server, event->surface);
 	if (toplevel == NULL) {
 		return;
 	}
@@ -127,17 +117,14 @@ static void request_activate(struct wl_listener *listener, void *data) {
 }
 
 static void system_bell_ring(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server =
-		wl_container_of(listener, server, system_bell_ring);
+	struct stonefly_server *server = wl_container_of(listener, server, system_bell_ring);
 	const struct wlr_xdg_system_bell_v1_ring_event *event = data;
-	struct stonefly_toplevel *toplevel =
-		toplevel_from_surface(server, event->surface);
+	struct stonefly_toplevel *toplevel = toplevel_from_surface(server, event->surface);
 	if (toplevel == NULL) {
 		toplevel = stonefly_focused_toplevel(server);
 	}
 	stonefly_decor_ring_bell(toplevel);
-	SF_LOGI("system bell",
-		sf_i64("id", toplevel != NULL ? (int64_t)toplevel->id : 0));
+	SF_LOGI("system bell", sf_i64("id", toplevel != NULL ? (int64_t)toplevel->id : 0));
 }
 
 static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
@@ -243,16 +230,14 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 
 static void xdg_toplevel_set_title(struct wl_listener *listener, void *data) {
 	(void)data;
-	struct stonefly_toplevel *toplevel =
-		wl_container_of(listener, toplevel, set_title);
+	struct stonefly_toplevel *toplevel = wl_container_of(listener, toplevel, set_title);
 	stonefly_foreign_toplevel_on_title_change(toplevel);
 	stonefly_ext_capture_on_title_change(toplevel);
 }
 
 static void xdg_toplevel_set_app_id(struct wl_listener *listener, void *data) {
 	(void)data;
-	struct stonefly_toplevel *toplevel =
-		wl_container_of(listener, toplevel, set_app_id);
+	struct stonefly_toplevel *toplevel = wl_container_of(listener, toplevel, set_app_id);
 	stonefly_scratchpad_try_claim(toplevel);
 	stonefly_foreign_toplevel_on_app_id_change(toplevel);
 	stonefly_ext_capture_on_app_id_change(toplevel);
@@ -260,8 +245,7 @@ static void xdg_toplevel_set_app_id(struct wl_listener *listener, void *data) {
 
 static void xdg_toplevel_set_parent(struct wl_listener *listener, void *data) {
 	(void)data;
-	struct stonefly_toplevel *toplevel =
-		wl_container_of(listener, toplevel, set_parent);
+	struct stonefly_toplevel *toplevel = wl_container_of(listener, toplevel, set_parent);
 	stonefly_foreign_toplevel_on_parent_change(toplevel);
 }
 
@@ -299,8 +283,8 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	free(toplevel);
 }
 
-void stonefly_begin_interactive(struct stonefly_toplevel *toplevel,
-		enum stonefly_cursor_mode mode, uint32_t edges) {
+void stonefly_begin_interactive(struct stonefly_toplevel *toplevel, enum stonefly_cursor_mode mode,
+				uint32_t edges) {
 	/* This function sets up an interactive move or resize operation, where the
 	 * compositor stops propagating pointer events to clients and instead
 	 * consumes them itself, to move or resize windows. */
@@ -324,9 +308,9 @@ void stonefly_begin_interactive(struct stonefly_toplevel *toplevel,
 		struct wlr_box *geo_box = &toplevel->xdg_toplevel->base->geometry;
 
 		double border_x = (toplevel->scene_tree->node.x + geo_box->x) +
-			((edges & WLR_EDGE_RIGHT) ? geo_box->width : 0);
+				  ((edges & (uint32_t)WLR_EDGE_RIGHT) ? geo_box->width : 0);
 		double border_y = (toplevel->scene_tree->node.y + geo_box->y) +
-			((edges & WLR_EDGE_BOTTOM) ? geo_box->height : 0);
+				  ((edges & (uint32_t)WLR_EDGE_BOTTOM) ? geo_box->height : 0);
 		server->grab_x = server->cursor->x - border_x;
 		server->grab_y = server->cursor->y - border_y;
 
@@ -338,8 +322,7 @@ void stonefly_begin_interactive(struct stonefly_toplevel *toplevel,
 	}
 }
 
-static void xdg_toplevel_request_move(
-		struct wl_listener *listener, void *data) {
+static void xdg_toplevel_request_move(struct wl_listener *listener, void *data) {
 	(void)data;
 	/* This event is raised when a client would like to begin an interactive
 	 * move, typically because the user clicked on their client-side
@@ -350,8 +333,7 @@ static void xdg_toplevel_request_move(
 	stonefly_begin_interactive(toplevel, STONEFLY_CURSOR_MOVE, 0);
 }
 
-static void xdg_toplevel_request_resize(
-		struct wl_listener *listener, void *data) {
+static void xdg_toplevel_request_resize(struct wl_listener *listener, void *data) {
 	/* This event is raised when a client would like to begin an interactive
 	 * resize, typically because the user clicked on their client-side
 	 * decorations. Note that a more sophisticated compositor should check the
@@ -362,25 +344,21 @@ static void xdg_toplevel_request_resize(
 	stonefly_begin_interactive(toplevel, STONEFLY_CURSOR_RESIZE, event->edges);
 }
 
-static void xdg_toplevel_request_maximize(
-		struct wl_listener *listener, void *data) {
+static void xdg_toplevel_request_maximize(struct wl_listener *listener, void *data) {
 	(void)data;
 	/* Honor the client's requested maximized bit — never toggle blindly
 	 * (a toggle on unset-maximize after a bad 0×0 save made windows vanish). */
-	struct stonefly_toplevel *toplevel =
-		wl_container_of(listener, toplevel, request_maximize);
+	struct stonefly_toplevel *toplevel = wl_container_of(listener, toplevel, request_maximize);
 	if (!toplevel->xdg_toplevel->base->initialized) {
 		return;
 	}
 	stonefly_toplevel_set_max_edges(toplevel, toplevel->xdg_toplevel->requested.maximized);
 }
 
-static void xdg_toplevel_request_minimize(
-		struct wl_listener *listener, void *data) {
+static void xdg_toplevel_request_minimize(struct wl_listener *listener, void *data) {
 	(void)data;
 	/* CSD/SSD minimize buttons and clients that request minimize. */
-	struct stonefly_toplevel *toplevel =
-		wl_container_of(listener, toplevel, request_minimize);
+	struct stonefly_toplevel *toplevel = wl_container_of(listener, toplevel, request_minimize);
 	if (!toplevel->xdg_toplevel->base->initialized) {
 		return;
 	}
@@ -394,16 +372,15 @@ static void xdg_toplevel_request_minimize(
 	wlr_xdg_surface_schedule_configure(toplevel->xdg_toplevel->base);
 }
 
-static void xdg_toplevel_request_fullscreen(
-		struct wl_listener *listener, void *data) {
+static void xdg_toplevel_request_fullscreen(struct wl_listener *listener, void *data) {
 	(void)data;
 	struct stonefly_toplevel *toplevel =
 		wl_container_of(listener, toplevel, request_fullscreen);
 	if (!toplevel->xdg_toplevel->base->initialized) {
 		return;
 	}
-	stonefly_toplevel_set_fullscreen(toplevel,
-		toplevel->xdg_toplevel->requested.fullscreen, NULL);
+	stonefly_toplevel_set_fullscreen(toplevel, toplevel->xdg_toplevel->requested.fullscreen,
+					 NULL);
 }
 
 static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
@@ -420,8 +397,8 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	wl_list_init(&toplevel->minimize_link);
 	/* Wrapper holds blur/shadow/border; xdg content is a child. */
 	toplevel->scene_tree = wlr_scene_tree_create(server->layers.toplevel);
-	toplevel->xdg_scene_tree = wlr_scene_xdg_surface_create(
-		toplevel->scene_tree, xdg_toplevel->base);
+	toplevel->xdg_scene_tree =
+		wlr_scene_xdg_surface_create(toplevel->scene_tree, xdg_toplevel->base);
 	toplevel->scene_tree->node.data = toplevel;
 	xdg_toplevel->base->data = toplevel->scene_tree;
 	stonefly_decor_init_toplevel(toplevel);
@@ -486,8 +463,7 @@ static void xdg_popup_destroy_idle(void *data) {
 }
 
 static void server_new_xdg_popup(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server =
-		wl_container_of(listener, server, new_xdg_popup);
+	struct stonefly_server *server = wl_container_of(listener, server, new_xdg_popup);
 	struct wlr_xdg_popup *xdg_popup = data;
 
 	/* Parent scene tree: xdg surfaces stash theirs on xdg_surface->data;
@@ -512,10 +488,10 @@ static void server_new_xdg_popup(struct wl_listener *listener, void *data) {
 
 	struct stonefly_popup *popup = calloc(1, sizeof(*popup));
 	if (popup == NULL) {
-		struct wl_display *display = wl_client_get_display(
-			wl_resource_get_client(xdg_popup->base->resource));
-		wl_event_loop_add_idle(wl_display_get_event_loop(display),
-			xdg_popup_destroy_idle, xdg_popup);
+		struct wl_display *display =
+			wl_client_get_display(wl_resource_get_client(xdg_popup->base->resource));
+		wl_event_loop_add_idle(wl_display_get_event_loop(display), xdg_popup_destroy_idle,
+				       xdg_popup);
 		return;
 	}
 	popup->xdg_popup = xdg_popup;
@@ -529,7 +505,6 @@ static void server_new_xdg_popup(struct wl_listener *listener, void *data) {
 	wl_signal_add(&xdg_popup->events.destroy, &popup->destroy);
 }
 
-
 /* Prefer CSD until stonefly paints real SSD titlebars. */
 struct stonefly_xdg_decoration {
 	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco;
@@ -542,27 +517,22 @@ struct stonefly_xdg_decoration {
  * Chrome binds xdg-decoration before the first commit; defer until then. */
 static void xdg_decoration_apply_csd(struct stonefly_xdg_decoration *deco) {
 	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco = deco->wlr_deco;
-	if (wlr_deco->toplevel == NULL ||
-			!wlr_deco->toplevel->base->initialized) {
+	if (wlr_deco->toplevel == NULL || !wlr_deco->toplevel->base->initialized) {
 		return;
 	}
 	wlr_xdg_toplevel_decoration_v1_set_mode(wlr_deco,
-		WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
+						WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
 }
 
-static void xdg_decoration_request_mode(struct wl_listener *listener,
-		void *data) {
+static void xdg_decoration_request_mode(struct wl_listener *listener, void *data) {
 	(void)data;
-	struct stonefly_xdg_decoration *deco =
-		wl_container_of(listener, deco, request_mode);
+	struct stonefly_xdg_decoration *deco = wl_container_of(listener, deco, request_mode);
 	xdg_decoration_apply_csd(deco);
 }
 
-static void xdg_decoration_surface_commit(struct wl_listener *listener,
-		void *data) {
+static void xdg_decoration_surface_commit(struct wl_listener *listener, void *data) {
 	(void)data;
-	struct stonefly_xdg_decoration *deco =
-		wl_container_of(listener, deco, surface_commit);
+	struct stonefly_xdg_decoration *deco = wl_container_of(listener, deco, surface_commit);
 	if (!deco->wlr_deco->toplevel->base->initial_commit) {
 		return;
 	}
@@ -571,8 +541,7 @@ static void xdg_decoration_surface_commit(struct wl_listener *listener,
 
 static void xdg_decoration_destroy(struct wl_listener *listener, void *data) {
 	(void)data;
-	struct stonefly_xdg_decoration *deco =
-		wl_container_of(listener, deco, destroy);
+	struct stonefly_xdg_decoration *deco = wl_container_of(listener, deco, destroy);
 	wl_list_remove(&deco->request_mode.link);
 	wl_list_remove(&deco->surface_commit.link);
 	wl_list_remove(&deco->destroy.link);
@@ -580,8 +549,7 @@ static void xdg_decoration_destroy(struct wl_listener *listener, void *data) {
 }
 
 static void server_new_xdg_decoration(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server =
-		wl_container_of(listener, server, new_xdg_decoration);
+	struct stonefly_server *server = wl_container_of(listener, server, new_xdg_decoration);
 	(void)server;
 	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco = data;
 
@@ -593,8 +561,7 @@ static void server_new_xdg_decoration(struct wl_listener *listener, void *data) 
 	deco->request_mode.notify = xdg_decoration_request_mode;
 	wl_signal_add(&wlr_deco->events.request_mode, &deco->request_mode);
 	deco->surface_commit.notify = xdg_decoration_surface_commit;
-	wl_signal_add(&wlr_deco->toplevel->base->surface->events.commit,
-		&deco->surface_commit);
+	wl_signal_add(&wlr_deco->toplevel->base->surface->events.commit, &deco->surface_commit);
 	deco->destroy.notify = xdg_decoration_destroy;
 	wl_signal_add(&wlr_deco->events.destroy, &deco->destroy);
 
@@ -615,25 +582,23 @@ void stonefly_xdg_setup(struct stonefly_server *server) {
 	if (server->xdg_activation != NULL) {
 		server->request_activate.notify = request_activate;
 		wl_signal_add(&server->xdg_activation->events.request_activate,
-			&server->request_activate);
+			      &server->request_activate);
 	}
 
 	/* FORK.md #1389 — visual system bell. */
 	server->system_bell = wlr_xdg_system_bell_v1_create(server->wl_display, 1);
 	if (server->system_bell != NULL) {
 		server->system_bell_ring.notify = system_bell_ring;
-		wl_signal_add(&server->system_bell->events.ring,
-			&server->system_bell_ring);
+		wl_signal_add(&server->system_bell->events.ring, &server->system_bell_ring);
 	}
 
 	/* MATRIX §9 P3 — advertise decoration; always prefer client-side for now. */
 	/* wlroots 0.20: create(display) only (no version arg). */
-	server->xdg_decoration_mgr =
-		wlr_xdg_decoration_manager_v1_create(server->wl_display);
+	server->xdg_decoration_mgr = wlr_xdg_decoration_manager_v1_create(server->wl_display);
 	if (server->xdg_decoration_mgr != NULL) {
 		server->new_xdg_decoration.notify = server_new_xdg_decoration;
 		wl_signal_add(&server->xdg_decoration_mgr->events.new_toplevel_decoration,
-			&server->new_xdg_decoration);
+			      &server->new_xdg_decoration);
 	}
 
 	/* river#1390 / MATRIX — client tags for rules / persist / IPC windows. */
@@ -642,10 +607,9 @@ void stonefly_xdg_setup(struct stonefly_server *server) {
 	if (server->xdg_toplevel_tag_mgr != NULL) {
 		server->xdg_toplevel_set_tag.notify = xdg_toplevel_set_tag;
 		wl_signal_add(&server->xdg_toplevel_tag_mgr->events.set_tag,
-			&server->xdg_toplevel_set_tag);
-		server->xdg_toplevel_set_description.notify =
-			xdg_toplevel_set_description;
+			      &server->xdg_toplevel_set_tag);
+		server->xdg_toplevel_set_description.notify = xdg_toplevel_set_description;
 		wl_signal_add(&server->xdg_toplevel_tag_mgr->events.set_description,
-			&server->xdg_toplevel_set_description);
+			      &server->xdg_toplevel_set_description);
 	}
 }

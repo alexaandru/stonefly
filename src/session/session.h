@@ -17,7 +17,6 @@ bool stonefly_session_locked(const struct stonefly_server *server);
 void stonefly_session_notify_activity(struct stonefly_server *server);
 
 /* Recompute idle-inhibit from zwp_idle_inhibit_v1 clients. */
-void stonefly_session_check_inhibitors(struct stonefly_server *server,
-		struct wlr_surface *exclude);
+void stonefly_session_check_inhibitors(struct stonefly_server *server, struct wlr_surface *exclude);
 
 #endif

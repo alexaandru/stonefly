@@ -58,27 +58,18 @@ static int notify_send(sd_bus *bus, const char *body) {
 	sd_bus_message *reply = NULL;
 	int r;
 
-	r = sd_bus_message_new_method_call(bus, &m,
-		STONEFLY_NOTIFY_BUS_NAME,
-		"/org/freedesktop/Notifications",
-		STONEFLY_NOTIFY_BUS_NAME,
-		"Notify");
+	r = sd_bus_message_new_method_call(bus, &m, STONEFLY_NOTIFY_BUS_NAME,
+					   "/org/freedesktop/Notifications",
+					   STONEFLY_NOTIFY_BUS_NAME, "Notify");
 	if (r < 0) {
 		return r;
 	}
 	/* Do not D-Bus-activate a random .service; we waited for a real owner. */
 	sd_bus_message_set_auto_start(m, 0);
 
-	r = sd_bus_message_append(m, "susssasa{sv}i",
-		"stonefly",
-		0u,
-		"dialog-error",
-		"stonefly: config load failed",
-		body != NULL ? body : "",
-		0,
-		1,
-		"urgency", "y", (uint8_t)2,
-		0);
+	r = sd_bus_message_append(m, "susssasa{sv}i", "stonefly", 0u, "dialog-error",
+				  "stonefly: config load failed", body != NULL ? body : "", 0, 1,
+				  "urgency", "y", (uint8_t)2, 0);
 	if (r < 0) {
 		sd_bus_message_unref(m);
 		return r;
@@ -88,8 +79,7 @@ static int notify_send(sd_bus *bus, const char *body) {
 	sd_bus_message_unref(m);
 	if (r < 0) {
 		SF_LOGW("config warn Notify failed",
-			sf_str("err", error.message != NULL ? error.message
-				: strerror(-r)));
+			sf_str("err", error.message != NULL ? error.message : strerror(-r)));
 		sd_bus_error_free(&error);
 		return r;
 	}
@@ -124,19 +114,12 @@ static int notifications_name_owned(sd_bus *bus, bool *owned) {
 	sd_bus_error error = SD_BUS_ERROR_NULL;
 	sd_bus_message *reply = NULL;
 	int has = 0;
-	int r = sd_bus_call_method(bus,
-		"org.freedesktop.DBus",
-		"/org/freedesktop/DBus",
-		"org.freedesktop.DBus",
-		"NameHasOwner",
-		&error,
-		&reply,
-		"s",
-		STONEFLY_NOTIFY_BUS_NAME);
+	int r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus",
+				   "org.freedesktop.DBus", "NameHasOwner", &error, &reply, "s",
+				   STONEFLY_NOTIFY_BUS_NAME);
 	if (r < 0) {
 		SF_LOGW("NameHasOwner failed",
-			sf_str("err", error.message != NULL ? error.message
-				: strerror(-r)));
+			sf_str("err", error.message != NULL ? error.message : strerror(-r)));
 		sd_bus_error_free(&error);
 		return r;
 	}
@@ -150,8 +133,7 @@ static int notifications_name_owned(sd_bus *bus, bool *owned) {
 	return 0;
 }
 
-static int on_name_owner_changed(sd_bus_message *m, void *userdata,
-		sd_bus_error *ret_error) {
+static int on_name_owner_changed(sd_bus_message *m, void *userdata, sd_bus_error *ret_error) {
 	(void)ret_error;
 	struct stonefly_dbus_notify *n = userdata;
 	const char *name = NULL;
@@ -161,15 +143,13 @@ static int on_name_owner_changed(sd_bus_message *m, void *userdata,
 	if (sd_bus_message_read(m, "sss", &name, &old_owner, &new_owner) < 0) {
 		return 0;
 	}
-	if (name == NULL ||
-			strcmp(name, STONEFLY_NOTIFY_BUS_NAME) != 0) {
+	if (name == NULL || strcmp(name, STONEFLY_NOTIFY_BUS_NAME) != 0) {
 		return 0;
 	}
 	if (new_owner == NULL || new_owner[0] == '\0') {
 		return 0;
 	}
-	SF_LOGI("notifications bus name claimed",
-		sf_str("owner", new_owner));
+	SF_LOGI("notifications bus name claimed", sf_str("owner", new_owner));
 	notify_complete(n, false);
 	return 0;
 }
@@ -180,7 +160,7 @@ static int on_bus_fd(int fd, uint32_t mask, void *data) {
 	if (n == NULL || n->bus == NULL) {
 		return 0;
 	}
-	if (mask & (WL_EVENT_ERROR | WL_EVENT_HANGUP)) {
+	if (mask & ((uint32_t)WL_EVENT_ERROR | (uint32_t)WL_EVENT_HANGUP)) {
 		SF_LOGW("config warn notify: session bus hung up");
 		notify_pending_destroy(n);
 		return 0;
@@ -194,8 +174,7 @@ static int on_bus_fd(int fd, uint32_t mask, void *data) {
 		return 0;
 	}
 	if (r < 0) {
-		SF_LOGW("config warn notify: sd_bus_process failed",
-			sf_str("err", strerror(-r)));
+		SF_LOGW("config warn notify: sd_bus_process failed", sf_str("err", strerror(-r)));
 		notify_pending_destroy(n);
 	}
 	return 0;
@@ -216,19 +195,14 @@ void stonefly_dbus_update_activation_environment(void) {
 
 	r = sd_bus_open_user(&bus);
 	if (r < 0) {
-		SF_LOGW("dbus activation: open session bus failed",
-			sf_str("err", strerror(-r)));
+		SF_LOGW("dbus activation: open session bus failed", sf_str("err", strerror(-r)));
 		return;
 	}
 
-	r = sd_bus_message_new_method_call(bus, &m,
-		"org.freedesktop.DBus",
-		"/org/freedesktop/DBus",
-		"org.freedesktop.DBus",
-		"UpdateActivationEnvironment");
+	r = sd_bus_message_new_method_call(bus, &m, "org.freedesktop.DBus", "/org/freedesktop/DBus",
+					   "org.freedesktop.DBus", "UpdateActivationEnvironment");
 	if (r < 0) {
-		SF_LOGW("dbus activation: message failed",
-			sf_str("err", strerror(-r)));
+		SF_LOGW("dbus activation: message failed", sf_str("err", strerror(-r)));
 		goto out;
 	}
 
@@ -250,8 +224,7 @@ void stonefly_dbus_update_activation_environment(void) {
 		key[klen] = '\0';
 		r = sd_bus_message_append(m, "{ss}", key, eq + 1);
 		if (r < 0) {
-			SF_LOGW("dbus activation: append env failed",
-				sf_str("err", strerror(-r)));
+			SF_LOGW("dbus activation: append env failed", sf_str("err", strerror(-r)));
 			goto out_msg;
 		}
 	}
@@ -263,8 +236,7 @@ void stonefly_dbus_update_activation_environment(void) {
 	r = sd_bus_call(bus, m, 0, &error, NULL);
 	if (r < 0) {
 		SF_LOGW("UpdateActivationEnvironment failed",
-			sf_str("err", error.message != NULL ? error.message
-				: strerror(-r)));
+			sf_str("err", error.message != NULL ? error.message : strerror(-r)));
 		sd_bus_error_free(&error);
 	} else {
 		SF_LOGI("dbus activation environment updated");
@@ -277,9 +249,7 @@ out:
 }
 
 void stonefly_dbus_notify_config_warn(struct stonefly_server *server) {
-	if (server == NULL ||
-			server->config_warn == NULL ||
-			server->config_warn[0] == '\0') {
+	if (server == NULL || server->config_warn == NULL || server->config_warn[0] == '\0') {
 		return;
 	}
 	if (server->config_notify != NULL) {
@@ -301,8 +271,7 @@ void stonefly_dbus_notify_config_warn(struct stonefly_server *server) {
 
 	int r = sd_bus_open_user(&n->bus);
 	if (r < 0) {
-		SF_LOGW("config warn notify: open session bus failed",
-			sf_str("err", strerror(-r)));
+		SF_LOGW("config warn notify: open session bus failed", sf_str("err", strerror(-r)));
 		notify_pending_destroy(n);
 		return;
 	}
@@ -312,13 +281,13 @@ void stonefly_dbus_notify_config_warn(struct stonefly_server *server) {
 	 * between the check and the match install (Noctalia via -s).
 	 */
 	r = sd_bus_add_match(n->bus, &n->match_slot,
-		"type='signal',"
-		"sender='org.freedesktop.DBus',"
-		"path='/org/freedesktop/DBus',"
-		"interface='org.freedesktop.DBus',"
-		"member='NameOwnerChanged',"
-		"arg0='" STONEFLY_NOTIFY_BUS_NAME "'",
-		on_name_owner_changed, n);
+			     "type='signal',"
+			     "sender='org.freedesktop.DBus',"
+			     "path='/org/freedesktop/DBus',"
+			     "interface='org.freedesktop.DBus',"
+			     "member='NameOwnerChanged',"
+			     "arg0='" STONEFLY_NOTIFY_BUS_NAME "'",
+			     on_name_owner_changed, n);
 	if (r < 0) {
 		SF_LOGW("config warn notify: NameOwnerChanged match failed",
 			sf_str("err", strerror(-r)));
@@ -326,8 +295,7 @@ void stonefly_dbus_notify_config_warn(struct stonefly_server *server) {
 		return;
 	}
 
-	struct wl_event_loop *loop =
-		wl_display_get_event_loop(server->wl_display);
+	struct wl_event_loop *loop = wl_display_get_event_loop(server->wl_display);
 	int bus_fd = sd_bus_get_fd(n->bus);
 	if (bus_fd < 0) {
 		SF_LOGW("config warn notify: sd_bus_get_fd failed",
@@ -335,8 +303,9 @@ void stonefly_dbus_notify_config_warn(struct stonefly_server *server) {
 		notify_pending_destroy(n);
 		return;
 	}
-	n->bus_source = wl_event_loop_add_fd(loop, bus_fd,
-		WL_EVENT_READABLE | WL_EVENT_HANGUP | WL_EVENT_ERROR,
+	n->bus_source = wl_event_loop_add_fd(
+		loop, bus_fd,
+		(uint32_t)WL_EVENT_READABLE | (uint32_t)WL_EVENT_HANGUP | (uint32_t)WL_EVENT_ERROR,
 		on_bus_fd, n);
 	if (n->bus_source == NULL) {
 		SF_LOGW("config warn notify: bus fd watch failed");

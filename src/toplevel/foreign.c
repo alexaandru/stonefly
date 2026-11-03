@@ -38,10 +38,8 @@ struct stonefly_foreign_manager_resource {
 	struct wl_resource *resource;
 };
 
-static struct stonefly_toplevel *
-foreign_toplevel_from_resource(struct wl_resource *resource) {
-	struct stonefly_foreign_toplevel_handle *handle =
-		wl_resource_get_user_data(resource);
+static struct stonefly_toplevel *foreign_toplevel_from_resource(struct wl_resource *resource) {
+	struct stonefly_foreign_toplevel_handle *handle = wl_resource_get_user_data(resource);
 	if (handle == NULL) {
 		return NULL;
 	}
@@ -49,20 +47,20 @@ foreign_toplevel_from_resource(struct wl_resource *resource) {
 }
 
 static struct stonefly_foreign_toplevel_handle *
-foreign_handle_for_client(struct stonefly_server *server,
-		struct stonefly_toplevel *toplevel, struct wl_client *client) {
+foreign_handle_for_client(struct stonefly_server *server, struct stonefly_toplevel *toplevel,
+			  struct wl_client *client) {
 	struct stonefly_foreign_toplevel_handle *handle;
 	wl_list_for_each(handle, &server->foreign_handles, link) {
 		if (handle->toplevel == toplevel &&
-				wl_resource_get_client(handle->resource) == client) {
+		    wl_resource_get_client(handle->resource) == client) {
 			return handle;
 		}
 	}
 	return NULL;
 }
 
-static struct wl_resource *
-output_resource_for_client(struct wlr_output *output, struct wl_client *client) {
+static struct wl_resource *output_resource_for_client(struct wlr_output *output,
+						      struct wl_client *client) {
 	struct wl_resource *resource;
 	wl_resource_for_each(resource, &output->resources) {
 		if (wl_resource_get_client(resource) == client) {
@@ -73,7 +71,7 @@ output_resource_for_client(struct wlr_output *output, struct wl_client *client) 
 }
 
 static void stonefly_foreign_encode_state(struct stonefly_toplevel *toplevel,
-		struct wl_array *states) {
+					  struct wl_array *states) {
 	wl_array_init(states);
 
 	uint32_t *state;
@@ -105,7 +103,7 @@ static void stonefly_foreign_encode_state(struct stonefly_toplevel *toplevel,
 }
 
 static void foreign_send_handle_state(struct wl_resource *resource,
-		struct stonefly_toplevel *toplevel) {
+				      struct stonefly_toplevel *toplevel) {
 	struct wl_array states;
 	stonefly_foreign_encode_state(toplevel, &states);
 	zwlr_foreign_toplevel_handle_v1_send_state(resource, &states);
@@ -129,7 +127,8 @@ static void foreign_send_parent(struct stonefly_foreign_toplevel_handle *handle)
 			struct stonefly_toplevel *parent_tl = tree->node.data;
 			if (parent_tl->kind == STONEFLY_NODE_TOPLEVEL) {
 				struct stonefly_foreign_toplevel_handle *parent_handle =
-					foreign_handle_for_client(toplevel->server, parent_tl,
+					foreign_handle_for_client(
+						toplevel->server, parent_tl,
 						wl_resource_get_client(handle->resource));
 				if (parent_handle != NULL) {
 					parent_resource = parent_handle->resource;
@@ -140,8 +139,7 @@ static void foreign_send_parent(struct stonefly_foreign_toplevel_handle *handle)
 	zwlr_foreign_toplevel_handle_v1_send_parent(handle->resource, parent_resource);
 }
 
-static void foreign_handle_clear_outputs(
-		struct stonefly_foreign_toplevel_handle *handle) {
+static void foreign_handle_clear_outputs(struct stonefly_foreign_toplevel_handle *handle) {
 	struct stonefly_foreign_handle_output *hop, *tmp;
 	wl_list_for_each_safe(hop, tmp, &handle->outputs, link) {
 		wl_list_remove(&hop->output_destroy.link);
@@ -152,14 +150,13 @@ static void foreign_handle_clear_outputs(
 
 static void foreign_handle_output_destroy(struct wl_listener *listener, void *data) {
 	(void)data;
-	struct stonefly_foreign_handle_output *hop =
-		wl_container_of(listener, hop, output_destroy);
+	struct stonefly_foreign_handle_output *hop = wl_container_of(listener, hop, output_destroy);
 	struct stonefly_foreign_toplevel_handle *handle = hop->handle;
-	struct wl_resource *output_resource = output_resource_for_client(hop->output,
-		wl_resource_get_client(handle->resource));
+	struct wl_resource *output_resource =
+		output_resource_for_client(hop->output, wl_resource_get_client(handle->resource));
 	if (output_resource != NULL) {
 		zwlr_foreign_toplevel_handle_v1_send_output_leave(handle->resource,
-			output_resource);
+								  output_resource);
 		zwlr_foreign_toplevel_handle_v1_send_done(handle->resource);
 	}
 	wl_list_remove(&hop->output_destroy.link);
@@ -168,7 +165,7 @@ static void foreign_handle_output_destroy(struct wl_listener *listener, void *da
 }
 
 static bool toplevel_intersects_output(struct stonefly_toplevel *toplevel,
-		struct wlr_output *output) {
+				       struct wlr_output *output) {
 	if (output == NULL || !output->enabled) {
 		return false;
 	}
@@ -181,9 +178,8 @@ static bool toplevel_intersects_output(struct stonefly_toplevel *toplevel,
 	return wlr_box_intersection(&inter, &geom, &out_box);
 }
 
-static void foreign_handle_enter_output(
-		struct stonefly_foreign_toplevel_handle *handle,
-		struct wlr_output *output) {
+static void foreign_handle_enter_output(struct stonefly_foreign_toplevel_handle *handle,
+					struct wlr_output *output) {
 	struct stonefly_foreign_handle_output *hop;
 	wl_list_for_each(hop, &handle->outputs, link) {
 		if (hop->output == output) {
@@ -201,30 +197,28 @@ static void foreign_handle_enter_output(
 	wl_signal_add(&output->events.destroy, &hop->output_destroy);
 	wl_list_insert(&handle->outputs, &hop->link);
 
-	struct wl_resource *output_resource = output_resource_for_client(output,
-		wl_resource_get_client(handle->resource));
+	struct wl_resource *output_resource =
+		output_resource_for_client(output, wl_resource_get_client(handle->resource));
 	if (output_resource != NULL) {
 		zwlr_foreign_toplevel_handle_v1_send_output_enter(handle->resource,
-			output_resource);
+								  output_resource);
 	}
 }
 
-static void foreign_handle_leave_output(
-		struct stonefly_foreign_toplevel_handle *handle,
-		struct stonefly_foreign_handle_output *hop) {
-	struct wl_resource *output_resource = output_resource_for_client(hop->output,
-		wl_resource_get_client(handle->resource));
+static void foreign_handle_leave_output(struct stonefly_foreign_toplevel_handle *handle,
+					struct stonefly_foreign_handle_output *hop) {
+	struct wl_resource *output_resource =
+		output_resource_for_client(hop->output, wl_resource_get_client(handle->resource));
 	if (output_resource != NULL) {
 		zwlr_foreign_toplevel_handle_v1_send_output_leave(handle->resource,
-			output_resource);
+								  output_resource);
 	}
 	wl_list_remove(&hop->output_destroy.link);
 	wl_list_remove(&hop->link);
 	free(hop);
 }
 
-static void foreign_handle_sync_outputs(
-		struct stonefly_foreign_toplevel_handle *handle) {
+static void foreign_handle_sync_outputs(struct stonefly_foreign_toplevel_handle *handle) {
 	struct stonefly_toplevel *toplevel = handle->toplevel;
 	if (toplevel == NULL) {
 		return;
@@ -245,8 +239,7 @@ static void foreign_handle_sync_outputs(
 	}
 }
 
-static void foreign_send_handle_props(
-		struct stonefly_foreign_toplevel_handle *handle) {
+static void foreign_send_handle_props(struct stonefly_foreign_toplevel_handle *handle) {
 	struct stonefly_toplevel *toplevel = handle->toplevel;
 	if (toplevel == NULL) {
 		return;
@@ -254,11 +247,11 @@ static void foreign_send_handle_props(
 
 	if (toplevel->xdg_toplevel->title != NULL) {
 		zwlr_foreign_toplevel_handle_v1_send_title(handle->resource,
-			toplevel->xdg_toplevel->title);
+							   toplevel->xdg_toplevel->title);
 	}
 	if (toplevel->xdg_toplevel->app_id != NULL) {
 		zwlr_foreign_toplevel_handle_v1_send_app_id(handle->resource,
-			toplevel->xdg_toplevel->app_id);
+							    toplevel->xdg_toplevel->app_id);
 	}
 	foreign_handle_sync_outputs(handle);
 	foreign_send_handle_state(handle->resource, toplevel);
@@ -287,8 +280,7 @@ static void foreign_close_handles_for(struct stonefly_toplevel *toplevel) {
 }
 
 static void foreign_handle_destroy_cb(struct wl_resource *resource) {
-	struct stonefly_foreign_toplevel_handle *handle =
-		wl_resource_get_user_data(resource);
+	struct stonefly_foreign_toplevel_handle *handle = wl_resource_get_user_data(resource);
 	if (handle == NULL) {
 		return;
 	}
@@ -299,8 +291,7 @@ static void foreign_handle_destroy_cb(struct wl_resource *resource) {
 	free(handle);
 }
 
-static void foreign_handle_set_maximized(struct wl_client *client,
-		struct wl_resource *resource) {
+static void foreign_handle_set_maximized(struct wl_client *client, struct wl_resource *resource) {
 	(void)client;
 	struct stonefly_toplevel *toplevel = foreign_toplevel_from_resource(resource);
 	if (toplevel == NULL) {
@@ -309,8 +300,7 @@ static void foreign_handle_set_maximized(struct wl_client *client,
 	stonefly_toplevel_set_max_edges(toplevel, true);
 }
 
-static void foreign_handle_unset_maximized(struct wl_client *client,
-		struct wl_resource *resource) {
+static void foreign_handle_unset_maximized(struct wl_client *client, struct wl_resource *resource) {
 	(void)client;
 	struct stonefly_toplevel *toplevel = foreign_toplevel_from_resource(resource);
 	if (toplevel == NULL) {
@@ -319,8 +309,7 @@ static void foreign_handle_unset_maximized(struct wl_client *client,
 	stonefly_toplevel_set_max_edges(toplevel, false);
 }
 
-static void foreign_handle_set_minimized(struct wl_client *client,
-		struct wl_resource *resource) {
+static void foreign_handle_set_minimized(struct wl_client *client, struct wl_resource *resource) {
 	(void)client;
 	struct stonefly_toplevel *toplevel = foreign_toplevel_from_resource(resource);
 	if (toplevel == NULL) {
@@ -330,8 +319,7 @@ static void foreign_handle_set_minimized(struct wl_client *client,
 	stonefly_toplevel_minimize(toplevel);
 }
 
-static void foreign_handle_unset_minimized(struct wl_client *client,
-		struct wl_resource *resource) {
+static void foreign_handle_unset_minimized(struct wl_client *client, struct wl_resource *resource) {
 	(void)client;
 	struct stonefly_toplevel *toplevel = foreign_toplevel_from_resource(resource);
 	if (toplevel == NULL) {
@@ -341,8 +329,8 @@ static void foreign_handle_unset_minimized(struct wl_client *client,
 	stonefly_toplevel_unminimize(toplevel);
 }
 
-static void foreign_handle_activate(struct wl_client *client,
-		struct wl_resource *resource, struct wl_resource *seat_resource) {
+static void foreign_handle_activate(struct wl_client *client, struct wl_resource *resource,
+				    struct wl_resource *seat_resource) {
 	(void)client;
 	(void)seat_resource;
 	struct stonefly_toplevel *toplevel = foreign_toplevel_from_resource(resource);
@@ -354,8 +342,7 @@ static void foreign_handle_activate(struct wl_client *client,
 	stonefly_focus_toplevel(toplevel);
 }
 
-static void foreign_handle_close(struct wl_client *client,
-		struct wl_resource *resource) {
+static void foreign_handle_close(struct wl_client *client, struct wl_resource *resource) {
 	(void)client;
 	struct stonefly_toplevel *toplevel = foreign_toplevel_from_resource(resource);
 	if (toplevel == NULL) {
@@ -365,29 +352,28 @@ static void foreign_handle_close(struct wl_client *client,
 	wlr_xdg_toplevel_send_close(toplevel->xdg_toplevel);
 }
 
-static void foreign_handle_set_rectangle(struct wl_client *client,
-		struct wl_resource *resource, struct wl_resource *surface_resource,
-		int32_t x, int32_t y, int32_t width, int32_t height) {
+static void foreign_handle_set_rectangle(struct wl_client *client, struct wl_resource *resource,
+					 struct wl_resource *surface_resource, int32_t x, int32_t y,
+					 int32_t width, int32_t height) {
 	(void)client;
 	(void)surface_resource;
 	(void)x;
 	(void)y;
 	if (width < 0 || height < 0) {
 		wl_resource_post_error(resource,
-			ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_ERROR_INVALID_RECTANGLE,
-			"invalid rectangle");
+				       ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_ERROR_INVALID_RECTANGLE,
+				       "invalid rectangle");
 		return;
 	}
 }
 
-static void foreign_handle_destroy_req(struct wl_client *client,
-		struct wl_resource *resource) {
+static void foreign_handle_destroy_req(struct wl_client *client, struct wl_resource *resource) {
 	(void)client;
 	wl_resource_destroy(resource);
 }
 
-static void foreign_handle_set_fullscreen(struct wl_client *client,
-		struct wl_resource *resource, struct wl_resource *output_resource) {
+static void foreign_handle_set_fullscreen(struct wl_client *client, struct wl_resource *resource,
+					  struct wl_resource *output_resource) {
 	(void)client;
 	struct stonefly_toplevel *toplevel = foreign_toplevel_from_resource(resource);
 	if (toplevel == NULL) {
@@ -401,7 +387,7 @@ static void foreign_handle_set_fullscreen(struct wl_client *client,
 }
 
 static void foreign_handle_unset_fullscreen(struct wl_client *client,
-		struct wl_resource *resource) {
+					    struct wl_resource *resource) {
 	(void)client;
 	struct stonefly_toplevel *toplevel = foreign_toplevel_from_resource(resource);
 	if (toplevel == NULL) {
@@ -424,8 +410,8 @@ static const struct zwlr_foreign_toplevel_handle_v1_interface foreign_handle_imp
 };
 
 static struct stonefly_foreign_toplevel_handle *
-foreign_create_handle(struct stonefly_server *server, struct wl_client *client,
-		uint32_t version, struct stonefly_toplevel *toplevel) {
+foreign_create_handle(struct stonefly_server *server, struct wl_client *client, uint32_t version,
+		      struct stonefly_toplevel *toplevel) {
 	struct stonefly_foreign_toplevel_handle *handle = calloc(1, sizeof(*handle));
 	if (handle == NULL) {
 		return NULL;
@@ -434,21 +420,21 @@ foreign_create_handle(struct stonefly_server *server, struct wl_client *client,
 	handle->server = server;
 	handle->toplevel = toplevel;
 	wl_list_init(&handle->outputs);
-	handle->resource = wl_resource_create(client,
-		&zwlr_foreign_toplevel_handle_v1_interface, version, 0);
+	handle->resource = wl_resource_create(client, &zwlr_foreign_toplevel_handle_v1_interface,
+					      (int)version, 0);
 	if (handle->resource == NULL) {
 		free(handle);
 		return NULL;
 	}
 
-	wl_resource_set_implementation(handle->resource, &foreign_handle_impl,
-		handle, foreign_handle_destroy_cb);
+	wl_resource_set_implementation(handle->resource, &foreign_handle_impl, handle,
+				       foreign_handle_destroy_cb);
 	wl_list_insert(&server->foreign_handles, &handle->link);
 	return handle;
 }
 
 static void foreign_announce_toplevel(struct stonefly_foreign_manager_resource *mgr,
-		struct stonefly_toplevel *toplevel) {
+				      struct stonefly_toplevel *toplevel) {
 	uint32_t version = wl_resource_get_version(mgr->resource);
 	struct stonefly_foreign_toplevel_handle *handle = foreign_create_handle(
 		mgr->server, wl_resource_get_client(mgr->resource), version, toplevel);
@@ -459,8 +445,7 @@ static void foreign_announce_toplevel(struct stonefly_foreign_manager_resource *
 	foreign_send_handle_props(handle);
 }
 
-static void foreign_manager_stop(struct wl_client *client,
-		struct wl_resource *resource) {
+static void foreign_manager_stop(struct wl_client *client, struct wl_resource *resource) {
 	(void)client;
 	zwlr_foreign_toplevel_manager_v1_send_finished(resource);
 	wl_resource_destroy(resource);
@@ -471,8 +456,7 @@ static const struct zwlr_foreign_toplevel_manager_v1_interface foreign_manager_i
 };
 
 static void foreign_manager_destroy_cb(struct wl_resource *resource) {
-	struct stonefly_foreign_manager_resource *mgr =
-		wl_resource_get_user_data(resource);
+	struct stonefly_foreign_manager_resource *mgr = wl_resource_get_user_data(resource);
 	if (mgr == NULL) {
 		return;
 	}
@@ -493,12 +477,12 @@ static void foreign_manager_destroy_cb(struct wl_resource *resource) {
 	free(mgr);
 }
 
-static void foreign_manager_bind(struct wl_client *client, void *data,
-		uint32_t version, uint32_t id) {
+static void foreign_manager_bind(struct wl_client *client, void *data, uint32_t version,
+				 uint32_t id) {
 	struct stonefly_server *server = data;
 
-	struct wl_resource *resource = wl_resource_create(client,
-		&zwlr_foreign_toplevel_manager_v1_interface, version, id);
+	struct wl_resource *resource = wl_resource_create(
+		client, &zwlr_foreign_toplevel_manager_v1_interface, (int)version, id);
 	if (resource == NULL) {
 		wl_client_post_no_memory(client);
 		return;
@@ -515,7 +499,7 @@ static void foreign_manager_bind(struct wl_client *client, void *data,
 	wl_list_insert(&server->foreign_managers, &mgr->link);
 
 	wl_resource_set_implementation(resource, &foreign_manager_impl, mgr,
-		foreign_manager_destroy_cb);
+				       foreign_manager_destroy_cb);
 	SF_LOGI("foreign manager bind", sf_i64("version", (int64_t)version));
 
 	struct stonefly_toplevel *toplevel;
@@ -528,9 +512,9 @@ void stonefly_foreign_toplevel_setup(struct stonefly_server *server) {
 	wl_list_init(&server->foreign_handles);
 	wl_list_init(&server->foreign_managers);
 
-	server->foreign_toplevel_global = wl_global_create(server->wl_display,
-		&zwlr_foreign_toplevel_manager_v1_interface, 3, server,
-		foreign_manager_bind);
+	server->foreign_toplevel_global =
+		wl_global_create(server->wl_display, &zwlr_foreign_toplevel_manager_v1_interface, 3,
+				 server, foreign_manager_bind);
 
 	if (server->foreign_toplevel_global == NULL) {
 		SF_LOGW("foreign toplevel", sf_str("err", "failed to create global"));
@@ -596,7 +580,7 @@ void stonefly_foreign_toplevel_on_title_change(struct stonefly_toplevel *topleve
 		}
 		const char *title = toplevel->xdg_toplevel->title;
 		zwlr_foreign_toplevel_handle_v1_send_title(handle->resource,
-			title != NULL ? title : "");
+							   title != NULL ? title : "");
 		zwlr_foreign_toplevel_handle_v1_send_done(handle->resource);
 	}
 }
@@ -609,7 +593,7 @@ void stonefly_foreign_toplevel_on_app_id_change(struct stonefly_toplevel *toplev
 		}
 		const char *app_id = toplevel->xdg_toplevel->app_id;
 		zwlr_foreign_toplevel_handle_v1_send_app_id(handle->resource,
-			app_id != NULL ? app_id : "");
+							    app_id != NULL ? app_id : "");
 		zwlr_foreign_toplevel_handle_v1_send_done(handle->resource);
 	}
 }

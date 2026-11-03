@@ -30,8 +30,7 @@ void stonefly_drag_snap_reset(struct stonefly_drag_snap *drag);
 void stonefly_drag_snap_prepare(struct stonefly_toplevel *toplevel);
 
 /* Begin stick tracking after prepare + grab fields are set. */
-void stonefly_drag_snap_begin(struct stonefly_server *server,
-		struct stonefly_toplevel *toplevel);
+void stonefly_drag_snap_begin(struct stonefly_server *server, struct stonefly_toplevel *toplevel);
 
 /* Apply magnetic resistance; update stuck edge + preview. */
 void stonefly_drag_snap_motion(struct stonefly_server *server);

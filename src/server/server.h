@@ -36,9 +36,16 @@ struct wlr_session_lock_v1;
 struct wlr_idle_notifier_v1;
 struct wlr_idle_inhibit_manager_v1;
 struct wlr_output_power_manager_v1;
+struct wlr_output_manager_v1;
+struct wlr_presentation;
+struct wlr_tearing_control_manager_v1;
 struct wlr_scene_rect;
 struct wlr_ext_workspace_manager_v1;
 struct wlr_pointer_gestures_v1;
+struct wlr_virtual_keyboard_manager_v1;
+struct wlr_relative_pointer_manager_v1;
+struct wlr_pointer_constraints_v1;
+struct wlr_pointer_constraint_v1;
 
 struct stonefly_toplevel;
 struct stonefly_output;
@@ -124,6 +131,11 @@ struct stonefly_server {
 	struct wl_listener cursor_button;
 	struct wl_listener cursor_axis;
 	struct wl_listener cursor_frame;
+	struct wl_listener cursor_touch_down;
+	struct wl_listener cursor_touch_up;
+	struct wl_listener cursor_touch_motion;
+	struct wl_listener cursor_touch_cancel;
+	struct wl_listener cursor_touch_frame;
 
 	struct wlr_seat *seat;
 	struct wl_listener new_input;
@@ -133,6 +145,7 @@ struct stonefly_server {
 	struct wl_listener request_set_selection;
 	struct wl_listener request_set_primary_selection;
 	struct wl_list keyboards;
+	struct wl_list touch;
 	enum stonefly_cursor_mode cursor_mode;
 	struct stonefly_toplevel *grabbed_toplevel;
 	double grab_x, grab_y;
@@ -144,6 +157,16 @@ struct stonefly_server {
 	struct wlr_output_layout *output_layout;
 	struct wl_list outputs;
 	struct wl_listener new_output;
+
+	/* zwlr_output_manager_v1 — wdisplays / kanshi / Noctalia display settings. */
+	struct wlr_output_manager_v1 *output_mgr;
+	struct wl_listener output_mgr_apply;
+	struct wl_listener output_mgr_test;
+
+	/* wp_presentation + wp_tearing_control_v1 (advertise only this pass). */
+	struct wlr_presentation *presentation;
+	struct wlr_tearing_control_manager_v1 *tearing_control_mgr;
+	struct wl_listener tearing_new_object;
 
 	struct wl_list minimized;
 
@@ -212,6 +235,18 @@ struct stonefly_server {
 
 	/* Pointer devices with gesture listeners attached. */
 	struct wl_list pointers;
+
+	/* zwp_virtual_keyboard_v1 — attach like a normal keyboard. */
+	struct wlr_virtual_keyboard_manager_v1 *virtual_keyboard_mgr;
+	struct wl_listener new_virtual_keyboard;
+
+	/* zwp_relative_pointer_manager_v1 — raw deltas for locked/raw clients. */
+	struct wlr_relative_pointer_manager_v1 *relative_pointer_mgr;
+
+	/* zwp_pointer_constraints_v1 — lock/confine when surface has focus. */
+	struct wlr_pointer_constraints_v1 *pointer_constraints;
+	struct wl_listener new_pointer_constraint;
+	struct wlr_pointer_constraint_v1 *current_constraint;
 
 	/* Heap; set when user init.lua fails and we fall back to embedded/C.
 	 * Surfaced via FDO Notifications after the display is up (peeble-style). */

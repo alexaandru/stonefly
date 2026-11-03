@@ -30,7 +30,7 @@ static int workspace_member_count(struct stonefly_workspace *ws) {
 }
 
 size_t stonefly_workspaces_collect(struct stonefly_server *server,
-		struct stonefly_workspace_info *out, size_t cap) {
+				   struct stonefly_workspace_info *out, size_t cap) {
 	if (server == NULL || out == NULL || cap == 0) {
 		return 0;
 	}
@@ -45,22 +45,21 @@ size_t stonefly_workspaces_collect(struct stonefly_server *server,
 			struct stonefly_workspace_info *info = &out[n++];
 			memset(info, 0, sizeof(*info));
 			snprintf(info->output, sizeof(info->output), "%s",
-				output->wlr_output->name != NULL
-					? output->wlr_output->name : "");
+				 output->wlr_output->name != NULL ? output->wlr_output->name : "");
 			info->index = ws->index + 1;
 			snprintf(info->name, sizeof(info->name), "%s", ws->name);
 			info->active = (output->active == ws);
 			info->windows = workspace_member_count(ws);
 			info->empty = info->windows == 0;
 			snprintf(info->layout, sizeof(info->layout), "%s",
-				stonefly_layout_name(stonefly_workspace_layout(ws)));
+				 stonefly_layout_name(stonefly_workspace_layout(ws)));
 		}
 	}
 	return n;
 }
 
-int stonefly_workspaces_to_json(const struct stonefly_workspace_info *infos,
-		size_t n, char *buf, size_t cap) {
+int stonefly_workspaces_to_json(const struct stonefly_workspace_info *infos, size_t n, char *buf,
+				size_t cap) {
 	struct json_buf b;
 	json_buf_init(&b, buf, cap);
 	json_byte(&b, '[');
@@ -111,8 +110,7 @@ static bool parse_object(struct json_scan *s, struct stonefly_workspace_info *ou
 
 	for (;;) {
 		char key[64];
-		if (!json_scan_string(s, key, sizeof(key)) ||
-				!json_scan_expect(s, ':')) {
+		if (!json_scan_string(s, key, sizeof(key)) || !json_scan_expect(s, ':')) {
 			return false;
 		}
 
@@ -177,8 +175,8 @@ static bool parse_object(struct json_scan *s, struct stonefly_workspace_info *ou
 	}
 }
 
-bool stonefly_workspaces_from_json(const char *json,
-		struct stonefly_workspace_info *out, size_t cap, size_t *n_out) {
+bool stonefly_workspaces_from_json(const char *json, struct stonefly_workspace_info *out,
+				   size_t cap, size_t *n_out) {
 	if (n_out != NULL) {
 		*n_out = 0;
 	}
@@ -223,20 +221,13 @@ bool stonefly_workspaces_from_json(const char *json,
 	}
 }
 
-void stonefly_workspaces_print(const struct stonefly_workspace_info *infos,
-		size_t n, FILE *fp) {
+void stonefly_workspaces_print(const struct stonefly_workspace_info *infos, size_t n, FILE *fp) {
 	if (fp == NULL) {
 		fp = stdout;
 	}
 	for (size_t i = 0; i < n; i++) {
 		const struct stonefly_workspace_info *w = &infos[i];
-		fprintf(fp, "%s%s  %s  ws %d  %s  windows=%d  layout=%s\n",
-			w->active ? "*" : " ",
-			w->empty ? "." : " ",
-			w->output,
-			w->index,
-			w->name,
-			w->windows,
-			w->layout);
+		fprintf(fp, "%s%s  %s  ws %d  %s  windows=%d  layout=%s\n", w->active ? "*" : " ",
+			w->empty ? "." : " ", w->output, w->index, w->name, w->windows, w->layout);
 	}
 }

@@ -1,0 +1,14 @@
+# cppcheck suppressions for stonefly (wlroots / SceneFX / generated protocols).
+# Missing system/deps headers are normal outside the abuild chroot.
+missingIncludeSystem
+unmatchedSuppression
+# wlroots listener / scene callbacks look unused to --enable=unusedFunction.
+unusedFunction
+# malloc/realloc NULL then deref: only reachable when already OOM; compositor
+# is finished either way. Keep real nullPointer for logic bugs.
+nullPointerOutOfMemory
+# wl_container_of / wl_list_for_each*: cppcheck treats the derived pointer as
+# uninitialized. Real stack uninit is still caught by clang -Wsometimes-uninit
+# / tidy analyzer under werror.
+uninitvar
+ctuuninitvar

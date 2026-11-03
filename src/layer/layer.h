@@ -30,14 +30,13 @@ void stonefly_layer_finish(struct stonefly_server *server);
 
 /* Scene tree for a zwlr_layer_shell_v1 layer enum value. */
 struct wlr_scene_tree *stonefly_layer_tree(struct stonefly_server *server,
-		enum zwlr_layer_shell_v1_layer layer);
+					   enum zwlr_layer_shell_v1_layer layer);
 
 void stonefly_layer_arrange_output(struct stonefly_output *output);
 
 /* Layout-coord usable box (exclusive zones applied). */
-bool stonefly_output_usable_box(struct stonefly_output *output,
-		struct wlr_box *box);
-bool stonefly_layout_usable_at(struct stonefly_server *server,
-		double lx, double ly, struct wlr_box *box);
+bool stonefly_output_usable_box(struct stonefly_output *output, struct wlr_box *box);
+bool stonefly_layout_usable_at(struct stonefly_server *server, double lx, double ly,
+			       struct wlr_box *box);
 
 #endif

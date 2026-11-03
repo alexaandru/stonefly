@@ -47,10 +47,13 @@ void json_raw(struct json_buf *b, const char *s) {
 }
 
 void json_str(struct json_buf *b, const char *s) {
-	if (s == NULL) {
-		s = "";
-	}
 	json_byte(b, '"');
+	/* Empty / NULL: emit "" without walking a "" literal (clang-analyzer
+	 * ArrayBound false positive on the empty string). */
+	if (s == NULL || s[0] == '\0') {
+		json_byte(b, '"');
+		return;
+	}
 	for (const unsigned char *p = (const unsigned char *)s; *p != '\0'; p++) {
 		switch (*p) {
 		case '"':
@@ -149,8 +152,7 @@ bool json_scan_expect(struct json_scan *s, char c) {
 
 bool json_scan_string(struct json_scan *s, char *out, size_t out_cap) {
 	json_scan_skip_ws(s);
-	if (s->err || out == NULL || out_cap == 0 ||
-			s->p >= s->end || *s->p != '"') {
+	if (s->err || out == NULL || out_cap == 0 || s->p >= s->end || *s->p != '"') {
 		s->err = true;
 		return false;
 	}

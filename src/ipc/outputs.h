@@ -26,16 +26,15 @@ struct stonefly_output_info {
 	bool focused;
 };
 
-size_t stonefly_outputs_collect(struct stonefly_server *server,
-		struct stonefly_output_info *out, size_t cap);
+size_t stonefly_outputs_collect(struct stonefly_server *server, struct stonefly_output_info *out,
+				size_t cap);
 
-int stonefly_outputs_to_json(const struct stonefly_output_info *infos,
-		size_t n, char *buf, size_t cap);
+int stonefly_outputs_to_json(const struct stonefly_output_info *infos, size_t n, char *buf,
+			     size_t cap);
 
-bool stonefly_outputs_from_json(const char *json,
-		struct stonefly_output_info *out, size_t cap, size_t *n_out);
+bool stonefly_outputs_from_json(const char *json, struct stonefly_output_info *out, size_t cap,
+				size_t *n_out);
 
-void stonefly_outputs_print(const struct stonefly_output_info *infos,
-		size_t n, FILE *fp);
+void stonefly_outputs_print(const struct stonefly_output_info *infos, size_t n, FILE *fp);
 
 #endif

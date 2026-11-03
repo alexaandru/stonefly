@@ -142,8 +142,7 @@ static void load_pack_plugins(struct lua_runtime *rt, const char *pack_root) {
 		return;
 	}
 	if (luaL_dofile(rt->L, plugin) != LUA_OK) {
-		SF_LOGW("pack plugin failed",
-			sf_str("path", plugin),
+		SF_LOGW("pack plugin failed", sf_str("path", plugin),
 			sf_str("err", lua_tostring(rt->L, -1)));
 		lua_pop(rt->L, 1);
 	}
@@ -157,7 +156,7 @@ static int l_packadd(lua_State *L) {
 	char data[PATH_MAX_SF];
 	stonefly_data_dir(data, sizeof data);
 
-	const char *bases[] = { data, STONEFLY_DATADIR, NULL };
+	const char *bases[] = {data, STONEFLY_DATADIR, NULL};
 	char pack[PATH_MAX_SF];
 	for (int b = 0; bases[b] != NULL; b++) {
 		/* pack/dist/opt/name, else pack/opt/name */
@@ -178,8 +177,8 @@ static int l_packadd(lua_State *L) {
 }
 
 static uint32_t parse_mod(const char *s) {
-	if (strcasecmp(s, "super") == 0 || strcasecmp(s, "logo") == 0
-			|| strcasecmp(s, "mod4") == 0) {
+	if (strcasecmp(s, "super") == 0 || strcasecmp(s, "logo") == 0 ||
+	    strcasecmp(s, "mod4") == 0) {
 		return STONEFLY_SUPER;
 	}
 	if (strcasecmp(s, "shift") == 0) {
@@ -221,11 +220,8 @@ static int lookup_keysym(const char *key, xkb_keysym_t *out) {
 		const char *alias;
 		const char *xkb;
 	} aliases[] = {
-		{ "esc", "Escape" },
-		{ "enter", "Return" },
-		{ "return", "Return" },
-		{ "space", "space" },
-		{ " ", "space" },
+		{"esc", "Escape"},  {"enter", "Return"}, {"return", "Return"},
+		{"space", "space"}, {" ", "space"},
 	};
 	size_t len = strlen(key);
 	if (len == 0) {
@@ -242,8 +238,7 @@ static int lookup_keysym(const char *key, xkb_keysym_t *out) {
 			break;
 		}
 	}
-	xkb_keysym_t sym = xkb_keysym_from_name(name,
-		XKB_KEYSYM_CASE_INSENSITIVE);
+	xkb_keysym_t sym = xkb_keysym_from_name(name, XKB_KEYSYM_CASE_INSENSITIVE);
 	if (sym == XKB_KEY_NoSymbol) {
 		return -1;
 	}
@@ -296,10 +291,9 @@ static int parse_chord(const char *s, uint32_t *mods_out, xkb_keysym_t *sym_out)
 }
 
 /* Lone-modifier tap names → left keysym (+ caller adds right as alt). */
-static int parse_tap_mod(const char *s, xkb_keysym_t *sym_out,
-		xkb_keysym_t *sym_alt_out) {
-	if (strcasecmp(s, "super") == 0 || strcasecmp(s, "mod4") == 0
-			|| strcasecmp(s, "logo") == 0) {
+static int parse_tap_mod(const char *s, xkb_keysym_t *sym_out, xkb_keysym_t *sym_alt_out) {
+	if (strcasecmp(s, "super") == 0 || strcasecmp(s, "mod4") == 0 ||
+	    strcasecmp(s, "logo") == 0) {
 		*sym_out = XKB_KEY_Super_L;
 		*sym_alt_out = XKB_KEY_Super_R;
 		return 0;
@@ -337,39 +331,39 @@ static enum stonefly_action parse_action(const char *s) {
 		const char *name;
 		enum stonefly_action a;
 	} map[] = {
-		{ "none", STONEFLY_ACTION_NONE },
-		{ "quit", STONEFLY_ACTION_QUIT },
-		{ "close", STONEFLY_ACTION_CLOSE },
-		{ "focus_next", STONEFLY_ACTION_FOCUS_NEXT },
-		{ "focus_prev", STONEFLY_ACTION_FOCUS_PREV },
-		{ "focus_next_all", STONEFLY_ACTION_FOCUS_NEXT_ALL },
-		{ "focus_prev_all", STONEFLY_ACTION_FOCUS_PREV_ALL },
-		{ "toggle_max_edges", STONEFLY_ACTION_TOGGLE_MAX_EDGES },
-		{ "toggle_max_gaps", STONEFLY_ACTION_TOGGLE_MAX_GAPS },
-		{ "minimize", STONEFLY_ACTION_MINIMIZE },
-		{ "unminimize", STONEFLY_ACTION_UNMINIMIZE },
-		{ "snap_left", STONEFLY_ACTION_SNAP_LEFT },
-		{ "snap_right", STONEFLY_ACTION_SNAP_RIGHT },
-		{ "snap_top", STONEFLY_ACTION_SNAP_TOP },
-		{ "snap_bottom", STONEFLY_ACTION_SNAP_BOTTOM },
-		{ "unsnap", STONEFLY_ACTION_UNSNAP },
-		{ "spawn_foot", STONEFLY_ACTION_SPAWN_FOOT },
-		{ "spawn_nautilus", STONEFLY_ACTION_SPAWN_NAUTILUS },
-		{ "spawn_ghostty", STONEFLY_ACTION_SPAWN_GHOSTTY },
-		{ "spawn_ghostty_qt", STONEFLY_ACTION_SPAWN_GHOSTTY_QT },
-		{ "spawn_editor", STONEFLY_ACTION_SPAWN_EDITOR },
-		{ "spawn_launcher", STONEFLY_ACTION_SPAWN_LAUNCHER },
-		{ "scratch_toggle_term", STONEFLY_ACTION_SCRATCH_TOGGLE_TERM },
-		{ "scratch_claim_term", STONEFLY_ACTION_SCRATCH_CLAIM_TERM },
-		{ "exec", STONEFLY_ACTION_EXEC },
-		{ "scratch_toggle", STONEFLY_ACTION_SCRATCH_TOGGLE },
-		{ "scratch_claim", STONEFLY_ACTION_SCRATCH_CLAIM },
-		{ "workspace_next", STONEFLY_ACTION_WORKSPACE_NEXT },
-		{ "workspace_prev", STONEFLY_ACTION_WORKSPACE_PREV },
-		{ "workspace_switch", STONEFLY_ACTION_WORKSPACE_SWITCH },
-		{ "move_to_workspace_next", STONEFLY_ACTION_MOVE_TO_WORKSPACE_NEXT },
-		{ "move_to_workspace_prev", STONEFLY_ACTION_MOVE_TO_WORKSPACE_PREV },
-		{ "move_to_workspace", STONEFLY_ACTION_MOVE_TO_WORKSPACE },
+		{"none", STONEFLY_ACTION_NONE},
+		{"quit", STONEFLY_ACTION_QUIT},
+		{"close", STONEFLY_ACTION_CLOSE},
+		{"focus_next", STONEFLY_ACTION_FOCUS_NEXT},
+		{"focus_prev", STONEFLY_ACTION_FOCUS_PREV},
+		{"focus_next_all", STONEFLY_ACTION_FOCUS_NEXT_ALL},
+		{"focus_prev_all", STONEFLY_ACTION_FOCUS_PREV_ALL},
+		{"toggle_max_edges", STONEFLY_ACTION_TOGGLE_MAX_EDGES},
+		{"toggle_max_gaps", STONEFLY_ACTION_TOGGLE_MAX_GAPS},
+		{"minimize", STONEFLY_ACTION_MINIMIZE},
+		{"unminimize", STONEFLY_ACTION_UNMINIMIZE},
+		{"snap_left", STONEFLY_ACTION_SNAP_LEFT},
+		{"snap_right", STONEFLY_ACTION_SNAP_RIGHT},
+		{"snap_top", STONEFLY_ACTION_SNAP_TOP},
+		{"snap_bottom", STONEFLY_ACTION_SNAP_BOTTOM},
+		{"unsnap", STONEFLY_ACTION_UNSNAP},
+		{"spawn_foot", STONEFLY_ACTION_SPAWN_FOOT},
+		{"spawn_nautilus", STONEFLY_ACTION_SPAWN_NAUTILUS},
+		{"spawn_ghostty", STONEFLY_ACTION_SPAWN_GHOSTTY},
+		{"spawn_ghostty_qt", STONEFLY_ACTION_SPAWN_GHOSTTY_QT},
+		{"spawn_editor", STONEFLY_ACTION_SPAWN_EDITOR},
+		{"spawn_launcher", STONEFLY_ACTION_SPAWN_LAUNCHER},
+		{"scratch_toggle_term", STONEFLY_ACTION_SCRATCH_TOGGLE_TERM},
+		{"scratch_claim_term", STONEFLY_ACTION_SCRATCH_CLAIM_TERM},
+		{"exec", STONEFLY_ACTION_EXEC},
+		{"scratch_toggle", STONEFLY_ACTION_SCRATCH_TOGGLE},
+		{"scratch_claim", STONEFLY_ACTION_SCRATCH_CLAIM},
+		{"workspace_next", STONEFLY_ACTION_WORKSPACE_NEXT},
+		{"workspace_prev", STONEFLY_ACTION_WORKSPACE_PREV},
+		{"workspace_switch", STONEFLY_ACTION_WORKSPACE_SWITCH},
+		{"move_to_workspace_next", STONEFLY_ACTION_MOVE_TO_WORKSPACE_NEXT},
+		{"move_to_workspace_prev", STONEFLY_ACTION_MOVE_TO_WORKSPACE_PREV},
+		{"move_to_workspace", STONEFLY_ACTION_MOVE_TO_WORKSPACE},
 	};
 	for (size_t i = 0; i < sizeof map / sizeof map[0]; i++) {
 		if (strcmp(s, map[i].name) == 0) {
@@ -470,8 +464,7 @@ static int l_bind(lua_State *L) {
 			mods = table_mods(L, lua_gettop(L));
 			sym = xkb_keysym_from_name(key, 0);
 			if (sym == XKB_KEY_NoSymbol) {
-				sym = xkb_keysym_from_name(key,
-					XKB_KEYSYM_CASE_INSENSITIVE);
+				sym = xkb_keysym_from_name(key, XKB_KEYSYM_CASE_INSENSITIVE);
 			}
 			if (sym == XKB_KEY_NoSymbol && strlen(key) == 1) {
 				sym = (xkb_keysym_t)(unsigned char)key[0];
@@ -493,8 +486,7 @@ static int l_bind(lua_State *L) {
 	if (lua_isstring(L, -1)) {
 		const char *alt = lua_tostring(L, -1);
 		if (lookup_keysym(alt, &sym_alt) != 0) {
-			sym_alt = xkb_keysym_from_name(alt,
-				XKB_KEYSYM_CASE_INSENSITIVE);
+			sym_alt = xkb_keysym_from_name(alt, XKB_KEYSYM_CASE_INSENSITIVE);
 		}
 	}
 	lua_pop(L, 1);
@@ -508,8 +500,7 @@ static int l_bind(lua_State *L) {
 	lua_getfield(L, opts, "cmd");
 	const char *cmd = lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL;
 
-	struct stonefly_keybind *nb = realloc(cfg->keybinds,
-		(cfg->n_keybinds + 1) * sizeof *nb);
+	struct stonefly_keybind *nb = realloc(cfg->keybinds, (cfg->n_keybinds + 1) * sizeof *nb);
 	if (nb == NULL) {
 		lua_pop(L, 1);
 		return luaL_error(L, "bind: OOM");
@@ -549,8 +540,7 @@ static int l_tap(lua_State *L) {
 	if (lua_type(L, 1) == LUA_TSTRING) {
 		const char *name = lua_tostring(L, 1);
 		if (parse_tap_mod(name, &sym, &sym_alt) != 0) {
-			return luaL_error(L, "tap: expected modifier name, got %s",
-				name);
+			return luaL_error(L, "tap: expected modifier name, got %s", name);
 		}
 		luaL_checktype(L, 2, LUA_TTABLE);
 		opts = 2;
@@ -579,12 +569,11 @@ static int l_tap(lua_State *L) {
 	lua_pop(L, 1);
 
 	lua_getfield(L, opts, "single");
-	enum stonefly_action single = parse_action(
-		lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL);
+	enum stonefly_action single =
+		parse_action(lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL);
 	lua_pop(L, 1);
 	lua_getfield(L, opts, "double");
-	enum stonefly_action dbl = parse_action(
-		lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL);
+	enum stonefly_action dbl = parse_action(lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL);
 	lua_pop(L, 1);
 
 	lua_getfield(L, opts, "single_cmd");
@@ -594,8 +583,7 @@ static int l_tap(lua_State *L) {
 	char *dcmd_c = xstrdup(lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL);
 	lua_pop(L, 1);
 
-	struct stonefly_tapbind *nb = realloc(cfg->tapbinds,
-		(cfg->n_tapbinds + 1) * sizeof *nb);
+	struct stonefly_tapbind *nb = realloc(cfg->tapbinds, (cfg->n_tapbinds + 1) * sizeof *nb);
 	if (nb == NULL) {
 		free(scmd_c);
 		free(dcmd_c);
@@ -636,8 +624,8 @@ static int l_scratchpad(lua_State *L) {
 	/* Peeble default: auto_hide true when omitted. */
 	bool auto_hide = !lua_isboolean(L, -1) || lua_toboolean(L, -1);
 
-	struct stonefly_scratchpad_spec *nb = realloc(cfg->scratchpads,
-		(cfg->n_scratchpads + 1) * sizeof *nb);
+	struct stonefly_scratchpad_spec *nb =
+		realloc(cfg->scratchpads, (cfg->n_scratchpads + 1) * sizeof *nb);
 	if (nb == NULL) {
 		return luaL_error(L, "scratchpad: OOM");
 	}
@@ -746,12 +734,55 @@ static int l_opt_newindex(lua_State *L) {
 		} else if (strcmp(k, "cmd_launcher") == 0) {
 			free(cfg->cmd_launcher);
 			cfg->cmd_launcher = xstrdup(s);
+		} else if (strcmp(k, "capture_block_app_ids") == 0) {
+			free(cfg->capture_block_app_ids);
+			cfg->capture_block_app_ids = xstrdup(s);
 		} else if (strcmp(k, "layout") == 0) {
 			cfg->layout = (int)stonefly_layout_parse(s);
 		}
 		return 0;
 	}
 	if (lua_istable(L, 3)) {
+		if (strcmp(k, "capture_block_app_ids") == 0) {
+			/* Join table of strings into a comma-separated list. */
+			/* LuaJIT is 5.1-shaped: lua_objlen, not lua_rawlen. */
+			size_t n = (size_t)lua_objlen(L, 3);
+			size_t cap = 64;
+			char *buf = malloc(cap);
+			size_t len = 0;
+			if (buf == NULL) {
+				return 0;
+			}
+			buf[0] = '\0';
+			for (size_t i = 1; i <= n; i++) {
+				lua_rawgeti(L, 3, (int)i);
+				const char *s = lua_tostring(L, -1);
+				lua_pop(L, 1);
+				if (s == NULL || s[0] == '\0') {
+					continue;
+				}
+				size_t slen = strlen(s);
+				size_t need = len + slen + (len > 0 ? 1 : 0) + 1;
+				if (need > cap) {
+					cap = need * 2;
+					char *nb = realloc(buf, cap);
+					if (nb == NULL) {
+						free(buf);
+						return 0;
+					}
+					buf = nb;
+				}
+				if (len > 0) {
+					buf[len++] = ',';
+				}
+				memcpy(buf + len, s, slen);
+				len += slen;
+				buf[len] = '\0';
+			}
+			free(cfg->capture_block_app_ids);
+			cfg->capture_block_app_ids = buf;
+			return 0;
+		}
 		float *dst = NULL;
 		if (strcmp(k, "border_active") == 0) {
 			dst = cfg->border_active;
@@ -819,8 +850,8 @@ static void setup_rtp(struct lua_runtime *rt) {
 	}
 }
 
-static bool eval_buffer(struct lua_runtime *rt, const char *name,
-		const unsigned char *data, size_t len) {
+static bool eval_buffer(struct lua_runtime *rt, const char *name, const unsigned char *data,
+			size_t len) {
 	if (luaL_loadbuffer(rt->L, (const char *)data, len, name) != LUA_OK) {
 		SF_LOGE("config load", sf_str("name", name),
 			sf_str("err", lua_tostring(rt->L, -1)));
@@ -872,8 +903,7 @@ static bool run_embedded_default(struct lua_runtime *rt) {
 	}
 	snprintf(emb, sizeof emb, "%s/embedded-default", cache);
 	if (!write_embed_tree_to(emb)) {
-		SF_LOGE("config: failed to materialize embedded default",
-			sf_str("dir", emb));
+		SF_LOGE("config: failed to materialize embedded default", sf_str("dir", emb));
 		return false;
 	}
 	/* Prefer embedded tree on rtp for require("binds") etc. */
@@ -917,8 +947,8 @@ bool stonefly_config_load(struct stonefly_server *server) {
 
 	char init_path[PATH_MAX_SF];
 	bool ok;
-	if (stonefly_config_init_path(init_path, sizeof init_path) == 0
-			&& access(init_path, R_OK) == 0) {
+	if (stonefly_config_init_path(init_path, sizeof init_path) == 0 &&
+	    access(init_path, R_OK) == 0) {
 		SF_LOGI("config", sf_str("path", init_path));
 		ok = luaL_dofile(G->L, init_path) == LUA_OK;
 		if (!ok) {
@@ -931,9 +961,9 @@ bool stonefly_config_load(struct stonefly_server *server) {
 			{
 				char body[1024];
 				snprintf(body, sizeof body,
-					"%s\n\n%s\n\nFalling back to the default configuration.",
-					init_path,
-					lua_err != NULL ? lua_err : "(unknown Lua error)");
+					 "%s\n\n%s\n\nFalling back to the default configuration.",
+					 init_path,
+					 lua_err != NULL ? lua_err : "(unknown Lua error)");
 				server->config_warn = strdup(body);
 			}
 			lua_pop(G->L, 1);

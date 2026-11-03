@@ -53,14 +53,13 @@ void stonefly_decor_finish_toplevel(struct stonefly_toplevel *toplevel);
 
 /* Lock the main toplevel buffer for close-ghost snapshot slides. */
 bool stonefly_decor_lock_snapshot(struct stonefly_toplevel *toplevel,
-		struct wlr_buffer **out_locked, int *out_w, int *out_h);
+				  struct wlr_buffer **out_locked, int *out_w, int *out_h);
 
 /* Client-initiated unmap: snapshot last buffer and slide it out. */
 void stonefly_ghost_try_spawn(struct stonefly_toplevel *toplevel);
 
 /* Advance / destroy finished ghosts (called from anim tick). */
-void stonefly_ghost_tick(struct stonefly_server *server,
-		const struct timespec *now);
+void stonefly_ghost_tick(struct stonefly_server *server, const struct timespec *now);
 
 void stonefly_ghost_finish_all(struct stonefly_server *server);
 

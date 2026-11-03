@@ -35,8 +35,7 @@ static const char *layer_name(enum zwlr_layer_shell_v1_layer layer) {
 	return "unknown";
 }
 
-static const char *keyboard_name(
-		enum zwlr_layer_surface_v1_keyboard_interactivity kbd) {
+static const char *keyboard_name(enum zwlr_layer_surface_v1_keyboard_interactivity kbd) {
 	switch (kbd) {
 	case ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE:
 		return "none";
@@ -48,8 +47,8 @@ static const char *keyboard_name(
 	return "unknown";
 }
 
-size_t stonefly_layers_collect(struct stonefly_server *server,
-		struct stonefly_layer_info *out, size_t cap) {
+size_t stonefly_layers_collect(struct stonefly_server *server, struct stonefly_layer_info *out,
+			       size_t cap) {
 	if (server == NULL || out == NULL || cap == 0) {
 		return 0;
 	}
@@ -58,8 +57,7 @@ size_t stonefly_layers_collect(struct stonefly_server *server,
 	struct stonefly_output *output;
 	wl_list_for_each(output, &server->outputs, link) {
 		for (int layer_idx = ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND;
-				layer_idx <= ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY;
-				layer_idx++) {
+		     layer_idx <= ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY; layer_idx++) {
 			struct stonefly_layer_surface *layer;
 			wl_list_for_each(layer, &output->layers[layer_idx], link) {
 				if (n >= cap) {
@@ -73,11 +71,12 @@ size_t stonefly_layers_collect(struct stonefly_server *server,
 				memset(info, 0, sizeof(*info));
 				copy_str(info->namespace, sizeof(info->namespace), ls->namespace);
 				copy_str(info->output, sizeof(info->output),
-					output->wlr_output != NULL ? output->wlr_output->name : "");
+					 output->wlr_output != NULL ? output->wlr_output->name
+								    : "");
 				copy_str(info->layer, sizeof(info->layer),
-					layer_name(state->layer));
+					 layer_name(state->layer));
 				copy_str(info->keyboard, sizeof(info->keyboard),
-					keyboard_name(state->keyboard_interactive));
+					 keyboard_name(state->keyboard_interactive));
 				info->x = layer->scene != NULL ? layer->scene->node.x : 0;
 				info->y = layer->scene != NULL ? layer->scene->node.y : 0;
 				info->w = (int32_t)state->actual_width;
@@ -97,8 +96,8 @@ size_t stonefly_layers_collect(struct stonefly_server *server,
 	return n;
 }
 
-int stonefly_layers_to_json(const struct stonefly_layer_info *infos,
-		size_t n, char *buf, size_t cap) {
+int stonefly_layers_to_json(const struct stonefly_layer_info *infos, size_t n, char *buf,
+			    size_t cap) {
 	struct json_buf b;
 	json_buf_init(&b, buf, cap);
 
@@ -200,9 +199,8 @@ static bool parse_object(struct json_scan *s, struct stonefly_layer_info *out) {
 				return false;
 			}
 		} else if (strcmp(key, "x") == 0 || strcmp(key, "y") == 0 ||
-				strcmp(key, "w") == 0 || strcmp(key, "h") == 0 ||
-				strcmp(key, "exclusive_zone") == 0 ||
-				strcmp(key, "anchor") == 0) {
+			   strcmp(key, "w") == 0 || strcmp(key, "h") == 0 ||
+			   strcmp(key, "exclusive_zone") == 0 || strcmp(key, "anchor") == 0) {
 			int64_t v = 0;
 			if (!json_scan_i64(s, &v)) {
 				return false;
@@ -259,8 +257,8 @@ static bool parse_object(struct json_scan *s, struct stonefly_layer_info *out) {
 	}
 }
 
-bool stonefly_layers_from_json(const char *json,
-		struct stonefly_layer_info *out, size_t cap, size_t *n_out) {
+bool stonefly_layers_from_json(const char *json, struct stonefly_layer_info *out, size_t cap,
+			       size_t *n_out) {
 	if (n_out != NULL) {
 		*n_out = 0;
 	}
@@ -305,21 +303,15 @@ bool stonefly_layers_from_json(const char *json,
 	}
 }
 
-void stonefly_layers_print(const struct stonefly_layer_info *infos,
-		size_t n, FILE *fp) {
+void stonefly_layers_print(const struct stonefly_layer_info *infos, size_t n, FILE *fp) {
 	if (fp == NULL) {
 		fp = stdout;
 	}
 	for (size_t i = 0; i < n; i++) {
 		const struct stonefly_layer_info *L = &infos[i];
 		fprintf(fp, "%s %-28s %-10s %-8s %d,%d %dx%d excl=%d kbd=%s%s\n",
-			L->focused ? "*" : " ",
-			L->namespace[0] != '\0' ? L->namespace : "-",
-			L->layer,
-			L->output[0] != '\0' ? L->output : "-",
-			L->x, L->y, L->w, L->h,
-			L->exclusive_zone,
-			L->keyboard,
-			L->mapped ? "" : " (unmapped)");
+			L->focused ? "*" : " ", L->namespace[0] != '\0' ? L->namespace : "-",
+			L->layer, L->output[0] != '\0' ? L->output : "-", L->x, L->y, L->w, L->h,
+			L->exclusive_zone, L->keyboard, L->mapped ? "" : " (unmapped)");
 	}
 }

@@ -31,6 +31,10 @@ struct stonefly_output {
 };
 
 void stonefly_output_setup(struct stonefly_server *server);
+void stonefly_output_finish(struct stonefly_server *server);
+
+/* Push current heads to zwlr_output_manager_v1 clients. */
+void stonefly_output_mgr_send_config(struct stonefly_server *server);
 
 /* DRM seat: config output_scale. Nested/headless (no session): 1.0. */
 float stonefly_output_scale_factor(struct stonefly_server *server);

@@ -10,8 +10,7 @@
 #include "wm/wm.h"
 #include "xdg/xdg.h"
 
-static void preview_colors(struct stonefly_server *server,
-		float fill[4], float rim[4]) {
+static void preview_colors(struct stonefly_server *server, float fill[4], float rim[4]) {
 	const struct stonefly_config *cfg = stonefly_cfg(server);
 	const float *active = cfg->border_active;
 	const float a = cfg->snap_preview_opacity;
@@ -65,8 +64,8 @@ void stonefly_snap_preview_hide(struct stonefly_server *server) {
 	p->edge = STONEFLY_SNAP_NONE;
 }
 
-void stonefly_snap_preview_show(struct stonefly_server *server,
-		int edge, const struct wlr_box *usable) {
+void stonefly_snap_preview_show(struct stonefly_server *server, int edge,
+				const struct wlr_box *usable) {
 	if (server->snap_preview == NULL) {
 		stonefly_snap_preview_init(server);
 	}
@@ -77,8 +76,7 @@ void stonefly_snap_preview_show(struct stonefly_server *server,
 	}
 
 	const struct stonefly_config *cfg = stonefly_cfg(server);
-	struct wlr_box box = stonefly_wm_snap_box((enum stonefly_snap)edge, usable,
-		cfg->gap_size);
+	struct wlr_box box = stonefly_wm_snap_box((enum stonefly_snap)edge, usable, cfg->gap_size);
 	if (box.width <= 0 || box.height <= 0) {
 		stonefly_snap_preview_hide(server);
 		return;
@@ -91,15 +89,17 @@ void stonefly_snap_preview_show(struct stonefly_server *server,
 	wlr_scene_node_set_position(&p->rim->node, 0, 0);
 
 	if (bw > 0 && box.width > 2 * bw && box.height > 2 * bw) {
-		wlr_scene_rect_set_clipped_region(p->rim, (struct clipped_region){
-			.area = {
-				.x = bw,
-				.y = bw,
-				.width = box.width - 2 * bw,
-				.height = box.height - 2 * bw,
-			},
-			.corners = corner_radii_all(0),
-		});
+		wlr_scene_rect_set_clipped_region(
+			p->rim, (struct clipped_region){
+					.area =
+						{
+							.x = bw,
+							.y = bw,
+							.width = box.width - 2 * bw,
+							.height = box.height - 2 * bw,
+						},
+					.corners = corner_radii_all(0),
+				});
 		wlr_scene_node_set_enabled(&p->rim->node, true);
 	} else {
 		wlr_scene_node_set_enabled(&p->rim->node, false);

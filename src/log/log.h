@@ -73,25 +73,24 @@ void sf_log_init(enum sf_log_level min_level);
 void sf_log_finish(void);
 void sf_log_set_level(enum sf_log_level min_level);
 
-void sf_log_emit(enum sf_log_level level, const char *msg,
-		const struct sf_field *fields, size_t nfields);
+void sf_log_emit(enum sf_log_level level, const char *msg, const struct sf_field *fields,
+		 size_t nfields);
 
 /* Printf-style message body (no structured fields). */
-void sf_logf(enum sf_log_level level, const char *fmt, ...)
-	__attribute__((format(printf, 2, 3)));
+void sf_logf(enum sf_log_level level, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 
 /*
  * Dummy leading element + __VA_OPT__ so message-only calls work under C23
  * (abuild: -std=c23) without a trailing-comma / zero-length-array footgun.
  */
-#define SF_LOG_AT(level, msg, ...) \
-	sf_log_emit((level), (msg), \
-		&(const struct sf_field[]){ \
-			(struct sf_field){0} __VA_OPT__(,) __VA_ARGS__ \
-		}[1], \
-		(sizeof((const struct sf_field[]){ \
-			(struct sf_field){0} __VA_OPT__(,) __VA_ARGS__ \
-		}) / sizeof(struct sf_field)) - 1)
+#define SF_LOG_AT(level, msg, ...)                                                                 \
+	sf_log_emit(                                                                               \
+		(level), (msg),                                                                    \
+		&(const struct sf_field[]){(struct sf_field){0} __VA_OPT__(, ) __VA_ARGS__}[1],    \
+		(sizeof((const struct sf_field[]){(struct sf_field){0} __VA_OPT__(, )              \
+							  __VA_ARGS__}) /                          \
+		 sizeof(struct sf_field)) -                                                        \
+			1)
 
 #define SF_LOGD(...) SF_LOG_AT(SF_LOG_DEBUG, __VA_ARGS__)
 #define SF_LOGI(...) SF_LOG_AT(SF_LOG_INFO, __VA_ARGS__)

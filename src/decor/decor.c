@@ -80,7 +80,7 @@ void stonefly_decor_apply_blur_params(struct stonefly_server *server) {
 		radius = 1;
 	}
 	wlr_scene_set_blur_data(server->scene, passes, radius, cfg->blur_noise,
-		cfg->blur_brightness, cfg->blur_contrast, cfg->blur_saturation);
+				cfg->blur_brightness, cfg->blur_contrast, cfg->blur_saturation);
 }
 
 void stonefly_decor_update_blur_size(struct stonefly_server *server) {
@@ -94,8 +94,7 @@ void stonefly_decor_update_blur_size(struct stonefly_server *server) {
 	}
 	/* Match mango: optimized blur covers the layout box, not just (0,0). */
 	wlr_scene_node_set_position(&server->blur_layer->node, layout.x, layout.y);
-	wlr_scene_optimized_blur_set_size(server->blur_layer,
-		layout.width, layout.height);
+	wlr_scene_optimized_blur_set_size(server->blur_layer, layout.width, layout.height);
 }
 
 void stonefly_decor_mark_blur_dirty(struct stonefly_server *server) {
@@ -112,8 +111,7 @@ static bool decor_chrome_on(const struct stonefly_toplevel *toplevel) {
 }
 
 static bool decor_blur_on(const struct stonefly_toplevel *toplevel) {
-	return stonefly_cfg(toplevel->server)->window_blur
-		&& !toplevel->fullscreen;
+	return stonefly_cfg(toplevel->server)->window_blur && !toplevel->fullscreen;
 }
 
 /*
@@ -127,13 +125,13 @@ static int outer_corner_radius(int inner, int border) {
 	return inner > 0 ? inner + border : 0;
 }
 
-enum { border_overlap_px = 1 };
+enum {
+	border_overlap_px = 1
+};
 
-static void decor_set_chrome_enabled(struct stonefly_toplevel *toplevel,
-		bool on) {
+static void decor_set_chrome_enabled(struct stonefly_toplevel *toplevel, bool on) {
 	if (toplevel->blur != NULL) {
-		wlr_scene_node_set_enabled(&toplevel->blur->node,
-			decor_blur_on(toplevel));
+		wlr_scene_node_set_enabled(&toplevel->blur->node, decor_blur_on(toplevel));
 	}
 	if (toplevel->border != NULL) {
 		wlr_scene_node_set_enabled(&toplevel->border->node, on);
@@ -149,10 +147,9 @@ static void decor_set_chrome_enabled(struct stonefly_toplevel *toplevel,
  * body into two buffers — corner_radii_all on both rounds the join and looks
  * like an hourglass; GTK often ships one buffer so all-four is fine.
  */
-static struct fx_corner_radii corners_for_buffer(int sx, int sy,
-		int bw, int bh, const struct wlr_box *geo, int radius) {
-	if (radius <= 0 || bw <= 0 || bh <= 0 ||
-			geo->width <= 0 || geo->height <= 0) {
+static struct fx_corner_radii corners_for_buffer(int sx, int sy, int bw, int bh,
+						 const struct wlr_box *geo, int radius) {
+	if (radius <= 0 || bw <= 0 || bh <= 0 || geo->width <= 0 || geo->height <= 0) {
 		return corner_radii_none();
 	}
 
@@ -173,8 +170,7 @@ static struct fx_corner_radii corners_for_buffer(int sx, int sy,
 /* Focused uses client_opacity; unfocused uses inactive_opacity.
  * Fullscreen stays opaque; edge-max (quick terminal) still gets opacity so
  * blur can show through. */
-static float toplevel_chrome_opacity(struct stonefly_toplevel *toplevel,
-		bool focused) {
+static float toplevel_chrome_opacity(struct stonefly_toplevel *toplevel, bool focused) {
 	if (toplevel->fullscreen) {
 		return 1.0f;
 	}
@@ -189,8 +185,7 @@ struct apply_buffers_ctx {
 	int radius;
 };
 
-static void iter_apply_buffers(struct wlr_scene_buffer *buffer,
-		int sx, int sy, void *user_data) {
+static void iter_apply_buffers(struct wlr_scene_buffer *buffer, int sx, int sy, void *user_data) {
 	struct apply_buffers_ctx *ctx = user_data;
 
 	wlr_scene_buffer_set_opacity(buffer, ctx->opacity);
@@ -198,8 +193,7 @@ static void iter_apply_buffers(struct wlr_scene_buffer *buffer,
 	int bw = buffer->dst_width;
 	int bh = buffer->dst_height;
 	if (bw <= 0 || bh <= 0) {
-		struct wlr_scene_surface *ss =
-			wlr_scene_surface_try_from_buffer(buffer);
+		struct wlr_scene_surface *ss = wlr_scene_surface_try_from_buffer(buffer);
 		if (ss != NULL) {
 			if (bw <= 0) {
 				bw = ss->surface->current.width;
@@ -213,12 +207,10 @@ static void iter_apply_buffers(struct wlr_scene_buffer *buffer,
 	struct wlr_box *geo = &ctx->toplevel->xdg_toplevel->base->geometry;
 	/* Same radius as CSD / border hole — do not use outer. */
 	int radius = ctx->chrome ? ctx->radius : 0;
-	wlr_scene_buffer_set_corner_radii(buffer,
-		corners_for_buffer(sx, sy, bw, bh, geo, radius));
+	wlr_scene_buffer_set_corner_radii(buffer, corners_for_buffer(sx, sy, bw, bh, geo, radius));
 }
 
-static void decor_apply_buffers_focused(struct stonefly_toplevel *toplevel,
-		bool focused) {
+static void decor_apply_buffers_focused(struct stonefly_toplevel *toplevel, bool focused) {
 	if (toplevel->xdg_scene_tree == NULL) {
 		return;
 	}
@@ -231,8 +223,7 @@ static void decor_apply_buffers_focused(struct stonefly_toplevel *toplevel,
 		.chrome = chrome,
 		.radius = cfg->corner_radius,
 	};
-	wlr_scene_node_for_each_buffer(&toplevel->xdg_scene_tree->node,
-		iter_apply_buffers, &ctx);
+	wlr_scene_node_for_each_buffer(&toplevel->xdg_scene_tree->node, iter_apply_buffers, &ctx);
 }
 
 void stonefly_decor_apply_buffers(struct stonefly_toplevel *toplevel) {
@@ -249,8 +240,8 @@ static void border_rgba_premul(const float src[4], float opacity, float out[4]) 
 	out[3] = a;
 }
 
-static void apply_border_color(struct stonefly_toplevel *toplevel,
-		const float *src, float opacity) {
+static void apply_border_color(struct stonefly_toplevel *toplevel, const float *src,
+			       float opacity) {
 	if (toplevel->border == NULL) {
 		return;
 	}
@@ -259,8 +250,7 @@ static void apply_border_color(struct stonefly_toplevel *toplevel,
 	wlr_scene_rect_set_color(toplevel->border, rgba);
 }
 
-static void apply_shadow_opacity(struct stonefly_toplevel *toplevel,
-		float opacity) {
+static void apply_shadow_opacity(struct stonefly_toplevel *toplevel, float opacity) {
 	if (toplevel->shadow == NULL) {
 		return;
 	}
@@ -284,8 +274,7 @@ void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel) {
 
 	toplevel->blur = wlr_scene_blur_create(toplevel->scene_tree, 0, 0);
 	/* blur_xray: sample optimized wallpaper only. Off: blur real backdrop. */
-	wlr_scene_blur_set_should_only_blur_bottom_layer(toplevel->blur,
-		cfg->blur_xray != 0);
+	wlr_scene_blur_set_should_only_blur_bottom_layer(toplevel->blur, cfg->blur_xray != 0);
 	wlr_scene_blur_set_corner_radii(toplevel->blur, corner_radii_all(inner));
 	wlr_scene_node_set_enabled(&toplevel->blur->node, cfg->window_blur);
 
@@ -293,14 +282,14 @@ void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel) {
 	float start_opacity = cfg->inactive_opacity;
 	float inactive[4];
 	border_rgba_premul(cfg->border_inactive, start_opacity, inactive);
-	toplevel->border = wlr_scene_rect_create(toplevel->scene_tree, 0, 0,
-		inactive);
+	toplevel->border = wlr_scene_rect_create(toplevel->scene_tree, 0, 0, inactive);
 	/* Hole/client = corner_radius; outer rim = inner + border. */
 	wlr_scene_rect_set_corner_radii(toplevel->border, corner_radii_all(outer));
 	wlr_scene_node_set_position(&toplevel->border->node, -border, -border);
-	wlr_scene_rect_set_clipped_region(toplevel->border,
+	wlr_scene_rect_set_clipped_region(
+		toplevel->border,
 		(struct clipped_region){
-			.area = { .x = border, .y = border, .width = 0, .height = 0 },
+			.area = {.x = border, .y = border, .width = 0, .height = 0},
 			.corners = corner_radii_all(inner),
 		});
 
@@ -311,10 +300,10 @@ void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel) {
 		cfg->shadow_color[2] * shadow_a,
 		shadow_a,
 	};
-	toplevel->shadow = wlr_scene_shadow_create(toplevel->scene_tree,
-		0, 0, outer, sigma, shadow);
-	wlr_scene_node_set_position(&toplevel->shadow->node,
-		-border - (int)sigma, -border - (int)sigma);
+	toplevel->shadow =
+		wlr_scene_shadow_create(toplevel->scene_tree, 0, 0, outer, sigma, shadow);
+	wlr_scene_node_set_position(&toplevel->shadow->node, -border - (int)sigma,
+				    -border - (int)sigma);
 
 	/* xdg content on top; blur < shadow < border < xdg. */
 	wlr_scene_node_lower_to_bottom(&toplevel->border->node);
@@ -324,23 +313,17 @@ void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel) {
 
 /* Clip the subsurface tree inside wlr_scene_xdg_surface_create's wrapper.
  * set_clip on the outer tree is a no-op — only the subsurface tree accepts it. */
-static void decor_clip_xdg_surface(struct stonefly_toplevel *toplevel,
-		const struct wlr_box *geo) {
+static void decor_clip_xdg_surface(struct stonefly_toplevel *toplevel, const struct wlr_box *geo) {
 	struct wlr_scene_node *child;
 	wl_list_for_each(child, &toplevel->xdg_scene_tree->children, link) {
 		wlr_scene_subsurface_tree_set_clip(child, geo);
-		SF_LOGD("decor clip",
-			sf_i64("id", (int64_t)toplevel->id),
-			sf_i64("child_x", child->x),
-			sf_i64("child_y", child->y),
-			sf_i64("geo_x", geo->x),
-			sf_i64("geo_y", geo->y),
-			sf_i64("geo_w", geo->width),
-			sf_i64("geo_h", geo->height));
+		SF_LOGD("decor clip", sf_i64("id", (int64_t)toplevel->id),
+			sf_i64("child_x", child->x), sf_i64("child_y", child->y),
+			sf_i64("geo_x", geo->x), sf_i64("geo_y", geo->y),
+			sf_i64("geo_w", geo->width), sf_i64("geo_h", geo->height));
 		return;
 	}
-	SF_LOGW("decor clip: no subsurface child",
-		sf_i64("id", (int64_t)toplevel->id));
+	SF_LOGW("decor clip: no subsurface child", sf_i64("id", (int64_t)toplevel->id));
 }
 
 void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
@@ -381,71 +364,59 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 			ov = 0;
 		}
 		struct clipped_region hole = {
-			.area = {
-				.x = border + ov,
-				.y = border + ov,
-				.width = geo->width - 2 * ov,
-				.height = geo->height - 2 * ov,
-			},
-			.corners = ov > 0
-				? corner_radii_all(inner > ov ? inner - ov : 0)
-				: inner_corners,
+			.area =
+				{
+					.x = border + ov,
+					.y = border + ov,
+					.width = geo->width - 2 * ov,
+					.height = geo->height - 2 * ov,
+				},
+			.corners = ov > 0 ? corner_radii_all(inner > ov ? inner - ov : 0)
+					  : inner_corners,
 		};
 		wlr_scene_rect_set_size(toplevel->border, border_w, border_h);
-		wlr_scene_node_set_position(&toplevel->border->node,
-			-border, -border);
+		wlr_scene_node_set_position(&toplevel->border->node, -border, -border);
 		wlr_scene_rect_set_corner_radii(toplevel->border, outer_corners);
 		wlr_scene_rect_set_clipped_region(toplevel->border, hole);
-		SF_LOGD("decor border hole",
-			sf_i64("id", (int64_t)toplevel->id),
-			sf_i64("rect_w", border_w),
-			sf_i64("rect_h", border_h),
-			sf_i64("hole_x", hole.area.x),
-			sf_i64("hole_y", hole.area.y),
-			sf_i64("hole_w", hole.area.width),
-			sf_i64("hole_h", hole.area.height),
-			sf_i64("outer_r", outer),
-			sf_i64("inner_r", inner),
-			sf_i64("overlap", ov));
+		SF_LOGD("decor border hole", sf_i64("id", (int64_t)toplevel->id),
+			sf_i64("rect_w", border_w), sf_i64("rect_h", border_h),
+			sf_i64("hole_x", hole.area.x), sf_i64("hole_y", hole.area.y),
+			sf_i64("hole_w", hole.area.width), sf_i64("hole_h", hole.area.height),
+			sf_i64("outer_r", outer), sf_i64("inner_r", inner), sf_i64("overlap", ov));
 	}
 
 	if (toplevel->shadow != NULL) {
 		int sw = border_w + 2 * (int)sigma;
 		int sh = border_h + 2 * (int)sigma;
 		wlr_scene_shadow_set_size(toplevel->shadow, sw, sh);
-		wlr_scene_node_set_position(&toplevel->shadow->node,
-			-border - (int)sigma, -border - (int)sigma);
+		wlr_scene_node_set_position(&toplevel->shadow->node, -border - (int)sigma,
+					    -border - (int)sigma);
 		/* Clip follows the outer border silhouette. */
 		wlr_scene_shadow_set_clipped_region(toplevel->shadow,
-			(struct clipped_region){
-				.area = {
-					.x = (int)sigma,
-					.y = (int)sigma,
-					.width = border_w,
-					.height = border_h,
-				},
-				.corners = outer_corners,
-			});
+						    (struct clipped_region){
+							    .area =
+								    {
+									    .x = (int)sigma,
+									    .y = (int)sigma,
+									    .width = border_w,
+									    .height = border_h,
+								    },
+							    .corners = outer_corners,
+						    });
 	}
 
 	struct wlr_surface *surf = toplevel->xdg_toplevel->base->surface;
-	SF_LOGD("decor geom",
-		sf_i64("id", (int64_t)toplevel->id),
-		sf_str("app_id",
-			toplevel->xdg_toplevel->app_id != NULL
-				? toplevel->xdg_toplevel->app_id : ""),
-		sf_bool("chrome", chrome),
-		sf_i64("wrap_x", toplevel->scene_tree->node.x),
+	SF_LOGD("decor geom", sf_i64("id", (int64_t)toplevel->id),
+		sf_str("app_id", toplevel->xdg_toplevel->app_id != NULL
+					 ? toplevel->xdg_toplevel->app_id
+					 : ""),
+		sf_bool("chrome", chrome), sf_i64("wrap_x", toplevel->scene_tree->node.x),
 		sf_i64("wrap_y", toplevel->scene_tree->node.y),
 		sf_i64("xdg_x", toplevel->xdg_scene_tree->node.x),
-		sf_i64("xdg_y", toplevel->xdg_scene_tree->node.y),
-		sf_i64("geo_x", geo->x),
-		sf_i64("geo_y", geo->y),
-		sf_i64("geo_w", geo->width),
-		sf_i64("geo_h", geo->height),
+		sf_i64("xdg_y", toplevel->xdg_scene_tree->node.y), sf_i64("geo_x", geo->x),
+		sf_i64("geo_y", geo->y), sf_i64("geo_w", geo->width), sf_i64("geo_h", geo->height),
 		sf_i64("surf_w", surf != NULL ? surf->current.width : 0),
-		sf_i64("surf_h", surf != NULL ? surf->current.height : 0),
-		sf_i64("border", border),
+		sf_i64("surf_h", surf != NULL ? surf->current.height : 0), sf_i64("border", border),
 		sf_bool("window_blur", cfg->window_blur));
 
 	stonefly_decor_apply_buffers(toplevel);
@@ -509,14 +480,12 @@ void stonefly_decor_ring_bell(struct stonefly_toplevel *toplevel) {
 	stonefly_decor_refresh_border(toplevel);
 
 	int flash_ms = stonefly_cfg(toplevel->server)->bell_flash_ms;
-	struct wl_event_loop *loop =
-		wl_display_get_event_loop(toplevel->server->wl_display);
+	struct wl_event_loop *loop = wl_display_get_event_loop(toplevel->server->wl_display);
 	if (toplevel->bell_timer != NULL) {
 		wl_event_source_timer_update(toplevel->bell_timer, flash_ms);
 		return;
 	}
-	toplevel->bell_timer = wl_event_loop_add_timer(loop, bell_flash_done,
-		toplevel);
+	toplevel->bell_timer = wl_event_loop_add_timer(loop, bell_flash_done, toplevel);
 	if (toplevel->bell_timer != NULL) {
 		wl_event_source_timer_update(toplevel->bell_timer, flash_ms);
 	}
@@ -548,8 +517,7 @@ struct ghost_pick {
 	int width, height;
 };
 
-static void iter_pick_buffer(struct wlr_scene_buffer *buffer,
-		int sx, int sy, void *user_data) {
+static void iter_pick_buffer(struct wlr_scene_buffer *buffer, int sx, int sy, void *user_data) {
 	(void)sx;
 	(void)sy;
 	struct ghost_pick *pick = user_data;
@@ -560,8 +528,7 @@ static void iter_pick_buffer(struct wlr_scene_buffer *buffer,
 	if (ss == NULL) {
 		return;
 	}
-	struct wlr_xdg_surface *xdg =
-		wlr_xdg_surface_try_from_wlr_surface(ss->surface);
+	struct wlr_xdg_surface *xdg = wlr_xdg_surface_try_from_wlr_surface(ss->surface);
 	if (xdg == NULL || xdg->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
 		return;
 	}
@@ -570,10 +537,8 @@ static void iter_pick_buffer(struct wlr_scene_buffer *buffer,
 	}
 	pick->scene_buffer = buffer;
 	pick->buffer = buffer->buffer;
-	pick->width = buffer->dst_width > 0
-		? buffer->dst_width : ss->surface->current.width;
-	pick->height = buffer->dst_height > 0
-		? buffer->dst_height : ss->surface->current.height;
+	pick->width = buffer->dst_width > 0 ? buffer->dst_width : ss->surface->current.width;
+	pick->height = buffer->dst_height > 0 ? buffer->dst_height : ss->surface->current.height;
 }
 
 static void ghost_destroy(struct stonefly_ghost *ghost) {
@@ -589,8 +554,7 @@ static void ghost_destroy(struct stonefly_ghost *ghost) {
 	free(ghost);
 }
 
-static void ghost_offscreen(struct stonefly_ghost *ghost,
-		int *ox, int *oy) {
+static void ghost_offscreen(struct stonefly_ghost *ghost, int *ox, int *oy) {
 	/* Same closest-down fallback as anim: slide up off the usable area. */
 	struct wlr_box area = {0};
 	struct stonefly_output *output;
@@ -610,14 +574,13 @@ static void ghost_offscreen(struct stonefly_ghost *ghost,
 }
 
 bool stonefly_decor_lock_snapshot(struct stonefly_toplevel *toplevel,
-		struct wlr_buffer **out_locked, int *out_w, int *out_h) {
-	if (toplevel == NULL || toplevel->xdg_scene_tree == NULL ||
-			out_locked == NULL || out_w == NULL || out_h == NULL) {
+				  struct wlr_buffer **out_locked, int *out_w, int *out_h) {
+	if (toplevel == NULL || toplevel->xdg_scene_tree == NULL || out_locked == NULL ||
+	    out_w == NULL || out_h == NULL) {
 		return false;
 	}
 	struct ghost_pick pick = {0};
-	wlr_scene_node_for_each_buffer(&toplevel->xdg_scene_tree->node,
-		iter_pick_buffer, &pick);
+	wlr_scene_node_for_each_buffer(&toplevel->xdg_scene_tree->node, iter_pick_buffer, &pick);
 	if (pick.buffer == NULL || pick.width <= 0 || pick.height <= 0) {
 		return false;
 	}
@@ -669,10 +632,8 @@ void stonefly_ghost_try_spawn(struct stonefly_toplevel *toplevel) {
 	ghost->buffer = wlr_scene_buffer_create(ghost->tree, locked);
 	wlr_scene_buffer_set_dest_size(ghost->buffer, pick_w, pick_h);
 	wlr_scene_buffer_set_opacity(ghost->buffer, cfg->client_opacity);
-	wlr_scene_buffer_set_corner_radii(ghost->buffer,
-		corner_radii_all(cfg->corner_radius));
-	wlr_scene_node_set_position(&ghost->tree->node,
-		ghost->resting_x, ghost->resting_y);
+	wlr_scene_buffer_set_corner_radii(ghost->buffer, corner_radii_all(cfg->corner_radius));
+	wlr_scene_node_set_position(&ghost->tree->node, ghost->resting_x, ghost->resting_y);
 	wlr_scene_node_raise_to_top(&ghost->tree->node);
 
 	int to_x, to_y;
@@ -693,8 +654,7 @@ void stonefly_ghost_try_spawn(struct stonefly_toplevel *toplevel) {
 	stonefly_anim_schedule(toplevel->server);
 }
 
-void stonefly_ghost_tick(struct stonefly_server *server,
-		const struct timespec *now) {
+void stonefly_ghost_tick(struct stonefly_server *server, const struct timespec *now) {
 	struct stonefly_ghost *ghost, *tmp;
 	wl_list_for_each_safe(ghost, tmp, &server->ghosts, link) {
 		if (!ghost->anim_active) {

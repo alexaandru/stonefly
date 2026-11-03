@@ -71,6 +71,8 @@ struct stonefly_toplevel {
 	bool minimized;
 	/* Demand-attention until focused (xdg-activation). */
 	bool urgent;
+	/* Block ext-image-capture source accept (IPC / config #1481). */
+	bool capture_blocked;
 	/* Transient system-bell flash overrides border color. */
 	bool bell_flash;
 	struct wl_event_source *bell_timer;
@@ -113,7 +115,7 @@ struct stonefly_popup {
 void stonefly_xdg_setup(struct stonefly_server *server);
 
 /* Used by seat for interactive move/resize. */
-void stonefly_begin_interactive(struct stonefly_toplevel *toplevel,
-		enum stonefly_cursor_mode mode, uint32_t edges);
+void stonefly_begin_interactive(struct stonefly_toplevel *toplevel, enum stonefly_cursor_mode mode,
+				uint32_t edges);
 
 #endif

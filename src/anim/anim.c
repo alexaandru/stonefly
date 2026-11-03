@@ -48,8 +48,7 @@ static int64_t timespec_ns(const struct timespec *ts) {
 }
 
 /* Peeble ClosestDir: enter from the nearest usable edge. */
-static enum stonefly_slide_dir closest_dir(int x, int y, int w, int h,
-		const struct wlr_box *area) {
+static enum stonefly_slide_dir closest_dir(int x, int y, int w, int h, const struct wlr_box *area) {
 	if (area == NULL || area->width <= 0 || area->height <= 0) {
 		return STONEFLY_SLIDE_DOWN;
 	}
@@ -62,13 +61,11 @@ static enum stonefly_slide_dir closest_dir(int x, int y, int w, int h,
 	if (left < 0) {
 		left = 0;
 	}
-	int64_t bottom = (int64_t)area->y + (int64_t)area->height
-		- (int64_t)y - (int64_t)h;
+	int64_t bottom = (int64_t)area->y + (int64_t)area->height - (int64_t)y - (int64_t)h;
 	if (bottom < 0) {
 		bottom = 0;
 	}
-	int64_t right = (int64_t)area->x + (int64_t)area->width
-		- (int64_t)x - (int64_t)w;
+	int64_t right = (int64_t)area->x + (int64_t)area->width - (int64_t)x - (int64_t)w;
 	if (right < 0) {
 		right = 0;
 	}
@@ -89,9 +86,8 @@ static enum stonefly_slide_dir closest_dir(int x, int y, int w, int h,
 	return dir;
 }
 
-static void resolve_dir(struct stonefly_toplevel *toplevel,
-		int resting_x, int resting_y, int w, int h,
-		enum stonefly_slide_dir *out) {
+static void resolve_dir(struct stonefly_toplevel *toplevel, int resting_x, int resting_y, int w,
+			int h, enum stonefly_slide_dir *out) {
 	if (stonefly_cfg(toplevel->server)->slide_dir_closest) {
 		struct wlr_box area;
 		if (stonefly_toplevel_output_box(toplevel, &area)) {
@@ -107,9 +103,8 @@ static void resolve_dir(struct stonefly_toplevel *toplevel,
 }
 
 /* Peeble OffscreenPos: clear past the usable area along dir. */
-static void offscreen_pos(enum stonefly_slide_dir dir,
-		int resting_x, int resting_y, int w, int h,
-		const struct wlr_box *area, int *ox, int *oy) {
+static void offscreen_pos(enum stonefly_slide_dir dir, int resting_x, int resting_y, int w, int h,
+			  const struct wlr_box *area, int *ox, int *oy) {
 	*ox = resting_x;
 	*oy = resting_y;
 
@@ -171,8 +166,7 @@ static void set_visual_pos(struct stonefly_toplevel *toplevel, int x, int y) {
 }
 
 /* Peeble applyMorphRect: live position + propose_dimensions. */
-static void morph_apply_live(struct stonefly_toplevel *toplevel,
-		int x, int y, int w, int h) {
+static void morph_apply_live(struct stonefly_toplevel *toplevel, int x, int y, int w, int h) {
 	if (w < 1) {
 		w = 1;
 	}
@@ -180,8 +174,7 @@ static void morph_apply_live(struct stonefly_toplevel *toplevel,
 		h = 1;
 	}
 	set_visual_pos(toplevel, x, y);
-	if (toplevel->xdg_toplevel != NULL &&
-			toplevel->xdg_toplevel->base->initialized) {
+	if (toplevel->xdg_toplevel != NULL && toplevel->xdg_toplevel->base->initialized) {
 		if (toplevel->anim.prop_w != w || toplevel->anim.prop_h != h) {
 			wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, w, h);
 			toplevel->anim.prop_w = w;
@@ -205,10 +198,9 @@ static void morph_finish(struct stonefly_toplevel *toplevel, bool commit) {
 	toplevel->resting_y = toplevel->anim.to_y;
 	set_visual_pos(toplevel, toplevel->anim.to_x, toplevel->anim.to_y);
 	wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
-	if (toplevel->xdg_toplevel != NULL &&
-			toplevel->xdg_toplevel->base->initialized) {
-		wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel,
-			toplevel->anim.to_w, toplevel->anim.to_h);
+	if (toplevel->xdg_toplevel != NULL && toplevel->xdg_toplevel->base->initialized) {
+		wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, toplevel->anim.to_w,
+					  toplevel->anim.to_h);
 	}
 	stonefly_decor_update_geom(toplevel);
 	stonefly_decor_apply_buffers(toplevel);
@@ -264,15 +256,13 @@ bool stonefly_anim_busy(struct stonefly_server *server) {
 	return false;
 }
 
-static void begin_slide(struct stonefly_toplevel *toplevel,
-		int from_x, int from_y, int to_x, int to_y,
-		int resting_x, int resting_y, bool hide,
-		stonefly_anim_done_fn on_done) {
+static void begin_slide(struct stonefly_toplevel *toplevel, int from_x, int from_y, int to_x,
+			int to_y, int resting_x, int resting_y, bool hide,
+			stonefly_anim_done_fn on_done) {
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
-	int64_t dur_ns =
-		(int64_t)stonefly_cfg(toplevel->server)->slide_duration_ms * 1000000LL;
+	int64_t dur_ns = (int64_t)stonefly_cfg(toplevel->server)->slide_duration_ms * 1000000LL;
 
 	/* Reverse mid-flight: keep remaining time (peeble Animator.beginSlide). */
 	if (toplevel->anim.active) {
@@ -329,10 +319,8 @@ bool stonefly_anim_start_show(struct stonefly_toplevel *toplevel) {
 		return false;
 	}
 
-	int resting_x = toplevel->anim.active
-		? toplevel->resting_x : toplevel->scene_tree->node.x;
-	int resting_y = toplevel->anim.active
-		? toplevel->resting_y : toplevel->scene_tree->node.y;
+	int resting_x = toplevel->anim.active ? toplevel->resting_x : toplevel->scene_tree->node.x;
+	int resting_y = toplevel->anim.active ? toplevel->resting_y : toplevel->scene_tree->node.y;
 
 	enum stonefly_slide_dir dir;
 	resolve_dir(toplevel, resting_x, resting_y, w, h, &dir);
@@ -346,13 +334,12 @@ bool stonefly_anim_start_show(struct stonefly_toplevel *toplevel) {
 	int from_x, from_y;
 	offscreen_pos(dir, resting_x, resting_y, w, h, area_p, &from_x, &from_y);
 
-	begin_slide(toplevel, from_x, from_y, resting_x, resting_y,
-		resting_x, resting_y, false, NULL);
+	begin_slide(toplevel, from_x, from_y, resting_x, resting_y, resting_x, resting_y, false,
+		    NULL);
 	return true;
 }
 
-bool stonefly_anim_start_hide(struct stonefly_toplevel *toplevel,
-		stonefly_anim_done_fn on_done) {
+bool stonefly_anim_start_hide(struct stonefly_toplevel *toplevel, stonefly_anim_done_fn on_done) {
 	if (toplevel == NULL || toplevel->scene_tree == NULL) {
 		return false;
 	}
@@ -366,10 +353,8 @@ bool stonefly_anim_start_hide(struct stonefly_toplevel *toplevel,
 		return false;
 	}
 
-	int resting_x = toplevel->anim.active
-		? toplevel->resting_x : toplevel->scene_tree->node.x;
-	int resting_y = toplevel->anim.active
-		? toplevel->resting_y : toplevel->scene_tree->node.y;
+	int resting_x = toplevel->anim.active ? toplevel->resting_x : toplevel->scene_tree->node.x;
+	int resting_y = toplevel->anim.active ? toplevel->resting_y : toplevel->scene_tree->node.y;
 	int from_x = toplevel->scene_tree->node.x;
 	int from_y = toplevel->scene_tree->node.y;
 
@@ -387,37 +372,32 @@ bool stonefly_anim_start_hide(struct stonefly_toplevel *toplevel,
 	int to_x, to_y;
 	offscreen_pos(dir, resting_x, resting_y, w, h, area_p, &to_x, &to_y);
 
-	begin_slide(toplevel, from_x, from_y, to_x, to_y,
-		resting_x, resting_y, true, on_done);
+	begin_slide(toplevel, from_x, from_y, to_x, to_y, resting_x, resting_y, true, on_done);
 	return true;
 }
 
-bool stonefly_anim_start_morph(struct stonefly_toplevel *toplevel,
-		const struct wlr_box *from, const struct wlr_box *to) {
-	if (toplevel == NULL || toplevel->scene_tree == NULL ||
-			from == NULL || to == NULL) {
+bool stonefly_anim_start_morph(struct stonefly_toplevel *toplevel, const struct wlr_box *from,
+			       const struct wlr_box *to) {
+	if (toplevel == NULL || toplevel->scene_tree == NULL || from == NULL || to == NULL) {
 		return false;
 	}
 	if (stonefly_cfg(toplevel->server)->morph_duration_ms <= 0) {
 		return false;
 	}
-	if (from->width <= 0 || from->height <= 0 ||
-			to->width <= 0 || to->height <= 0) {
+	if (from->width <= 0 || from->height <= 0 || to->width <= 0 || to->height <= 0) {
 		return false;
 	}
-	if (from->x == to->x && from->y == to->y &&
-			from->width == to->width && from->height == to->height) {
+	if (from->x == to->x && from->y == to->y && from->width == to->width &&
+	    from->height == to->height) {
 		return false;
 	}
-	if (toplevel->xdg_toplevel == NULL ||
-			!toplevel->xdg_toplevel->base->initialized) {
+	if (toplevel->xdg_toplevel == NULL || !toplevel->xdg_toplevel->base->initialized) {
 		return false;
 	}
 
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
-	int64_t dur_ns =
-		(int64_t)stonefly_cfg(toplevel->server)->morph_duration_ms * 1000000LL;
+	int64_t dur_ns = (int64_t)stonefly_cfg(toplevel->server)->morph_duration_ms * 1000000LL;
 
 	struct wlr_box start = *from;
 	if (toplevel->anim.active && toplevel->anim.morph) {
@@ -476,8 +456,7 @@ bool stonefly_anim_start_morph(struct stonefly_toplevel *toplevel,
 	return true;
 }
 
-void stonefly_anim_tick(struct stonefly_server *server,
-		const struct timespec *now) {
+void stonefly_anim_tick(struct stonefly_server *server, const struct timespec *now) {
 	struct stonefly_toplevel *toplevel, *tmp;
 	struct stonefly_toplevel *done[32];
 	size_t ndone = 0;

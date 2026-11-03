@@ -20,8 +20,8 @@ struct stonefly_snap_preview {
 void stonefly_snap_preview_init(struct stonefly_server *server);
 void stonefly_snap_preview_finish(struct stonefly_server *server);
 
-void stonefly_snap_preview_show(struct stonefly_server *server,
-		int edge, const struct wlr_box *usable);
+void stonefly_snap_preview_show(struct stonefly_server *server, int edge,
+				const struct wlr_box *usable);
 void stonefly_snap_preview_hide(struct stonefly_server *server);
 
 #endif

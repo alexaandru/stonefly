@@ -21,6 +21,8 @@
 #include <wlr/types/wlr_viewporter.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_output_layout.h>
+#include <wlr/types/wlr_presentation_time.h>
+#include <wlr/types/wlr_tearing_control_v1.h>
 #include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <scenefx/render/fx_renderer/fx_renderer.h>
@@ -43,13 +45,20 @@
 #include "wm/workspace.h"
 #include "xdg/xdg.h"
 
+static void tearing_new_object(struct wl_listener *listener, void *data) {
+	(void)listener;
+	struct wlr_tearing_control_v1 *control = data;
+	SF_LOGD("tearing control", sf_str("event", "new_object"),
+		sf_i64("hint", (int64_t)control->current));
+}
+
 bool stonefly_server_init(struct stonefly_server *server) {
 	stonefly_config_set_defaults(&server->config);
 
 	server->wl_display = wl_display_create();
 	server->session = NULL;
-	server->backend = wlr_backend_autocreate(
-		wl_display_get_event_loop(server->wl_display), &server->session);
+	server->backend = wlr_backend_autocreate(wl_display_get_event_loop(server->wl_display),
+						 &server->session);
 	if (server->backend == NULL) {
 		SF_LOGE("failed to create wlr_backend");
 		return false;
@@ -81,8 +90,7 @@ bool stonefly_server_init(struct stonefly_server *server) {
 	 */
 	server->ext_data_control_mgr =
 		wlr_ext_data_control_manager_v1_create(server->wl_display, 1);
-	server->wlr_data_control_mgr =
-		wlr_data_control_manager_v1_create(server->wl_display);
+	server->wlr_data_control_mgr = wlr_data_control_manager_v1_create(server->wl_display);
 
 	server->output_layout = wlr_output_layout_create(server->wl_display);
 	wl_list_init(&server->minimized);
@@ -100,19 +108,30 @@ bool stonefly_server_init(struct stonefly_server *server) {
 	wlr_fractional_scale_manager_v1_create(server->wl_display, 1);
 
 	server->scene = wlr_scene_create();
-	server->scene_layout =
-		wlr_scene_attach_output_layout(server->scene, server->output_layout);
+	server->scene_layout = wlr_scene_attach_output_layout(server->scene, server->output_layout);
 
 	/* Night light: SceneFX applies LUTs on output commit. */
-	server->gamma_control_mgr =
-		wlr_gamma_control_manager_v1_create(server->wl_display);
+	server->gamma_control_mgr = wlr_gamma_control_manager_v1_create(server->wl_display);
 	if (server->gamma_control_mgr != NULL) {
-		wlr_scene_set_gamma_control_manager_v1(server->scene,
-			server->gamma_control_mgr);
+		wlr_scene_set_gamma_control_manager_v1(server->scene, server->gamma_control_mgr);
 	}
 
 	/* Noctalia region/fullscreen screenshots + lock desktop capture. */
 	wlr_screencopy_manager_v1_create(server->wl_display);
+
+	/*
+	 * wp_presentation: SceneFX wlr_scene_surface_create samples feedback once
+	 * this global exists. wlroots 0.20 takes (display, backend, version).
+	 */
+	server->presentation = wlr_presentation_create(server->wl_display, server->backend, 2);
+
+	/* Advertise tearing-control; page-flip tearing not wired this pass. */
+	server->tearing_control_mgr = wlr_tearing_control_manager_v1_create(server->wl_display, 1);
+	if (server->tearing_control_mgr != NULL) {
+		server->tearing_new_object.notify = tearing_new_object;
+		wl_signal_add(&server->tearing_control_mgr->events.new_object,
+			      &server->tearing_new_object);
+	}
 
 	/* Config before seat/scratchpad/output consumers read policy. */
 	if (!stonefly_config_load(server)) {
@@ -207,6 +226,11 @@ void stonefly_server_finish(struct stonefly_server *server) {
 	wl_list_remove(&server->cursor_button.link);
 	wl_list_remove(&server->cursor_axis.link);
 	wl_list_remove(&server->cursor_frame.link);
+	wl_list_remove(&server->cursor_touch_down.link);
+	wl_list_remove(&server->cursor_touch_up.link);
+	wl_list_remove(&server->cursor_touch_motion.link);
+	wl_list_remove(&server->cursor_touch_cancel.link);
+	wl_list_remove(&server->cursor_touch_frame.link);
 
 	wl_list_remove(&server->new_input.link);
 	wl_list_remove(&server->request_cursor.link);
@@ -219,6 +243,12 @@ void stonefly_server_finish(struct stonefly_server *server) {
 	}
 
 	wl_list_remove(&server->new_output.link);
+	stonefly_output_finish(server);
+	if (server->tearing_control_mgr != NULL) {
+		wl_list_remove(&server->tearing_new_object.link);
+		server->tearing_control_mgr = NULL;
+	}
+	server->presentation = NULL;
 
 	wlr_scene_node_destroy(&server->scene->tree.node);
 	wlr_xcursor_manager_destroy(server->cursor_mgr);

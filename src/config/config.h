@@ -11,13 +11,14 @@
 struct stonefly_server;
 
 /* Interesting modifiers for bind matching (ignore Caps etc.). */
-#define STONEFLY_MOD_MASK \
-	(WLR_MODIFIER_SHIFT | WLR_MODIFIER_CTRL | WLR_MODIFIER_ALT | WLR_MODIFIER_LOGO)
+#define STONEFLY_MOD_MASK                                                                          \
+	((uint32_t)WLR_MODIFIER_SHIFT | (uint32_t)WLR_MODIFIER_CTRL | (uint32_t)WLR_MODIFIER_ALT | \
+	 (uint32_t)WLR_MODIFIER_LOGO)
 
-#define STONEFLY_SUPER WLR_MODIFIER_LOGO
-#define STONEFLY_ALT   WLR_MODIFIER_ALT
-#define STONEFLY_CTRL  WLR_MODIFIER_CTRL
-#define STONEFLY_SHIFT WLR_MODIFIER_SHIFT
+#define STONEFLY_SUPER ((uint32_t)WLR_MODIFIER_LOGO)
+#define STONEFLY_ALT ((uint32_t)WLR_MODIFIER_ALT)
+#define STONEFLY_CTRL ((uint32_t)WLR_MODIFIER_CTRL)
+#define STONEFLY_SHIFT ((uint32_t)WLR_MODIFIER_SHIFT)
 
 #define STONEFLY_SCRATCHPAD_MAX 8
 
@@ -95,7 +96,7 @@ struct stonefly_config {
 	int slide_duration_ms;
 	int slide_dir_closest;
 	int morph_duration_ms;
-	float client_opacity; /* focused / active chrome */
+	float client_opacity;	/* focused / active chrome */
 	float inactive_opacity; /* unfocused; default = client_opacity (no dim) */
 	int corner_radius;
 	int border_thickness;
@@ -133,6 +134,9 @@ struct stonefly_config {
 	char *cmd_ghostty_qt;
 	char *cmd_editor;
 	char *cmd_launcher;
+
+	/* Comma-separated app_id substrings that auto-set capture_blocked. */
+	char *capture_block_app_ids;
 
 	struct stonefly_keybind *keybinds;
 	size_t n_keybinds;

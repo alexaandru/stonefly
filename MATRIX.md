@@ -69,7 +69,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Geometry persist across restart | ✅ `windows.json` by river id | Schema / blacklist / MRU polish 📋 | ❌ | |
 | Window rules (app-id/title) | 🚧 center + modal parent | auto-float, size, scratchpad, AOT, force SSD 📋 | ❌ | |
 | Keyboard nudge move/resize | ❌ | 📋 high-value | ❌ | Snap exists; step nudge does not |
-| Workspaces / tags | ❌ | 📋 + river#1402 / #1390 | 🚧 | Dynamic per-output strip (`workspace.c`): trailing empty, compact on empty, Super+Page/1–9 + Shift move-follow, IPC `workspaces`/`workspace`/`move-to-workspace`, windows `{output,workspace}`. ✅ `ext-workspace-v1` group/handle sync. ✅ 3-finger vertical swipe (`swipe_workspace_threshold`). ❌ persist / named rules / switch anim |
+| Workspaces / tags | ❌ | 📋 + river#1402 / #1390 | 🚧 | Dynamic per-output strip (`workspace.c`): trailing empty, compact on empty, Super+Page/1–9 + Shift move-follow, IPC `workspaces`/`workspace`/`move-to-workspace` (`strtol` index parse), windows `{output,workspace}`. ✅ `ext-workspace-v1` group/handle sync. ✅ 3-finger vertical swipe (`swipe_workspace_threshold`). ❌ persist / named rules / switch anim |
 | Layout engine (tile/columns/…) | ❌ | 📋 | 🚧 | Resolve `workspace → output → global` (`stonefly_layout`); only `stacking` implemented. `columns`/`tile` enum + `apply_layout` hook reserved. Global `stonefly.opt.layout`. |
 | Focus cycle policy (MRU vs stack) | 🚧 stacking default | Decide MRU Alt+Tab 📋 | 🚧 | Stacking / MRU list front |
 | Multi-monitor focus / send | ✅ `focus_monitor` / `send_to_monitor` | — | ❌ | |
@@ -102,7 +102,7 @@ hooks; on stonefly they are owned in-process.
 | Window previews / destination size | ❌ | river#1384 📋 | ✅ | Noctalia switcher via `ext-foreign-toplevel-list` + image-capture-source + image-copy-capture (`ext_capture.c`); frozen snapshot per open |
 | Urgency / xdg-activation | ❌ | river#1281 → border/badge 📋 | ✅ | Amber until focus |
 | System bell | ❌ | river#1389 📋 | ✅ | 200ms amber flash |
-| Capture privacy (block window) | ❌ | river#1481 📋 | ❌ | |
+| Capture privacy (block window) | ❌ | river#1481 📋 | ✅ | Per-window `capture_blocked` on toplevel; reject ext-image-capture accept. Config `opt.capture_block_app_ids` (comma list / Lua table) on map/app_id. IPC `block-capture` / `unblock-capture` + windows JSON field. |
 
 ---
 
@@ -157,14 +157,14 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Feature | Peeble shipped | Peeble roadmap / FORK | Stonefly | Notes |
 |---|---|---|---|---|
 | xdg-shell toplevels / popups | ✅ (via River) | — | ✅ | `request_minimize` → `stonefly_toplevel_minimize` / unminimize (CSD buttons). |
-| wlr-layer-shell | ✅ client | `set_exclusive_edge` when advertised 📋 | ✅ v5 server | Exclusive zones → usable |
+| wlr-layer-shell | ✅ client | `set_exclusive_edge` when advertised 📋 | ✅ v5 server | Exclusive zones → usable. `set_exclusive_edge` consumed by wlroots 0.20 `wlr_scene_layer_surface_v1_configure` via `get_exclusive_edge` (no stonefly-side extra). |
 | wp_fractional_scale + viewporter | ✅ all chrome (`surfscale`) | — | ✅ | DRM: scale 1.5 (`STONEFLY_OUTPUT_SCALE`). Nested/headless (`session == NULL`): scale 1.0 so Umbriel embed is not double-scaled. |
 | zxdg_output_v1 | ✅ | — | ✅ | `wlr_xdg_output_manager_v1` on output layout (`server.c`). Logical size for Noctalia floating-panel margins under fractional scale. |
 | wp_cursor_shape_v1 | ✅ | `all_resize` / `dnd_ask` 📋 | ✅ v2 | Named shapes for clients |
-| XCURSOR_THEME / SIZE | ✅ | — | ✅ | |
-| wlr-output-management | ✅ `output()` | — | ❌ | Hardcoded scale; no wdisplays path |
+| XCURSOR_THEME / SIZE | ✅ | — | ✅ | `seat.c`: strdup theme before `setenv(XCURSOR_SIZE)` (getenv ptr invalid after setenv). |
+| wlr-output-management | ✅ `output()` | — | ✅ | `wlr_output_manager_v1` apply/test (`output.c`); `wlr_output_head_v1_state_apply` + layout pos; `set_configuration` on new/destroy/apply/request_state. |
 | ext-data-control clipboard | ✅ | Primary-selection history Ideas 📋 | ✅ | `ext-data-control-v1` + legacy `wlr-data-control-v1` + `wp_primary_selection` (`server.c` / seat). |
-| Screenshots (fullscreen/window/region) | ✅ ext-image-copy-capture | Include-cursor polish 📋 | 🌙 / ✅ | Print binds → noctalia. `ext-image-copy-capture` + toplevel capture (`ext_capture.c`) + `zwlr_screencopy_manager_v1` (`server.c`). Capture privacy (#1481) still open. |
+| Screenshots (fullscreen/window/region) | ✅ ext-image-copy-capture | Include-cursor polish 📋 | 🌙 / ✅ | Print binds → noctalia. `ext-image-copy-capture` + toplevel capture (`ext_capture.c`) + `zwlr_screencopy_manager_v1` (`server.c`). Capture privacy (#1481) ✅ for toplevel image-capture. |
 | Screencast / capture_sessions | ✅ bar widget | — | ❌ | |
 | Foreign-toplevel management | 🚧 River read-only; bar uses Focus | Activate relay #1449/#1537 📋 | ✅ | `zwlr_foreign_toplevel_management_v1` v3 (`foreign.c`) + parallel `ext-foreign-toplevel-list-v1` (`ext_capture.c`) for capture handles |
 | xdg-activation (urgency) | ❌ | #1281 📋 | ✅ | |
@@ -174,8 +174,8 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Xwayland | ✅ (River host) | — | ❌ | Classic X11 apps fail |
 | ext-workspace-v1 | ❌ | #1402 📋 | ✅ | Per-output group + per-workspace handle; activate/create commit → switch/compact (`workspace.c`) |
 | xdg-toplevel-tag | ❌ | #1390 📋 | ✅ | `wlr_xdg_toplevel_tag_manager_v1` (`xdg.c`); stored on toplevel; shown in IPC `windows` (`tag` / `description`). No rules/persist consumer yet. |
-| Touch / gestures / virtual-keyboard | ❌ | River 0.5 items 📋 | ❌ | |
-| Presentation-time / fifo / tearing | ❌ | Shared frame clock Ideas 📋 | 🚧 | Own vsync; no protocol export |
+| Touch / gestures / virtual-keyboard | ❌ | River 0.5 items 📋 | ✅ | Touch seat caps + cursor→`wlr_seat_touch_notify_*` (`seat.c`). Gestures: `pointer_gestures_v1` + 3-finger workspace swipe. `zwp_virtual_keyboard_v1` (attach like keyboard; compositor binds skipped). Also: `zwp_relative_pointer_manager_v1` + `zwp_pointer_constraints_v1` (lock/confine + cursor hint). |
+| Presentation-time / fifo / tearing | ❌ | Shared frame clock Ideas 📋 | 🚧 | ✅ `wp_presentation` via `wlr_presentation_create(display, backend)` (`server.c`; SceneFX samples). ✅ `wp_tearing_control_v1` advertised (hint log only; no async page-flip). ❌ `wp_fifo_v1` still open (no simple wlroots helper). |
 
 ---
 
@@ -190,16 +190,16 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Ctrl+Alt+Fn VT switch | ✅ via session | — | ✅ | `wlr_session_change_vt` on `XF86Switch_VT_*`; was missing (unreliable switch + DRM yank / crash on half-leave). Nested backends: no-op. |
 | Super tap / double-tap | ✅ | Regression keep-green 📋 | ✅ | Launcher / term pad |
 | Spawn / exec / exec_once | ✅ | `spawn_one` panels QoL 📋 | 🚧 | Named SPAWN_* + `STONEFLY_ACTION_EXEC` (`sh -c`); no exec_once |
-| IPC `windows` [--json] | ✅ | — | ✅ | Peeble wire shape |
+| IPC `windows` [--json] | ✅ | — | ✅ | Peeble wire shape; reply cap is `size_t` (`ipc.c` tidy) |
 | IPC `layers` [--json] | ❌ | — | ✅ | Layer-shell debug snapshot (`src/ipc/layers.c`) |
 | IPC focus / close by id | ✅ | — | ✅ | `{"cmd":"focus\|close","arg":"<id>"}` + CLI (`ipc.c`) |
 | IPC toggle-quick-terminal | ✅ | — | ✅ | Toggles scratchpad pad `"term"` (same as Super+Return) |
-| IPC `config` [section] | ❌ | — | ✅ | Live `server->config` dump (`ipc/config.c`); sections options/binds/taps/scratchpads/cmds/inputs/outputs |
+| IPC `config` [section] | ❌ | — | ✅ | Live `server->config` dump (`ipc/config.c`); sections options/binds/taps/scratchpads/cmds/inputs/outputs; argv parse de-cloned (`ipc.c`) |
 | IPC `action <name>` allowlist | ❌ | 📋 | ❌ | |
 | IPC outputs / inputs | ❌ | Ideas 📋 | 🚧 | `outputs` ✅ (`ipc/outputs.c`); inputs ❌ |
 | Structured JSON logs | ✅ `~/.var/log/peeble/wm.log` | — | ✅ | `wm.log` + `wm.last.json` rotate |
 | APK release buildtype | ✅ | — | 🚧 | **TEMP:** clang `debugoptimized` + ASan/UBSan (`!strip`); `compiler-rt` in makedepends; release `abuild-meson --buildtype=release` kept commented until crash hunting ends |
-| APK / meson `check` | ✅ Go unit tests | — | ❌ | `options="!check"` today (common for early wlroots WMs). Reasonable first gate: `meson test` on pure helpers (json, anim easing, drag-snap geom, IPC JSON round-trip) — peeble-style, no DRM. Optional later: headless/`WLR_BACKENDS=headless` smoke start+exit. Not: full protocol suites or live Noctalia/eDP tests in abuild. |
+| APK / meson `check` | ✅ Go unit tests | — | 🚧 | `check()` runs `make style-check` (fmt-check/cppcheck/tidy). `ipc.c` tidy findings cleared (signed-bitwise, widening, atoi→strtol, ArrayBound, branch-clone). Still no `meson test` suite; pure-helper tests remain a reasonable next gate. |
 | Exit CPU/heap profiles | ✅ | — | ❌ | |
 
 ---
@@ -218,9 +218,9 @@ River-fork brief items and where stonefly stands (no River needed).
 | P1 | Close-ghost last-frame | Blocked for client close | ✅ |
 | P1 | #1281 urgency / xdg-activation | Blocked | ✅ |
 | P1 | #1389 system bell | Blocked | ✅ |
-| P1 | #1481 capture privacy | Blocked | ❌ |
+| P1 | #1481 capture privacy | Blocked | ✅ |
 | P2 | #1402 workspaces, #1390 tags | Roadmap | 🚧 | ✅ `xdg-toplevel-tag` + ✅ dynamic workspaces + ✅ `ext-workspace-v1`; ❌ rules / geometry persist |
-| P2 | Layer `set_exclusive_edge`, presentation-time | Roadmap | 🚧 exclusive zones yes; edge/proto clock no |
+| P2 | Layer `set_exclusive_edge`, presentation-time | Roadmap | ✅ exclusive_edge via scene configure; ✅ presentation-time; ❌ fifo |
 | P3 | SceneFX blur / corners / shadows | Parked | 🚧 blur on (wallpaper-backed) / ✅ corners / ✅ shadows |
 
 ---
@@ -272,12 +272,12 @@ work on these (launcher centering needs xdg-output under fractional scale).
 | P0 | `ext-session-lock-v1` | ✅ Lock screen (`session/session.c`) |
 | P0 | `ext-workspace-v1` **or** stonefly IPC workspaces | ✅ both — `ext-workspace-v1` + IPC `workspaces` / `workspace` / `move-to-workspace` |
 | P1 | `ext-foreign-toplevel-image-capture-source-v1` | ✅ Window-switcher thumbnails (`ext_capture.c`; was icons-only without it) |
-| P1 | `zwlr_screencopy` / `ext-image-copy-capture` | ✅ both (`server.c` screencopy + `ext_capture.c`); capture privacy still open |
+| P1 | `zwlr_screencopy` / `ext-image-copy-capture` | ✅ both (`server.c` screencopy + `ext_capture.c`); ✅ capture privacy (#1481) for toplevel image-capture |
 | P1 | `ext-idle-notify` + idle-inhibit | ✅ Idle dim / caffeine / lock triggers (`session/session.c`) |
 | P1 | `zwlr-output-power-management-v1` | ✅ DPMS on/off for idle / lock (`session/session.c`) |
 | P2 | `zwlr_gamma_control` / color-management | ✅ Gamma LUT (`server.c` + SceneFX); full color-mgmt still open |
 | P2 | `zxdg_output` | ✅ Logical output size/pos (`server.c`); Noctalia panel/OSD centering |
-| P2 | `zwlr_output_management` | Display settings / wdisplays (scale from config `opt.scale`, no wlr-output-management yet) |
+| P2 | `zwlr_output_management` | ✅ Display settings / wdisplays / kanshi (`output.c` manager apply/test + set_configuration) |
 | P2 | `ext-data-control` / wlr-data-control | ✅ Clipboard history (`server.c`); primary-selection wired |
 | P3 | xdg-decoration | ✅ Manager advertised; always prefers **client-side** (no SSD painting yet). **Fixed:** defer `set_mode` until `xdg_surface` initialized (Chrome early bind aborted wlroots 0.20) |
 
@@ -288,9 +288,12 @@ Done crumbs: focus/close by id, outputs, workspaces, toggle-quick-terminal, live
 ### Broader WM gaps (after / beside the above)
 
 1. **Xwayland** (classic apps)
-2. **Capture privacy** (#1481) — screencopy exists; policy UI still missing
+2. **Capture privacy** (#1481) — ✅ compositor policy (IPC + `capture_block_app_ids`); shell UI still optional
 3. **Real config** — ✅ shipped; remaining work listed in §10.
-4. Optional: always-on-top, multi-mon send/focus; tags protocol ✅ (rules/persist still open)
+4. Optional: always-on-top, multi-mon send/focus; tags protocol ✅ (rules/persist still open); `wp_fifo_v1` still open
+
+Seat-side day-zero: ✅ touch, virtual-keyboard, relative-pointer, pointer-constraints
+(`seat.c`). Still open among input: tablet.
 
 Shell/OSD/media stay **🌙 Noctalia** unless product asks for in-process
 chrome again.

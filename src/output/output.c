@@ -6,6 +6,7 @@
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
+#include <wlr/types/wlr_output_management_v1.h>
 #include <scenefx/types/wlr_scene.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 
@@ -13,6 +14,7 @@
 #include "config/config.h"
 #include "decor/decor.h"
 #include "layer/layer.h"
+#include "log/log.h"
 #include "output/output.h"
 #include "wm/workspace.h"
 
@@ -23,8 +25,8 @@ static void output_frame(struct wl_listener *listener, void *data) {
 	struct stonefly_output *output = wl_container_of(listener, output, frame);
 	struct wlr_scene *scene = output->server->scene;
 
-	struct wlr_scene_output *scene_output = wlr_scene_get_scene_output(
-		scene, output->wlr_output);
+	struct wlr_scene_output *scene_output =
+		wlr_scene_get_scene_output(scene, output->wlr_output);
 	/* VT switch / session deactivate can leave a frame with no scene output. */
 	if (scene_output == NULL) {
 		return;
@@ -41,6 +43,119 @@ static void output_frame(struct wl_listener *listener, void *data) {
 	wlr_scene_output_send_frame_done(scene_output, &now);
 }
 
+static void output_rearrange_all(struct stonefly_server *server) {
+	struct stonefly_output *output;
+	wl_list_for_each(output, &server->outputs, link) {
+		stonefly_layer_arrange_output(output);
+	}
+	stonefly_decor_update_blur_size(server);
+}
+
+void stonefly_output_mgr_send_config(struct stonefly_server *server) {
+	if (server->output_mgr == NULL) {
+		return;
+	}
+
+	struct wlr_output_configuration_v1 *config = wlr_output_configuration_v1_create();
+	if (config == NULL) {
+		SF_LOGW("output manager", sf_str("err", "config create failed"));
+		return;
+	}
+
+	struct stonefly_output *output;
+	wl_list_for_each(output, &server->outputs, link) {
+		struct wlr_output *wlr_output = output->wlr_output;
+		struct wlr_output_configuration_head_v1 *head =
+			wlr_output_configuration_head_v1_create(config, wlr_output);
+		if (head == NULL) {
+			SF_LOGW("output manager", sf_str("err", "head create failed"),
+				sf_str("output", wlr_output->name));
+			wlr_output_configuration_v1_destroy(config);
+			return;
+		}
+		if (wlr_output->enabled) {
+			struct wlr_box box;
+			wlr_output_layout_get_box(server->output_layout, wlr_output, &box);
+			if (!wlr_box_empty(&box)) {
+				head->state.x = box.x;
+				head->state.y = box.y;
+			}
+		}
+	}
+
+	wlr_output_manager_v1_set_configuration(server->output_mgr, config);
+}
+
+static void output_mgr_apply_or_test(struct stonefly_server *server,
+				     struct wlr_output_configuration_v1 *config, bool test) {
+	bool ok = true;
+	struct wlr_output_configuration_head_v1 *head;
+
+	wl_list_for_each(head, &config->heads, link) {
+		struct wlr_output *wlr_output = head->state.output;
+		struct wlr_output_state state;
+		wlr_output_state_init(&state);
+		wlr_output_head_v1_state_apply(&head->state, &state);
+
+		if (test) {
+			ok = wlr_output_test_state(wlr_output, &state);
+		} else {
+			ok = wlr_output_commit_state(wlr_output, &state);
+		}
+		wlr_output_state_finish(&state);
+		if (!ok) {
+			SF_LOGW("output manager", sf_str("op", test ? "test" : "apply"),
+				sf_str("err", "state failed"), sf_str("output", wlr_output->name));
+			break;
+		}
+
+		if (test) {
+			continue;
+		}
+
+		/* Position is not applied by head_state_apply. */
+		if (head->state.enabled) {
+			struct wlr_output_layout_output *l_output = wlr_output_layout_add(
+				server->output_layout, wlr_output, head->state.x, head->state.y);
+			struct wlr_scene_output *scene_output =
+				wlr_scene_get_scene_output(server->scene, wlr_output);
+			if (l_output != NULL && scene_output != NULL) {
+				/* Re-link after layout_remove destroyed the prior link. */
+				wlr_scene_output_layout_add_output(server->scene_layout, l_output,
+								   scene_output);
+			}
+		} else {
+			wlr_output_layout_remove(server->output_layout, wlr_output);
+		}
+	}
+
+	if (ok) {
+		wlr_output_configuration_v1_send_succeeded(config);
+	} else {
+		wlr_output_configuration_v1_send_failed(config);
+	}
+	wlr_output_configuration_v1_destroy(config);
+
+	if (!test && ok) {
+		struct stonefly_output *output;
+		wl_list_for_each(output, &server->outputs, link) {
+			wlr_xcursor_manager_load(server->cursor_mgr, output->wlr_output->scale);
+		}
+		output_rearrange_all(server);
+		stonefly_output_mgr_send_config(server);
+	}
+}
+
+static void output_mgr_apply(struct wl_listener *listener, void *data) {
+	struct stonefly_server *server = wl_container_of(listener, server, output_mgr_apply);
+	output_mgr_apply_or_test(server, data, false);
+}
+
+static void output_mgr_test(struct wl_listener *listener, void *data) {
+	struct stonefly_server *server = wl_container_of(listener, server, output_mgr_test);
+	output_mgr_apply_or_test(server, data, true);
+}
+
 static void output_request_state(struct wl_listener *listener, void *data) {
 	/* This function is called when the backend requests a new state for
 	 * the output. For example, Wayland and X11 backends request a new mode
@@ -50,11 +165,13 @@ static void output_request_state(struct wl_listener *listener, void *data) {
 	wlr_output_commit_state(output->wlr_output, event->state);
 	stonefly_layer_arrange_output(output);
 	stonefly_decor_update_blur_size(output->server);
+	stonefly_output_mgr_send_config(output->server);
 }
 
 static void output_destroy(struct wl_listener *listener, void *data) {
 	(void)data;
 	struct stonefly_output *output = wl_container_of(listener, output, destroy);
+	struct stonefly_server *server = output->server;
 	struct stonefly_layer_surface *layer, *tmp;
 
 	for (int i = 0; i <= ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY; i++) {
@@ -70,13 +187,14 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&output->destroy.link);
 	wl_list_remove(&output->link);
 	free(output);
+
+	stonefly_output_mgr_send_config(server);
 }
 
 static void server_new_output(struct wl_listener *listener, void *data) {
 	/* This event is raised by the backend when a new output (aka a display or
 	 * monitor) becomes available. */
-	struct stonefly_server *server =
-		wl_container_of(listener, server, new_output);
+	struct stonefly_server *server = wl_container_of(listener, server, new_output);
 	struct wlr_output *wlr_output = data;
 
 	/* Configures the output created by the backend to use our allocator
@@ -138,16 +256,16 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	 * display, which Wayland clients can see to find out information about the
 	 * output (such as DPI, scale factor, manufacturer, etc).
 	 */
-	struct wlr_output_layout_output *l_output = wlr_output_layout_add_auto(server->output_layout,
-		wlr_output);
+	struct wlr_output_layout_output *l_output =
+		wlr_output_layout_add_auto(server->output_layout, wlr_output);
 	struct wlr_scene_output *scene_output = wlr_scene_output_create(server->scene, wlr_output);
 	wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
 
 	stonefly_workspace_output_init(output);
 	stonefly_layer_arrange_output(output);
 	stonefly_decor_update_blur_size(server);
+	stonefly_output_mgr_send_config(server);
 }
-
 
 float stonefly_output_scale_factor(struct stonefly_server *server) {
 	/* Nested Wayland / headless: no DRM session — parent already scaled. */
@@ -161,4 +279,22 @@ void stonefly_output_setup(struct stonefly_server *server) {
 	wl_list_init(&server->outputs);
 	server->new_output.notify = server_new_output;
 	wl_signal_add(&server->backend->events.new_output, &server->new_output);
+
+	server->output_mgr = wlr_output_manager_v1_create(server->wl_display);
+	if (server->output_mgr == NULL) {
+		SF_LOGW("output manager", sf_str("err", "create failed"));
+		return;
+	}
+	server->output_mgr_apply.notify = output_mgr_apply;
+	wl_signal_add(&server->output_mgr->events.apply, &server->output_mgr_apply);
+	server->output_mgr_test.notify = output_mgr_test;
+	wl_signal_add(&server->output_mgr->events.test, &server->output_mgr_test);
+}
+
+void stonefly_output_finish(struct stonefly_server *server) {
+	if (server->output_mgr != NULL) {
+		wl_list_remove(&server->output_mgr_apply.link);
+		wl_list_remove(&server->output_mgr_test.link);
+		server->output_mgr = NULL;
+	}
 }

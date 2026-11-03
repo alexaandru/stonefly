@@ -43,6 +43,11 @@
   :double_tap_gap_ms 300
   ;; workspaces — 3-finger vertical swipe threshold (logical px)
   :swipe_workspace_threshold 80
+  ;; Capture privacy (#1481): comma-separated app_id substrings, or a table.
+  ;; Matching windows get capture_blocked on map / app_id change.
+  ;; :capture_block_app_ids "keepass,bitwarden"
+  ;; :capture_block_app_ids ["keepass" "bitwarden"]
+  :capture_block_app_ids ""
   ;; spawn commands (SPAWN_* actions)
   :cmd_foot "foot"
   :cmd_nautilus "nautilus"

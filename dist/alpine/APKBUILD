@@ -22,8 +22,13 @@ makedepends="
 	wayland-protocols
 	wlroots0.20-dev
 	"
+# clang-extra-tools: clang-format + clang-tidy; cppcheck for make style-check.
+checkdepends="
+	clang-extra-tools
+	cppcheck
+	"
 # !strip: keep symbols so ASan/UBSan traces are useful while we ship sanitizer builds.
-options="!check !strip"
+options="!strip"
 source="stonefly-$pkgver.tar.gz"
 builddir="$srcdir/stonefly-$pkgver"
 
@@ -47,10 +52,16 @@ build() {
 	meson compile -C output
 }
 
+check() {
+	# Uses output/compile_commands.json from build(). Run `make fmt` once
+	# before the first green check if sources predate .clang-format.
+	make BUILDDIR=output style-check
+}
+
 package() {
 	DESTDIR="$pkgdir" meson install --no-rebuild -C output
 }
 
 sha512sums="
-2fa5c05105bdcae756a2a95e2c4f03597c58dcdafffbb88ebca90f264332961350043bb51fbd845ec455be1e6f9c8997b2a344b569a0de3a7d4ea07e10a8fdf9  stonefly-0.0.1.tar.gz
+9e8148cf82af4976f9a21b2a13032c1364d19e3996a337ec62440b2fa2c31e5729ee1f3b80e9b95a96700e4e87aa8f980ecbd646ace866e9a2b7c4160474a46b  stonefly-0.0.1.tar.gz
 "

@@ -13,39 +13,72 @@
 
 static const char *action_name(enum stonefly_action a) {
 	switch (a) {
-	case STONEFLY_ACTION_NONE: return "none";
-	case STONEFLY_ACTION_QUIT: return "quit";
-	case STONEFLY_ACTION_CLOSE: return "close";
-	case STONEFLY_ACTION_FOCUS_NEXT: return "focus_next";
-	case STONEFLY_ACTION_FOCUS_PREV: return "focus_prev";
-	case STONEFLY_ACTION_FOCUS_NEXT_ALL: return "focus_next_all";
-	case STONEFLY_ACTION_FOCUS_PREV_ALL: return "focus_prev_all";
-	case STONEFLY_ACTION_TOGGLE_MAX_EDGES: return "toggle_max_edges";
-	case STONEFLY_ACTION_TOGGLE_MAX_GAPS: return "toggle_max_gaps";
-	case STONEFLY_ACTION_MINIMIZE: return "minimize";
-	case STONEFLY_ACTION_UNMINIMIZE: return "unminimize";
-	case STONEFLY_ACTION_SNAP_LEFT: return "snap_left";
-	case STONEFLY_ACTION_SNAP_RIGHT: return "snap_right";
-	case STONEFLY_ACTION_SNAP_TOP: return "snap_top";
-	case STONEFLY_ACTION_SNAP_BOTTOM: return "snap_bottom";
-	case STONEFLY_ACTION_UNSNAP: return "unsnap";
-	case STONEFLY_ACTION_SPAWN_FOOT: return "spawn_foot";
-	case STONEFLY_ACTION_SPAWN_NAUTILUS: return "spawn_nautilus";
-	case STONEFLY_ACTION_SPAWN_GHOSTTY: return "spawn_ghostty";
-	case STONEFLY_ACTION_SPAWN_GHOSTTY_QT: return "spawn_ghostty_qt";
-	case STONEFLY_ACTION_SPAWN_EDITOR: return "spawn_editor";
-	case STONEFLY_ACTION_SPAWN_LAUNCHER: return "spawn_launcher";
-	case STONEFLY_ACTION_SCRATCH_TOGGLE_TERM: return "scratch_toggle_term";
-	case STONEFLY_ACTION_SCRATCH_CLAIM_TERM: return "scratch_claim_term";
-	case STONEFLY_ACTION_EXEC: return "exec";
-	case STONEFLY_ACTION_SCRATCH_TOGGLE: return "scratch_toggle";
-	case STONEFLY_ACTION_SCRATCH_CLAIM: return "scratch_claim";
-	case STONEFLY_ACTION_WORKSPACE_NEXT: return "workspace_next";
-	case STONEFLY_ACTION_WORKSPACE_PREV: return "workspace_prev";
-	case STONEFLY_ACTION_WORKSPACE_SWITCH: return "workspace_switch";
-	case STONEFLY_ACTION_MOVE_TO_WORKSPACE_NEXT: return "move_to_workspace_next";
-	case STONEFLY_ACTION_MOVE_TO_WORKSPACE_PREV: return "move_to_workspace_prev";
-	case STONEFLY_ACTION_MOVE_TO_WORKSPACE: return "move_to_workspace";
+	case STONEFLY_ACTION_NONE:
+		return "none";
+	case STONEFLY_ACTION_QUIT:
+		return "quit";
+	case STONEFLY_ACTION_CLOSE:
+		return "close";
+	case STONEFLY_ACTION_FOCUS_NEXT:
+		return "focus_next";
+	case STONEFLY_ACTION_FOCUS_PREV:
+		return "focus_prev";
+	case STONEFLY_ACTION_FOCUS_NEXT_ALL:
+		return "focus_next_all";
+	case STONEFLY_ACTION_FOCUS_PREV_ALL:
+		return "focus_prev_all";
+	case STONEFLY_ACTION_TOGGLE_MAX_EDGES:
+		return "toggle_max_edges";
+	case STONEFLY_ACTION_TOGGLE_MAX_GAPS:
+		return "toggle_max_gaps";
+	case STONEFLY_ACTION_MINIMIZE:
+		return "minimize";
+	case STONEFLY_ACTION_UNMINIMIZE:
+		return "unminimize";
+	case STONEFLY_ACTION_SNAP_LEFT:
+		return "snap_left";
+	case STONEFLY_ACTION_SNAP_RIGHT:
+		return "snap_right";
+	case STONEFLY_ACTION_SNAP_TOP:
+		return "snap_top";
+	case STONEFLY_ACTION_SNAP_BOTTOM:
+		return "snap_bottom";
+	case STONEFLY_ACTION_UNSNAP:
+		return "unsnap";
+	case STONEFLY_ACTION_SPAWN_FOOT:
+		return "spawn_foot";
+	case STONEFLY_ACTION_SPAWN_NAUTILUS:
+		return "spawn_nautilus";
+	case STONEFLY_ACTION_SPAWN_GHOSTTY:
+		return "spawn_ghostty";
+	case STONEFLY_ACTION_SPAWN_GHOSTTY_QT:
+		return "spawn_ghostty_qt";
+	case STONEFLY_ACTION_SPAWN_EDITOR:
+		return "spawn_editor";
+	case STONEFLY_ACTION_SPAWN_LAUNCHER:
+		return "spawn_launcher";
+	case STONEFLY_ACTION_SCRATCH_TOGGLE_TERM:
+		return "scratch_toggle_term";
+	case STONEFLY_ACTION_SCRATCH_CLAIM_TERM:
+		return "scratch_claim_term";
+	case STONEFLY_ACTION_EXEC:
+		return "exec";
+	case STONEFLY_ACTION_SCRATCH_TOGGLE:
+		return "scratch_toggle";
+	case STONEFLY_ACTION_SCRATCH_CLAIM:
+		return "scratch_claim";
+	case STONEFLY_ACTION_WORKSPACE_NEXT:
+		return "workspace_next";
+	case STONEFLY_ACTION_WORKSPACE_PREV:
+		return "workspace_prev";
+	case STONEFLY_ACTION_WORKSPACE_SWITCH:
+		return "workspace_switch";
+	case STONEFLY_ACTION_MOVE_TO_WORKSPACE_NEXT:
+		return "move_to_workspace_next";
+	case STONEFLY_ACTION_MOVE_TO_WORKSPACE_PREV:
+		return "move_to_workspace_prev";
+	case STONEFLY_ACTION_MOVE_TO_WORKSPACE:
+		return "move_to_workspace";
 	}
 	return "unknown";
 }
@@ -68,10 +101,10 @@ static void json_mods(struct json_buf *b, uint32_t mods) {
 		uint32_t bit;
 		const char *name;
 	} tab[] = {
-		{ STONEFLY_SUPER, "super" },
-		{ STONEFLY_SHIFT, "shift" },
-		{ STONEFLY_CTRL, "ctrl" },
-		{ STONEFLY_ALT, "alt" },
+		{STONEFLY_SUPER, "super"},
+		{STONEFLY_SHIFT, "shift"},
+		{STONEFLY_CTRL, "ctrl"},
+		{STONEFLY_ALT, "alt"},
 	};
 	for (size_t i = 0; i < sizeof tab / sizeof tab[0]; i++) {
 		if ((mods & tab[i].bit) == 0) {
@@ -196,6 +229,9 @@ static void emit_options(struct json_buf *b, const struct stonefly_config *cfg) 
 	json_byte(b, ',');
 	json_key(b, "swipe_workspace_threshold");
 	json_i64(b, cfg->swipe_workspace_threshold);
+	json_byte(b, ',');
+	json_key(b, "capture_block_app_ids");
+	json_str(b, cfg->capture_block_app_ids ? cfg->capture_block_app_ids : "");
 
 	json_byte(b, '}');
 }
@@ -316,18 +352,14 @@ static void emit_scratchpads(struct json_buf *b, const struct stonefly_config *c
 }
 
 static bool section_ok(const char *section) {
-	return section == NULL || section[0] == '\0'
-		|| strcmp(section, "options") == 0
-		|| strcmp(section, "binds") == 0
-		|| strcmp(section, "taps") == 0
-		|| strcmp(section, "scratchpads") == 0
-		|| strcmp(section, "cmds") == 0
-		|| strcmp(section, "inputs") == 0
-		|| strcmp(section, "outputs") == 0;
+	return section == NULL || section[0] == '\0' || strcmp(section, "options") == 0 ||
+	       strcmp(section, "binds") == 0 || strcmp(section, "taps") == 0 ||
+	       strcmp(section, "scratchpads") == 0 || strcmp(section, "cmds") == 0 ||
+	       strcmp(section, "inputs") == 0 || strcmp(section, "outputs") == 0;
 }
 
-int stonefly_config_to_json(struct stonefly_server *server,
-		const char *section, char *buf, size_t cap) {
+int stonefly_config_to_json(struct stonefly_server *server, const char *section, char *buf,
+			    size_t cap) {
 	if (server == NULL || buf == NULL || cap == 0 || !section_ok(section)) {
 		return -1;
 	}

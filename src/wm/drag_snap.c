@@ -26,9 +26,8 @@ void stonefly_drag_snap_reset(struct stonefly_drag_snap *drag) {
 }
 
 /* Port of peeble SnapGeom.resist (seat/op/move.go). */
-static int resist_axis(int delta, int pos, int size,
-		int usable_pos, int usable_size, int border, int gap, int threshold,
-		bool *lo, bool *hi, int *lo_delta, int *hi_delta) {
+static int resist_axis(int delta, int pos, int size, int usable_pos, int usable_size, int border,
+		       int gap, int threshold, bool *lo, bool *hi, int *lo_delta, int *hi_delta) {
 	int bb_pos = pos - border;
 	int bb_size = size + 2 * border;
 	int lo_edge = usable_pos + gap;
@@ -77,8 +76,7 @@ static enum stonefly_snap stuck_edge(const struct stonefly_drag_snap *drag) {
 }
 
 static bool pointer_usable(struct stonefly_server *server, struct wlr_box *box) {
-	return stonefly_layout_usable_at(server,
-		server->cursor->x, server->cursor->y, box);
+	return stonefly_layout_usable_at(server, server->cursor->x, server->cursor->y, box);
 }
 
 void stonefly_drag_snap_prepare(struct stonefly_toplevel *toplevel) {
@@ -149,8 +147,7 @@ void stonefly_drag_snap_prepare(struct stonefly_toplevel *toplevel) {
 	}
 }
 
-void stonefly_drag_snap_begin(struct stonefly_server *server,
-		struct stonefly_toplevel *toplevel) {
+void stonefly_drag_snap_begin(struct stonefly_server *server, struct stonefly_toplevel *toplevel) {
 	struct stonefly_drag_snap *drag = &server->drag_snap;
 	drag->active = true;
 	drag->start_cx = server->cursor->x;
@@ -190,14 +187,13 @@ void stonefly_drag_snap_motion(struct stonefly_server *server) {
 	const int border = cfg->border_thickness;
 	const int gap = cfg->gap_size;
 
-	if (threshold > 0 && pointer_usable(server, &usable) &&
-			drag->width > 0 && drag->height > 0) {
-		x = resist_axis(dx, x, drag->width,
-			usable.x, usable.width, border, gap, threshold,
-			&drag->lo_x, &drag->hi_x, &drag->lo_x_delta, &drag->hi_x_delta);
-		y = resist_axis(dy, y, drag->height,
-			usable.y, usable.height, border, gap, threshold,
-			&drag->lo_y, &drag->hi_y, &drag->lo_y_delta, &drag->hi_y_delta);
+	if (threshold > 0 && pointer_usable(server, &usable) && drag->width > 0 &&
+	    drag->height > 0) {
+		x = resist_axis(dx, x, drag->width, usable.x, usable.width, border, gap, threshold,
+				&drag->lo_x, &drag->hi_x, &drag->lo_x_delta, &drag->hi_x_delta);
+		y = resist_axis(dy, y, drag->height, usable.y, usable.height, border, gap,
+				threshold, &drag->lo_y, &drag->hi_y, &drag->lo_y_delta,
+				&drag->hi_y_delta);
 	} else {
 		drag->lo_x = drag->hi_x = drag->lo_y = drag->hi_y = false;
 	}
@@ -221,8 +217,8 @@ void stonefly_drag_snap_motion(struct stonefly_server *server) {
 }
 
 /* Peeble snapDragCandidate: closest edge with 0 ≤ dist ≤ threshold. */
-static bool snap_candidate(struct stonefly_toplevel *toplevel,
-		const struct wlr_box *usable, enum stonefly_snap *out) {
+static bool snap_candidate(struct stonefly_toplevel *toplevel, const struct wlr_box *usable,
+			   enum stonefly_snap *out) {
 	struct wlr_box geom;
 	stonefly_toplevel_layout_geom(toplevel, &geom);
 	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
@@ -239,10 +235,10 @@ static bool snap_candidate(struct stonefly_toplevel *toplevel,
 		enum stonefly_snap edge;
 		int dist;
 	} cands[] = {
-		{ STONEFLY_SNAP_LEFT, left - (usable->x + g) },
-		{ STONEFLY_SNAP_RIGHT, usable->x + usable->width - g - right },
-		{ STONEFLY_SNAP_TOP, top - (usable->y + g) },
-		{ STONEFLY_SNAP_BOTTOM, usable->y + usable->height - g - bottom },
+		{STONEFLY_SNAP_LEFT, left - (usable->x + g)},
+		{STONEFLY_SNAP_RIGHT, usable->x + usable->width - g - right},
+		{STONEFLY_SNAP_TOP, top - (usable->y + g)},
+		{STONEFLY_SNAP_BOTTOM, usable->y + usable->height - g - bottom},
 	};
 
 	int best = threshold + 1;
@@ -274,8 +270,7 @@ void stonefly_drag_snap_finish(struct stonefly_server *server) {
 
 	struct wlr_box usable;
 	enum stonefly_snap edge = STONEFLY_SNAP_NONE;
-	if (pointer_usable(server, &usable) &&
-			snap_candidate(toplevel, &usable, &edge)) {
+	if (pointer_usable(server, &usable) && snap_candidate(toplevel, &usable, &edge)) {
 		if (drag->has_drag_origin && !toplevel->has_saved_geom) {
 			stonefly_toplevel_capture_geom(toplevel, &drag->drag_origin);
 		}

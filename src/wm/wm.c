@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include <limits.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <wlr/types/wlr_compositor.h>
@@ -23,8 +24,7 @@
 #include "wm/wm.h"
 #include "wm/workspace.h"
 
-void stonefly_toplevel_layout_geom(struct stonefly_toplevel *toplevel,
-		struct wlr_box *box) {
+void stonefly_toplevel_layout_geom(struct stonefly_toplevel *toplevel, struct wlr_box *box) {
 	struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
 	box->x = toplevel->scene_tree->node.x;
 	box->y = toplevel->scene_tree->node.y;
@@ -37,9 +37,8 @@ void stonefly_toplevel_layout_geom(struct stonefly_toplevel *toplevel,
 }
 
 static void stonefly_toplevel_save_geom(struct stonefly_toplevel *toplevel) {
-	if (toplevel->has_saved_geom || toplevel->maximized_edges ||
-			toplevel->maximized_gaps || toplevel->fullscreen ||
-			toplevel->snapped != STONEFLY_SNAP_NONE) {
+	if (toplevel->has_saved_geom || toplevel->maximized_edges || toplevel->maximized_gaps ||
+	    toplevel->fullscreen || toplevel->snapped != STONEFLY_SNAP_NONE) {
 		return;
 	}
 	struct wlr_box geom;
@@ -52,8 +51,7 @@ static void stonefly_toplevel_save_geom(struct stonefly_toplevel *toplevel) {
 	toplevel->has_saved_geom = true;
 }
 
-bool stonefly_toplevel_output_box(struct stonefly_toplevel *toplevel,
-		struct wlr_box *box) {
+bool stonefly_toplevel_output_box(struct stonefly_toplevel *toplevel, struct wlr_box *box) {
 	struct stonefly_server *server = toplevel->server;
 	struct wlr_box geom;
 	stonefly_toplevel_layout_geom(toplevel, &geom);
@@ -62,8 +60,7 @@ bool stonefly_toplevel_output_box(struct stonefly_toplevel *toplevel,
 	if (stonefly_layout_usable_at(server, cx, cy, box)) {
 		return true;
 	}
-	return stonefly_layout_usable_at(server,
-		server->cursor->x, server->cursor->y, box);
+	return stonefly_layout_usable_at(server, server->cursor->x, server->cursor->y, box);
 }
 
 void stonefly_box_inset_gap(struct wlr_box *box, int gap) {
@@ -78,8 +75,7 @@ void stonefly_box_inset_gap(struct wlr_box *box, int gap) {
 	}
 }
 
-static void stonefly_cover_fractional_gap(struct stonefly_server *server,
-		struct wlr_box *box) {
+static void stonefly_cover_fractional_gap(struct stonefly_server *server, struct wlr_box *box) {
 	/* Same class of gap as peeble at non-integer scale: grow 1 logical px. */
 	float scale = stonefly_output_scale_factor(server);
 	if (scale != (float)(int)scale) {
@@ -95,27 +91,29 @@ static bool xdg_surface_ready(struct stonefly_toplevel *toplevel) {
 
 /* Peeble tiledEdgesAll / tiledEdgesFor — CSD drops shadows/resizers on edges. */
 static uint32_t tiled_edges_all(void) {
-	return WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT;
+	return (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_BOTTOM | (uint32_t)WLR_EDGE_LEFT |
+	       (uint32_t)WLR_EDGE_RIGHT;
 }
 
 static uint32_t tiled_edges_for(enum stonefly_snap edge) {
 	switch (edge) {
 	case STONEFLY_SNAP_LEFT:
-		return WLR_EDGE_LEFT | WLR_EDGE_TOP | WLR_EDGE_BOTTOM;
+		return (uint32_t)WLR_EDGE_LEFT | (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_BOTTOM;
 	case STONEFLY_SNAP_RIGHT:
-		return WLR_EDGE_RIGHT | WLR_EDGE_TOP | WLR_EDGE_BOTTOM;
+		return (uint32_t)WLR_EDGE_RIGHT | (uint32_t)WLR_EDGE_TOP |
+		       (uint32_t)WLR_EDGE_BOTTOM;
 	case STONEFLY_SNAP_TOP:
-		return WLR_EDGE_TOP | WLR_EDGE_LEFT | WLR_EDGE_RIGHT;
+		return (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_LEFT | (uint32_t)WLR_EDGE_RIGHT;
 	case STONEFLY_SNAP_BOTTOM:
-		return WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT;
+		return (uint32_t)WLR_EDGE_BOTTOM | (uint32_t)WLR_EDGE_LEFT |
+		       (uint32_t)WLR_EDGE_RIGHT;
 	case STONEFLY_SNAP_NONE:
 		break;
 	}
 	return 0;
 }
 
-static void toplevel_set_tiled(struct stonefly_toplevel *toplevel,
-		uint32_t edges) {
+static void toplevel_set_tiled(struct stonefly_toplevel *toplevel, uint32_t edges) {
 	if (!xdg_surface_ready(toplevel)) {
 		return;
 	}
@@ -123,7 +121,7 @@ static void toplevel_set_tiled(struct stonefly_toplevel *toplevel,
 }
 
 static void stonefly_toplevel_apply_box(struct stonefly_toplevel *toplevel,
-		const struct wlr_box *box) {
+					const struct wlr_box *box) {
 	stonefly_anim_cancel(toplevel, false);
 	wlr_scene_node_set_position(&toplevel->scene_tree->node, box->x, box->y);
 	toplevel->resting_x = box->x;
@@ -154,25 +152,22 @@ void stonefly_toplevel_restore_saved(struct stonefly_toplevel *toplevel) {
 	toplevel_set_tiled(toplevel, 0);
 	/* Live morph only for snap/unsnap restores; max/fullscreen stay instant. */
 	if (was_snapped && from.width > 0 && from.height > 0 &&
-			stonefly_anim_start_morph(toplevel, &from, &to)) {
+	    stonefly_anim_start_morph(toplevel, &from, &to)) {
 		return;
 	}
 	stonefly_toplevel_apply_box(toplevel, &to);
 	stonefly_decor_update_geom(toplevel);
 }
 
-void stonefly_toplevel_capture_geom(struct stonefly_toplevel *toplevel,
-		const struct wlr_box *box) {
-	if (toplevel->has_saved_geom || box == NULL ||
-			box->width <= 0 || box->height <= 0) {
+void stonefly_toplevel_capture_geom(struct stonefly_toplevel *toplevel, const struct wlr_box *box) {
+	if (toplevel->has_saved_geom || box == NULL || box->width <= 0 || box->height <= 0) {
 		return;
 	}
 	toplevel->saved_geom = *box;
 	toplevel->has_saved_geom = true;
 }
 
-void stonefly_toplevel_apply_saved_at(struct stonefly_toplevel *toplevel,
-		int x, int y) {
+void stonefly_toplevel_apply_saved_at(struct stonefly_toplevel *toplevel, int x, int y) {
 	if (!toplevel->has_saved_geom) {
 		return;
 	}
@@ -243,8 +238,8 @@ void stonefly_toplevel_toggle_max_edges(struct stonefly_toplevel *toplevel) {
 	stonefly_toplevel_set_max_edges(toplevel, !toplevel->maximized_edges);
 }
 
-static bool toplevel_full_output_box(struct stonefly_toplevel *toplevel,
-		struct wlr_output *hint, struct wlr_box *box) {
+static bool toplevel_full_output_box(struct stonefly_toplevel *toplevel, struct wlr_output *hint,
+				     struct wlr_box *box) {
 	struct stonefly_server *server = toplevel->server;
 	struct wlr_output *wlr_output = hint;
 	if (wlr_output == NULL) {
@@ -254,8 +249,8 @@ static bool toplevel_full_output_box(struct stonefly_toplevel *toplevel,
 		double cy = geom.y + geom.height / 2.0;
 		wlr_output = wlr_output_layout_output_at(server->output_layout, cx, cy);
 		if (wlr_output == NULL) {
-			wlr_output = wlr_output_layout_output_at(server->output_layout,
-				server->cursor->x, server->cursor->y);
+			wlr_output = wlr_output_layout_output_at(
+				server->output_layout, server->cursor->x, server->cursor->y);
 		}
 	}
 	if (wlr_output == NULL) {
@@ -265,8 +260,8 @@ static bool toplevel_full_output_box(struct stonefly_toplevel *toplevel,
 	return box->width > 0 && box->height > 0;
 }
 
-void stonefly_toplevel_set_fullscreen(struct stonefly_toplevel *toplevel,
-		bool want, struct wlr_output *hint) {
+void stonefly_toplevel_set_fullscreen(struct stonefly_toplevel *toplevel, bool want,
+				      struct wlr_output *hint) {
 	if (!xdg_surface_ready(toplevel)) {
 		return;
 	}
@@ -357,8 +352,8 @@ void stonefly_toplevel_toggle_max_gaps(struct stonefly_toplevel *toplevel) {
 }
 
 /* Peeble snapBorderBox: gap between two half-snaps is exactly GapSize. */
-struct wlr_box stonefly_wm_snap_box(enum stonefly_snap edge,
-		const struct wlr_box *usable, int gap) {
+struct wlr_box stonefly_wm_snap_box(enum stonefly_snap edge, const struct wlr_box *usable,
+				    int gap) {
 	const int g = gap;
 	struct wlr_box u = *usable;
 	int half_w = (u.width - 3 * g) / 2;
@@ -398,10 +393,9 @@ struct wlr_box stonefly_wm_snap_box(enum stonefly_snap edge,
 	return box;
 }
 
-void stonefly_toplevel_snap_in(struct stonefly_toplevel *toplevel,
-		enum stonefly_snap edge, const struct wlr_box *usable) {
-	if (edge == STONEFLY_SNAP_NONE || usable == NULL ||
-			!xdg_surface_ready(toplevel)) {
+void stonefly_toplevel_snap_in(struct stonefly_toplevel *toplevel, enum stonefly_snap edge,
+			       const struct wlr_box *usable) {
+	if (edge == STONEFLY_SNAP_NONE || usable == NULL || !xdg_surface_ready(toplevel)) {
 		return;
 	}
 	/* save_geom no-ops when has_saved_geom (drag origin / PreSnap kept). */
@@ -411,8 +405,8 @@ void stonefly_toplevel_snap_in(struct stonefly_toplevel *toplevel,
 		toplevel->maximized_edges = false;
 	}
 	toplevel->maximized_gaps = false;
-	struct wlr_box box = stonefly_wm_snap_box(edge, usable,
-		stonefly_cfg(toplevel->server)->gap_size);
+	struct wlr_box box =
+		stonefly_wm_snap_box(edge, usable, stonefly_cfg(toplevel->server)->gap_size);
 	if (box.width <= 0 || box.height <= 0) {
 		return;
 	}
@@ -421,15 +415,13 @@ void stonefly_toplevel_snap_in(struct stonefly_toplevel *toplevel,
 	toplevel->snapped = edge;
 	toplevel_set_tiled(toplevel, tiled_edges_for(edge));
 	/* start_morph retargets from the current live rect when already morphing. */
-	if (from.width > 0 && from.height > 0 &&
-			stonefly_anim_start_morph(toplevel, &from, &box)) {
+	if (from.width > 0 && from.height > 0 && stonefly_anim_start_morph(toplevel, &from, &box)) {
 		return;
 	}
 	stonefly_toplevel_apply_box(toplevel, &box);
 }
 
-void stonefly_toplevel_snap(struct stonefly_toplevel *toplevel,
-		enum stonefly_snap edge) {
+void stonefly_toplevel_snap(struct stonefly_toplevel *toplevel, enum stonefly_snap edge) {
 	struct wlr_box out;
 	if (!stonefly_toplevel_output_box(toplevel, &out)) {
 		return;
@@ -437,19 +429,17 @@ void stonefly_toplevel_snap(struct stonefly_toplevel *toplevel,
 	stonefly_toplevel_snap_in(toplevel, edge, &out);
 }
 
-static bool toplevel_on_output(struct stonefly_toplevel *toplevel,
-		struct stonefly_output *output) {
+static bool toplevel_on_output(struct stonefly_toplevel *toplevel, struct stonefly_output *output) {
 	struct wlr_box geom;
 	stonefly_toplevel_layout_geom(toplevel, &geom);
 	double cx = geom.x + geom.width / 2.0;
 	double cy = geom.y + geom.height / 2.0;
-	struct wlr_output *at = wlr_output_layout_output_at(
-		toplevel->server->output_layout, cx, cy);
+	struct wlr_output *at =
+		wlr_output_layout_output_at(toplevel->server->output_layout, cx, cy);
 	return at == output->wlr_output;
 }
 
-static void toplevel_set_resting(struct stonefly_toplevel *toplevel,
-		int x, int y) {
+static void toplevel_set_resting(struct stonefly_toplevel *toplevel, int x, int y) {
 	toplevel->resting_x = x;
 	toplevel->resting_y = y;
 	if (toplevel->anim.active && !toplevel->anim_hide) {
@@ -468,7 +458,7 @@ void stonefly_toplevel_ensure_on_screen(struct stonefly_toplevel *toplevel) {
 		return;
 	}
 	if (toplevel->maximized_edges || toplevel->maximized_gaps ||
-			toplevel->snapped != STONEFLY_SNAP_NONE) {
+	    toplevel->snapped != STONEFLY_SNAP_NONE) {
 		return;
 	}
 	if (toplevel->server->grabbed_toplevel == toplevel) {
@@ -550,7 +540,7 @@ void stonefly_wm_relayout_output(struct stonefly_output *output) {
 			stonefly_toplevel_apply_box(toplevel, &out);
 		} else if (toplevel->snapped != STONEFLY_SNAP_NONE) {
 			struct wlr_box box = stonefly_wm_snap_box(toplevel->snapped, &out,
-				stonefly_cfg(server)->gap_size);
+								  stonefly_cfg(server)->gap_size);
 			if (box.width > 0 && box.height > 0) {
 				stonefly_toplevel_apply_box(toplevel, &box);
 			}
@@ -562,8 +552,8 @@ void stonefly_wm_relayout_output(struct stonefly_output *output) {
 }
 
 void stonefly_toplevel_unsnap(struct stonefly_toplevel *toplevel) {
-	if (toplevel->snapped == STONEFLY_SNAP_NONE &&
-			!toplevel->maximized_edges && !toplevel->maximized_gaps) {
+	if (toplevel->snapped == STONEFLY_SNAP_NONE && !toplevel->maximized_edges &&
+	    !toplevel->maximized_gaps) {
 		return;
 	}
 	stonefly_toplevel_restore_saved(toplevel);
@@ -573,8 +563,7 @@ void stonefly_toplevel_place_cascade(struct stonefly_toplevel *toplevel) {
 	struct stonefly_server *server = toplevel->server;
 	struct wlr_box out = {0};
 	/* Prefer the usable area under the cursor for brand-new maps. */
-	if (!stonefly_layout_usable_at(server,
-			server->cursor->x, server->cursor->y, &out)) {
+	if (!stonefly_layout_usable_at(server, server->cursor->x, server->cursor->y, &out)) {
 		if (!stonefly_toplevel_output_box(toplevel, &out)) {
 			return;
 		}
@@ -610,11 +599,11 @@ static void minimize_link_detach(struct stonefly_toplevel *toplevel) {
 static bool toplevel_focusable(const struct stonefly_toplevel *toplevel) {
 	/* anim_hide: sliding out but minimized not set yet — do not re-pick. */
 	return !toplevel->minimized && !toplevel->anim_hide &&
-		stonefly_toplevel_workspace_visible(toplevel);
+	       stonefly_toplevel_workspace_visible(toplevel);
 }
 
 void stonefly_toplevel_apply_hidden(struct stonefly_toplevel *toplevel,
-		enum stonefly_hide_kind kind) {
+				    enum stonefly_hide_kind kind) {
 	struct stonefly_server *server = toplevel->server;
 	const bool was_hidden = toplevel->minimized;
 	const bool was_focused = stonefly_focused_toplevel(server) == toplevel;
@@ -639,8 +628,7 @@ void stonefly_toplevel_apply_hidden(struct stonefly_toplevel *toplevel,
 	stonefly_foreign_toplevel_on_state_change(toplevel);
 }
 
-void stonefly_toplevel_apply_shown(struct stonefly_toplevel *toplevel,
-		bool activate) {
+void stonefly_toplevel_apply_shown(struct stonefly_toplevel *toplevel, bool activate) {
 	if (toplevel->minimized) {
 		/* LIFO unminimize lands on the output's current active workspace. */
 		if (!stonefly_toplevel_is_scratchpad(toplevel)) {
@@ -652,15 +640,15 @@ void stonefly_toplevel_apply_shown(struct stonefly_toplevel *toplevel,
 				out = stonefly_output_for_toplevel(toplevel);
 			}
 			if (out != NULL && out->active != NULL &&
-					toplevel->workspace != out->active) {
+			    toplevel->workspace != out->active) {
 				stonefly_workspace_assign(toplevel, out->active);
 			}
 		}
 		toplevel->minimized = false;
 		minimize_link_detach(toplevel);
 		/* Enable at resting, then slide in from off-screen. */
-		wlr_scene_node_set_position(&toplevel->scene_tree->node,
-			toplevel->resting_x, toplevel->resting_y);
+		wlr_scene_node_set_position(&toplevel->scene_tree->node, toplevel->resting_x,
+					    toplevel->resting_y);
 		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
 		stonefly_anim_start_show(toplevel);
 		stonefly_foreign_toplevel_on_state_change(toplevel);
@@ -741,8 +729,8 @@ void stonefly_focus_toplevel(struct stonefly_toplevel *toplevel) {
 	 * clients without additional work on your part.
 	 */
 	if (keyboard != NULL) {
-		wlr_seat_keyboard_notify_enter(seat, surface,
-			keyboard->keycodes, keyboard->num_keycodes, &keyboard->modifiers);
+		wlr_seat_keyboard_notify_enter(seat, surface, keyboard->keycodes,
+					       keyboard->num_keycodes, &keyboard->modifiers);
 	}
 	if (prev_toplevel != NULL) {
 		stonefly_foreign_toplevel_on_state_change(prev_toplevel);
@@ -773,8 +761,7 @@ void stonefly_focus_top(struct stonefly_server *server) {
 	}
 	struct stonefly_toplevel *toplevel;
 	wl_list_for_each(toplevel, &server->toplevels, link) {
-		if (toplevel_focusable(toplevel)
-				&& !stonefly_toplevel_is_scratchpad(toplevel)) {
+		if (toplevel_focusable(toplevel) && !stonefly_toplevel_is_scratchpad(toplevel)) {
 			stonefly_focus_toplevel(toplevel);
 			return;
 		}
@@ -838,8 +825,7 @@ static void stonefly_spawn_cmd(const char *cmd) {
 	}
 }
 
-static bool focus_cycle_eligible(struct stonefly_toplevel *t,
-		bool include_minimized) {
+static bool focus_cycle_eligible(struct stonefly_toplevel *t, bool include_minimized) {
 	if (stonefly_toplevel_is_scratchpad(t) || t->anim_hide) {
 		return false;
 	}
@@ -850,7 +836,7 @@ static bool focus_cycle_eligible(struct stonefly_toplevel *t,
 }
 
 static void stonefly_focus_cycle(struct stonefly_server *server, bool backward,
-		bool include_minimized) {
+				 bool include_minimized) {
 	if (wl_list_empty(&server->toplevels)) {
 		return;
 	}
@@ -888,8 +874,8 @@ static void stonefly_focus_cycle(struct stonefly_server *server, bool backward,
 	} while (t != current);
 }
 
-void stonefly_run_action(struct stonefly_server *server,
-		enum stonefly_action action, const char *cmd) {
+void stonefly_run_action(struct stonefly_server *server, enum stonefly_action action,
+			 const char *cmd) {
 	struct stonefly_toplevel *focused = stonefly_focused_toplevel(server);
 	switch (action) {
 	case STONEFLY_ACTION_NONE:
@@ -986,25 +972,25 @@ void stonefly_run_action(struct stonefly_server *server,
 		stonefly_scratchpad_claim_focused(server, "term");
 		break;
 	case STONEFLY_ACTION_SCRATCH_TOGGLE:
-		stonefly_scratchpad_toggle(server,
-			(cmd != NULL && cmd[0] != '\0') ? cmd : "term");
+		stonefly_scratchpad_toggle(server, (cmd != NULL && cmd[0] != '\0') ? cmd : "term");
 		break;
 	case STONEFLY_ACTION_SCRATCH_CLAIM:
 		stonefly_scratchpad_claim_focused(server,
-			(cmd != NULL && cmd[0] != '\0') ? cmd : "term");
+						  (cmd != NULL && cmd[0] != '\0') ? cmd : "term");
 		break;
 	case STONEFLY_ACTION_WORKSPACE_NEXT:
 	case STONEFLY_ACTION_WORKSPACE_PREV: {
 		struct stonefly_output *output = stonefly_output_at_cursor(server);
 		if (output != NULL) {
-			stonefly_workspace_switch_offset(output,
-				action == STONEFLY_ACTION_WORKSPACE_NEXT ? 1 : -1);
+			stonefly_workspace_switch_offset(
+				output, action == STONEFLY_ACTION_WORKSPACE_NEXT ? 1 : -1);
 		}
 		break;
 	}
 	case STONEFLY_ACTION_WORKSPACE_SWITCH: {
 		struct stonefly_output *output = stonefly_output_at_cursor(server);
-		int idx = (cmd != NULL) ? atoi(cmd) : 0;
+		long v = (cmd != NULL) ? strtol(cmd, NULL, 10) : 0;
+		int idx = (v > 0 && v <= (long)INT_MAX) ? (int)v : 0;
 		if (output != NULL && idx > 0) {
 			stonefly_workspace_switch_index(output, idx);
 		}
@@ -1013,13 +999,14 @@ void stonefly_run_action(struct stonefly_server *server,
 	case STONEFLY_ACTION_MOVE_TO_WORKSPACE_NEXT:
 	case STONEFLY_ACTION_MOVE_TO_WORKSPACE_PREV:
 		if (focused != NULL) {
-			stonefly_workspace_move_offset(focused,
-				action == STONEFLY_ACTION_MOVE_TO_WORKSPACE_NEXT ? 1 : -1,
+			stonefly_workspace_move_offset(
+				focused, action == STONEFLY_ACTION_MOVE_TO_WORKSPACE_NEXT ? 1 : -1,
 				true);
 		}
 		break;
 	case STONEFLY_ACTION_MOVE_TO_WORKSPACE: {
-		int idx = (cmd != NULL) ? atoi(cmd) : 0;
+		long v = (cmd != NULL) ? strtol(cmd, NULL, 10) : 0;
+		int idx = (v > 0 && v <= (long)INT_MAX) ? (int)v : 0;
 		if (focused != NULL && idx > 0) {
 			stonefly_workspace_move_index(focused, idx, true);
 		}
@@ -1027,4 +1014,3 @@ void stonefly_run_action(struct stonefly_server *server,
 	}
 	}
 }
-

@@ -1,0 +1,56 @@
+# Stonefly clang-tidy — clean code / bug catching; layout is .clang-format.
+# Run via `make tidy` (needs compile_commands.json) or abuild check().
+#
+# Policy: keep checks that improve correctness. Suppress only known, narrow
+# false positives (or domains where the check cannot work on this stack).
+# Remaining findings are meant to be fixed in source, not silenced here.
+---
+Checks: >
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  bugprone-*,
+  misc-*,
+  performance-*,
+  portability-*,
+  readability-duplicate-include,
+  readability-inconsistent-declaration-parameter-name,
+  readability-misleading-indentation,
+  readability-non-const-parameter,
+  readability-redundant-control-flow,
+  readability-redundant-declaration,
+  readability-redundant-preprocessor,
+  -clang-analyzer-optin.performance.Padding,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  -bugprone-easily-swappable-parameters,
+  -misc-header-include-cycle,
+  -misc-include-cleaner,
+  -misc-no-recursion,
+  -misc-unused-parameters
+
+# Everything enabled above fails the build (abuild check / make tidy).
+WarningsAsErrors: '*'
+
+# Diagnostics from headers only when they are *our* modules — not Meson
+# generated *-protocol.h under stonefly.p/, embed stamps, or /usr includes.
+HeaderFilterRegex: '(\.\./)?src/(anim|config|dbus|decor|ipc|layer|log|output|seat|server|session|toplevel|util|wm|xdg)/'
+FormatStyle: file
+
+CheckOptions:
+  bugprone-assert-side-effect.AssertMacros: 'assert'
+  # Feature-test macro required by POSIX; still catch any other _Reserved name.
+  bugprone-reserved-identifier.AllowedIdentifiers: '^_POSIX_C_SOURCE$'
+  readability-inconsistent-declaration-parameter-name.IgnoreMacros: true
+
+# Disabled-check rationale (do not expand without cause):
+# - clang-analyzer-optin.performance.Padding: IPC/ABI field order is deliberate;
+#   reshuffling for padding is not a free win.
+# - DeprecatedOrUnsafeBufferHandling: Annex K APIs are unavailable on musl.
+# - easily-swappable-parameters: geometry (x,y,w,h) and wlroots callbacks trip
+#   this constantly; naming + review cover it better here.
+# - misc-header-include-cycle: elogind sd-bus-vtable.h ↔ sd-bus.h cycle in
+#   /usr/include; not fixable in stonefly.
+# - misc-include-cleaner: IWYU-style; too noisy with wlroots/SceneFX headers.
+# - misc-no-recursion: scene/graph walks are intentionally recursive.
+# - misc-unused-parameters: wlroots listener signatures; prefer (void)arg or
+#   omitted names at the call site when touching a function.
+...

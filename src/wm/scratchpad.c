@@ -97,11 +97,10 @@ static struct wlr_output *toplevel_output(struct stonefly_toplevel *toplevel) {
 	stonefly_toplevel_layout_geom(toplevel, &geom);
 	double cx = geom.x + geom.width / 2.0;
 	double cy = geom.y + geom.height / 2.0;
-	struct wlr_output *out =
-		wlr_output_layout_output_at(server->output_layout, cx, cy);
+	struct wlr_output *out = wlr_output_layout_output_at(server->output_layout, cx, cy);
 	if (out == NULL && server->cursor != NULL) {
-		out = wlr_output_layout_output_at(server->output_layout,
-			server->cursor->x, server->cursor->y);
+		out = wlr_output_layout_output_at(server->output_layout, server->cursor->x,
+						  server->cursor->y);
 	}
 	return out;
 }
@@ -115,52 +114,44 @@ static void scratch_show(struct stonefly_toplevel *toplevel) {
 	stonefly_toplevel_apply_shown(toplevel, true);
 }
 
-static void scratch_claim(struct stonefly_scratch_slot *slot,
-		struct stonefly_toplevel *toplevel) {
+static void scratch_claim(struct stonefly_scratch_slot *slot, struct stonefly_toplevel *toplevel) {
 	if (toplevel->scratchpad[0] != '\0' &&
-			strcmp(toplevel->scratchpad, slot->spec->name) != 0) {
+	    strcmp(toplevel->scratchpad, slot->spec->name) != 0) {
 		struct stonefly_scratch_slot *old = slot_by_name(toplevel->scratchpad);
 		if (old != NULL && old->toplevel == toplevel) {
 			old->toplevel = NULL;
 		}
 	}
-	snprintf(toplevel->scratchpad, sizeof(toplevel->scratchpad), "%s",
-		slot->spec->name);
+	snprintf(toplevel->scratchpad, sizeof(toplevel->scratchpad), "%s", slot->spec->name);
 	slot->toplevel = toplevel;
 	/* Scratchpads stay visible across workspace switches. */
 	stonefly_workspace_detach_scratchpad(toplevel);
 	pending_clear();
-	SF_LOGI("scratchpad claim",
-		sf_str("name", slot->spec->name),
-		sf_str("app_id",
-			toplevel->xdg_toplevel->app_id != NULL
-				? toplevel->xdg_toplevel->app_id : ""));
+	SF_LOGI("scratchpad claim", sf_str("name", slot->spec->name),
+		sf_str("app_id", toplevel->xdg_toplevel->app_id != NULL
+					 ? toplevel->xdg_toplevel->app_id
+					 : ""));
 }
 
-static void scratch_spawn(struct stonefly_server *server,
-		struct stonefly_scratch_slot *slot) {
+static void scratch_spawn(struct stonefly_server *server, struct stonefly_scratch_slot *slot) {
 	(void)server;
-	if (scratch_pending.active &&
-			strcmp(scratch_pending.name, slot->spec->name) == 0 &&
-			!pending_expired()) {
-		SF_LOGD("scratchpad spawn already pending",
-			sf_str("name", slot->spec->name));
+	if (scratch_pending.active && strcmp(scratch_pending.name, slot->spec->name) == 0 &&
+	    !pending_expired()) {
+		SF_LOGD("scratchpad spawn already pending", sf_str("name", slot->spec->name));
 		return;
 	}
 
-	snprintf(scratch_pending.name, sizeof(scratch_pending.name), "%s",
-		slot->spec->name);
+	snprintf(scratch_pending.name, sizeof(scratch_pending.name), "%s", slot->spec->name);
 	if (slot->spec->app_id != NULL) {
 		snprintf(scratch_pending.app_id, sizeof(scratch_pending.app_id), "%s",
-			slot->spec->app_id);
+			 slot->spec->app_id);
 	} else {
 		scratch_pending.app_id[0] = '\0';
 	}
 	clock_gettime(CLOCK_MONOTONIC, &scratch_pending.since);
 	scratch_pending.active = true;
 
-	SF_LOGI("scratchpad spawn",
-		sf_str("name", slot->spec->name),
+	SF_LOGI("scratchpad spawn", sf_str("name", slot->spec->name),
 		sf_str("cmd", slot->spec->cmd));
 
 	if (fork() == 0) {
@@ -210,8 +201,7 @@ void stonefly_scratchpad_try_claim(struct stonefly_toplevel *toplevel) {
 		return;
 	}
 	if (pending_expired()) {
-		SF_LOGI("scratchpad claim timed out",
-			sf_str("name", scratch_pending.name));
+		SF_LOGI("scratchpad claim timed out", sf_str("name", scratch_pending.name));
 		pending_clear();
 		return;
 	}
@@ -264,7 +254,7 @@ void stonefly_scratchpad_toggle(struct stonefly_server *server, const char *name
 	if (toplevel != NULL) {
 		/* Destroyed windows are cleared in on_destroy; defensive. */
 		if (toplevel->minimized ||
-				(stonefly_anim_active(toplevel) && toplevel->anim_hide)) {
+		    (stonefly_anim_active(toplevel) && toplevel->anim_hide)) {
 			scratch_show(toplevel);
 		} else {
 			/* Defocus runs in apply_hidden after minimized is set (same as
@@ -277,8 +267,7 @@ void stonefly_scratchpad_toggle(struct stonefly_server *server, const char *name
 	scratch_spawn(server, slot);
 }
 
-void stonefly_scratchpad_claim_focused(struct stonefly_server *server,
-		const char *name) {
+void stonefly_scratchpad_claim_focused(struct stonefly_server *server, const char *name) {
 	struct stonefly_scratch_slot *slot = slot_by_name(name);
 	if (slot == NULL) {
 		SF_LOGW("scratchpad unknown", sf_str("name", name != NULL ? name : ""));
@@ -286,13 +275,11 @@ void stonefly_scratchpad_claim_focused(struct stonefly_server *server,
 	}
 	struct stonefly_toplevel *toplevel = stonefly_focused_toplevel(server);
 	if (toplevel == NULL) {
-		SF_LOGW("scratchpad claim: no focused window",
-			sf_str("name", slot->spec->name));
+		SF_LOGW("scratchpad claim: no focused window", sf_str("name", slot->spec->name));
 		return;
 	}
 	if (slot->toplevel != NULL && slot->toplevel != toplevel) {
-		SF_LOGW("scratchpad already occupied",
-			sf_str("name", slot->spec->name));
+		SF_LOGW("scratchpad already occupied", sf_str("name", slot->spec->name));
 		return;
 	}
 	if (slot->toplevel == toplevel) {
@@ -332,8 +319,7 @@ void stonefly_scratchpad_on_focus_change(struct stonefly_toplevel *focused) {
 			continue;
 		}
 
-		SF_LOGD("scratchpad auto_hide",
-			sf_str("name", slot->spec->name));
+		SF_LOGD("scratchpad auto_hide", sf_str("name", slot->spec->name));
 		scratch_hide(pad);
 	}
 }

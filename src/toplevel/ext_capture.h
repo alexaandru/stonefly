@@ -15,4 +15,7 @@ void stonefly_ext_capture_on_title_change(struct stonefly_toplevel *toplevel);
 void stonefly_ext_capture_on_app_id_change(struct stonefly_toplevel *toplevel);
 void stonefly_ext_capture_on_close(struct stonefly_toplevel *toplevel);
 
+/* Re-evaluate config capture_block_app_ids against current app_id. */
+void stonefly_ext_capture_apply_block_rules(struct stonefly_toplevel *toplevel);
+
 #endif

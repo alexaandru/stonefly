@@ -13,8 +13,7 @@ void stonefly_scratchpad_finish(struct stonefly_server *server);
 void stonefly_scratchpad_toggle(struct stonefly_server *server, const char *name);
 
 /* Associate the focused toplevel with a named pad (Super+t). */
-void stonefly_scratchpad_claim_focused(struct stonefly_server *server,
-		const char *name);
+void stonefly_scratchpad_claim_focused(struct stonefly_server *server, const char *name);
 
 /* On map: claim a pending spawn by app_id. */
 void stonefly_scratchpad_try_claim(struct stonefly_toplevel *toplevel);

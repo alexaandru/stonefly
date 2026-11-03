@@ -13,16 +13,16 @@
 #include "server/server.h"
 #include "util/json.h"
 
-size_t stonefly_outputs_collect(struct stonefly_server *server,
-		struct stonefly_output_info *out, size_t cap) {
+size_t stonefly_outputs_collect(struct stonefly_server *server, struct stonefly_output_info *out,
+				size_t cap) {
 	if (server == NULL || out == NULL || cap == 0) {
 		return 0;
 	}
 
 	struct wlr_output *focused_wlr = NULL;
 	if (server->cursor != NULL && server->output_layout != NULL) {
-		focused_wlr = wlr_output_layout_output_at(server->output_layout,
-			server->cursor->x, server->cursor->y);
+		focused_wlr = wlr_output_layout_output_at(server->output_layout, server->cursor->x,
+							  server->cursor->y);
 	}
 
 	size_t n = 0;
@@ -38,8 +38,7 @@ size_t stonefly_outputs_collect(struct stonefly_server *server,
 
 		struct stonefly_output_info *info = &out[n++];
 		memset(info, 0, sizeof(*info));
-		snprintf(info->name, sizeof(info->name), "%s",
-			wlr->name != NULL ? wlr->name : "");
+		snprintf(info->name, sizeof(info->name), "%s", wlr->name != NULL ? wlr->name : "");
 		info->enabled = wlr->enabled;
 		info->x = output->full.x;
 		info->y = output->full.y;
@@ -57,8 +56,8 @@ size_t stonefly_outputs_collect(struct stonefly_server *server,
 	return n;
 }
 
-int stonefly_outputs_to_json(const struct stonefly_output_info *infos,
-		size_t n, char *buf, size_t cap) {
+int stonefly_outputs_to_json(const struct stonefly_output_info *infos, size_t n, char *buf,
+			     size_t cap) {
 	struct json_buf b;
 	json_buf_init(&b, buf, cap);
 
@@ -177,8 +176,7 @@ static bool parse_usable(struct json_scan *s, struct stonefly_output_info *out) 
 	}
 	for (;;) {
 		char key[32];
-		if (!json_scan_string(s, key, sizeof(key)) ||
-				!json_scan_expect(s, ':')) {
+		if (!json_scan_string(s, key, sizeof(key)) || !json_scan_expect(s, ':')) {
 			return false;
 		}
 		int64_t v = 0;
@@ -217,8 +215,7 @@ static bool parse_object(struct json_scan *s, struct stonefly_output_info *out) 
 
 	for (;;) {
 		char key[64];
-		if (!json_scan_string(s, key, sizeof(key)) ||
-				!json_scan_expect(s, ':')) {
+		if (!json_scan_string(s, key, sizeof(key)) || !json_scan_expect(s, ':')) {
 			return false;
 		}
 
@@ -226,8 +223,7 @@ static bool parse_object(struct json_scan *s, struct stonefly_output_info *out) 
 			if (!json_scan_string(s, out->name, sizeof(out->name))) {
 				return false;
 			}
-		} else if (strcmp(key, "enabled") == 0 ||
-				strcmp(key, "focused") == 0) {
+		} else if (strcmp(key, "enabled") == 0 || strcmp(key, "focused") == 0) {
 			bool v = false;
 			if (!json_scan_bool(s, &v)) {
 				return false;
@@ -238,9 +234,8 @@ static bool parse_object(struct json_scan *s, struct stonefly_output_info *out) 
 				out->focused = v;
 			}
 		} else if (strcmp(key, "x") == 0 || strcmp(key, "y") == 0 ||
-				strcmp(key, "w") == 0 || strcmp(key, "h") == 0 ||
-				strcmp(key, "logical_w") == 0 ||
-				strcmp(key, "logical_h") == 0) {
+			   strcmp(key, "w") == 0 || strcmp(key, "h") == 0 ||
+			   strcmp(key, "logical_w") == 0 || strcmp(key, "logical_h") == 0) {
 			int64_t v = 0;
 			if (!json_scan_i64(s, &v)) {
 				return false;
@@ -303,8 +298,8 @@ static bool parse_object(struct json_scan *s, struct stonefly_output_info *out) 
 	}
 }
 
-bool stonefly_outputs_from_json(const char *json,
-		struct stonefly_output_info *out, size_t cap, size_t *n_out) {
+bool stonefly_outputs_from_json(const char *json, struct stonefly_output_info *out, size_t cap,
+				size_t *n_out) {
 	if (n_out != NULL) {
 		*n_out = 0;
 	}
@@ -349,15 +344,11 @@ bool stonefly_outputs_from_json(const char *json,
 	}
 }
 
-void stonefly_outputs_print(const struct stonefly_output_info *infos,
-		size_t n, FILE *fp) {
+void stonefly_outputs_print(const struct stonefly_output_info *infos, size_t n, FILE *fp) {
 	for (size_t i = 0; i < n; i++) {
 		const struct stonefly_output_info *o = &infos[i];
-		fprintf(fp, "%s%s  %dx%d@%.2f  layout %d,%d %dx%d  usable %d,%d %dx%d\n",
-			o->name,
-			o->focused ? "*" : " ",
-			o->w, o->h, o->scale,
-			o->x, o->y, o->logical_w, o->logical_h,
-			o->usable_x, o->usable_y, o->usable_w, o->usable_h);
+		fprintf(fp, "%s%s  %dx%d@%.2f  layout %d,%d %dx%d  usable %d,%d %dx%d\n", o->name,
+			o->focused ? "*" : " ", o->w, o->h, o->scale, o->x, o->y, o->logical_w,
+			o->logical_h, o->usable_x, o->usable_y, o->usable_w, o->usable_h);
 	}
 }

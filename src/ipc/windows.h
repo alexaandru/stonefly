@@ -13,7 +13,7 @@ struct stonefly_window_info {
 	uint64_t id;
 	char app_id[128];
 	char title[256];
-	char tag[128]; /* xdg-toplevel-tag; empty when unset */
+	char tag[128];	       /* xdg-toplevel-tag; empty when unset */
 	char description[256]; /* translated tag description; empty when unset */
 	int32_t x;
 	int32_t y;
@@ -24,24 +24,24 @@ struct stonefly_window_info {
 	bool maximized_to_edges;
 	bool minimized;
 	bool snapped;
+	bool capture_blocked;
 	char snap_dir[16]; /* empty when not snapped */
 	char output[64];
 	int workspace; /* 1-based; 0 when unset/scratchpad */
 };
 
 /* Bottom-most first. Returns how many entries were written (≤ cap). */
-size_t stonefly_windows_collect(struct stonefly_server *server,
-		struct stonefly_window_info *out, size_t cap);
+size_t stonefly_windows_collect(struct stonefly_server *server, struct stonefly_window_info *out,
+				size_t cap);
 
 /* Encode as a JSON array. Returns bytes written (excl. NUL), or -1. */
-int stonefly_windows_to_json(const struct stonefly_window_info *infos,
-		size_t n, char *buf, size_t cap);
+int stonefly_windows_to_json(const struct stonefly_window_info *infos, size_t n, char *buf,
+			     size_t cap);
 
 /* Decode a JSON array produced by stonefly_windows_to_json. */
-bool stonefly_windows_from_json(const char *json,
-		struct stonefly_window_info *out, size_t cap, size_t *n_out);
+bool stonefly_windows_from_json(const char *json, struct stonefly_window_info *out, size_t cap,
+				size_t *n_out);
 
-void stonefly_windows_print(const struct stonefly_window_info *infos,
-		size_t n, FILE *fp);
+void stonefly_windows_print(const struct stonefly_window_info *infos, size_t n, FILE *fp);
 
 #endif

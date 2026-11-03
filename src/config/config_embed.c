@@ -26,12 +26,12 @@ static const unsigned char emb_outputs_fnl[] = {
 };
 
 const struct stonefly_embed_file stonefly_default_files[] = {
-	{ "init.lua", emb_init_lua, sizeof emb_init_lua },
-	{ "options.fnl", emb_options_fnl, sizeof emb_options_fnl },
-	{ "binds.fnl", emb_binds_fnl, sizeof emb_binds_fnl },
-	{ "scratchpads.fnl", emb_scratchpads_fnl, sizeof emb_scratchpads_fnl },
-	{ "inputs.fnl", emb_inputs_fnl, sizeof emb_inputs_fnl },
-	{ "outputs.fnl", emb_outputs_fnl, sizeof emb_outputs_fnl },
+	{"init.lua", emb_init_lua, sizeof emb_init_lua},
+	{"options.fnl", emb_options_fnl, sizeof emb_options_fnl},
+	{"binds.fnl", emb_binds_fnl, sizeof emb_binds_fnl},
+	{"scratchpads.fnl", emb_scratchpads_fnl, sizeof emb_scratchpads_fnl},
+	{"inputs.fnl", emb_inputs_fnl, sizeof emb_inputs_fnl},
+	{"outputs.fnl", emb_outputs_fnl, sizeof emb_outputs_fnl},
 };
 
 const size_t stonefly_default_files_len =

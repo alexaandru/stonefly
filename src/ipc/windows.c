@@ -38,8 +38,8 @@ static void copy_str(char *dst, size_t cap, const char *src) {
 	snprintf(dst, cap, "%s", src);
 }
 
-size_t stonefly_windows_collect(struct stonefly_server *server,
-		struct stonefly_window_info *out, size_t cap) {
+size_t stonefly_windows_collect(struct stonefly_server *server, struct stonefly_window_info *out,
+				size_t cap) {
 	if (server == NULL || out == NULL || cap == 0) {
 		return 0;
 	}
@@ -60,13 +60,10 @@ size_t stonefly_windows_collect(struct stonefly_server *server,
 		struct stonefly_window_info *info = &out[n++];
 		memset(info, 0, sizeof(*info));
 		info->id = toplevel->id;
-		copy_str(info->app_id, sizeof(info->app_id),
-			toplevel->xdg_toplevel->app_id);
-		copy_str(info->title, sizeof(info->title),
-			toplevel->xdg_toplevel->title);
+		copy_str(info->app_id, sizeof(info->app_id), toplevel->xdg_toplevel->app_id);
+		copy_str(info->title, sizeof(info->title), toplevel->xdg_toplevel->title);
 		copy_str(info->tag, sizeof(info->tag), toplevel->tag);
-		copy_str(info->description, sizeof(info->description),
-			toplevel->description);
+		copy_str(info->description, sizeof(info->description), toplevel->description);
 		info->x = geom.x;
 		info->y = geom.y;
 		info->w = geom.width;
@@ -75,30 +72,28 @@ size_t stonefly_windows_collect(struct stonefly_server *server,
 		info->maximized_to_edges = toplevel->maximized_edges;
 		info->minimized = toplevel->minimized;
 		info->snapped = toplevel->snapped != STONEFLY_SNAP_NONE;
-		info->floating = !info->maximized_to_edges &&
-			!toplevel->maximized_gaps && !info->snapped;
-		copy_str(info->snap_dir, sizeof(info->snap_dir),
-			snap_dir_name(toplevel->snapped));
+		info->capture_blocked = toplevel->capture_blocked;
+		info->floating =
+			!info->maximized_to_edges && !toplevel->maximized_gaps && !info->snapped;
+		copy_str(info->snap_dir, sizeof(info->snap_dir), snap_dir_name(toplevel->snapped));
 		if (toplevel->workspace != NULL) {
 			info->workspace = toplevel->workspace->index + 1;
 			struct wlr_output *wo = toplevel->workspace->output->wlr_output;
-			copy_str(info->output, sizeof(info->output),
-				wo != NULL ? wo->name : "");
+			copy_str(info->output, sizeof(info->output), wo != NULL ? wo->name : "");
 		} else {
 			info->workspace = 0;
-			struct stonefly_output *out =
-				stonefly_output_for_toplevel(toplevel);
+			struct stonefly_output *out = stonefly_output_for_toplevel(toplevel);
 			copy_str(info->output, sizeof(info->output),
-				out != NULL && out->wlr_output != NULL
-					? out->wlr_output->name : "");
+				 out != NULL && out->wlr_output != NULL ? out->wlr_output->name
+									: "");
 		}
 	}
 
 	return n;
 }
 
-int stonefly_windows_to_json(const struct stonefly_window_info *infos,
-		size_t n, char *buf, size_t cap) {
+int stonefly_windows_to_json(const struct stonefly_window_info *infos, size_t n, char *buf,
+			     size_t cap) {
 	struct json_buf b;
 	json_buf_init(&b, buf, cap);
 
@@ -164,6 +159,10 @@ int stonefly_windows_to_json(const struct stonefly_window_info *infos,
 		json_key(&b, "snapped");
 		json_bool(&b, w->snapped);
 
+		json_byte(&b, ',');
+		json_key(&b, "capture_blocked");
+		json_bool(&b, w->capture_blocked);
+
 		if (w->snap_dir[0] != '\0') {
 			json_byte(&b, ',');
 			json_key(&b, "snap_dir");
@@ -225,8 +224,7 @@ static bool parse_object(struct json_scan *s, struct stonefly_window_info *out) 
 				return false;
 			}
 		} else if (strcmp(key, "description") == 0) {
-			if (!json_scan_string(s, out->description,
-					sizeof(out->description))) {
+			if (!json_scan_string(s, out->description, sizeof(out->description))) {
 				return false;
 			}
 		} else if (strcmp(key, "snap_dir") == 0) {
@@ -238,8 +236,8 @@ static bool parse_object(struct json_scan *s, struct stonefly_window_info *out) 
 				return false;
 			}
 		} else if (strcmp(key, "x") == 0 || strcmp(key, "y") == 0 ||
-				strcmp(key, "w") == 0 || strcmp(key, "h") == 0 ||
-				strcmp(key, "workspace") == 0) {
+			   strcmp(key, "w") == 0 || strcmp(key, "h") == 0 ||
+			   strcmp(key, "workspace") == 0) {
 			int64_t v = 0;
 			if (!json_scan_i64(s, &v)) {
 				return false;
@@ -255,11 +253,10 @@ static bool parse_object(struct json_scan *s, struct stonefly_window_info *out) 
 			} else {
 				out->h = (int32_t)v;
 			}
-		} else if (strcmp(key, "focused") == 0 ||
-				strcmp(key, "floating") == 0 ||
-				strcmp(key, "maximized_to_edges") == 0 ||
-				strcmp(key, "minimized") == 0 ||
-				strcmp(key, "snapped") == 0) {
+		} else if (strcmp(key, "focused") == 0 || strcmp(key, "floating") == 0 ||
+			   strcmp(key, "maximized_to_edges") == 0 ||
+			   strcmp(key, "minimized") == 0 || strcmp(key, "snapped") == 0 ||
+			   strcmp(key, "capture_blocked") == 0) {
 			bool v = false;
 			if (!json_scan_bool(s, &v)) {
 				return false;
@@ -272,8 +269,10 @@ static bool parse_object(struct json_scan *s, struct stonefly_window_info *out) 
 				out->maximized_to_edges = v;
 			} else if (strcmp(key, "minimized") == 0) {
 				out->minimized = v;
-			} else {
+			} else if (strcmp(key, "snapped") == 0) {
 				out->snapped = v;
+			} else {
+				out->capture_blocked = v;
 			}
 		} else {
 			/* Skip unknown value: string, bool, or integer. */
@@ -305,8 +304,8 @@ static bool parse_object(struct json_scan *s, struct stonefly_window_info *out) 
 	}
 }
 
-bool stonefly_windows_from_json(const char *json,
-		struct stonefly_window_info *out, size_t cap, size_t *n_out) {
+bool stonefly_windows_from_json(const char *json, struct stonefly_window_info *out, size_t cap,
+				size_t *n_out) {
 	if (n_out != NULL) {
 		*n_out = 0;
 	}
@@ -351,26 +350,22 @@ bool stonefly_windows_from_json(const char *json,
 	}
 }
 
-void stonefly_windows_print(const struct stonefly_window_info *infos,
-		size_t n, FILE *fp) {
+void stonefly_windows_print(const struct stonefly_window_info *infos, size_t n, FILE *fp) {
 	if (fp == NULL) {
 		fp = stdout;
 	}
 	for (size_t i = 0; i < n; i++) {
 		const struct stonefly_window_info *w = &infos[i];
 		if (w->tag[0] != '\0') {
-			fprintf(fp, "%s %llu\t%s\t%s\ttag=%s\n",
-				w->focused ? "*" : " ",
-				(unsigned long long)w->id,
-				w->app_id,
-				w->title,
-				w->tag);
+			fprintf(fp, "%s %llu\t%s\t%s\ttag=%s%s\n", w->focused ? "*" : " ",
+				(unsigned long long)w->id, w->app_id, w->title, w->tag,
+				w->capture_blocked ? "\tcapture=blocked" : "");
+		} else if (w->capture_blocked) {
+			fprintf(fp, "%s %llu\t%s\t%s\tcapture=blocked\n", w->focused ? "*" : " ",
+				(unsigned long long)w->id, w->app_id, w->title);
 		} else {
-			fprintf(fp, "%s %llu\t%s\t%s\n",
-				w->focused ? "*" : " ",
-				(unsigned long long)w->id,
-				w->app_id,
-				w->title);
+			fprintf(fp, "%s %llu\t%s\t%s\n", w->focused ? "*" : " ",
+				(unsigned long long)w->id, w->app_id, w->title);
 		}
 	}
 }

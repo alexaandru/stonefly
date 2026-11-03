@@ -21,6 +21,8 @@ static void usage(const char *argv0) {
 	printf("  %s config [section] [--json]    dump live config (or one section)\n", argv0);
 	printf("  %s focus <id>                   focus window by id\n", argv0);
 	printf("  %s close <id>                   close window by id\n", argv0);
+	printf("  %s block-capture <id>           block window image capture\n", argv0);
+	printf("  %s unblock-capture <id>         allow window image capture\n", argv0);
 	printf("  %s toggle-quick-terminal        toggle scratchpad pad \"term\"\n", argv0);
 }
 
@@ -82,6 +84,12 @@ int main(int argc, char *argv[]) {
 		}
 		if (strcmp(argv[1], "close") == 0) {
 			return stonefly_ipc_cmd_close(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "block-capture") == 0) {
+			return stonefly_ipc_cmd_block_capture(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "unblock-capture") == 0) {
+			return stonefly_ipc_cmd_unblock_capture(argc - 1, argv + 1);
 		}
 		if (strcmp(argv[1], "toggle-quick-terminal") == 0) {
 			return stonefly_ipc_cmd_toggle_quick_terminal(argc - 1, argv + 1);

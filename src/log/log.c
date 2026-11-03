@@ -38,7 +38,6 @@ static enum sf_log_level level_from_wlr(enum wlr_log_importance importance) {
 	case WLR_INFO:
 		return SF_LOG_INFO;
 	case WLR_DEBUG:
-		return SF_LOG_DEBUG;
 	case WLR_SILENT:
 	default:
 		return SF_LOG_DEBUG;
@@ -77,8 +76,8 @@ static void emit_line(const char *line, size_t len) {
 	}
 }
 
-void sf_log_emit(enum sf_log_level level, const char *msg,
-		const struct sf_field *fields, size_t nfields) {
+void sf_log_emit(enum sf_log_level level, const char *msg, const struct sf_field *fields,
+		 size_t nfields) {
 	if (level < g_level) {
 		return;
 	}
@@ -143,8 +142,7 @@ void sf_logf(enum sf_log_level level, const char *fmt, ...) {
 	sf_log_emit(level, msg, NULL, 0);
 }
 
-static void wlr_log_handler(enum wlr_log_importance importance,
-		const char *fmt, va_list args) {
+static void wlr_log_handler(enum wlr_log_importance importance, const char *fmt, va_list args) {
 	if (importance == WLR_SILENT) {
 		return;
 	}
@@ -180,8 +178,7 @@ static void rotate_session_log(const char *dir) {
 	char last[512];
 	int ncur = snprintf(cur, sizeof(cur), "%s/wm.log", dir);
 	int nlast = snprintf(last, sizeof(last), "%s/wm.last.json", dir);
-	if (ncur < 0 || (size_t)ncur >= sizeof(cur) ||
-			nlast < 0 || (size_t)nlast >= sizeof(last)) {
+	if (ncur < 0 || (size_t)ncur >= sizeof(cur) || nlast < 0 || (size_t)nlast >= sizeof(last)) {
 		return;
 	}
 
@@ -204,16 +201,15 @@ void sf_log_init(enum sf_log_level min_level) {
 	if (dir == NULL) {
 		SF_LOGW("log dir unavailable, logging to stderr only");
 	} else if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
-		SF_LOGW("cannot create log dir, logging to stderr only",
-			sf_str("dir", dir), sf_str("err", strerror(errno)));
+		SF_LOGW("cannot create log dir, logging to stderr only", sf_str("dir", dir),
+			sf_str("err", strerror(errno)));
 	} else {
 		rotate_session_log(dir);
 
 		size_t n = strlen(dir) + sizeof("/wm.log");
 		char *path = malloc(n);
 		if (path == NULL) {
-			SF_LOGW("cannot open log file, logging to stderr only",
-				sf_str("dir", dir));
+			SF_LOGW("cannot open log file, logging to stderr only", sf_str("dir", dir));
 		} else {
 			snprintf(path, n, "%s/wm.log", dir);
 			/* Truncate: fresh session after rotate moved the old file. */
