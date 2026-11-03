@@ -239,6 +239,7 @@ void stonefly_config_set_defaults(struct stonefly_config *cfg) {
 	cfg->double_tap_gap_ms = 300;
 	cfg->layout = 0; /* STONEFLY_LAYOUT_STACKING */
 	cfg->swipe_workspace_threshold = 80;
+	cfg->swipe_workspace_natural = 1;
 
 	cfg->cmd_foot = xstrdup("foot");
 	cfg->cmd_nautilus = xstrdup("nautilus");

@@ -707,6 +707,8 @@ static int l_opt_newindex(lua_State *L) {
 			cfg->window_blur = v;
 		} else if (strcmp(k, "blur_xray") == 0) {
 			cfg->blur_xray = v;
+		} else if (strcmp(k, "swipe_workspace_natural") == 0) {
+			cfg->swipe_workspace_natural = v;
 		}
 		return 0;
 	}

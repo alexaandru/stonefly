@@ -427,8 +427,13 @@ static void pointer_swipe_update(struct wl_listener *listener, void *data) {
 	if (workspace_swipe && !server->swipe.consumed && ady > adx && ady >= (double)threshold) {
 		struct stonefly_output *output = stonefly_output_at_cursor(server);
 		if (output != NULL) {
-			/* Finger moves up → show workspace above (prev); down → next. */
-			stonefly_workspace_switch_offset(output, server->swipe.dy < 0 ? -1 : 1);
+			/* Classic: finger down → next. Natural (default): content
+			 * tracks the finger — finger up → next, finger down → prev. */
+			int offset = server->swipe.dy < 0 ? -1 : 1;
+			if (stonefly_cfg(server)->swipe_workspace_natural) {
+				offset = -offset;
+			}
+			stonefly_workspace_switch_offset(output, offset);
 		}
 		server->swipe.consumed = true;
 		server->swipe.dx = 0;

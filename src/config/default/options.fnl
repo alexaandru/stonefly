@@ -41,8 +41,11 @@
   :snap_preview_opacity 0.40
   :tap_max_hold_ms 500
   :double_tap_gap_ms 300
-  ;; workspaces — 3-finger vertical swipe threshold (logical px)
+  ;; workspaces — 3-finger vertical swipe
   :swipe_workspace_threshold 80
+  ;; true = natural (finger up → next / content moves with finger);
+  ;; false = classic (finger down → next).
+  :swipe_workspace_natural true
   ;; Capture privacy (#1481): comma-separated app_id substrings, or a table.
   ;; Matching windows get capture_blocked on map / app_id change.
   ;; :capture_block_app_ids "keepass,bitwarden"

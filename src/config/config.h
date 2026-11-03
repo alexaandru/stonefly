@@ -127,6 +127,9 @@ struct stonefly_config {
 	int layout; /* enum stonefly_layout; STACKING today */
 	/* 3-finger vertical swipe distance (logical px) to change workspace. */
 	int swipe_workspace_threshold;
+	/* Natural: finger up moves content up → next; finger down → prev.
+	 * Classic (false): finger points at the destination (down → next). */
+	int swipe_workspace_natural;
 
 	char *cmd_foot;
 	char *cmd_nautilus;

@@ -33,7 +33,7 @@ $(TARBALL): $(PACK_META) $(SRC_FILES)
 
 # checksum + build; APK lands under $$REPODEST/testing/x86_64/.
 apk: $(TARBALL)
-	cd "$(APORT)" && abuild checksum && abuild -r
+	cd "$(APORT)" && abuild checksum && abuild -r |& tee build.log
 
 # --- style / static analysis (tools from abuild checkdepends) ---
 

@@ -230,6 +230,9 @@ static void emit_options(struct json_buf *b, const struct stonefly_config *cfg) 
 	json_key(b, "swipe_workspace_threshold");
 	json_i64(b, cfg->swipe_workspace_threshold);
 	json_byte(b, ',');
+	json_key(b, "swipe_workspace_natural");
+	json_bool(b, cfg->swipe_workspace_natural != 0);
+	json_byte(b, ',');
 	json_key(b, "capture_block_app_ids");
 	json_str(b, cfg->capture_block_app_ids ? cfg->capture_block_app_ids : "");
 

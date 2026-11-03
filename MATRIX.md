@@ -69,7 +69,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Geometry persist across restart | ✅ `windows.json` by river id | Schema / blacklist / MRU polish 📋 | ❌ | |
 | Window rules (app-id/title) | 🚧 center + modal parent | auto-float, size, scratchpad, AOT, force SSD 📋 | ❌ | |
 | Keyboard nudge move/resize | ❌ | 📋 high-value | ❌ | Snap exists; step nudge does not |
-| Workspaces / tags | ❌ | 📋 + river#1402 / #1390 | 🚧 | Dynamic per-output strip (`workspace.c`): trailing empty, compact on empty, Super+Page/1–9 + Shift move-follow, IPC `workspaces`/`workspace`/`move-to-workspace` (`strtol` index parse), windows `{output,workspace}`. ✅ `ext-workspace-v1` group/handle sync. ✅ 3-finger vertical swipe (`swipe_workspace_threshold`). ❌ persist / named rules / switch anim |
+| Workspaces / tags | ❌ | 📋 + river#1402 / #1390 | 🚧 | Dynamic per-output strip (`workspace.c`): trailing empty, compact on empty, Super+Page/1–9 + Shift move-follow, IPC `workspaces`/`workspace`/`move-to-workspace` (`strtol` index parse), windows `{output,workspace}`. ✅ `ext-workspace-v1` group/handle sync. ✅ 3-finger vertical swipe (`swipe_workspace_threshold`, `swipe_workspace_natural` default true = content tracks finger). ❌ persist / named rules / switch anim |
 | Layout engine (tile/columns/…) | ❌ | 📋 | 🚧 | Resolve `workspace → output → global` (`stonefly_layout`); only `stacking` implemented. `columns`/`tile` enum + `apply_layout` hook reserved. Global `stonefly.opt.layout`. |
 | Focus cycle policy (MRU vs stack) | 🚧 stacking default | Decide MRU Alt+Tab 📋 | 🚧 | Stacking / MRU list front |
 | Multi-monitor focus / send | ✅ `focus_monitor` / `send_to_monitor` | — | ❌ | |
@@ -174,7 +174,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Xwayland | ✅ (River host) | — | ❌ | Classic X11 apps fail |
 | ext-workspace-v1 | ❌ | #1402 📋 | ✅ | Per-output group + per-workspace handle; activate/create commit → switch/compact (`workspace.c`) |
 | xdg-toplevel-tag | ❌ | #1390 📋 | ✅ | `wlr_xdg_toplevel_tag_manager_v1` (`xdg.c`); stored on toplevel; shown in IPC `windows` (`tag` / `description`). No rules/persist consumer yet. |
-| Touch / gestures / virtual-keyboard | ❌ | River 0.5 items 📋 | ✅ | Touch seat caps + cursor→`wlr_seat_touch_notify_*` (`seat.c`). Gestures: `pointer_gestures_v1` + 3-finger workspace swipe. `zwp_virtual_keyboard_v1` (attach like keyboard; compositor binds skipped). Also: `zwp_relative_pointer_manager_v1` + `zwp_pointer_constraints_v1` (lock/confine + cursor hint). |
+| Touch / gestures / virtual-keyboard | ❌ | River 0.5 items 📋 | ✅ | Touch seat caps + cursor→`wlr_seat_touch_notify_*` (`seat.c`). Gestures: `pointer_gestures_v1` + 3-finger workspace swipe (`swipe_workspace_natural`). `zwp_virtual_keyboard_v1` (attach like keyboard; compositor binds skipped). Also: `zwp_relative_pointer_manager_v1` + `zwp_pointer_constraints_v1` (lock/confine + cursor hint). |
 | Presentation-time / fifo / tearing | ❌ | Shared frame clock Ideas 📋 | 🚧 | ✅ `wp_presentation` via `wlr_presentation_create(display, backend)` (`server.c`; SceneFX samples). ✅ `wp_tearing_control_v1` advertised (hint log only; no async page-flip). ❌ `wp_fifo_v1` still open (no simple wlroots helper). |
 
 ---
@@ -237,7 +237,7 @@ in-process shell (Noctalia stands in under stonefly).
 | Super+f / Super+m max | ✅ |
 | Super+arrows snap + Super+u | ✅ |
 | Super+Page / Super+1–9 workspaces; Shift moves follow | ✅ |
-| 3-finger vertical swipe workspaces | ✅ |
+| 3-finger vertical swipe workspaces (`swipe_workspace_natural`) | ✅ |
 | Super+LMB/RMB move/resize + magnetic snap + preview | ✅ |
 | Ctrl+Esc minimize LIFO | ✅ |
 | Super tap launcher / double-tap term / Super+t claim | ✅ |
