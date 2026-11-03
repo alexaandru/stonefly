@@ -88,28 +88,32 @@ static void effect_finish_body(struct stonefly_background_effect *effect) {
 	free(effect);
 }
 
-/* Surface teardown path: addon is already being finished. */
+/*
+ * Detach from the surface and free. Safe from the commit listener and from
+ * the addon destroy callback. wlr_addon_finish must run whenever the addon
+ * was initialized — wlroots set_finish asserts an empty list after destroy.
+ */
+static void effect_destroy(struct stonefly_background_effect *effect) {
+	if (effect->surface != NULL) {
+		effect_clear_client_blur(effect);
+		wl_list_remove(&effect->surface_commit.link);
+		wl_list_init(&effect->surface_commit.link);
+		wlr_addon_finish(&effect->addon);
+		effect->surface = NULL;
+	}
+	effect_finish_body(effect);
+}
+
+/* Surface addon-set teardown: must call wlr_addon_finish (wlroots contract). */
 static void effect_addon_destroy(struct wlr_addon *addon) {
 	struct stonefly_background_effect *effect = wl_container_of(addon, effect, addon);
-	wl_list_remove(&effect->surface_commit.link);
-	effect_clear_client_blur(effect);
-	effect->surface = NULL;
-	effect_finish_body(effect);
+	effect_destroy(effect);
 }
 
 static const struct wlr_addon_interface effect_addon_impl = {
 	.name = "ext_background_effect_surface_v1",
 	.destroy = effect_addon_destroy,
 };
-
-/* Drop surface attachment (addon destroy clears blur + frees). */
-static void effect_destroy(struct stonefly_background_effect *effect) {
-	if (effect->surface != NULL) {
-		wlr_addon_finish(&effect->addon);
-		return;
-	}
-	effect_finish_body(effect);
-}
 
 static void effect_surface_commit(struct wl_listener *listener, void *data) {
 	(void)data;
@@ -184,6 +188,7 @@ static void effect_resource_destroy(struct wl_resource *resource) {
 		effect_finish_body(effect);
 		return;
 	}
+	/* Protocol: clear effect on next commit. */
 	if (!effect->pending_set) {
 		pixman_region32_clear(&effect->pending);
 		effect->pending_set = true;
