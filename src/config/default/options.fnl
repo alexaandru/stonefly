@@ -51,6 +51,11 @@
   :ssd_mode "auto"
   :ssd_height 28
   :ssd_font_size 17
+  ;; Border/corner mouse resize hit slop (logical px).
+  ;; in = into the window from the content/SSD edge; out = past the drawn border.
+  ;; Hover shows edge cursors; LMB drag resizes (Super+RMB still works). Both 0 = off.
+  :resize_border_in 3
+  :resize_border_out 1
   ;; Capture privacy (#1481): comma-separated app_id substrings, or a table.
   ;; Matching windows get capture_blocked on map / app_id change.
   ;; :capture_block_app_ids "keepass,bitwarden"

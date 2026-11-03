@@ -29,4 +29,7 @@ void stonefly_reset_cursor_mode(struct stonefly_server *server);
 /* Cancel an armed Super tap (combination chord or Super+click). */
 void stonefly_tap_disarm(struct stonefly_server *server);
 
+/* Xcursor name for resize edges (n-resize, se-resize, …). */
+const char *stonefly_resize_xcursor_name(uint32_t edges);
+
 #endif

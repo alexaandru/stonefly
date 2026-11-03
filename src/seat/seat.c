@@ -76,6 +76,9 @@ static void stonefly_constraint_activate(struct stonefly_server *server,
 					 struct wlr_pointer_constraint_v1 *constraint);
 static void stonefly_constraint_deactivate(struct stonefly_server *server, bool warp_hint);
 static void process_cursor_motion(struct stonefly_server *server, uint32_t time);
+static struct stonefly_toplevel *border_resize_toplevel_at(struct stonefly_server *server,
+							   double lx, double ly,
+							   uint32_t *edges_out);
 
 static int64_t timespec_ms_since(const struct timespec *then) {
 	struct timespec now;
@@ -965,6 +968,21 @@ static void process_cursor_motion(struct stonefly_server *server, uint32_t time)
 	struct wlr_surface *surface = NULL;
 	struct stonefly_toplevel *toplevel = stonefly_desktop_toplevel_at(
 		server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+
+	/* Border/corner hit band: WM owns the face; do not forward to the client. */
+	if (!stonefly_session_locked(server)) {
+		uint32_t bedges = 0;
+		struct stonefly_toplevel *border_tl = border_resize_toplevel_at(
+			server, server->cursor->x, server->cursor->y, &bedges);
+		if (border_tl != NULL && bedges != 0) {
+			(void)toplevel;
+			wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr,
+					       stonefly_resize_xcursor_name(bedges));
+			wlr_seat_pointer_clear_focus(seat);
+			return;
+		}
+	}
+
 	(void)toplevel;
 	if (surface == NULL) {
 		/* Empty desktop (or non-surface node): show the theme default.
@@ -1074,6 +1092,181 @@ static uint32_t resize_edges_at(struct stonefly_toplevel *toplevel, double lx, d
 	return edges;
 }
 
+/* Same mapping as wlroots wlr_xcursor_get_resize_name; uint32_t bitflags. */
+const char *stonefly_resize_xcursor_name(uint32_t edges) {
+	if (edges & (uint32_t)WLR_EDGE_TOP) {
+		if (edges & (uint32_t)WLR_EDGE_RIGHT) {
+			return "ne-resize";
+		}
+		if (edges & (uint32_t)WLR_EDGE_LEFT) {
+			return "nw-resize";
+		}
+		return "n-resize";
+	}
+	if (edges & (uint32_t)WLR_EDGE_BOTTOM) {
+		if (edges & (uint32_t)WLR_EDGE_RIGHT) {
+			return "se-resize";
+		}
+		if (edges & (uint32_t)WLR_EDGE_LEFT) {
+			return "sw-resize";
+		}
+		return "s-resize";
+	}
+	if (edges & (uint32_t)WLR_EDGE_RIGHT) {
+		return "e-resize";
+	}
+	if (edges & (uint32_t)WLR_EDGE_LEFT) {
+		return "w-resize";
+	}
+	return "se-resize";
+}
+
+/* Content + SSD titlebar in layout coords (drawn border sits outside this). */
+static void toplevel_frame_box(struct stonefly_toplevel *toplevel, struct wlr_box *frame) {
+	stonefly_toplevel_layout_geom(toplevel, frame);
+	int ssd_h = stonefly_ssd_top_inset(toplevel);
+	frame->y -= ssd_h;
+	frame->height += ssd_h;
+}
+
+static int toplevel_chrome_border(struct stonefly_toplevel *toplevel) {
+	if (toplevel->fullscreen || toplevel->maximized_edges) {
+		return 0;
+	}
+	return stonefly_cfg(toplevel->server)->border_thickness;
+}
+
+/*
+ * Edges under the pointer for border/corner resize, or 0 when not in the hit
+ * band. Band = from (content/SSD edge − in) out through (drawn border + out).
+ */
+static uint32_t border_resize_edges_at(struct stonefly_toplevel *toplevel, double lx, double ly) {
+	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+	int inner = cfg->resize_border_in;
+	int outer = cfg->resize_border_out;
+	if (inner <= 0 && outer <= 0) {
+		return 0;
+	}
+	if (toplevel->fullscreen || toplevel->minimized) {
+		return 0;
+	}
+	if (!toplevel->scene_tree->node.enabled) {
+		return 0;
+	}
+
+	struct wlr_box frame;
+	toplevel_frame_box(toplevel, &frame);
+	if (frame.width <= 0 || frame.height <= 0) {
+		return 0;
+	}
+
+	int border = toplevel_chrome_border(toplevel);
+	double left = (double)frame.x - (double)border - (double)outer;
+	double right = (double)frame.x + (double)frame.width + (double)border + (double)outer;
+	double top = (double)frame.y - (double)border - (double)outer;
+	double bottom = (double)frame.y + (double)frame.height + (double)border + (double)outer;
+	if (lx < left || lx >= right || ly < top || ly >= bottom) {
+		return 0;
+	}
+
+	/* Deep inside the content/SSD: not a resize grab. */
+	double ileft = (double)frame.x + (double)inner;
+	double iright = (double)frame.x + (double)frame.width - (double)inner;
+	double itop = (double)frame.y + (double)inner;
+	double ibottom = (double)frame.y + (double)frame.height - (double)inner;
+	if (inner > 0 && lx >= ileft && lx < iright && ly >= itop && ly < ibottom) {
+		return 0;
+	}
+	/* Degenerate tiny window: treat whole outer box as all-edges. */
+	if (inner * 2 >= frame.width) {
+		ileft = (double)frame.x + (double)frame.width / 2.0;
+		iright = ileft;
+	}
+	if (inner * 2 >= frame.height) {
+		itop = (double)frame.y + (double)frame.height / 2.0;
+		ibottom = itop;
+	}
+
+	uint32_t edges = 0;
+	if (lx < ileft) {
+		edges |= (uint32_t)WLR_EDGE_LEFT;
+	}
+	if (lx >= iright) {
+		edges |= (uint32_t)WLR_EDGE_RIGHT;
+	}
+	if (ly < itop) {
+		edges |= (uint32_t)WLR_EDGE_TOP;
+	}
+	if (ly >= ibottom) {
+		edges |= (uint32_t)WLR_EDGE_BOTTOM;
+	}
+	return edges;
+}
+
+/* True when a layer-shell surface sits under the pointer (above windows). */
+static bool seat_layer_blocks_border_resize(struct stonefly_server *server, double lx, double ly) {
+	double sx, sy;
+	struct wlr_scene_node *node =
+		wlr_scene_node_at(&server->scene->tree.node, lx, ly, &sx, &sy);
+	while (node != NULL) {
+		if (node->data != NULL) {
+			enum stonefly_node_kind kind = *(enum stonefly_node_kind *)node->data;
+			if (kind == STONEFLY_NODE_LAYER) {
+				return true;
+			}
+			if (kind == STONEFLY_NODE_TOPLEVEL || kind == STONEFLY_NODE_SSD) {
+				return false;
+			}
+		}
+		node = node->parent != NULL ? &node->parent->node : NULL;
+	}
+	return false;
+}
+
+/*
+ * Frontmost mapped toplevel whose outer resize box contains (lx, ly). Sets
+ * *edges_out to border_resize_edges_at (may be 0 when deep inside that window).
+ */
+static struct stonefly_toplevel *border_resize_toplevel_at(struct stonefly_server *server,
+							   double lx, double ly,
+							   uint32_t *edges_out) {
+	*edges_out = 0;
+	const struct stonefly_config *cfg = stonefly_cfg(server);
+	if (cfg->resize_border_in <= 0 && cfg->resize_border_out <= 0) {
+		return NULL;
+	}
+	if (seat_layer_blocks_border_resize(server, lx, ly)) {
+		return NULL;
+	}
+
+	struct stonefly_toplevel *toplevel;
+	wl_list_for_each(toplevel, &server->toplevels, link) {
+		if (toplevel->fullscreen || toplevel->minimized) {
+			continue;
+		}
+		if (!toplevel->scene_tree->node.enabled) {
+			continue;
+		}
+		struct wlr_box frame;
+		toplevel_frame_box(toplevel, &frame);
+		int border = toplevel_chrome_border(toplevel);
+		int outer = cfg->resize_border_out;
+		double left = (double)frame.x - (double)border - (double)outer;
+		double right =
+			(double)frame.x + (double)frame.width + (double)border + (double)outer;
+		double top = (double)frame.y - (double)border - (double)outer;
+		double bottom =
+			(double)frame.y + (double)frame.height + (double)border + (double)outer;
+		if (lx < left || lx >= right || ly < top || ly >= bottom) {
+			continue;
+		}
+		/* Topmost window under the pointer — stop even if deep inside. */
+		*edges_out = border_resize_edges_at(toplevel, lx, ly);
+		return toplevel;
+	}
+	return NULL;
+}
+
 static void server_cursor_button(struct wl_listener *listener, void *data) {
 	/* This event is forwarded by the cursor when a pointer emits a button
 	 * event. */
@@ -1133,6 +1326,19 @@ static void server_cursor_button(struct wl_listener *listener, void *data) {
 				}
 				return;
 			}
+		}
+	}
+
+	/* LMB on border/corner hit band → resize (no Super required). */
+	if (!stonefly_session_locked(server) && event->button == BTN_LEFT) {
+		uint32_t bedges = 0;
+		struct stonefly_toplevel *border_tl = border_resize_toplevel_at(
+			server, server->cursor->x, server->cursor->y, &bedges);
+		if (border_tl != NULL && bedges != 0) {
+			stonefly_tap_disarm(server);
+			stonefly_focus_toplevel(border_tl);
+			stonefly_begin_interactive(border_tl, STONEFLY_CURSOR_RESIZE, bedges);
+			return;
 		}
 	}
 

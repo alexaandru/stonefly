@@ -320,36 +320,6 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	free(toplevel);
 }
 
-/* Same mapping as wlroots wlr_xcursor_get_resize_name; keep uint32_t edges so
- * clang-tidy does not EnumCastOutOfRange on bitflag combinations. */
-static const char *resize_xcursor_name(uint32_t edges) {
-	if (edges & (uint32_t)WLR_EDGE_TOP) {
-		if (edges & (uint32_t)WLR_EDGE_RIGHT) {
-			return "ne-resize";
-		}
-		if (edges & (uint32_t)WLR_EDGE_LEFT) {
-			return "nw-resize";
-		}
-		return "n-resize";
-	}
-	if (edges & (uint32_t)WLR_EDGE_BOTTOM) {
-		if (edges & (uint32_t)WLR_EDGE_RIGHT) {
-			return "se-resize";
-		}
-		if (edges & (uint32_t)WLR_EDGE_LEFT) {
-			return "sw-resize";
-		}
-		return "s-resize";
-	}
-	if (edges & (uint32_t)WLR_EDGE_RIGHT) {
-		return "e-resize";
-	}
-	if (edges & (uint32_t)WLR_EDGE_LEFT) {
-		return "w-resize";
-	}
-	return "se-resize";
-}
-
 void stonefly_begin_interactive(struct stonefly_toplevel *toplevel, enum stonefly_cursor_mode mode,
 				uint32_t edges) {
 	/* This function sets up an interactive move or resize operation, where the
@@ -389,7 +359,7 @@ void stonefly_begin_interactive(struct stonefly_toplevel *toplevel, enum stonefl
 
 		server->resize_edges = edges;
 		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr,
-				       resize_xcursor_name(edges));
+				       stonefly_resize_xcursor_name(edges));
 	}
 	/* Drop client pointer focus so set_cursor / shape requests stop fighting us. */
 	wlr_seat_pointer_notify_clear_focus(server->seat);

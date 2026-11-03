@@ -237,6 +237,12 @@ static void emit_options(struct json_buf *b, const struct stonefly_config *cfg) 
 	json_key(b, "ssd_mode");
 	json_str(b, stonefly_ssd_mode_name((enum stonefly_ssd_mode)cfg->ssd_mode));
 	json_byte(b, ',');
+	json_key(b, "resize_border_in");
+	json_i64(b, cfg->resize_border_in);
+	json_byte(b, ',');
+	json_key(b, "resize_border_out");
+	json_i64(b, cfg->resize_border_out);
+	json_byte(b, ',');
 	json_key(b, "ssd_height");
 	json_i64(b, cfg->ssd_height);
 	json_byte(b, ',');

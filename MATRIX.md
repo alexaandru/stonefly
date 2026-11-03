@@ -54,7 +54,8 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Keyboard half-snap (arrows) | ✅ Super+arrows | — | ✅ | Gap math ports `snapBorderBox` |
 | Unsnap / restore PreSnap | ✅ Super+u | — | ✅ | |
 | Drag move (Super+LMB) | ✅ | — | ✅ | WM xcursor `grabbing` for the grab (SSD titlebar + CSD `request_move` too) |
-| Drag resize (Super+RMB) | ✅ | — | ✅ | Edges nearest pointer; WM xcursor via local `resize_xcursor_name` (wlroots mapping; avoids enum bitflag cast for tidy) |
+| Drag resize (Super+RMB) | ✅ | — | ✅ | Edges nearest pointer; WM xcursor via `stonefly_resize_xcursor_name` |
+| Border/corner mouse resize | — | — | ✅ | Hover + LMB on hit band (`resize_border_in` 3 / `resize_border_out` 1); edge cursors; Super+RMB kept. SSD titlebar center still moves (top `in` px / corners resize). |
 | Magnetic drag-snap + resistance | ✅ threshold 26, 4× push-through | — | ✅ | `drag_snap.c` parity |
 | Snap preview overlay | ✅ SHM layer-shell | Configurable fill color/opacity 📋 | ✅ SceneFX overlay rects | Border 1, fill 40% active |
 | `set_tiled` on snap/max | ✅ | — | ✅ | `wlr_xdg_toplevel_set_tiled` on snap / edge-max / restore / unsnap (`wm.c`); gap-max stays untiled (peeble). |
@@ -242,6 +243,7 @@ in-process shell (Noctalia stands in under stonefly).
 | Super+Page / Super+1–9 workspaces; Shift moves follow | ✅ |
 | 3-finger vertical swipe workspaces (`swipe_workspace_natural`) | ✅ |
 | Super+LMB/RMB move/resize + magnetic snap + preview | ✅ |
+| Border/corner LMB resize (`resize_border_in`/`out`) | ✅ |
 | Ctrl+Esc minimize LIFO | ✅ |
 | Super tap launcher / double-tap term / Super+t claim | ✅ |
 | Spawns Ghostty / foot / nautilus / editor / QT | ✅ |

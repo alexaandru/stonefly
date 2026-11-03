@@ -703,6 +703,12 @@ static void opt_set_number(struct stonefly_config *cfg, const char *k, double v)
 			s = 72;
 		}
 		cfg->ssd_font_size = s;
+	} else if (strcmp(k, "resize_border_in") == 0) {
+		int n = (int)v;
+		cfg->resize_border_in = n < 0 ? 0 : n;
+	} else if (strcmp(k, "resize_border_out") == 0) {
+		int n = (int)v;
+		cfg->resize_border_out = n < 0 ? 0 : n;
 	}
 }
 

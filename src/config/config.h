@@ -136,6 +136,11 @@ struct stonefly_config {
 	int ssd_height;	   /* logical px; default 28 */
 	int ssd_font_size; /* fcft pt; default 17 */
 
+	/* Border/corner resize hit slop (logical px). Inner = into the window from
+	 * the content/SSD edge; outer = past the drawn border. Both 0 disables. */
+	int resize_border_in;  /* default 3 */
+	int resize_border_out; /* default 1 */
+
 	char *cmd_foot;
 	char *cmd_nautilus;
 	char *cmd_ghostty;
