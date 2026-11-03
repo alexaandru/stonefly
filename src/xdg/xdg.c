@@ -350,8 +350,6 @@ void stonefly_begin_interactive(struct stonefly_toplevel *toplevel, enum stonefl
 		server->grab_x = server->cursor->x - toplevel->scene_tree->node.x;
 		server->grab_y = server->cursor->y - toplevel->scene_tree->node.y;
 		stonefly_drag_snap_begin(server, toplevel);
-		/* WM owns the pointer: grabbing face (theme alias of CSS grabbing). */
-		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "grabbing");
 	} else {
 		struct wlr_box *geo_box = &toplevel->xdg_toplevel->base->geometry;
 
@@ -367,11 +365,11 @@ void stonefly_begin_interactive(struct stonefly_toplevel *toplevel, enum stonefl
 		server->grab_geobox.y += toplevel->scene_tree->node.y;
 
 		server->resize_edges = edges;
-		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr,
-				       stonefly_resize_xcursor_name(edges));
 	}
-	/* Drop client pointer focus so set_cursor / shape requests stop fighting us. */
+	/* Drop client pointer focus first so a queued set_cursor cannot replace
+	 * the WM face; then assert grabbing / resize xcursor (with fallbacks). */
 	wlr_seat_pointer_notify_clear_focus(server->seat);
+	stonefly_seat_apply_grab_cursor(server);
 }
 
 static void xdg_toplevel_request_move(struct wl_listener *listener, void *data) {

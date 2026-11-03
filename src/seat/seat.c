@@ -76,6 +76,7 @@ static void stonefly_constraint_activate(struct stonefly_server *server,
 					 struct wlr_pointer_constraint_v1 *constraint);
 static void stonefly_constraint_deactivate(struct stonefly_server *server, bool warp_hint);
 static void process_cursor_motion(struct stonefly_server *server, uint32_t time);
+static void seat_set_xcursor_fallback(struct stonefly_server *server, const char *const *names);
 static struct stonefly_toplevel *border_resize_toplevel_at(struct stonefly_server *server,
 							   double lx, double ly,
 							   uint32_t *edges_out);
@@ -893,6 +894,8 @@ void stonefly_reset_cursor_mode(struct stonefly_server *server) {
 }
 
 static void process_cursor_move(struct stonefly_server *server) {
+	/* Keep WM face over any lingering client set_cursor surface. */
+	stonefly_seat_apply_grab_cursor(server);
 	/* Magnetic resistance + snap preview (peeble Move.Render). */
 	stonefly_drag_snap_motion(server);
 }
@@ -949,6 +952,7 @@ static void process_cursor_resize(struct stonefly_server *server) {
 	int new_width = new_right - new_left;
 	int new_height = new_bottom - new_top;
 	wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, new_width, new_height);
+	stonefly_seat_apply_grab_cursor(server);
 }
 
 static void process_cursor_motion(struct stonefly_server *server, uint32_t time) {
@@ -983,7 +987,22 @@ static void process_cursor_motion(struct stonefly_server *server, uint32_t time)
 		}
 	}
 
-	(void)toplevel;
+	/* SSD titlebar: no client surface — show move affordance before grab. */
+	if (surface == NULL && toplevel != NULL && toplevel->ssd != NULL) {
+		double hx, hy;
+		struct wlr_scene_node *node = wlr_scene_node_at(
+			&server->scene->tree.node, server->cursor->x, server->cursor->y, &hx, &hy);
+		struct stonefly_toplevel *ssd_tl = NULL;
+		if (node != NULL && stonefly_ssd_node_is_titlebar(node, &ssd_tl) &&
+		    ssd_tl == toplevel) {
+			static const char *const move_names[] = {"grabbing", "closedhand", "move",
+								 "fleur", NULL};
+			seat_set_xcursor_fallback(server, move_names);
+			wlr_seat_pointer_clear_focus(seat);
+			return;
+		}
+	}
+
 	if (surface == NULL) {
 		/* Empty desktop (or non-surface node): show the theme default.
 		 * Layer-shell surfaces still set surface and may set_cursor. */
@@ -1119,6 +1138,44 @@ const char *stonefly_resize_xcursor_name(uint32_t edges) {
 		return "w-resize";
 	}
 	return "se-resize";
+}
+
+static bool xcursor_theme_has(struct stonefly_server *server, const char *name) {
+	if (server->cursor_mgr == NULL || name == NULL) {
+		return false;
+	}
+	float scale = stonefly_output_scale_factor(server);
+	return wlr_xcursor_manager_get_xcursor(server->cursor_mgr, name, scale) != NULL;
+}
+
+static void seat_set_xcursor_fallback(struct stonefly_server *server, const char *const *names) {
+	for (size_t i = 0; names[i] != NULL; i++) {
+		if (xcursor_theme_has(server, names[i])) {
+			wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, names[i]);
+			return;
+		}
+	}
+	wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "default");
+}
+
+void stonefly_seat_apply_grab_cursor(struct stonefly_server *server) {
+	if (server == NULL || server->cursor == NULL || server->cursor_mgr == NULL) {
+		return;
+	}
+	if (server->cursor_mode == STONEFLY_CURSOR_MOVE) {
+		static const char *const move_names[] = {
+			"grabbing", "closedhand", "move", "fleur", "all-scroll", "size_all", NULL};
+		seat_set_xcursor_fallback(server, move_names);
+		return;
+	}
+	if (server->cursor_mode == STONEFLY_CURSOR_RESIZE) {
+		const char *name = stonefly_resize_xcursor_name(server->resize_edges);
+		if (xcursor_theme_has(server, name)) {
+			wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, name);
+		} else {
+			wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "default");
+		}
+	}
 }
 
 /* Content + SSD titlebar in layout coords (drawn border sits outside this). */

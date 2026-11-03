@@ -32,4 +32,9 @@ void stonefly_tap_disarm(struct stonefly_server *server);
 /* Xcursor name for resize edges (n-resize, se-resize, …). */
 const char *stonefly_resize_xcursor_name(uint32_t edges);
 
+/* Apply compositor face for the current MOVE/RESIZE grab (move → grabbing
+ * with fallbacks; resize → edge name). Call after entering a grab and on
+ * each grab motion so a prior client set_cursor surface cannot stick. */
+void stonefly_seat_apply_grab_cursor(struct stonefly_server *server);
+
 #endif
