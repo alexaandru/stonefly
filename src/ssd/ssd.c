@@ -9,6 +9,7 @@
 #include <wlr/types/wlr_pointer.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
+#include <scenefx/types/fx/clipped_region.h>
 #include <scenefx/types/wlr_scene.h>
 
 #include "config/config.h"
@@ -277,6 +278,14 @@ void stonefly_ssd_update(struct stonefly_toplevel *toplevel) {
 	wlr_scene_buffer_set_buffer(ssd->scene_buf, ssd->buffer);
 
 	wlr_scene_node_set_position(&ssd->scene_buf->node, -border, -height);
+	/*
+	 * SSD spans the outer chrome width and sits above the rounded border.
+	 * Round the top corners to the outer rim radius so the bar does not
+	 * poke square "horns" past the border silhouette.
+	 */
+	int inner = cfg->corner_radius;
+	int outer = inner > 0 ? inner + border : 0;
+	wlr_scene_buffer_set_corner_radii(ssd->scene_buf, corner_radii_top(outer));
 	wlr_scene_node_set_enabled(&ssd->scene_buf->node, true);
 	ssd->visible = true;
 }

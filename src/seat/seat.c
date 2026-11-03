@@ -188,6 +188,49 @@ static uint32_t cursor_size_from_env(uint32_t fallback) {
 	return (uint32_t)v;
 }
 
+/*
+ * Nested/headless: parent already applied HiDPI to XCURSOR_* (e.g. size 36 and
+ * Hackneyed-36px under output scale 1.5). Using those again with nested scale
+ * 1.0 makes the cursor huge once the parent scales our cursor surface. Mirror
+ * stonefly_output_scale_factor: logical defaults only when session == NULL.
+ */
+static uint32_t cursor_size_for_server(struct stonefly_server *server) {
+	uint32_t fallback = (uint32_t)stonefly_cfg(server)->cursor_size_default;
+	if (fallback < 1) {
+		fallback = 24;
+	}
+	if (server->session == NULL) {
+		return fallback;
+	}
+	return cursor_size_from_env(fallback);
+}
+
+/* Dup XCURSOR_THEME; when nested, strip a trailing "-NNpx" HiDPI variant. */
+static char *cursor_theme_dup(struct stonefly_server *server) {
+	const char *env = getenv("XCURSOR_THEME");
+	if (env == NULL || env[0] == '\0') {
+		return NULL;
+	}
+	size_t n = strlen(env);
+	size_t keep = n;
+	if (server->session == NULL && n > 4 && env[n - 2] == 'p' && env[n - 1] == 'x') {
+		size_t i = n - 3;
+		while (i > 0 && env[i] >= '0' && env[i] <= '9') {
+			i--;
+		}
+		if (i > 0 && env[i] == '-' && i + 1 < n - 2) {
+			keep = i;
+		}
+	}
+	char *out = malloc(keep + 1);
+	if (out == NULL) {
+		return NULL;
+	}
+	memcpy(out, env, keep);
+	out[keep] = '\0';
+	return out;
+}
+
 static void keyboard_handle_modifiers(struct wl_listener *listener, void *data) {
 	(void)data;
 	/* This event is raised when a modifier key, such as shift or alt, is
@@ -1203,21 +1246,19 @@ void stonefly_seat_setup(struct stonefly_server *server) {
 	wlr_cursor_attach_output_layout(server->cursor, server->output_layout);
 
 	/* setenv may invalidate getenv pointers; copy before mutating env. */
-	char *theme = NULL;
-	const char *env_theme = getenv("XCURSOR_THEME");
-	if (env_theme != NULL && env_theme[0] != '\0') {
-		theme = strdup(env_theme);
-	}
-	uint32_t size = cursor_size_from_env((uint32_t)stonefly_cfg(server)->cursor_size_default);
+	char *theme = cursor_theme_dup(server);
+	uint32_t size = cursor_size_for_server(server);
+	/* Keep clients spawned after seat setup on the same logical size. */
+	char sizebuf[16];
+	snprintf(sizebuf, sizeof(sizebuf), "%u", size);
+	setenv("XCURSOR_SIZE", sizebuf, 1);
 	if (theme != NULL) {
-		/* Keep clients spawned after seat setup on the same size. */
-		char sizebuf[16];
-		snprintf(sizebuf, sizeof(sizebuf), "%u", size);
-		setenv("XCURSOR_SIZE", sizebuf, 1);
+		setenv("XCURSOR_THEME", theme, 1);
 	}
 	server->cursor_mgr = wlr_xcursor_manager_create(theme, size);
 	wlr_xcursor_manager_load(server->cursor_mgr, stonefly_output_scale_factor(server));
-	SF_LOGI("cursor theme", sf_str("theme", theme != NULL ? theme : ""), sf_i64("size", size));
+	SF_LOGI("cursor theme", sf_str("theme", theme != NULL ? theme : ""), sf_i64("size", size),
+		sf_bool("nested", server->session == NULL));
 	free(theme);
 
 	server->cursor_mode = STONEFLY_CURSOR_PASSTHROUGH;

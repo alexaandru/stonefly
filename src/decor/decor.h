@@ -35,8 +35,8 @@ void stonefly_decor_refresh_blur(struct stonefly_toplevel *toplevel);
 
 /* Apply opacity + per-buffer corner radii (corner_radius; only geometry
  * outer corners each buffer covers — avoids foot CSD titlebar/body
- * hourglass). Edge-max: square corners, no border/shadow, blur+opacity on.
- * Fullscreen: opaque, no blur. */
+ * hourglass; SSD windows also skip client top radii). Edge-max: square
+ * corners, no border/shadow, blur+opacity on. Fullscreen: opaque, no blur. */
 void stonefly_decor_apply_buffers(struct stonefly_toplevel *toplevel);
 
 /* Refresh border from focus / urgent / bell-flash state. */

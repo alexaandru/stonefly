@@ -31,6 +31,10 @@ or Go conventions.
   parameters and locals.
 - **Line length:** keep at or under ~100 columns (current tree max is ~94).
 - **Trailing whitespace:** none.
+- **Blank lines:** no empty line right after `{` or right before `}`. Prefer
+  a blank line before `return` when the block has more than a couple of
+  lines (skip tiny early-return helpers). `.clang-format` `KeepEmptyLines`
+  strips start-of-block blanks; it does **not** insert blank-before-return.
 - **Comments:** `/* ... */` only. No `//`. Avoid `/*` inside block comments
   (clang `-Wcomment`); reword paths like `default/*` to “default config tree”.
 

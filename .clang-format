@@ -44,7 +44,13 @@ SortIncludes: Never
 IncludeBlocks: Preserve
 
 DerivePointerAlignment: false
-KeepEmptyLinesAtTheStartOfBlocks: false
+# No blank line right after `{` (or at EOF). Trailing blanks before `}` are
+# already dropped by clang-format 23. Blank-before-return is house style only
+# (fmt never inserts it) — see AGENTS.md.
+KeepEmptyLines:
+  AtEndOfFile: false
+  AtStartOfBlock: false
+  AtStartOfFile: true
 MaxEmptyLinesToKeep: 1
 ReflowComments: false
 InsertNewlineAtEOF: true

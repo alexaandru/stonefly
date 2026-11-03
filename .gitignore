@@ -10,6 +10,7 @@
 
 /dist/**/*.tar.gz
 /dist/alpine/src
+/run
 
 # meson
 /output/

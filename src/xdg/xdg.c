@@ -4,6 +4,7 @@
 #include <string.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
+#include <wlr/types/wlr_layer_shell_v1.h>
 #include <scenefx/types/wlr_scene.h>
 #include <wlr/types/wlr_xdg_activation_v1.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
@@ -16,6 +17,7 @@
 
 #include "anim/anim.h"
 #include "decor/decor.h"
+#include "layer/layer.h"
 #include "log/log.h"
 #include "output/output.h"
 #include "seat/seat.h"
@@ -496,27 +498,52 @@ static void xdg_popup_destroy_idle(void *data) {
 	wlr_xdg_popup_destroy(data);
 }
 
+static struct wlr_scene_tree *popup_parent_tree(struct wlr_surface *parent) {
+	if (parent == NULL) {
+		return NULL;
+	}
+	struct wlr_surface *root = wlr_surface_get_root_surface(parent);
+	if (root == NULL) {
+		root = parent;
+	}
+
+	struct wlr_xdg_surface *xdg = wlr_xdg_surface_try_from_wlr_surface(parent);
+	if (xdg == NULL && root != parent) {
+		xdg = wlr_xdg_surface_try_from_wlr_surface(root);
+	}
+	if (xdg != NULL && xdg->data != NULL) {
+		return xdg->data;
+	}
+
+	struct wlr_layer_surface_v1 *ls = wlr_layer_surface_v1_try_from_wlr_surface(root);
+	if (ls != NULL && ls->data != NULL) {
+		struct stonefly_layer_surface *layer = ls->data;
+		if (layer->popups != NULL) {
+			return layer->popups;
+		}
+	}
+
+	if (parent->data != NULL) {
+		return parent->data;
+	}
+	if (root != parent && root->data != NULL) {
+		return root->data;
+	}
+	return NULL;
+}
+
 static void server_new_xdg_popup(struct wl_listener *listener, void *data) {
 	struct stonefly_server *server = wl_container_of(listener, server, new_xdg_popup);
 	struct wlr_xdg_popup *xdg_popup = data;
 
-	/* Parent scene tree: xdg surfaces stash theirs on xdg_surface->data;
-	 * layer surfaces stash a popup tree on wlr_surface->data. */
-	struct wlr_scene_tree *parent_tree = NULL;
-	if (xdg_popup->parent != NULL) {
-		struct wlr_xdg_surface *xdg_parent =
-			wlr_xdg_surface_try_from_wlr_surface(xdg_popup->parent);
-		if (xdg_parent != NULL) {
-			parent_tree = xdg_parent->data;
-		} else {
-			parent_tree = xdg_popup->parent->data;
-		}
-	}
+	/* xdg parents stash the scene tree on xdg_surface->data. Layer-shell
+	 * parents arrive later via zwlr_layer_surface_v1.get_popup (parent is
+	 * NULL here); park under overlay until layer_surface_new_popup reparents. */
+	struct wlr_scene_tree *parent_tree = popup_parent_tree(xdg_popup->parent);
 	if (parent_tree == NULL) {
-		/* Noctalia taskbar tooltips often lack a resolvable parent tree.
-		 * wlr_xdg_popup_destroy() inside this signal SEGVs in wlroots
-		 * (ASan after "destroying" warn). Parent to overlay instead. */
-		SF_LOGW("xdg popup without parent scene tree; using overlay");
+		if (xdg_popup->parent != NULL) {
+			SF_LOGW("xdg popup without parent scene tree; using overlay");
+		}
 		parent_tree = server->layers.overlay;
 	}
 

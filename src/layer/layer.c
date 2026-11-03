@@ -255,6 +255,21 @@ static void layer_surface_commit(struct wl_listener *listener, void *data) {
 	}
 }
 
+/*
+ * Layer-shell popups are created with xdg parent NULL, then assigned here via
+ * zwlr_layer_surface_v1.get_popup. The xdg_shell new_popup handler parks them
+ * under overlay until this runs; reparent onto the layer popup tree.
+ */
+static void layer_surface_new_popup(struct wl_listener *listener, void *data) {
+	struct stonefly_layer_surface *layer = wl_container_of(listener, layer, new_popup);
+	struct wlr_xdg_popup *xdg_popup = data;
+	struct wlr_scene_tree *tree = xdg_popup->base->data;
+
+	if (tree != NULL) {
+		wlr_scene_node_reparent(&tree->node, layer->popups);
+	}
+}
+
 static void layer_surface_destroy(struct wl_listener *listener, void *data) {
 	(void)data;
 	struct stonefly_layer_surface *layer = wl_container_of(listener, layer, destroy);
@@ -272,6 +287,7 @@ static void layer_surface_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&layer->map.link);
 	wl_list_remove(&layer->unmap.link);
 	wl_list_remove(&layer->commit.link);
+	wl_list_remove(&layer->new_popup.link);
 	wl_list_remove(&layer->destroy.link);
 
 	/* scene_layer tree is destroyed with the wlr_layer_surface. */
@@ -351,6 +367,8 @@ static void server_new_layer_surface(struct wl_listener *listener, void *data) {
 	wl_signal_add(&ls->surface->events.unmap, &layer->unmap);
 	layer->commit.notify = layer_surface_commit;
 	wl_signal_add(&ls->surface->events.commit, &layer->commit);
+	layer->new_popup.notify = layer_surface_new_popup;
+	wl_signal_add(&ls->events.new_popup, &layer->new_popup);
 	layer->destroy.notify = layer_surface_destroy;
 	wl_signal_add(&ls->events.destroy, &layer->destroy);
 

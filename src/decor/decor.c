@@ -153,9 +153,12 @@ static void decor_set_chrome_enabled(struct stonefly_toplevel *toplevel, bool on
  * xdg_scene_tree space (see decor_update_geom). Foot CSD splits titlebar +
  * body into two buffers — corner_radii_all on both rounds the join and looks
  * like an hourglass; GTK often ships one buffer so all-four is fine.
+ * When SSD is shown the visual top is the titlebar, so client top radii stay
+ * 0 (same hourglass avoidance at the SSD/content join).
  */
 static struct fx_corner_radii corners_for_buffer(int sx, int sy, int bw, int bh,
-						 const struct wlr_box *geo, int radius) {
+						 const struct wlr_box *geo, int radius,
+						 bool round_top) {
 	if (radius <= 0 || bw <= 0 || bh <= 0 || geo->width <= 0 || geo->height <= 0) {
 		return corner_radii_none();
 	}
@@ -166,10 +169,11 @@ static struct fx_corner_radii corners_for_buffer(int sx, int sy, int bw, int bh,
 	const int bottom = geo->height - 1;
 	const int x1 = sx + bw;
 	const int y1 = sy + bh;
+	const int top_r = round_top ? radius : 0;
 
 	return corner_radii_new(
-		(left >= sx && left < x1 && top >= sy && top < y1) ? radius : 0,
-		(right >= sx && right < x1 && top >= sy && top < y1) ? radius : 0,
+		(left >= sx && left < x1 && top >= sy && top < y1) ? top_r : 0,
+		(right >= sx && right < x1 && top >= sy && top < y1) ? top_r : 0,
 		(right >= sx && right < x1 && bottom >= sy && bottom < y1) ? radius : 0,
 		(left >= sx && left < x1 && bottom >= sy && bottom < y1) ? radius : 0);
 }
@@ -214,7 +218,9 @@ static void iter_apply_buffers(struct wlr_scene_buffer *buffer, int sx, int sy, 
 	struct wlr_box *geo = &ctx->toplevel->xdg_toplevel->base->geometry;
 	/* Same radius as CSD / border hole — do not use outer. */
 	int radius = ctx->chrome ? ctx->radius : 0;
-	wlr_scene_buffer_set_corner_radii(buffer, corners_for_buffer(sx, sy, bw, bh, geo, radius));
+	bool round_top = !stonefly_ssd_should_show(ctx->toplevel);
+	wlr_scene_buffer_set_corner_radii(
+		buffer, corners_for_buffer(sx, sy, bw, bh, geo, radius, round_top));
 }
 
 static void decor_apply_buffers_focused(struct stonefly_toplevel *toplevel, bool focused) {

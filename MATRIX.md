@@ -65,7 +65,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Scratchpad claim focused | ✅ Super+t | — | ✅ | |
 | Scratchpad omit from Alt-Tab | ✅ | — | ✅ | Super+Tab too |
 | Window menu | ✅ | — | ❌ | |
-| SSD titlebars | ✅ River `use_ssd` | Polish / force-SSD rules 📋 | ✅ | `ssd_mode` (`auto`/`prefer_ssd`/`always`/`never`, default `auto`) + `ssd_height` (28). Honors client `request_mode` within policy; fcft+pixman titlebar (title, min/max/close); hide on fullscreen/edge-max; TopInset in ensure-on-screen. Pointer: drag, dblclick gap-max, buttons. Per-app overrides / winmenu still open. **Fixed:** Chrome early bind — defer `set_mode` until `xdg_surface` initialized. |
+| SSD titlebars | ✅ River `use_ssd` | Polish / force-SSD rules 📋 | ✅ | `ssd_mode` (`auto`/`prefer_ssd`/`always`/`never`, default `auto`) + `ssd_height` (28). Honors client `request_mode` within policy; fcft+pixman titlebar (title, min/max/close); hide on fullscreen/edge-max; TopInset in ensure-on-screen. Pointer: drag, dblclick gap-max, buttons. Per-app overrides / winmenu still open. **Fixed:** Chrome early bind — defer `set_mode` until `xdg_surface` initialized. **Fixed:** square titlebar “horns” over rounded chrome — SSD buffer uses outer `corner_radii_top`; client buffers skip top radii while SSD is shown. |
 | Geometry persist across restart | ✅ `windows.json` by river id | Schema / blacklist / MRU polish 📋 | ❌ | |
 | Window rules (app-id/title) | 🚧 center + modal parent | auto-float, size, scratchpad, AOT, force SSD 📋 | ❌ | |
 | Keyboard nudge move/resize | ❌ | 📋 high-value | ❌ | Snap exists; step nudge does not |
@@ -114,14 +114,14 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Feature | Peeble shipped | Peeble roadmap / Ideas | Stonefly | Notes |
 |---|---|---|---|---|
 | Status bar | ✅ rich widgets | Taskbar v2, overflow modes, FuncMap 📋 | 🌙 | Noctalia |
-| Taskbar / app icons | ✅ | Middle-click close, group-by-app, urgency badge 📋 | 🌙 | Scratch `term` placeholder icon — see Named scratchpads. **Crash:** taskbar tooltip `xdg_popup` with no parent scene tree. Null-check alone insufficient — `wlr_xdg_popup_destroy` inside `new_popup` still SEGVs in wlroots. Now parents orphans to `layers.overlay` (idle-destroy only on OOM). |
+| Taskbar / app icons | ✅ | Middle-click close, group-by-app, urgency badge 📋 | 🌙 | Scratch `term` placeholder icon — see Named scratchpads. Layer-shell tooltips: `xdg_shell.new_popup` arrives with parent NULL (protocol); park under overlay, then `zwlr_layer_surface_v1.get_popup` → `layer.events.new_popup` reparents onto `layer->popups`. True orphans (parent set but unresolvable) still WARN + overlay; idle-destroy only on OOM. |
 | Unread title-regex badges | ✅ Slack / Gmail | Live notify unread semantics 📋 | 🌙 | |
 | Launcher | ✅ fuzzy + plugins | Grid / categories / emoji Ideas 📋 | 🌙 | Super tap → `noctalia msg panel-toggle launcher`. OTP provider under `dist/noctalia/launcher/provider/otp/` — path source must be additive; a lone `[[plugins.source]]` replaces default `official`+`community` git sources (restore via `plugins source add` or keep those blocks in config). |
 | OSD cards (vol/bright/…) | ✅ | Richer network OSD 📋 | 🌙 | XF86* / media / mic / brightness binds → `noctalia msg` |
 | Notification toasts | ✅ FDO server | Notification center UI Ideas 📋 | 🌙 | Noctalia notifier |
 | Wallpaper engine | ✅ slideshow + transitions + cache | Video/shader Ideas 📋 | 🌙 / ❌ | Layer-shell wallpaper clients OK; no in-process engine |
 | Window snap preview (WM) | ✅ | — | ✅ | In compositor (not shell) |
-| SSD / winmenu chrome | ✅ | — | 🚧 | SSD titlebars ✅; winmenu ❌ |
+| SSD / winmenu chrome | ✅ | — | 🚧 | SSD titlebars ✅ (rounded top matches outer chrome); winmenu ❌ |
 | Idle ceremony / lock / DPMS | ✅ | Lock polish Ideas 📋 | ✅ | `ext-session-lock-v1` + `zwlr-output-power-management-v1` (`session/session.c`). Blank retained if lock client dies. Auto-lock / PrepareForSleep are Noctalia-side on top of idle-notify. |
 | Caffeine (idle-inhibit) | ✅ | — | ✅ | `zwp_idle_inhibit_v1` → `ext-idle-notify-v1` inhibit |
 | Night light (gamma) | ✅ | Schedule timer 📋 | ✅ | `zwlr_gamma_control_v1` + SceneFX `wlr_scene_set_gamma_control_manager_v1` (`server.c`). Schedule stays Noctalia-side. |
@@ -161,7 +161,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | wp_fractional_scale + viewporter | ✅ all chrome (`surfscale`) | — | ✅ | DRM: scale 1.5 (`STONEFLY_OUTPUT_SCALE`). Nested/headless (`session == NULL`): scale 1.0 so Umbriel embed is not double-scaled. |
 | zxdg_output_v1 | ✅ | — | ✅ | `wlr_xdg_output_manager_v1` on output layout (`server.c`). Logical size for Noctalia floating-panel margins under fractional scale. |
 | wp_cursor_shape_v1 | ✅ | `all_resize` / `dnd_ask` 📋 | ✅ v2 | Named shapes for clients |
-| XCURSOR_THEME / SIZE | ✅ | — | ✅ | `seat.c`: strdup theme before `setenv(XCURSOR_SIZE)` (getenv ptr invalid after setenv). |
+| XCURSOR_THEME / SIZE | ✅ | — | ✅ | `seat.c`: strdup theme before `setenv` (getenv ptr invalid after setenv). Nested/headless (`session == NULL`): use config `cursor_size` (not inherited HiDPI `XCURSOR_SIZE`) and strip `-NNpx` theme suffixes (`Hackneyed-36px` → `Hackneyed`) — same “parent already scaled” rule as `output_scale` 1.0. |
 | wlr-output-management | ✅ `output()` | — | ✅ | `wlr_output_manager_v1` apply/test (`output.c`); `wlr_output_head_v1_state_apply` + layout pos; `set_configuration` on new/destroy/apply/request_state. |
 | ext-data-control clipboard | ✅ | Primary-selection history Ideas 📋 | ✅ | `ext-data-control-v1` + legacy `wlr-data-control-v1` + `wp_primary_selection` (`server.c` / seat). |
 | Screenshots (fullscreen/window/region) | ✅ ext-image-copy-capture | Include-cursor polish 📋 | 🌙 / ✅ | Print binds → noctalia. `ext-image-copy-capture` + toplevel capture (`ext_capture.c`) + `zwlr_screencopy_manager_v1` (`server.c`). Capture privacy (#1481) ✅ for toplevel image-capture. |
