@@ -1,5 +1,3 @@
-#define _POSIX_C_SOURCE 200809L
-
 #include <stdlib.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_idle_inhibit_v1.h>

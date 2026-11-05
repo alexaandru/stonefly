@@ -1,5 +1,3 @@
-#define _POSIX_C_SOURCE 200809L
-
 #include <string.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 

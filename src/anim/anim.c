@@ -1,5 +1,3 @@
-#define _POSIX_C_SOURCE 200809L
-
 #include <math.h>
 #include <stdlib.h>
 #include <wlr/types/wlr_output.h>

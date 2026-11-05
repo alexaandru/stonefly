@@ -1,5 +1,3 @@
-#define _POSIX_C_SOURCE 200809L
-
 #include <stdlib.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_xdg_shell.h>

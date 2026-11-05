@@ -28,7 +28,7 @@ Checks: >
   -misc-unused-parameters
 
 # Everything enabled above fails the build (abuild check / make tidy).
-WarningsAsErrors: '*'
+WarningsAsErrors: "*"
 
 # Diagnostics from headers only when they are *our* modules — not Meson
 # generated *-protocol.h under stonefly.p/, embed stamps, or /usr includes.
@@ -36,9 +36,9 @@ HeaderFilterRegex: '(\.\./)?src/(anim|config|dbus|decor|effect|ipc|layer|log|out
 FormatStyle: file
 
 CheckOptions:
-  bugprone-assert-side-effect.AssertMacros: 'assert'
+  bugprone-assert-side-effect.AssertMacros: "assert"
   # Feature-test macro required by POSIX; still catch any other _Reserved name.
-  bugprone-reserved-identifier.AllowedIdentifiers: '^_POSIX_C_SOURCE$'
+  #bugprone-reserved-identifier.AllowedIdentifiers: '^_POSIX_C_SOURCE$'
   readability-inconsistent-declaration-parameter-name.IgnoreMacros: true
 
 # Disabled-check rationale (do not expand without cause):

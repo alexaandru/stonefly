@@ -1,5 +1,3 @@
-#define _POSIX_C_SOURCE 200809L
-
 #include <errno.h>
 #include <linux/input-event-codes.h>
 #include <stdint.h>
