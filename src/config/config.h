@@ -21,6 +21,7 @@ struct stonefly_server;
 #define STONEFLY_SHIFT ((uint32_t)WLR_MODIFIER_SHIFT)
 
 #define STONEFLY_SCRATCHPAD_MAX 8
+#define STONEFLY_WINDOW_RULE_MAX 64
 
 enum stonefly_action {
 	STONEFLY_ACTION_NONE = 0,
@@ -85,6 +86,27 @@ struct stonefly_scratchpad_spec {
 	char *app_id; /* match for spawn claim; empty = first map while pending */
 	/* Hide when focus moves to another window on the same output (peeble). */
 	bool auto_hide;
+};
+
+/* Fennel window_rule(match, actions [, parent]). Parent merge baked in.
+ * app_id / title are Lua patterns (string.find); empty/NULL = any. */
+struct stonefly_window_rule {
+	char id[40];
+	char parent_id[40];
+	char *app_id;
+	char *title;
+	bool center;
+	bool center_set;
+	bool float_win;
+	bool float_set;
+	bool borderless;
+	bool borderless_set;
+	bool ssd_set;
+	int ssd_mode; /* enum stonefly_ssd_mode when ssd_set */
+	bool width_set;
+	bool height_set;
+	int width;
+	int height;
 };
 
 struct stonefly_config {
@@ -157,6 +179,8 @@ struct stonefly_config {
 	size_t n_tapbinds;
 	struct stonefly_scratchpad_spec *scratchpads;
 	size_t n_scratchpads;
+	struct stonefly_window_rule *window_rules;
+	size_t n_window_rules;
 
 	/* LuaJIT state; NULL when STONEFLY_NOCONFIG or before load. */
 	void *lua; /* lua_State * — opaque here to avoid forcing luajit.h on all TUs */

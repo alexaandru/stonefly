@@ -34,6 +34,8 @@ struct lua_runtime {
 	bool binds_replaced;
 	bool taps_replaced;
 	bool scratches_replaced;
+	bool rules_replaced;
+	unsigned rule_seq;
 };
 
 static struct lua_runtime *G;
@@ -415,6 +417,318 @@ static void clear_scratchpads(struct stonefly_config *cfg) {
 	free(cfg->scratchpads);
 	cfg->scratchpads = NULL;
 	cfg->n_scratchpads = 0;
+}
+
+static void clear_window_rules(struct stonefly_config *cfg) {
+	for (size_t i = 0; i < cfg->n_window_rules; i++) {
+		free(cfg->window_rules[i].app_id);
+		free(cfg->window_rules[i].title);
+	}
+	free(cfg->window_rules);
+	cfg->window_rules = NULL;
+	cfg->n_window_rules = 0;
+}
+
+bool stonefly_lua_pattern_match(const struct stonefly_config *cfg, const char *subject,
+				const char *pattern) {
+	if (pattern == NULL || pattern[0] == '\0') {
+		return true;
+	}
+	if (subject == NULL || cfg == NULL || cfg->lua == NULL) {
+		return false;
+	}
+	struct lua_runtime *rt = cfg->lua;
+	lua_State *L = rt->L;
+	if (L == NULL) {
+		return false;
+	}
+	lua_getglobal(L, "string");
+	lua_getfield(L, -1, "find");
+	lua_remove(L, -2);
+	lua_pushstring(L, subject);
+	lua_pushstring(L, pattern);
+	if (lua_pcall(L, 2, 1, 0) != LUA_OK) {
+		lua_pop(L, 1);
+		return false;
+	}
+	bool ok = !lua_isnil(L, -1);
+	lua_pop(L, 1);
+	return ok;
+}
+
+/* Reject bad patterns at config load (string.find("", pat)). */
+static int check_lua_pattern(lua_State *L, const char *pat, const char *which) {
+	lua_getglobal(L, "string");
+	lua_getfield(L, -1, "find");
+	lua_remove(L, -2);
+	lua_pushliteral(L, "");
+	lua_pushstring(L, pat);
+	if (lua_pcall(L, 2, 0, 0) != LUA_OK) {
+		const char *err = lua_tostring(L, -1);
+		return luaL_error(L, "window_rule: bad %s pattern: %s", which,
+				  err != NULL ? err : "?");
+	}
+	return 0;
+}
+
+static const struct stonefly_window_rule *find_window_rule(const struct stonefly_config *cfg,
+							   const char *id) {
+	if (id == NULL || id[0] == '\0') {
+		return NULL;
+	}
+	for (size_t i = 0; i < cfg->n_window_rules; i++) {
+		if (strcmp(cfg->window_rules[i].id, id) == 0) {
+			return &cfg->window_rules[i];
+		}
+	}
+	return NULL;
+}
+
+static int parse_rule_match(lua_State *L, int idx, struct stonefly_window_rule *out) {
+	if (!lua_istable(L, idx)) {
+		return luaL_error(L, "window_rule: match must be a table");
+	}
+	lua_pushnil(L);
+	while (lua_next(L, idx) != 0) {
+		const char *k = lua_tostring(L, -2);
+		if (k == NULL) {
+			lua_pop(L, 1);
+			continue;
+		}
+		if (strcmp(k, "app_id") == 0) {
+			const char *s = lua_tostring(L, -1);
+			if (s == NULL) {
+				return luaL_error(L, "window_rule: match.app_id must be a string");
+			}
+			check_lua_pattern(L, s, "app_id");
+			free(out->app_id);
+			out->app_id = xstrdup(s);
+		} else if (strcmp(k, "title") == 0) {
+			const char *s = lua_tostring(L, -1);
+			if (s == NULL) {
+				return luaL_error(L, "window_rule: match.title must be a string");
+			}
+			check_lua_pattern(L, s, "title");
+			free(out->title);
+			out->title = xstrdup(s);
+		} else if (strcmp(k, "title_exact") == 0) {
+			return luaL_error(L,
+					  "window_rule: title_exact removed; use title \"^...$\" "
+					  "(Lua pattern)");
+		} else {
+			return luaL_error(L, "window_rule: unknown match key %s", k);
+		}
+		lua_pop(L, 1);
+	}
+	return 0;
+}
+
+static int parse_rule_actions(lua_State *L, int idx, struct stonefly_window_rule *out) {
+	if (!lua_istable(L, idx)) {
+		return luaL_error(L, "window_rule: actions must be a table");
+	}
+	lua_pushnil(L);
+	while (lua_next(L, idx) != 0) {
+		const char *k = lua_tostring(L, -2);
+		if (k == NULL) {
+			lua_pop(L, 1);
+			continue;
+		}
+		if (strcmp(k, "center") == 0) {
+			if (!lua_isboolean(L, -1)) {
+				return luaL_error(L, "window_rule: actions.center must be a bool");
+			}
+			out->center = lua_toboolean(L, -1);
+			out->center_set = true;
+		} else if (strcmp(k, "float") == 0) {
+			if (!lua_isboolean(L, -1)) {
+				return luaL_error(L, "window_rule: actions.float must be a bool");
+			}
+			out->float_win = lua_toboolean(L, -1);
+			out->float_set = true;
+		} else if (strcmp(k, "borderless") == 0) {
+			if (!lua_isboolean(L, -1)) {
+				return luaL_error(L,
+						  "window_rule: actions.borderless must be a bool");
+			}
+			out->borderless = lua_toboolean(L, -1);
+			out->borderless_set = true;
+		} else if (strcmp(k, "ssd") == 0) {
+			const char *s = lua_tostring(L, -1);
+			if (s == NULL) {
+				return luaL_error(L, "window_rule: actions.ssd must be a string");
+			}
+			out->ssd_mode = (int)stonefly_ssd_mode_parse(s);
+			out->ssd_set = true;
+		} else if (strcmp(k, "width") == 0) {
+			if (!lua_isnumber(L, -1)) {
+				return luaL_error(L, "window_rule: actions.width must be a number");
+			}
+			int w = (int)lua_tonumber(L, -1);
+			if (w < 1) {
+				return luaL_error(L, "window_rule: actions.width must be >= 1");
+			}
+			out->width = w;
+			out->width_set = true;
+		} else if (strcmp(k, "height") == 0) {
+			if (!lua_isnumber(L, -1)) {
+				return luaL_error(L,
+						  "window_rule: actions.height must be a number");
+			}
+			int h = (int)lua_tonumber(L, -1);
+			if (h < 1) {
+				return luaL_error(L, "window_rule: actions.height must be >= 1");
+			}
+			out->height = h;
+			out->height_set = true;
+		} else {
+			return luaL_error(L, "window_rule: unknown actions key %s", k);
+		}
+		lua_pop(L, 1);
+	}
+	return 0;
+}
+
+static void merge_window_rule(struct stonefly_window_rule *dst,
+			      const struct stonefly_window_rule *parent,
+			      const struct stonefly_window_rule *child) {
+	*dst = (struct stonefly_window_rule){0};
+	snprintf(dst->id, sizeof dst->id, "%s", child->id);
+	snprintf(dst->parent_id, sizeof dst->parent_id, "%s", parent->id);
+
+	dst->app_id = parent->app_id != NULL ? xstrdup(parent->app_id) : NULL;
+	dst->title = parent->title != NULL ? xstrdup(parent->title) : NULL;
+	if (child->app_id != NULL && child->app_id[0] != '\0') {
+		free(dst->app_id);
+		dst->app_id = xstrdup(child->app_id);
+	}
+	if (child->title != NULL && child->title[0] != '\0') {
+		free(dst->title);
+		dst->title = xstrdup(child->title);
+	}
+
+	dst->center = parent->center;
+	dst->center_set = parent->center_set;
+	dst->float_win = parent->float_win;
+	dst->float_set = parent->float_set;
+	dst->borderless = parent->borderless;
+	dst->borderless_set = parent->borderless_set;
+	dst->ssd_set = parent->ssd_set;
+	dst->ssd_mode = parent->ssd_mode;
+	dst->width_set = parent->width_set;
+	dst->height_set = parent->height_set;
+	dst->width = parent->width;
+	dst->height = parent->height;
+
+	if (child->center_set) {
+		dst->center = child->center;
+		dst->center_set = true;
+	}
+	if (child->float_set) {
+		dst->float_win = child->float_win;
+		dst->float_set = true;
+	}
+	if (child->borderless_set) {
+		dst->borderless = child->borderless;
+		dst->borderless_set = true;
+	}
+	if (child->ssd_set) {
+		dst->ssd_mode = child->ssd_mode;
+		dst->ssd_set = true;
+	}
+	if (child->width_set) {
+		dst->width = child->width;
+		dst->width_set = true;
+	}
+	if (child->height_set) {
+		dst->height = child->height;
+		dst->height_set = true;
+	}
+}
+
+/*
+ * window_rule(match, actions [, parent_tag]) → tag string
+ * Parent composition: child overwrites keys it sets (peeble window_rule).
+ */
+static int l_window_rule(lua_State *L) {
+	int narg = lua_gettop(L);
+	if (narg < 2 || narg > 3) {
+		return luaL_error(
+			L, "window_rule expects (match, actions) or (match, actions, parent)");
+	}
+	if (G == NULL) {
+		return luaL_error(L, "window_rule: no runtime");
+	}
+	struct stonefly_config *cfg = &G->server->config;
+	if (!G->rules_replaced) {
+		clear_window_rules(cfg);
+		G->rules_replaced = true;
+		G->rule_seq = 0;
+	}
+	if (cfg->n_window_rules >= STONEFLY_WINDOW_RULE_MAX) {
+		return luaL_error(L, "window_rule: max %d", STONEFLY_WINDOW_RULE_MAX);
+	}
+
+	struct stonefly_window_rule raw = {0};
+	parse_rule_match(L, 1, &raw);
+	parse_rule_actions(L, 2, &raw);
+
+	/* Parent id only — realloc may move window_rules; re-resolve after. */
+	char parent_id[40] = {0};
+	if (narg == 3 && !lua_isnil(L, 3)) {
+		const char *pid = lua_tostring(L, 3);
+		if (pid == NULL || pid[0] == '\0') {
+			free(raw.app_id);
+			free(raw.title);
+			return luaL_error(L, "window_rule: parent must be a rule tag string");
+		}
+		if (find_window_rule(cfg, pid) == NULL) {
+			free(raw.app_id);
+			free(raw.title);
+			return luaL_error(L, "window_rule: unknown parent tag %s", pid);
+		}
+		snprintf(parent_id, sizeof parent_id, "%s", pid);
+	}
+
+	G->rule_seq++;
+	snprintf(raw.id, sizeof raw.id, "rule-%u", G->rule_seq);
+
+	struct stonefly_window_rule *nb =
+		realloc(cfg->window_rules, (cfg->n_window_rules + 1) * sizeof *nb);
+	if (nb == NULL) {
+		free(raw.app_id);
+		free(raw.title);
+		return luaL_error(L, "window_rule: OOM");
+	}
+	cfg->window_rules = nb;
+	struct stonefly_window_rule *dst = &cfg->window_rules[cfg->n_window_rules];
+
+	if (parent_id[0] != '\0') {
+		const struct stonefly_window_rule *parent = find_window_rule(cfg, parent_id);
+		if (parent == NULL) {
+			free(raw.app_id);
+			free(raw.title);
+			return luaL_error(L, "window_rule: unknown parent tag %s", parent_id);
+		}
+		merge_window_rule(dst, parent, &raw);
+		free(raw.app_id);
+		free(raw.title);
+	} else {
+		*dst = raw;
+		raw.app_id = NULL;
+		raw.title = NULL;
+	}
+
+	bool has_match = (dst->app_id != NULL && dst->app_id[0] != '\0') ||
+			 (dst->title != NULL && dst->title[0] != '\0');
+	if (!has_match) {
+		free(dst->app_id);
+		free(dst->title);
+		return luaL_error(L, "window_rule: match needs app_id or title");
+	}
+	cfg->n_window_rules++;
+	lua_pushstring(L, dst->id);
+	return 1;
 }
 
 /*
@@ -843,6 +1157,8 @@ static void push_stonefly_table(struct lua_runtime *rt) {
 	lua_setfield(L, -2, "tap");
 	lua_pushcfunction(L, l_scratchpad);
 	lua_setfield(L, -2, "scratchpad");
+	lua_pushcfunction(L, l_window_rule);
+	lua_setfield(L, -2, "window_rule");
 
 	/* stonefly.opt with __newindex */
 	lua_newtable(L); /* opt */

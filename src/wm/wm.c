@@ -19,6 +19,7 @@
 #include "session/session.h"
 #include "ssd/ssd.h"
 #include "toplevel/foreign.h"
+#include "wm/rules.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
@@ -174,6 +175,7 @@ void stonefly_toplevel_restore_saved(struct stonefly_toplevel *toplevel) {
 	toplevel->maximized_gaps = false;
 	toplevel->fullscreen = false;
 	toplevel->snapped = STONEFLY_SNAP_NONE;
+	stonefly_toplevel_clear_auto_place(toplevel);
 	toplevel_set_tiled(toplevel, 0);
 	/* Morph snap and max restores; fullscreen leave stays instant. */
 	if (!was_fullscreen && (was_snapped || was_max)) {
@@ -208,6 +210,29 @@ void stonefly_toplevel_apply_saved_at(struct stonefly_toplevel *toplevel, int x,
 	toplevel->snapped = STONEFLY_SNAP_NONE;
 	toplevel_set_tiled(toplevel, 0);
 	stonefly_decor_update_geom(toplevel);
+}
+
+void stonefly_toplevel_float_for_resize(struct stonefly_toplevel *toplevel) {
+	if (toplevel == NULL) {
+		return;
+	}
+	bool was_edges = toplevel->maximized_edges;
+	bool was_gaps = toplevel->maximized_gaps;
+	bool was_snap = toplevel->snapped != STONEFLY_SNAP_NONE;
+	if (!was_edges && !was_gaps && !was_snap) {
+		return;
+	}
+	if (was_edges && xdg_surface_ready(toplevel)) {
+		wlr_xdg_toplevel_set_maximized(toplevel->xdg_toplevel, false);
+	}
+	toplevel->maximized_edges = false;
+	toplevel->maximized_gaps = false;
+	toplevel->snapped = STONEFLY_SNAP_NONE;
+	toplevel->has_saved_geom = false;
+	stonefly_toplevel_clear_auto_place(toplevel);
+	toplevel_set_tiled(toplevel, 0);
+	stonefly_decor_update_geom(toplevel);
+	stonefly_foreign_toplevel_on_state_change(toplevel);
 }
 
 void stonefly_toplevel_set_max_edges(struct stonefly_toplevel *toplevel, bool want) {
@@ -247,6 +272,7 @@ void stonefly_toplevel_set_max_edges(struct stonefly_toplevel *toplevel, bool wa
 	stonefly_toplevel_save_geom(toplevel);
 	toplevel->snapped = STONEFLY_SNAP_NONE;
 	toplevel->maximized_gaps = false;
+	stonefly_toplevel_clear_auto_place(toplevel);
 	stonefly_cover_fractional_gap(toplevel->server, &out);
 	wlr_xdg_toplevel_set_maximized(toplevel->xdg_toplevel, true);
 	toplevel->maximized_edges = true;
@@ -316,6 +342,7 @@ void stonefly_toplevel_set_fullscreen(struct stonefly_toplevel *toplevel, bool w
 	}
 	toplevel->maximized_gaps = false;
 	toplevel->snapped = STONEFLY_SNAP_NONE;
+	stonefly_toplevel_clear_auto_place(toplevel);
 	toplevel_set_tiled(toplevel, 0);
 
 	struct wlr_box out;
@@ -367,6 +394,7 @@ void stonefly_toplevel_set_max_gaps(struct stonefly_toplevel *toplevel, bool wan
 	toplevel_set_tiled(toplevel, 0);
 	stonefly_box_inset_gap(&out, stonefly_cfg(toplevel->server)->gap_size);
 	box_inset_ssd_top(toplevel, &out);
+	stonefly_toplevel_clear_auto_place(toplevel);
 	toplevel->maximized_gaps = true;
 	toplevel_try_morph_to(toplevel, &out);
 	stonefly_decor_update_geom(toplevel);
@@ -442,6 +470,7 @@ void stonefly_toplevel_snap_in(struct stonefly_toplevel *toplevel, enum stonefly
 		return;
 	}
 	toplevel->snapped = edge;
+	stonefly_toplevel_clear_auto_place(toplevel);
 	toplevel_set_tiled(toplevel, tiled_edges_for(edge));
 	/* start_morph retargets from the current live rect when already morphing. */
 	toplevel_try_morph_to(toplevel, &box);
@@ -587,6 +616,13 @@ void stonefly_toplevel_unsnap(struct stonefly_toplevel *toplevel) {
 	stonefly_toplevel_restore_saved(toplevel);
 }
 
+void stonefly_toplevel_clear_auto_place(struct stonefly_toplevel *toplevel) {
+	if (toplevel != NULL) {
+		toplevel->auto_place = false;
+		toplevel->soft_place = false;
+	}
+}
+
 void stonefly_toplevel_place_cascade(struct stonefly_toplevel *toplevel) {
 	struct stonefly_server *server = toplevel->server;
 	struct wlr_box out = {0};
@@ -612,9 +648,183 @@ void stonefly_toplevel_place_cascade(struct stonefly_toplevel *toplevel) {
 	int top_inset = stonefly_ssd_top_inset(toplevel);
 	int x = out.x + offset;
 	int y = out.y + top_inset + offset;
-	wlr_scene_node_set_position(&toplevel->scene_tree->node, x, y);
-	toplevel->resting_x = x;
-	toplevel->resting_y = y;
+	toplevel_set_resting(toplevel, x, y);
+}
+
+static struct stonefly_toplevel *toplevel_from_xdg_parent(struct wlr_xdg_toplevel *xdg) {
+	if (xdg == NULL || xdg->base == NULL || xdg->base->data == NULL) {
+		return NULL;
+	}
+	struct wlr_scene_tree *tree = xdg->base->data;
+	if (tree->node.data == NULL) {
+		return NULL;
+	}
+	struct stonefly_toplevel *t = tree->node.data;
+	if (t->kind != STONEFLY_NODE_TOPLEVEL || t->xdg_toplevel != xdg) {
+		return NULL;
+	}
+	return t;
+}
+
+/* Visible parent suitable as a centering anchor (mapped, not hidden). */
+static struct stonefly_toplevel *visible_parent(struct stonefly_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->xdg_toplevel == NULL) {
+		return NULL;
+	}
+	struct stonefly_toplevel *parent = toplevel_from_xdg_parent(toplevel->xdg_toplevel->parent);
+	if (parent == NULL || parent->minimized || parent->anim_hide) {
+		return NULL;
+	}
+	if (parent->scene_tree == NULL || !parent->scene_tree->node.enabled) {
+		return NULL;
+	}
+	return parent;
+}
+
+static void placement_size(struct stonefly_toplevel *toplevel, int *w, int *h) {
+	struct wlr_box geom;
+	stonefly_toplevel_layout_geom(toplevel, &geom);
+	*w = geom.width;
+	*h = geom.height;
+	if (*w > 0 && *h > 0) {
+		return;
+	}
+	/* Prefer client min hints over 1×1 so late commits re-center cleanly. */
+	if (toplevel->xdg_toplevel != NULL) {
+		int32_t mw = toplevel->xdg_toplevel->current.min_width;
+		int32_t mh = toplevel->xdg_toplevel->current.min_height;
+		if (*w <= 0 && mw > 0) {
+			*w = mw;
+		}
+		if (*h <= 0 && mh > 0) {
+			*h = mh;
+		}
+	}
+	if (*w <= 0) {
+		*w = 1;
+	}
+	if (*h <= 0) {
+		*h = 1;
+	}
+}
+
+static void clamp_pos_to_area(int *x, int *y, int w, int h, const struct wlr_box *area,
+			      int top_inset) {
+	if (area == NULL || area->width <= 0 || area->height <= 0) {
+		return;
+	}
+	int min_y = area->y + top_inset;
+	if (*x + w > area->x + area->width) {
+		*x = area->x + area->width - w;
+	}
+	if (*y + h > area->y + area->height) {
+		*y = area->y + area->height - h;
+	}
+	if (*x < area->x) {
+		*x = area->x;
+	}
+	if (*y < min_y) {
+		*y = min_y;
+	}
+}
+
+static bool place_on_parent(struct stonefly_toplevel *toplevel) {
+	struct stonefly_toplevel *parent = visible_parent(toplevel);
+	if (parent == NULL) {
+		return false;
+	}
+
+	struct wlr_box parent_geom;
+	stonefly_toplevel_layout_geom(parent, &parent_geom);
+
+	struct wlr_box area = {0};
+	double pcx = parent_geom.x + parent_geom.width / 2.0;
+	double pcy = parent_geom.y + parent_geom.height / 2.0;
+	if (!stonefly_layout_usable_at(toplevel->server, pcx, pcy, &area)) {
+		if (!stonefly_toplevel_output_box(toplevel, &area)) {
+			return false;
+		}
+	}
+	stonefly_box_inset_gap(&area, stonefly_cfg(toplevel->server)->gap_size);
+
+	struct wlr_box anchor = parent_geom;
+	if (anchor.width <= 0 || anchor.height <= 0) {
+		anchor = area;
+	}
+
+	int w, h;
+	placement_size(toplevel, &w, &h);
+	int top_inset = stonefly_ssd_top_inset(toplevel);
+	int x = anchor.x + (anchor.width - w) / 2;
+	int y = anchor.y + (anchor.height - h) / 2;
+	clamp_pos_to_area(&x, &y, w, h, &area, top_inset);
+	toplevel_set_resting(toplevel, x, y);
+
+	/* Stack above the parent in the same scene tree when possible. */
+	if (toplevel->scene_tree != NULL && parent->scene_tree != NULL &&
+	    toplevel->scene_tree->node.parent == parent->scene_tree->node.parent) {
+		wlr_scene_node_place_above(&toplevel->scene_tree->node, &parent->scene_tree->node);
+	} else {
+		wlr_scene_node_raise_to_top(&toplevel->scene_tree->node);
+	}
+	return true;
+}
+
+static bool place_on_usable_center(struct stonefly_toplevel *toplevel) {
+	struct wlr_box area = {0};
+	struct stonefly_server *server = toplevel->server;
+	if (!stonefly_layout_usable_at(server, server->cursor->x, server->cursor->y, &area)) {
+		if (!stonefly_toplevel_output_box(toplevel, &area)) {
+			return false;
+		}
+	}
+	stonefly_box_inset_gap(&area, stonefly_cfg(server)->gap_size);
+	if (area.width <= 0 || area.height <= 0) {
+		return false;
+	}
+	int w, h;
+	placement_size(toplevel, &w, &h);
+	int top_inset = stonefly_ssd_top_inset(toplevel);
+	int x = area.x + (area.width - w) / 2;
+	int y = area.y + (area.height - h) / 2;
+	clamp_pos_to_area(&x, &y, w, h, &area, top_inset);
+	toplevel_set_resting(toplevel, x, y);
+	return true;
+}
+
+void stonefly_toplevel_place_transient(struct stonefly_toplevel *toplevel) {
+	if (toplevel == NULL || !toplevel->auto_place || toplevel->scene_tree == NULL) {
+		return;
+	}
+	if (toplevel->maximized_edges || toplevel->maximized_gaps ||
+	    toplevel->snapped != STONEFLY_SNAP_NONE || toplevel->fullscreen) {
+		return;
+	}
+	if (place_on_parent(toplevel)) {
+		stonefly_toplevel_ensure_on_screen(toplevel);
+		return;
+	}
+	if (stonefly_rules_wants_center(toplevel) && place_on_usable_center(toplevel)) {
+		stonefly_toplevel_ensure_on_screen(toplevel);
+	}
+}
+
+void stonefly_toplevel_place_new(struct stonefly_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->scene_tree == NULL) {
+		return;
+	}
+	toplevel->auto_place = true;
+	toplevel->soft_place = true;
+	stonefly_rules_apply(toplevel);
+	if (place_on_parent(toplevel)) {
+		stonefly_toplevel_ensure_on_screen(toplevel);
+		return;
+	}
+	if (stonefly_rules_wants_center(toplevel) && place_on_usable_center(toplevel)) {
+		stonefly_toplevel_ensure_on_screen(toplevel);
+		return;
+	}
+	stonefly_toplevel_place_cascade(toplevel);
 }
 
 /* minimize_link is either self-linked (off stack) or in server->minimized. */

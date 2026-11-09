@@ -73,6 +73,18 @@ struct stonefly_toplevel {
 	bool fullscreen;
 	enum stonefly_snap snapped;
 	bool minimized;
+	/* WM auto-placement still owns position (parent center / cascade). Cleared
+	 * on user move/resize/max/snap. Parent set or size commit may re-place. */
+	bool auto_place;
+	/* Late title/app_id may still match a center window_rule (peeble SoftPlace). */
+	bool soft_place;
+	/* xdg_dialog_v1.set_modal (requires parent). */
+	bool modal;
+	/* window_rule borderless: no WM border/shadow. */
+	bool borderless;
+	/* window_rule ssd override; when rule_ssd_set, use rule_ssd_mode. */
+	bool rule_ssd_set;
+	int rule_ssd_mode; /* enum stonefly_ssd_mode */
 	/* Demand-attention until focused (xdg-activation). */
 	bool urgent;
 	/* Block ext-image-capture source accept (IPC / config #1481). */

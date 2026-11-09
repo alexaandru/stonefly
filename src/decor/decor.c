@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <wayland-server-core.h>
-#include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_xdg_shell.h>
@@ -10,9 +9,7 @@
 #include "anim/anim.h"
 #include "config/config.h"
 #include "decor/decor.h"
-#include "layer/layer.h"
 #include "log/log.h"
-#include "output/output.h"
 #include "server/server.h"
 #include "ssd/ssd.h"
 #include "wm/wm.h"
@@ -103,10 +100,11 @@ void stonefly_decor_mark_blur_dirty(struct stonefly_server *server) {
 	wlr_scene_optimized_blur_mark_dirty(server->blur_layer);
 }
 
-/* Border/shadow/corners off for edge-max and fullscreen. Blur is separate
- * (stays on for edge-max / quick terminal; off only for true fullscreen). */
+/* Border/shadow/corners off for edge-max, fullscreen, and window_rule borderless.
+ * Blur is separate (stays on for edge-max / quick terminal; off only for true
+ * fullscreen). */
 static bool decor_chrome_on(const struct stonefly_toplevel *toplevel) {
-	return !toplevel->maximized_edges && !toplevel->fullscreen;
+	return !toplevel->maximized_edges && !toplevel->fullscreen && !toplevel->borderless;
 }
 
 static bool decor_blur_on(const struct stonefly_toplevel *toplevel) {
@@ -596,25 +594,6 @@ static void ghost_destroy(struct stonefly_ghost *ghost) {
 	free(ghost);
 }
 
-static void ghost_offscreen(struct stonefly_ghost *ghost, int *ox, int *oy) {
-	/* Same closest-down fallback as anim: slide up off the usable area. */
-	struct wlr_box area = {0};
-	struct stonefly_output *output;
-	wl_list_for_each(output, &ghost->server->outputs, link) {
-		if (stonefly_output_usable_box(output, &area)) {
-			break;
-		}
-	}
-	*ox = ghost->resting_x;
-	if (area.height > 0) {
-		int y = area.y - ghost->height;
-		int alt = ghost->resting_y - ghost->height;
-		*oy = alt < y ? alt : y;
-	} else {
-		*oy = ghost->resting_y - ghost->height;
-	}
-}
-
 bool stonefly_decor_lock_snapshot(struct stonefly_toplevel *toplevel,
 				  struct wlr_buffer **out_locked, int *out_w, int *out_h) {
 	if (toplevel == NULL || toplevel->xdg_scene_tree == NULL || out_locked == NULL ||
@@ -736,7 +715,8 @@ void stonefly_ghost_try_spawn(struct stonefly_toplevel *toplevel) {
 	wlr_scene_node_raise_to_top(&ghost->tree->node);
 
 	int to_x, to_y;
-	ghost_offscreen(ghost, &to_x, &to_y);
+	stonefly_anim_offscreen_for_box(ghost->server, ghost->resting_x, ghost->resting_y,
+					ghost->width, ghost->height, &to_x, &to_y);
 
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);

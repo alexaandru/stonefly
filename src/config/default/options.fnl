@@ -17,7 +17,7 @@
   ;; Set inactive_opacity lower (e.g. 0.85) to dim unfocused windows.
   :client_opacity 0.96
   :inactive_opacity 0.96
-  :corner_radius 12
+  :corner_radius 8
   :border_thickness 3
   :shadow_blur_sigma 20.0
   :border_active [0.10 0.75 1.00 1.00]

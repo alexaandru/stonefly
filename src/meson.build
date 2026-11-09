@@ -22,6 +22,7 @@ stonefly_src = files(
   'wm/scratchpad.c',
   'wm/drag_snap.c',
   'wm/snap_preview.c',
+  'wm/rules.c',
   'ipc/workspaces.c',
   'anim/anim.c',
   'decor/decor.c',
@@ -56,6 +57,7 @@ stonefly_embed_defaults = files(
   'config/default/options.fnl',
   'config/default/binds.fnl',
   'config/default/scratchpads.fnl',
+  'config/default/rules.fnl',
   'config/default/inputs.fnl',
   'config/default/outputs.fnl',
 )

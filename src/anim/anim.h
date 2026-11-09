@@ -33,4 +33,10 @@ void stonefly_anim_tick(struct stonefly_server *server, const struct timespec *n
 /* Request frames on every output so slides keep advancing. */
 void stonefly_anim_schedule(struct stonefly_server *server);
 
+/* Off-screen end of a closest-edge slide from a resting box (usable area
+ * at box center, then cursor). Same dir rules as show/hide, including
+ * short-axis preference when several edges are near the margin. */
+void stonefly_anim_offscreen_for_box(struct stonefly_server *server, int resting_x, int resting_y,
+				     int w, int h, int *ox, int *oy);
+
 #endif

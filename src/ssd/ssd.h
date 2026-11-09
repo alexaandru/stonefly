@@ -9,6 +9,7 @@
 struct stonefly_toplevel;
 struct wlr_xdg_toplevel_decoration_v1;
 struct wlr_pointer_button_event;
+struct wlr_scene_node;
 
 struct stonefly_ssd {
 	enum stonefly_node_kind kind; /* STONEFLY_NODE_SSD */

@@ -24,6 +24,7 @@ struct wlr_xcursor_manager;
 struct wlr_xdg_activation_v1;
 struct wlr_xdg_shell;
 struct wlr_xdg_system_bell_v1;
+struct wlr_xdg_wm_dialog_v1;
 struct wlr_xdg_decoration_manager_v1;
 struct wlr_xdg_toplevel_tag_manager_v1;
 struct wlr_xdg_toplevel_icon_manager_v1;
@@ -110,6 +111,10 @@ struct stonefly_server {
 	struct wl_listener request_activate;
 	struct wlr_xdg_system_bell_v1 *system_bell;
 	struct wl_listener system_bell_ring;
+
+	/* xdg_wm_dialog_v1 — client modal hint (with set_parent). */
+	struct wlr_xdg_wm_dialog_v1 *xdg_dialog_mgr;
+	struct wl_listener new_xdg_dialog;
 
 	/* xdg-decoration: mode from ssd_mode + client request_mode. */
 	struct wlr_xdg_decoration_manager_v1 *xdg_decoration_mgr;

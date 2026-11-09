@@ -430,9 +430,9 @@ static void ipc_handle_config(struct stonefly_ipc_client *client, const char *ar
 	if (n < 0) {
 		free(out);
 		if (section != NULL) {
-			ipc_write_err(client,
-				      "unknown config section "
-				      "(options|binds|taps|scratchpads|cmds|inputs|outputs)");
+			ipc_write_err(client, "unknown config section "
+					      "(options|binds|taps|scratchpads|window_rules|cmds|"
+					      "inputs|outputs)");
 		} else {
 			ipc_write_line(client->fd, "{\"error\":\"config snapshot overflow\"}");
 		}

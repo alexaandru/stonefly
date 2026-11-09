@@ -1281,7 +1281,7 @@ static void toplevel_frame_box(struct stonefly_toplevel *toplevel, struct wlr_bo
 }
 
 static int toplevel_chrome_border(struct stonefly_toplevel *toplevel) {
-	if (toplevel->fullscreen || toplevel->maximized_edges) {
+	if (toplevel->fullscreen || toplevel->maximized_edges || toplevel->borderless) {
 		return 0;
 	}
 	return stonefly_cfg(toplevel->server)->border_thickness;

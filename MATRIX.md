@@ -47,15 +47,15 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Close focused | ✅ | — | ✅ Super+q | |
 | Maximize to edges | ✅ | — | ✅ Super+f | Client maximized hint. Live morph (`morph_duration_ms`) like snap. |
 | Maximize with gaps (WM-only) | ✅ | — | ✅ Super+m | No client maximized → rounder CSD. **Fixed:** gap-max/snap content box now insets by `stonefly_ssd_top_inset` so the SSD titlebar stays below exclusive zones (Noctalia bar) instead of sitting half under it. Live morph like snap. |
-| Unmaximize / restore | ✅ | — | ✅ | Toggle paths; morph restore for gap/edge max + snap (fullscreen leave stays instant) |
+| Unmaximize / restore | ✅ | — | ✅ | Toggle paths; morph restore for gap/edge max + snap (fullscreen leave stays instant). Interactive resize leaves max/snap flags alone (undragged edges + chrome stay); `float_for_resize` is for window_rule float only. |
 | Fullscreen (client + WM) | ✅ | — | ✅ | Saved geom + full output box; client `request_fullscreen` + foreign set/unset (no WM keybind; Super+f is edge-max) |
 | Minimize / unminimize LIFO | ✅ Ctrl+Esc | — | ✅ | Unnamed scratchpad. Shared `apply_hidden`/`apply_shown` (LIFO vs scratch). `xdg request_minimize` → CSD/SSD buttons. |
 | Always-on-top | ✅ | — | ❌ | Peeble winmenu / state |
 | Keyboard half-snap (arrows) | ✅ Super+arrows | — | ✅ | Gap math ports `snapBorderBox` |
 | Unsnap / restore PreSnap | ✅ Super+u | — | ✅ | |
 | Drag move (Super+LMB) | ✅ | — | ✅ | WM xcursor via `stonefly_seat_apply_grab_cursor` (`grabbing`→fallbacks). Clear client pointer focus before set; re-assert each grab motion so a client `set_cursor` surface cannot stick. SSD titlebar hover shows move face. |
-| Drag resize (Super+RMB) | ✅ | — | ✅ | Edges nearest pointer; same grab-cursor helper. Works on edge-max too (kept for now). |
-| Border/corner mouse resize | — | — | ✅ | Hover + LMB on hit band (`resize_border_in` 3 / `resize_border_out` 1); edge cursors; Super+RMB kept. Also works while edge-max (kept). SSD titlebar center still moves (top `in` px / corners resize). **Fixed:** hit band used to `pointer_clear_focus` on motion, which sent leave while still over client content and dropped button release if the drag entered the band — Chrome side-panel kept resizing after mouse-up; Ghostty/terminal selection/primary felt flaky. Now keep enter/motion on the surface in the inner band (WM still owns the resize cursor; client `set_cursor` ignored in-band) and honor implicit grab (`button_count > 0`) until release. |
+| Drag resize (Super+RMB) | ✅ | — | ✅ | Edges nearest pointer; same grab-cursor helper. Does not clear edge-max / gap-max / snap — only the dragged edge moves. |
+| Border/corner mouse resize | — | — | ✅ | Hover + LMB on hit band (`resize_border_in` 3 / `resize_border_out` 1); edge cursors; Super+RMB kept. Same as drag resize (max/snap flags kept). SSD titlebar center still moves (top `in` px / corners resize). **Fixed:** hit band used to `pointer_clear_focus` on motion, which sent leave while still over client content and dropped button release if the drag entered the band — Chrome side-panel kept resizing after mouse-up; Ghostty/terminal selection/primary felt flaky. Now keep enter/motion on the surface in the inner band (WM still owns the resize cursor; client `set_cursor` ignored in-band) and honor implicit grab (`button_count > 0`) until release. |
 | Magnetic drag-snap + resistance | ✅ threshold 26, 4× push-through | — | ✅ | `drag_snap.c` parity |
 | Snap preview overlay | ✅ SHM layer-shell | Configurable fill color/opacity 📋 | ✅ SceneFX overlay rects | Border 1, fill 40% active |
 | `set_tiled` on snap/max | ✅ | — | ✅ | `wlr_xdg_toplevel_set_tiled` on snap / edge-max / restore / unsnap (`wm.c`); gap-max stays untiled (peeble). |
@@ -70,7 +70,8 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Window menu | ✅ | — | ❌ | |
 | SSD titlebars | ✅ River `use_ssd` | Polish / force-SSD rules 📋 | ✅ | `ssd_mode` (`auto`/`prefer_ssd`/`always`/`never`, default `auto`) + `ssd_height` (28) + `ssd_font_size` (17, fcft). Black title/button glyphs on border-colored fill. Honors client `request_mode` within policy; fcft+pixman titlebar (title, min/max/close); hide on fullscreen/edge-max; TopInset in ensure-on-screen / cascade / gap-max / snap. Pointer: drag, dblclick gap-max, buttons. Per-app overrides / winmenu still open. **Fixed:** Chrome early bind — defer `set_mode` until `xdg_surface` initialized. **Fixed:** square titlebar “horns” over rounded chrome — SSD buffer uses outer `corner_radii_top`; client buffers skip top radii while SSD is shown. **Fixed:** gap-max/snap ignored SSD height so the bar sat under Noctalia. **Fixed:** SSD used to paint over the border rim (urgent amber clipped at titlebar); border hole now punches content+SSD and the border node is raised above the SSD. |
 | Geometry persist across restart | ✅ `windows.json` by river id | Schema / blacklist / MRU polish 📋 | ❌ | |
-| Window rules (app-id/title) | 🚧 center + modal parent | auto-float, size, scratchpad, AOT, force SSD 📋 | ❌ | |
+| Transient / dialog placement | 🚧 parent center + size heuristic | — | ✅ | Center on visible `set_parent` (+ stack above); late parent/size re-place while `auto_place`. **No** size-based “looks like dialog” heuristic. Cleared on move/resize/max/snap. |
+| Window rules (app-id/title) | 🚧 center + modal parent | auto-float, size, scratchpad, AOT, force SSD 📋 | ✅ | Fennel `stonefly.window_rule(match, actions [, parent])` → tag. Match `app_id` / `title` are Lua patterns (`string.find`; [§5.4.1](https://www.lua.org/manual/5.1/manual.html#5.4.1)); exact via `^…$`, escape magic with `%`. Actions: `center`, `float`, `width`/`height`, `ssd` (`never`\|`auto`\|`prefer_ssd`\|`always`), `borderless`. Longest pattern wins; parent merge. Defaults: Chrome profile (`google%-chrome` + `^Google Chrome$` → center+borderless+ssd never), `gcr%-prompter` → center+borderless. SoftPlace for late title. IPC: `stonefly config window_rules`. |
 | Keyboard nudge move/resize | ❌ | 📋 high-value | ❌ | Snap exists; step nudge does not |
 | Workspaces / tags | ❌ | 📋 + river#1402 / #1390 | ✅ | Dynamic per-output strip (`workspace.c`): trailing empty, compact on empty, Super+Page/1–9 + Shift move-follow, IPC `workspaces`/`workspace`/`move-to-workspace` (`strtol` index parse), windows `{output,workspace}`. ✅ `ext-workspace-v1` group/handle sync. ✅ 3-finger vertical swipe (`swipe_workspace_threshold`, `swipe_workspace_natural` default true = content tracks finger). ✅ `xdg-toplevel-tag` stored + IPC. ❌ geometry persist / named window rules / switch anim. Layout engines separate row (`stacking` only). |
 | Layout engine (tile/columns/…) | ❌ | 📋 | 🚧 | Resolve `workspace → output → global` (`stonefly_layout`); only `stacking` implemented. `columns`/`tile` enum + `apply_layout` hook reserved. Global `stonefly.opt.layout`. |
@@ -89,9 +90,9 @@ hooks; on stonefly they are owned in-process.
 
 | Feature | Peeble shipped | Peeble / FORK | Stonefly | Notes |
 |---|---|---|---|---|
-| Appear / map slide | ✅ `window_effect` + AppearHold hack | Map-hold fork feature 📋 | ✅ | Closest edge, 200ms ease_out; no resting flash needed |
-| Close slide (WM-initiated) | ✅ Super+q etc. | — | ✅ | |
-| Close slide (client Ctrl+W / CSD) | ❌ blocked | Last-frame ghost FORK P1 📋 | ✅ | Cached last-frame ghost: refresh `close_snap` each mapped commit; unmap slides it (live scene buffer is often NULL after GTK/terminal null-buffer commit). Skipped when WM hide already ran (`anim_hide`). |
+| Appear / map slide | ✅ `window_effect` + AppearHold hack | Map-hold fork feature 📋 | ✅ | Closest usable edge, 200ms ease_out; when several edges are within 2px of the min gap (snap / gap-max), prefer shorter axis (tall → L/R, wide → T/B), then closer of that pair. No resting flash. |
+| Close slide (WM-initiated) | ✅ Super+q etc. | — | ✅ | Shared `slide_offscreen` / `closest_dir` with appear, scratch, close-ghost |
+| Close slide (client Ctrl+W / CSD) | ❌ blocked | Last-frame ghost FORK P1 📋 | ✅ | Cached last-frame ghost: refresh `close_snap` each mapped commit; unmap slides via shared `stonefly_anim_offscreen_for_box` (same closest/short-axis dir as WM hide). Live scene buffer often NULL after GTK/terminal null-buffer commit. Skipped when WM hide already ran (`anim_hide`). |
 | Snap / unsnap / max morph | ✅ `animation("morph")` + window_effect | — | ✅ | Live peeble-style: each tick `set_position` + `set_size` (`morph_duration_ms`); SceneFX chrome follows commits. Snap, gap-max, edge-max enter/leave; Super+u unsnap. Mid-flight retarget. Fullscreen stays instant. |
 | Scratchpad / minimize slides | ✅ | — | ✅ | Mid-flight reverse |
 | Vsync-capped animation pacing | ❌ busy manage→render | river#1385 P0 📋 | ✅ | Own scene / frame loop |
@@ -172,6 +173,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Foreign-toplevel management | 🚧 River read-only; bar uses Focus | Activate relay #1449/#1537 📋 | ✅ | `zwlr_foreign_toplevel_management_v1` v3 (`foreign.c`) + parallel `ext-foreign-toplevel-list-v1` (`ext_capture.c`) for capture handles |
 | xdg-activation (urgency) | ❌ | #1281 📋 | ✅ | Amber until focus; never steals focus. IPC `urgent` / set-unset. |
 | xdg-system-bell | ❌ | #1389 📋 | ✅ | Visual flash only (`bell_flash_ms`). |
+| xdg_wm_dialog_v1 | ❌ | — | ✅ | `wlr_xdg_wm_dialog_v1_create` (wlroots 0.20.2); tracks `toplevel->modal` from `set_modal` / `unset_modal`. Placement still keys off parent; modal is the real modal bit (no size guessing). |
 | Idle-inhibit / idle-notify / session-lock | ✅ | — | ✅ | `session/session.c`: ext-session-lock-v1, ext-idle-notify-v1, zwp-idle-inhibit-v1, zwlr-output-power-management-v1 |
 | Gamma control | ✅ | — | ✅ | `zwlr_gamma_control_v1` + SceneFX scene hook (`server.c`) |
 | Xwayland | ✅ (River host) | — | ❌ | Classic X11 apps fail |
@@ -201,7 +203,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | IPC focus / close by id | ✅ | — | ✅ | `{"cmd":"focus\|close","arg":"<id>"}` + CLI (`ipc.c`) |
 | IPC toggle-quick-terminal | ✅ | — | ✅ | Toggles scratchpad pad `"term"` (same as Super+Return) |
 | IPC `exit` / `quit` | — | — | ✅ | `wl_display_terminate` on the compositor that owns `STONEFLY_SOCKET` / `WAYLAND_DISPLAY` (nested-safe) |
-| IPC `config` [section] | ❌ | — | ✅ | Live `server->config` dump (`ipc/config.c`); sections options/binds/taps/scratchpads/cmds/inputs/outputs; argv parse de-cloned (`ipc.c`) |
+| IPC `config` [section] | ❌ | — | ✅ | Live `server->config` dump (`ipc/config.c`); sections options/binds/taps/scratchpads/window_rules/cmds/inputs/outputs; argv parse de-cloned (`ipc.c`) |
 | IPC `action <name>` allowlist | ❌ | 📋 | ❌ | |
 | IPC outputs / inputs | ❌ | Ideas 📋 | 🚧 | `outputs` ✅ (`ipc/outputs.c`); inputs ❌ |
 | Structured JSON logs | ✅ `~/.var/log/peeble/wm.log` | — | ✅ | `wm.log` + `wm.last.json` rotate |
@@ -222,7 +224,7 @@ River-fork brief items and where stonefly stands (no River needed).
 | P0 | #1449 / #1537 foreign-toplevel activate | Blocked on River | ✅ `zwlr_foreign_toplevel_management_v1` |
 | P0 | #1375 nodes vs layer-shell z-order | PlaceTop fights | ✅ scene layers |
 | P1 | #1373 WM opacity | Blocked | 🚧 global focused + inactive opacity |
-| P1 | Close-ghost last-frame | Blocked for client close | ✅ cached `close_snap` → ghost slide |
+| P1 | Close-ghost last-frame | Blocked for client close | ✅ cached `close_snap` → ghost slide (shared closest/short-axis offscreen) |
 | P1 | #1281 urgency / xdg-activation | Blocked | ✅ |
 | P1 | #1389 system bell | Blocked | ✅ |
 | P1 | #1481 capture privacy | Blocked | ✅ |

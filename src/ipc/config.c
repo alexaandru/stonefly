@@ -368,11 +368,78 @@ static void emit_scratchpads(struct json_buf *b, const struct stonefly_config *c
 	json_byte(b, ']');
 }
 
+static void emit_window_rules(struct json_buf *b, const struct stonefly_config *cfg) {
+	json_byte(b, '[');
+	for (size_t i = 0; i < cfg->n_window_rules; i++) {
+		const struct stonefly_window_rule *r = &cfg->window_rules[i];
+		if (i > 0) {
+			json_byte(b, ',');
+		}
+		json_byte(b, '{');
+		json_key(b, "id");
+		json_str(b, r->id);
+		json_byte(b, ',');
+		json_key(b, "parent");
+		json_str(b, r->parent_id);
+		json_byte(b, ',');
+		json_key(b, "app_id");
+		json_str(b, r->app_id ? r->app_id : "");
+		json_byte(b, ',');
+		json_key(b, "title");
+		json_str(b, r->title ? r->title : "");
+		json_byte(b, ',');
+		json_key(b, "center");
+		if (r->center_set) {
+			json_bool(b, r->center);
+		} else {
+			json_raw(b, "null");
+		}
+		json_byte(b, ',');
+		json_key(b, "float");
+		if (r->float_set) {
+			json_bool(b, r->float_win);
+		} else {
+			json_raw(b, "null");
+		}
+		json_byte(b, ',');
+		json_key(b, "borderless");
+		if (r->borderless_set) {
+			json_bool(b, r->borderless);
+		} else {
+			json_raw(b, "null");
+		}
+		json_byte(b, ',');
+		json_key(b, "ssd");
+		if (r->ssd_set) {
+			json_str(b, stonefly_ssd_mode_name((enum stonefly_ssd_mode)r->ssd_mode));
+		} else {
+			json_raw(b, "null");
+		}
+		json_byte(b, ',');
+		json_key(b, "width");
+		if (r->width_set) {
+			json_i64(b, r->width);
+		} else {
+			json_raw(b, "null");
+		}
+		json_byte(b, ',');
+		json_key(b, "height");
+		if (r->height_set) {
+			json_i64(b, r->height);
+		} else {
+			json_raw(b, "null");
+		}
+		json_byte(b, '}');
+	}
+	json_byte(b, ']');
+}
+
 static bool section_ok(const char *section) {
 	return section == NULL || section[0] == '\0' || strcmp(section, "options") == 0 ||
 	       strcmp(section, "binds") == 0 || strcmp(section, "taps") == 0 ||
-	       strcmp(section, "scratchpads") == 0 || strcmp(section, "cmds") == 0 ||
-	       strcmp(section, "inputs") == 0 || strcmp(section, "outputs") == 0;
+	       strcmp(section, "scratchpads") == 0 || strcmp(section, "window_rules") == 0 ||
+	       strcmp(section, "cmds") == 0 || strcmp(section, "inputs") == 0 ||
+	       strcmp(section, "outputs") == 0;
 }
 
 int stonefly_config_to_json(struct stonefly_server *server, const char *section, char *buf,
@@ -426,6 +493,16 @@ int stonefly_config_to_json(struct stonefly_server *server, const char *section,
 			json_key(&b, "scratchpads");
 		}
 		emit_scratchpads(&b, cfg);
+		need_comma = true;
+	}
+	if (all || strcmp(section, "window_rules") == 0) {
+		if (all) {
+			if (need_comma) {
+				json_byte(&b, ',');
+			}
+			json_key(&b, "window_rules");
+		}
+		emit_window_rules(&b, cfg);
 		need_comma = true;
 	}
 	if (all || strcmp(section, "cmds") == 0) {

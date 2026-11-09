@@ -7,6 +7,7 @@
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_xdg_activation_v1.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
+#include <wlr/types/wlr_xdg_dialog_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/types/wlr_xdg_system_bell_v1.h>
 #include <wlr/types/wlr_xdg_toplevel_icon_v1.h>
@@ -24,6 +25,7 @@
 #include "toplevel/ext_capture.h"
 #include "toplevel/foreign.h"
 #include "wm/drag_snap.h"
+#include "wm/rules.h"
 #include "wm/scratchpad.h"
 #include "wm/workspace.h"
 #include "wm/wm.h"
@@ -181,8 +183,8 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 		if (output != NULL && output->active != NULL) {
 			stonefly_workspace_assign(toplevel, output->active);
 		}
-		stonefly_toplevel_place_cascade(toplevel);
-		/* Bar exclusive may already be applied; keep cascade origin in usable. */
+		stonefly_toplevel_place_new(toplevel);
+		/* Bar exclusive may already be applied; keep origin in usable. */
 		stonefly_toplevel_ensure_on_screen(toplevel);
 		stonefly_focus_toplevel(toplevel);
 	}
@@ -258,6 +260,10 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 	}
 	stonefly_decor_update_geom(toplevel);
 	stonefly_foreign_toplevel_on_outputs_change(toplevel);
+	/* Parent-centered windows re-center when size arrives (still auto_place). */
+	if (toplevel->auto_place) {
+		stonefly_toplevel_place_transient(toplevel);
+	}
 }
 
 static void xdg_toplevel_set_title(struct wl_listener *listener, void *data) {
@@ -266,6 +272,7 @@ static void xdg_toplevel_set_title(struct wl_listener *listener, void *data) {
 	stonefly_foreign_toplevel_on_title_change(toplevel);
 	stonefly_ext_capture_on_title_change(toplevel);
 	stonefly_ssd_update(toplevel);
+	stonefly_rules_consider_place(toplevel);
 }
 
 static void xdg_toplevel_set_app_id(struct wl_listener *listener, void *data) {
@@ -274,12 +281,16 @@ static void xdg_toplevel_set_app_id(struct wl_listener *listener, void *data) {
 	stonefly_scratchpad_try_claim(toplevel);
 	stonefly_foreign_toplevel_on_app_id_change(toplevel);
 	stonefly_ext_capture_on_app_id_change(toplevel);
+	stonefly_rules_consider_place(toplevel);
 }
 
 static void xdg_toplevel_set_parent(struct wl_listener *listener, void *data) {
 	(void)data;
 	struct stonefly_toplevel *toplevel = wl_container_of(listener, toplevel, set_parent);
 	stonefly_foreign_toplevel_on_parent_change(toplevel);
+	if (toplevel->auto_place) {
+		stonefly_toplevel_place_transient(toplevel);
+	}
 }
 
 static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
@@ -340,6 +351,10 @@ void stonefly_begin_interactive(struct stonefly_toplevel *toplevel, enum stonefl
 	if (mode == STONEFLY_CURSOR_MOVE) {
 		/* Peeble PrepareDrag: float snap/max, keep PreSnap, record origin. */
 		stonefly_drag_snap_prepare(toplevel);
+	} else if (mode == STONEFLY_CURSOR_RESIZE) {
+		/* Leave edge-max / gap-max / snap flags alone so chrome and the
+		 * undragged edges stay put; only the grabbed edge moves. */
+		stonefly_toplevel_clear_auto_place(toplevel);
 	}
 
 	server->grabbed_toplevel = toplevel;
@@ -653,6 +668,70 @@ static void server_new_xdg_decoration(struct wl_listener *listener, void *data) 
 	xdg_decoration_apply(deco);
 }
 
+struct stonefly_xdg_dialog {
+	struct wlr_xdg_dialog_v1 *dialog;
+	struct stonefly_server *server;
+	struct wl_listener set_modal;
+	struct wl_listener destroy;
+};
+
+static void xdg_dialog_apply_modal(struct stonefly_xdg_dialog *wrap) {
+	if (wrap == NULL || wrap->dialog == NULL) {
+		return;
+	}
+	struct stonefly_toplevel *toplevel =
+		toplevel_from_xdg(wrap->server, wrap->dialog->xdg_toplevel);
+	if (toplevel == NULL) {
+		return;
+	}
+	bool want = wrap->dialog->modal;
+	if (toplevel->modal == want) {
+		return;
+	}
+	toplevel->modal = want;
+	/* Modal only applies with a parent (protocol); re-place while auto. */
+	if (toplevel->auto_place) {
+		stonefly_toplevel_place_transient(toplevel);
+	}
+	SF_LOGI("xdg dialog modal", sf_i64("id", (int64_t)toplevel->id),
+		sf_bool("modal", toplevel->modal));
+}
+
+static void xdg_dialog_set_modal(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct stonefly_xdg_dialog *wrap = wl_container_of(listener, wrap, set_modal);
+	xdg_dialog_apply_modal(wrap);
+}
+
+static void xdg_dialog_destroy(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct stonefly_xdg_dialog *wrap = wl_container_of(listener, wrap, destroy);
+	struct stonefly_toplevel *toplevel = toplevel_from_xdg(
+		wrap->server, wrap->dialog != NULL ? wrap->dialog->xdg_toplevel : NULL);
+	if (toplevel != NULL && toplevel->modal) {
+		toplevel->modal = false;
+	}
+	wl_list_remove(&wrap->set_modal.link);
+	wl_list_remove(&wrap->destroy.link);
+	free(wrap);
+}
+
+static void server_new_xdg_dialog(struct wl_listener *listener, void *data) {
+	struct stonefly_server *server = wl_container_of(listener, server, new_xdg_dialog);
+	struct wlr_xdg_dialog_v1 *dialog = data;
+	struct stonefly_xdg_dialog *wrap = calloc(1, sizeof(*wrap));
+	if (wrap == NULL) {
+		return;
+	}
+	wrap->dialog = dialog;
+	wrap->server = server;
+	wrap->set_modal.notify = xdg_dialog_set_modal;
+	wl_signal_add(&dialog->events.set_modal, &wrap->set_modal);
+	wrap->destroy.notify = xdg_dialog_destroy;
+	wl_signal_add(&dialog->events.destroy, &wrap->destroy);
+	xdg_dialog_apply_modal(wrap);
+}
+
 void stonefly_xdg_setup(struct stonefly_server *server) {
 	wl_list_init(&server->toplevels);
 	server->xdg_shell = wlr_xdg_shell_create(server->wl_display, 3);
@@ -674,6 +753,13 @@ void stonefly_xdg_setup(struct stonefly_server *server) {
 	if (server->system_bell != NULL) {
 		server->system_bell_ring.notify = system_bell_ring;
 		wl_signal_add(&server->system_bell->events.ring, &server->system_bell_ring);
+	}
+
+	/* xdg_wm_dialog_v1 — advertise modal hint (wlroots 0.20.2+). */
+	server->xdg_dialog_mgr = wlr_xdg_wm_dialog_v1_create(server->wl_display, 1);
+	if (server->xdg_dialog_mgr != NULL) {
+		server->new_xdg_dialog.notify = server_new_xdg_dialog;
+		wl_signal_add(&server->xdg_dialog_mgr->events.new_dialog, &server->new_xdg_dialog);
 	}
 
 	/* MATRIX §9 P3 — advertise decoration; mode from ssd_mode + client request. */

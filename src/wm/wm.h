@@ -50,6 +50,10 @@ void stonefly_toplevel_capture_geom(struct stonefly_toplevel *toplevel, const st
 void stonefly_toplevel_apply_saved_at(struct stonefly_toplevel *toplevel, int x, int y);
 void stonefly_toplevel_unsnap(struct stonefly_toplevel *toplevel);
 
+/* Drop gap-max / edge-max / snap without restoring PreMax (window_rule float).
+ * Interactive resize does not call this — undragged edges stay put. */
+void stonefly_toplevel_float_for_resize(struct stonefly_toplevel *toplevel);
+
 /* How a window is hidden: LIFO unnamed stack (Ctrl+Esc / CSD / foreign) vs
  * named scratchpad (off that stack). Both set minimized + foreign state. */
 enum stonefly_hide_kind {
@@ -73,6 +77,16 @@ void stonefly_toplevel_set_fullscreen(struct stonefly_toplevel *toplevel, bool w
 
 /* Peeble-style cascade origin for a newly mapped floating toplevel. */
 void stonefly_toplevel_place_cascade(struct stonefly_toplevel *toplevel);
+
+/* Map placement: center on visible parent when set_parent, else cascade.
+ * No size-based "dialog" guessing. Keeps auto_place for late parent/size. */
+void stonefly_toplevel_place_new(struct stonefly_toplevel *toplevel);
+
+/* Re-run parent centering while auto_place (late set_parent / size commit). */
+void stonefly_toplevel_place_transient(struct stonefly_toplevel *toplevel);
+
+/* Stop WM auto-placement (user move/resize/max/snap owns geometry). */
+void stonefly_toplevel_clear_auto_place(struct stonefly_toplevel *toplevel);
 
 /* cmd: EXEC string, or scratchpad name for SCRATCH_TOGGLE/CLAIM; else NULL. */
 void stonefly_run_action(struct stonefly_server *server, enum stonefly_action action,

@@ -16,6 +16,9 @@ static const unsigned char emb_binds_fnl[] = {
 static const unsigned char emb_scratchpads_fnl[] = {
 #embed "default/scratchpads.fnl"
 };
+static const unsigned char emb_rules_fnl[] = {
+#embed "default/rules.fnl"
+};
 static const unsigned char emb_inputs_fnl[] = {
 #embed "default/inputs.fnl"
 };
@@ -28,6 +31,7 @@ const struct stonefly_embed_file stonefly_default_files[] = {
 	{"options.fnl", emb_options_fnl, sizeof emb_options_fnl},
 	{"binds.fnl", emb_binds_fnl, sizeof emb_binds_fnl},
 	{"scratchpads.fnl", emb_scratchpads_fnl, sizeof emb_scratchpads_fnl},
+	{"rules.fnl", emb_rules_fnl, sizeof emb_rules_fnl},
 	{"inputs.fnl", emb_inputs_fnl, sizeof emb_inputs_fnl},
 	{"outputs.fnl", emb_outputs_fnl, sizeof emb_outputs_fnl},
 };

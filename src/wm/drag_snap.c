@@ -81,6 +81,7 @@ void stonefly_drag_snap_prepare(struct stonefly_toplevel *toplevel) {
 	struct stonefly_server *server = toplevel->server;
 	struct stonefly_drag_snap *drag = &server->drag_snap;
 	stonefly_drag_snap_reset(drag);
+	stonefly_toplevel_clear_auto_place(toplevel);
 
 	struct wlr_box geom;
 	stonefly_toplevel_layout_geom(toplevel, &geom);

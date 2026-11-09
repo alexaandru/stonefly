@@ -196,6 +196,11 @@ void stonefly_config_finish(struct stonefly_config *cfg) {
 		free(cfg->scratchpads[i].app_id);
 	}
 	free(cfg->scratchpads);
+	for (size_t i = 0; i < cfg->n_window_rules; i++) {
+		free(cfg->window_rules[i].app_id);
+		free(cfg->window_rules[i].title);
+	}
+	free(cfg->window_rules);
 	memset(cfg, 0, sizeof *cfg);
 }
 

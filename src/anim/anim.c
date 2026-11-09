@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stdlib.h>
+#include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <scenefx/types/wlr_scene.h>
@@ -7,6 +8,7 @@
 #include "anim/anim.h"
 #include "config/config.h"
 #include "decor/decor.h"
+#include "layer/layer.h"
 #include "output/output.h"
 #include "server/server.h"
 #include "wm/wm.h"
@@ -45,7 +47,13 @@ static int64_t timespec_ns(const struct timespec *ts) {
 	return (int64_t)ts->tv_sec * 1000000000LL + (int64_t)ts->tv_nsec;
 }
 
-/* Peeble ClosestDir: enter from the nearest usable edge. */
+/*
+ * Enter from the nearest usable edge. When several edges sit near the
+ * minimum gap (snap / gap-max; 2px slack for fractional-scale fudge),
+ * prefer the shorter window axis: tall → left/right, wide → top/bottom.
+ * Among that axis, pick the closer edge (strict <; top then left then
+ * bottom then right on equal distance).
+ */
 static enum stonefly_slide_dir closest_dir(int x, int y, int w, int h, const struct wlr_box *area) {
 	if (area == NULL || area->width <= 0 || area->height <= 0) {
 		return STONEFLY_SLIDE_DOWN;
@@ -68,36 +76,56 @@ static enum stonefly_slide_dir closest_dir(int x, int y, int w, int h, const str
 		right = 0;
 	}
 
+	const int64_t slack = 2;
+	int64_t min_d = top;
+	if (left < min_d) {
+		min_d = left;
+	}
+	if (bottom < min_d) {
+		min_d = bottom;
+	}
+	if (right < min_d) {
+		min_d = right;
+	}
+
+	bool near_top = top <= min_d + slack;
+	bool near_left = left <= min_d + slack;
+	bool near_bottom = bottom <= min_d + slack;
+	bool near_right = right <= min_d + slack;
+	bool near_v = near_top || near_bottom;
+	bool near_h = near_left || near_right;
+
+	if (near_v && near_h) {
+		if (h > w) {
+			/* Tall: slide sideways. */
+			near_top = false;
+			near_bottom = false;
+		} else if (w > h) {
+			/* Wide: slide to top/bottom. */
+			near_left = false;
+			near_right = false;
+		}
+		/* Square: keep all near edges; pure closest among them. */
+	}
+
 	enum stonefly_slide_dir dir = STONEFLY_SLIDE_DOWN;
-	int64_t best = top;
-	if (left < best) {
+	int64_t best = -1;
+	if (near_top) {
+		best = top;
+		dir = STONEFLY_SLIDE_DOWN;
+	}
+	if (near_left && (best < 0 || left < best)) {
 		best = left;
 		dir = STONEFLY_SLIDE_RIGHT; /* enter from left */
 	}
-	if (bottom < best) {
+	if (near_bottom && (best < 0 || bottom < best)) {
 		best = bottom;
 		dir = STONEFLY_SLIDE_UP; /* enter from bottom */
 	}
-	if (right < best) {
+	if (near_right && (best < 0 || right < best)) {
 		dir = STONEFLY_SLIDE_LEFT; /* enter from right */
 	}
 	return dir;
-}
-
-static void resolve_dir(struct stonefly_toplevel *toplevel, int resting_x, int resting_y, int w,
-			int h, enum stonefly_slide_dir *out) {
-	if (stonefly_cfg(toplevel->server)->slide_dir_closest) {
-		struct wlr_box area;
-		if (stonefly_toplevel_output_box(toplevel, &area)) {
-			*out = closest_dir(resting_x, resting_y, w, h, &area);
-			return;
-		}
-	}
-	(void)resting_x;
-	(void)resting_y;
-	(void)w;
-	(void)h;
-	*out = STONEFLY_SLIDE_DOWN;
 }
 
 /* Peeble OffscreenPos: clear past the usable area along dir. */
@@ -150,6 +178,30 @@ static void offscreen_pos(enum stonefly_slide_dir dir, int resting_x, int restin
 		break;
 	}
 	}
+}
+
+/* Closest-dir (or default down) + offscreen_pos for a resting box. */
+static void slide_offscreen(struct stonefly_server *server, int resting_x, int resting_y, int w,
+			    int h, const struct wlr_box *area, int *ox, int *oy) {
+	enum stonefly_slide_dir dir = STONEFLY_SLIDE_DOWN;
+	if (stonefly_cfg(server)->slide_dir_closest && area != NULL && area->width > 0 &&
+	    area->height > 0) {
+		dir = closest_dir(resting_x, resting_y, w, h, area);
+	}
+	offscreen_pos(dir, resting_x, resting_y, w, h, area, ox, oy);
+}
+
+void stonefly_anim_offscreen_for_box(struct stonefly_server *server, int resting_x, int resting_y,
+				     int w, int h, int *ox, int *oy) {
+	struct wlr_box area;
+	const struct wlr_box *area_p = NULL;
+	double cx = (double)resting_x + (double)w / 2.0;
+	double cy = (double)resting_y + (double)h / 2.0;
+	if (stonefly_layout_usable_at(server, cx, cy, &area) ||
+	    stonefly_layout_usable_at(server, server->cursor->x, server->cursor->y, &area)) {
+		area_p = &area;
+	}
+	slide_offscreen(server, resting_x, resting_y, w, h, area_p, ox, oy);
 }
 
 static void toplevel_size(struct stonefly_toplevel *toplevel, int *w, int *h) {
@@ -320,9 +372,6 @@ bool stonefly_anim_start_show(struct stonefly_toplevel *toplevel) {
 	int resting_x = toplevel->anim.active ? toplevel->resting_x : toplevel->scene_tree->node.x;
 	int resting_y = toplevel->anim.active ? toplevel->resting_y : toplevel->scene_tree->node.y;
 
-	enum stonefly_slide_dir dir;
-	resolve_dir(toplevel, resting_x, resting_y, w, h, &dir);
-
 	struct wlr_box area;
 	const struct wlr_box *area_p = NULL;
 	if (stonefly_toplevel_output_box(toplevel, &area)) {
@@ -330,7 +379,7 @@ bool stonefly_anim_start_show(struct stonefly_toplevel *toplevel) {
 	}
 
 	int from_x, from_y;
-	offscreen_pos(dir, resting_x, resting_y, w, h, area_p, &from_x, &from_y);
+	slide_offscreen(toplevel->server, resting_x, resting_y, w, h, area_p, &from_x, &from_y);
 
 	begin_slide(toplevel, from_x, from_y, resting_x, resting_y, resting_x, resting_y, false,
 		    NULL);
@@ -356,19 +405,15 @@ bool stonefly_anim_start_hide(struct stonefly_toplevel *toplevel, stonefly_anim_
 	int from_x = toplevel->scene_tree->node.x;
 	int from_y = toplevel->scene_tree->node.y;
 
-	enum stonefly_slide_dir show_dir;
-	resolve_dir(toplevel, resting_x, resting_y, w, h, &show_dir);
-	/* Hide uses the same off-screen target as show start (peeble). */
-	enum stonefly_slide_dir dir = show_dir;
-
 	struct wlr_box area;
 	const struct wlr_box *area_p = NULL;
 	if (stonefly_toplevel_output_box(toplevel, &area)) {
 		area_p = &area;
 	}
 
+	/* Same off-screen target as show start (peeble). */
 	int to_x, to_y;
-	offscreen_pos(dir, resting_x, resting_y, w, h, area_p, &to_x, &to_y);
+	slide_offscreen(toplevel->server, resting_x, resting_y, w, h, area_p, &to_x, &to_y);
 
 	begin_slide(toplevel, from_x, from_y, to_x, to_y, resting_x, resting_y, true, on_done);
 	return true;

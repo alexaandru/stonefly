@@ -327,7 +327,9 @@ void stonefly_ssd_decoration_apply(struct stonefly_toplevel *toplevel,
 	}
 
 	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
-	enum stonefly_ssd_mode mode = (enum stonefly_ssd_mode)cfg->ssd_mode;
+	enum stonefly_ssd_mode mode = toplevel->rule_ssd_set
+					      ? (enum stonefly_ssd_mode)toplevel->rule_ssd_mode
+					      : (enum stonefly_ssd_mode)cfg->ssd_mode;
 	int requested = (int)wlr_deco->requested_mode;
 	bool want = stonefly_ssd_want(mode, requested);
 
