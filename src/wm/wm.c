@@ -812,6 +812,14 @@ void sf_toplevel_place_new(struct sf_toplevel *toplevel) {
 	toplevel->auto_place = true;
 	toplevel->soft_place = true;
 	sf_rules_apply(toplevel);
+	/* Rule :action may have maximized/snapped — do not center/cascade over it
+	 * (would gap-inset + retarget morph → offset full-size window). */
+	if (toplevel->maximized_edges || toplevel->maximized_gaps ||
+	    toplevel->snapped != SF_SNAP_NONE || toplevel->fullscreen) {
+		toplevel->soft_place = false;
+		toplevel->auto_place = false;
+		return;
+	}
 	if (place_on_parent(toplevel)) {
 		sf_toplevel_ensure_on_screen(toplevel);
 		return;

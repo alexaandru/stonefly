@@ -3,9 +3,11 @@
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 
+#include "config/action.h"
 #include "config/config.h"
 #include "config/config_lua.h"
 #include "decor/decor.h"
+#include "log/log.h"
 #include "ssd/ssd.h"
 #include "ssd/ssd_policy.h"
 #include "server/server.h"
@@ -80,6 +82,13 @@ void sf_rules_apply(struct sf_toplevel *toplevel) {
 	bool ssd_set = false;
 	enum sf_ssd_mode ssd_mode = SF_SSD_NEVER;
 	if (r != NULL) {
+		const char *app = toplevel->xdg_toplevel->app_id != NULL
+					  ? toplevel->xdg_toplevel->app_id
+					  : "";
+		const char *title =
+			toplevel->xdg_toplevel->title != NULL ? toplevel->xdg_toplevel->title : "";
+		SF_LOGI("window_rule", sf_str("id", r->id), sf_str("app_id", app),
+			sf_str("title", title));
 		if (r->borderless_set) {
 			borderless = r->borderless;
 		}
@@ -106,6 +115,11 @@ void sf_rules_apply(struct sf_toplevel *toplevel) {
 			wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, w, h);
 		}
 		/* WM actions last so maximize wins over SoftPlace sizing. */
+		for (size_t i = 0; i < r->n_steps; i++) {
+			SF_LOGI("window_rule action", sf_str("id", r->id),
+				sf_str("action", sf_action_name(r->steps[i].action)),
+				sf_str("cmd", r->steps[i].cmd != NULL ? r->steps[i].cmd : ""));
+		}
 		if (r->n_steps > 0) {
 			sf_run_actions(toplevel->server, toplevel, r->steps, r->n_steps);
 		}
