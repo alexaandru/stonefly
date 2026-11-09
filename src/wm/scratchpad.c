@@ -17,26 +17,26 @@
 #include "wm/wm.h"
 #include "wm/workspace.h"
 
-#define STONEFLY_SCRATCH_CLAIM_TIMEOUT_S 15
+#define SF_SCRATCH_CLAIM_TIMEOUT_S 15
 
-struct stonefly_scratch_slot {
-	const struct stonefly_scratchpad_spec *spec;
-	struct stonefly_toplevel *toplevel;
+struct sf_scratch_slot {
+	const struct sf_scratchpad_spec *spec;
+	struct sf_toplevel *toplevel;
 };
 
-struct stonefly_scratch_pending {
+struct sf_scratch_pending {
 	char name[32];
 	char app_id[64];
 	struct timespec since;
 	bool active;
 };
 
-/* One slot per configured pad (capped at STONEFLY_SCRATCHPAD_MAX). */
-static struct stonefly_scratch_slot scratch_slots[STONEFLY_SCRATCHPAD_MAX];
+/* One slot per configured pad (capped at SF_SCRATCHPAD_MAX). */
+static struct sf_scratch_slot scratch_slots[SF_SCRATCHPAD_MAX];
 static size_t scratch_nslots;
-static struct stonefly_scratch_pending scratch_pending;
+static struct sf_scratch_pending scratch_pending;
 
-static struct stonefly_scratch_slot *slot_by_name(const char *name) {
+static struct sf_scratch_slot *slot_by_name(const char *name) {
 	if (name == NULL || name[0] == '\0') {
 		return NULL;
 	}
@@ -55,7 +55,7 @@ static bool pending_expired(void) {
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
 	time_t dt = now.tv_sec - scratch_pending.since.tv_sec;
-	return dt >= STONEFLY_SCRATCH_CLAIM_TIMEOUT_S;
+	return dt >= SF_SCRATCH_CLAIM_TIMEOUT_S;
 }
 
 static void pending_clear(void) {
@@ -64,35 +64,35 @@ static void pending_clear(void) {
 	scratch_pending.app_id[0] = '\0';
 }
 
-static void scratch_hide_now(struct stonefly_toplevel *toplevel) {
+static void scratch_hide_now(struct sf_toplevel *toplevel) {
 	/* Off LIFO; apply_hidden owns flag/scene/foreign/defocus. */
-	stonefly_toplevel_apply_hidden(toplevel, STONEFLY_HIDE_SCRATCH);
+	sf_toplevel_apply_hidden(toplevel, SF_HIDE_SCRATCH);
 }
 
-static void scratch_hide(struct stonefly_toplevel *toplevel) {
+static void scratch_hide(struct sf_toplevel *toplevel) {
 	if (toplevel->minimized) {
 		/* Already hidden (e.g. Ctrl+Esc): reclassify off the LIFO stack. */
-		stonefly_toplevel_apply_hidden(toplevel, STONEFLY_HIDE_SCRATCH);
+		sf_toplevel_apply_hidden(toplevel, SF_HIDE_SCRATCH);
 		return;
 	}
 	if (toplevel->anim_hide) {
 		/* Already sliding out (toggle or prior auto_hide). */
 		return;
 	}
-	if (stonefly_anim_start_hide(toplevel, scratch_hide_now)) {
+	if (sf_anim_start_hide(toplevel, scratch_hide_now)) {
 		return;
 	}
 	scratch_hide_now(toplevel);
 }
 
 /* Peeble OutputForWindow: center-on-head, else cursor head. */
-static struct wlr_output *toplevel_output(struct stonefly_toplevel *toplevel) {
+static struct wlr_output *toplevel_output(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->server == NULL) {
 		return NULL;
 	}
-	struct stonefly_server *server = toplevel->server;
+	struct sf_server *server = toplevel->server;
 	struct wlr_box geom;
-	stonefly_toplevel_layout_geom(toplevel, &geom);
+	sf_toplevel_layout_geom(toplevel, &geom);
 	double cx = geom.x + geom.width / 2.0;
 	double cy = geom.y + geom.height / 2.0;
 	struct wlr_output *out = wlr_output_layout_output_at(server->output_layout, cx, cy);
@@ -103,19 +103,19 @@ static struct wlr_output *toplevel_output(struct stonefly_toplevel *toplevel) {
 	return out;
 }
 
-static void scratch_show(struct stonefly_toplevel *toplevel) {
-	if (stonefly_anim_active(toplevel) && toplevel->anim_hide) {
+static void scratch_show(struct sf_toplevel *toplevel) {
+	if (sf_anim_active(toplevel) && toplevel->anim_hide) {
 		/* Reverse an in-flight hide (peeble beginSlide mid-flight). */
-		stonefly_anim_start_show(toplevel);
+		sf_anim_start_show(toplevel);
 	}
 	/* apply_shown + focus via focus_toplevel. */
-	stonefly_toplevel_apply_shown(toplevel, true);
+	sf_toplevel_apply_shown(toplevel, true);
 }
 
-static void scratch_claim(struct stonefly_scratch_slot *slot, struct stonefly_toplevel *toplevel) {
+static void scratch_claim(struct sf_scratch_slot *slot, struct sf_toplevel *toplevel) {
 	if (toplevel->scratchpad[0] != '\0' &&
 	    strcmp(toplevel->scratchpad, slot->spec->name) != 0) {
-		struct stonefly_scratch_slot *old = slot_by_name(toplevel->scratchpad);
+		struct sf_scratch_slot *old = slot_by_name(toplevel->scratchpad);
 		if (old != NULL && old->toplevel == toplevel) {
 			old->toplevel = NULL;
 		}
@@ -123,7 +123,7 @@ static void scratch_claim(struct stonefly_scratch_slot *slot, struct stonefly_to
 	snprintf(toplevel->scratchpad, sizeof(toplevel->scratchpad), "%s", slot->spec->name);
 	slot->toplevel = toplevel;
 	/* Scratchpads stay visible across workspace switches. */
-	stonefly_workspace_detach_scratchpad(toplevel);
+	sf_workspace_detach_scratchpad(toplevel);
 	pending_clear();
 	SF_LOGI("scratchpad claim", sf_str("name", slot->spec->name),
 		sf_str("app_id", toplevel->xdg_toplevel->app_id != NULL
@@ -131,7 +131,7 @@ static void scratch_claim(struct stonefly_scratch_slot *slot, struct stonefly_to
 					 : ""));
 }
 
-static void scratch_spawn(struct stonefly_server *server, struct stonefly_scratch_slot *slot) {
+static void scratch_spawn(struct sf_server *server, struct sf_scratch_slot *slot) {
 	(void)server;
 	if (scratch_pending.active && strcmp(scratch_pending.name, slot->spec->name) == 0 &&
 	    !pending_expired()) {
@@ -158,8 +158,8 @@ static void scratch_spawn(struct stonefly_server *server, struct stonefly_scratc
 	}
 }
 
-void stonefly_scratchpad_init(struct stonefly_server *server) {
-	const struct stonefly_config *cfg = stonefly_cfg(server);
+void sf_scratchpad_init(struct sf_server *server) {
+	const struct sf_config *cfg = sf_cfg(server);
 	scratch_nslots = cfg->n_scratchpads;
 	if (scratch_nslots > sizeof(scratch_slots) / sizeof(scratch_slots[0])) {
 		scratch_nslots = sizeof(scratch_slots) / sizeof(scratch_slots[0]);
@@ -171,7 +171,7 @@ void stonefly_scratchpad_init(struct stonefly_server *server) {
 	pending_clear();
 }
 
-void stonefly_scratchpad_finish(struct stonefly_server *server) {
+void sf_scratchpad_finish(struct sf_server *server) {
 	(void)server;
 	pending_clear();
 	for (size_t i = 0; i < scratch_nslots; i++) {
@@ -179,22 +179,22 @@ void stonefly_scratchpad_finish(struct stonefly_server *server) {
 	}
 }
 
-bool stonefly_toplevel_is_scratchpad(const struct stonefly_toplevel *toplevel) {
+bool sf_toplevel_is_scratchpad(const struct sf_toplevel *toplevel) {
 	return toplevel != NULL && toplevel->scratchpad[0] != '\0';
 }
 
-void stonefly_scratchpad_on_destroy(struct stonefly_toplevel *toplevel) {
+void sf_scratchpad_on_destroy(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->scratchpad[0] == '\0') {
 		return;
 	}
-	struct stonefly_scratch_slot *slot = slot_by_name(toplevel->scratchpad);
+	struct sf_scratch_slot *slot = slot_by_name(toplevel->scratchpad);
 	if (slot != NULL && slot->toplevel == toplevel) {
 		slot->toplevel = NULL;
 	}
 	toplevel->scratchpad[0] = '\0';
 }
 
-void stonefly_scratchpad_try_claim(struct stonefly_toplevel *toplevel) {
+void sf_scratchpad_try_claim(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || !scratch_pending.active) {
 		return;
 	}
@@ -207,7 +207,7 @@ void stonefly_scratchpad_try_claim(struct stonefly_toplevel *toplevel) {
 		return;
 	}
 
-	struct stonefly_scratch_slot *slot = slot_by_name(scratch_pending.name);
+	struct sf_scratch_slot *slot = slot_by_name(scratch_pending.name);
 	if (slot == NULL) {
 		pending_clear();
 		return;
@@ -237,22 +237,21 @@ void stonefly_scratchpad_try_claim(struct stonefly_toplevel *toplevel) {
 		return;
 	}
 	/* First spawn: useful full-output size (peeble MaximizeWindowToEdges). */
-	stonefly_toplevel_set_max_edges(toplevel, true);
+	sf_toplevel_set_max_edges(toplevel, true);
 	scratch_show(toplevel);
 }
 
-void stonefly_scratchpad_toggle(struct stonefly_server *server, const char *name) {
-	struct stonefly_scratch_slot *slot = slot_by_name(name);
+void sf_scratchpad_toggle(struct sf_server *server, const char *name) {
+	struct sf_scratch_slot *slot = slot_by_name(name);
 	if (slot == NULL) {
 		SF_LOGW("scratchpad unknown", sf_str("name", name != NULL ? name : ""));
 		return;
 	}
 
-	struct stonefly_toplevel *toplevel = slot->toplevel;
+	struct sf_toplevel *toplevel = slot->toplevel;
 	if (toplevel != NULL) {
 		/* Destroyed windows are cleared in on_destroy; defensive. */
-		if (toplevel->minimized ||
-		    (stonefly_anim_active(toplevel) && toplevel->anim_hide)) {
+		if (toplevel->minimized || (sf_anim_active(toplevel) && toplevel->anim_hide)) {
 			scratch_show(toplevel);
 		} else {
 			/* Defocus runs in apply_hidden after minimized is set (same as
@@ -265,13 +264,13 @@ void stonefly_scratchpad_toggle(struct stonefly_server *server, const char *name
 	scratch_spawn(server, slot);
 }
 
-void stonefly_scratchpad_claim_focused(struct stonefly_server *server, const char *name) {
-	struct stonefly_scratch_slot *slot = slot_by_name(name);
+void sf_scratchpad_claim_focused(struct sf_server *server, const char *name) {
+	struct sf_scratch_slot *slot = slot_by_name(name);
 	if (slot == NULL) {
 		SF_LOGW("scratchpad unknown", sf_str("name", name != NULL ? name : ""));
 		return;
 	}
-	struct stonefly_toplevel *toplevel = stonefly_focused_toplevel(server);
+	struct sf_toplevel *toplevel = sf_focused_toplevel(server);
 	if (toplevel == NULL) {
 		SF_LOGW("scratchpad claim: no focused window", sf_str("name", slot->spec->name));
 		return;
@@ -288,7 +287,7 @@ void stonefly_scratchpad_claim_focused(struct stonefly_server *server, const cha
 	scratch_show(toplevel);
 }
 
-void stonefly_scratchpad_on_focus_change(struct stonefly_toplevel *focused) {
+void sf_scratchpad_on_focus_change(struct sf_toplevel *focused) {
 	/*
 	 * Nil focus (exclusive layer, empty desktop) leaves pads shown — same as
 	 * peeble. Click-outside catcher is a separate roadmap item.
@@ -300,8 +299,8 @@ void stonefly_scratchpad_on_focus_change(struct stonefly_toplevel *focused) {
 	struct wlr_output *focus_out = toplevel_output(focused);
 
 	for (size_t i = 0; i < scratch_nslots; i++) {
-		struct stonefly_scratch_slot *slot = &scratch_slots[i];
-		struct stonefly_toplevel *pad = slot->toplevel;
+		struct sf_scratch_slot *slot = &scratch_slots[i];
+		struct sf_toplevel *pad = slot->toplevel;
 		if (pad == NULL || pad == focused) {
 			continue;
 		}

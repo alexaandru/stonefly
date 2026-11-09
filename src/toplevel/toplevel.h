@@ -1,5 +1,5 @@
-#ifndef STONEFLY_TOPLEVEL_H
-#define STONEFLY_TOPLEVEL_H
+#ifndef SF_TOPLEVEL_H
+#define SF_TOPLEVEL_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -8,14 +8,8 @@
 #include <wlr/util/box.h>
 
 #include "server/server.h"
-
-enum stonefly_snap {
-	STONEFLY_SNAP_NONE = 0,
-	STONEFLY_SNAP_LEFT,
-	STONEFLY_SNAP_RIGHT,
-	STONEFLY_SNAP_TOP,
-	STONEFLY_SNAP_BOTTOM,
-};
+#include "ssd/ssd_policy.h"
+#include "wm/snap.h"
 
 struct wlr_buffer;
 struct wlr_scene_blur;
@@ -27,14 +21,14 @@ struct wlr_ext_image_capture_source_v1;
 struct wlr_xdg_toplevel;
 struct wlr_xdg_toplevel_decoration_v1;
 struct wlr_xdg_toplevel_icon_v1;
-struct stonefly_workspace;
-struct stonefly_ssd;
+struct sf_workspace;
+struct sf_ssd;
 
-struct stonefly_toplevel {
-	enum stonefly_node_kind kind; /* STONEFLY_NODE_TOPLEVEL */
+struct sf_toplevel {
+	enum sf_node_kind kind; /* SF_NODE_TOPLEVEL */
 	struct wl_list link;
 	struct wl_list minimize_link;
-	struct stonefly_server *server;
+	struct sf_server *server;
 	struct wlr_xdg_toplevel *xdg_toplevel;
 	/* Wrapper: blur + shadow + border + xdg_scene_tree. */
 	struct wlr_scene_tree *scene_tree;
@@ -71,7 +65,7 @@ struct stonefly_toplevel {
 	bool maximized_edges;
 	bool maximized_gaps;
 	bool fullscreen;
-	enum stonefly_snap snapped;
+	enum sf_snap snapped;
 	bool minimized;
 	/* WM auto-placement still owns position (parent center / cascade). Cleared
 	 * on user move/resize/max/snap. Parent set or size commit may re-place. */
@@ -84,7 +78,7 @@ struct stonefly_toplevel {
 	bool borderless;
 	/* window_rule ssd override; when rule_ssd_set, use rule_ssd_mode. */
 	bool rule_ssd_set;
-	int rule_ssd_mode; /* enum stonefly_ssd_mode */
+	enum sf_ssd_mode rule_ssd_mode;
 	/* Demand-attention until focused (xdg-activation). */
 	bool urgent;
 	/* Block ext-image-capture source accept (IPC / config #1481). */
@@ -97,7 +91,7 @@ struct stonefly_toplevel {
 	char scratchpad[32];
 
 	/* Per-output workspace membership; NULL for scratchpads. */
-	struct stonefly_workspace *workspace;
+	struct sf_workspace *workspace;
 
 	/* xdg-toplevel-tag-v1 (client-set; heap, may be NULL). */
 	char *tag;
@@ -115,7 +109,7 @@ struct stonefly_toplevel {
 	/* Last mode we passed to set_mode (avoid configure storms). */
 	int ssd_set_mode;
 	struct wlr_xdg_toplevel_decoration_v1 *decoration;
-	struct stonefly_ssd *ssd;
+	struct sf_ssd *ssd;
 
 	/* Last good client buffer for Ctrl+W / CSD close-ghost (NULL-buffer unmap). */
 	struct wlr_buffer *close_snap;
@@ -137,7 +131,7 @@ struct stonefly_toplevel {
 		int to_w, to_h;
 		/* Last size proposed this morph (skip redundant set_size). */
 		int prop_w, prop_h;
-		void (*on_done)(struct stonefly_toplevel *);
+		void (*on_done)(struct sf_toplevel *);
 	} anim;
 };
 

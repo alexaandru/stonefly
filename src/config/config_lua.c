@@ -21,8 +21,8 @@
 #include "util/str.h"
 #include "wm/workspace.h"
 
-#ifndef STONEFLY_DATADIR
-#define STONEFLY_DATADIR "/usr/share/stonefly"
+#ifndef SF_DATADIR
+#define SF_DATADIR "/usr/share/stonefly"
 #endif
 
 #define RTP_MAX 32
@@ -30,7 +30,7 @@
 
 struct lua_runtime {
 	lua_State *L;
-	struct stonefly_server *server;
+	struct sf_server *server;
 	char *rtp[RTP_MAX];
 	size_t n_rtp;
 	bool binds_replaced;
@@ -42,7 +42,7 @@ struct lua_runtime {
 
 static struct lua_runtime *G;
 
-void stonefly_config_lua_close(struct stonefly_config *cfg) {
+void sf_config_lua_close(struct sf_config *cfg) {
 	if (cfg == NULL || cfg->lua == NULL) {
 		return;
 	}
@@ -69,7 +69,7 @@ static void rtp_add(struct lua_runtime *rt, const char *path) {
 			return;
 		}
 	}
-	rt->rtp[rt->n_rtp++] = stonefly_xstrdup(path);
+	rt->rtp[rt->n_rtp++] = sf_xstrdup(path);
 }
 
 static void package_path_append(lua_State *L, const char *dir) {
@@ -88,11 +88,11 @@ static int l_stdpath(lua_State *L) {
 	char buf[PATH_MAX_SF];
 	int rc = -1;
 	if (strcmp(which, "config") == 0) {
-		rc = stonefly_config_dir(buf, sizeof buf);
+		rc = sf_config_dir(buf, sizeof buf);
 	} else if (strcmp(which, "data") == 0) {
-		rc = stonefly_data_dir(buf, sizeof buf);
+		rc = sf_data_dir(buf, sizeof buf);
 	} else if (strcmp(which, "cache") == 0) {
-		rc = stonefly_cache_dir(buf, sizeof buf);
+		rc = sf_cache_dir(buf, sizeof buf);
 	} else {
 		return luaL_error(L, "stdpath: unknown %s", which);
 	}
@@ -153,9 +153,9 @@ static int l_packadd(lua_State *L) {
 		return luaL_error(L, "packadd: no runtime");
 	}
 	char data[PATH_MAX_SF];
-	stonefly_data_dir(data, sizeof data);
+	sf_data_dir(data, sizeof data);
 
-	const char *bases[] = {data, STONEFLY_DATADIR, NULL};
+	const char *bases[] = {data, SF_DATADIR, NULL};
 	char pack[PATH_MAX_SF];
 	for (int b = 0; bases[b] != NULL; b++) {
 		/* pack/dist/opt/name, else pack/opt/name */
@@ -178,16 +178,16 @@ static int l_packadd(lua_State *L) {
 static uint32_t parse_mod(const char *s) {
 	if (strcasecmp(s, "super") == 0 || strcasecmp(s, "logo") == 0 ||
 	    strcasecmp(s, "mod4") == 0) {
-		return STONEFLY_SUPER;
+		return SF_SUPER;
 	}
 	if (strcasecmp(s, "shift") == 0) {
-		return STONEFLY_SHIFT;
+		return SF_SHIFT;
 	}
 	if (strcasecmp(s, "ctrl") == 0 || strcasecmp(s, "control") == 0) {
-		return STONEFLY_CTRL;
+		return SF_CTRL;
 	}
 	if (strcasecmp(s, "alt") == 0 || strcasecmp(s, "mod1") == 0) {
-		return STONEFLY_ALT;
+		return SF_ALT;
 	}
 	return 0;
 }
@@ -317,31 +317,33 @@ static int parse_tap_mod(const char *s, xkb_keysym_t *sym_out, xkb_keysym_t *sym
 
 /* Shift+Tab often surfaces as ISO_Left_Tab; accept both when Shift is set. */
 static void maybe_tab_alt(uint32_t mods, xkb_keysym_t sym, xkb_keysym_t *sym_alt) {
-	if (*sym_alt == 0 && sym == XKB_KEY_Tab && (mods & STONEFLY_SHIFT)) {
+	if (*sym_alt == 0 && sym == XKB_KEY_Tab && (mods & SF_SHIFT)) {
 		*sym_alt = XKB_KEY_ISO_Left_Tab;
 	}
 }
 
-static void clear_keybinds(struct stonefly_config *cfg) {
+static void clear_keybinds(struct sf_config *cfg) {
 	for (size_t i = 0; i < cfg->n_keybinds; i++) {
-		free(cfg->keybinds[i].cmd);
+		sf_action_steps_free(cfg->keybinds[i].steps, cfg->keybinds[i].n_steps);
 	}
 	free(cfg->keybinds);
 	cfg->keybinds = NULL;
 	cfg->n_keybinds = 0;
 }
 
-static void clear_tapbinds(struct stonefly_config *cfg) {
+static void clear_tapbinds(struct sf_config *cfg) {
 	for (size_t i = 0; i < cfg->n_tapbinds; i++) {
-		free(cfg->tapbinds[i].single_cmd);
-		free(cfg->tapbinds[i].double_cmd);
+		sf_action_steps_free(cfg->tapbinds[i].single_steps,
+				     cfg->tapbinds[i].n_single_steps);
+		sf_action_steps_free(cfg->tapbinds[i].double_steps,
+				     cfg->tapbinds[i].n_double_steps);
 	}
 	free(cfg->tapbinds);
 	cfg->tapbinds = NULL;
 	cfg->n_tapbinds = 0;
 }
 
-static void clear_scratchpads(struct stonefly_config *cfg) {
+static void clear_scratchpads(struct sf_config *cfg) {
 	for (size_t i = 0; i < cfg->n_scratchpads; i++) {
 		free(cfg->scratchpads[i].name);
 		free(cfg->scratchpads[i].cmd);
@@ -352,18 +354,146 @@ static void clear_scratchpads(struct stonefly_config *cfg) {
 	cfg->n_scratchpads = 0;
 }
 
-static void clear_window_rules(struct stonefly_config *cfg) {
+static void clear_window_rules(struct sf_config *cfg) {
 	for (size_t i = 0; i < cfg->n_window_rules; i++) {
 		free(cfg->window_rules[i].app_id);
 		free(cfg->window_rules[i].title);
+		sf_action_steps_free(cfg->window_rules[i].steps, cfg->window_rules[i].n_steps);
 	}
 	free(cfg->window_rules);
 	cfg->window_rules = NULL;
 	cfg->n_window_rules = 0;
 }
 
-bool stonefly_lua_pattern_match(const struct stonefly_config *cfg, const char *subject,
-				const char *pattern) {
+/*
+ * Parse one action step from a Lua value:
+ *   "maximize" | {:action "exec" :cmd "…"}
+ * Returns 0 and fills *step, or luaL_error.
+ */
+static int parse_action_step_value(lua_State *L, int idx, struct sf_action_step *step) {
+	memset(step, 0, sizeof *step);
+	if (lua_type(L, idx) == LUA_TSTRING) {
+		const char *name = lua_tostring(L, idx);
+		if (!sf_action_parse_ok(name, &step->action)) {
+			return luaL_error(L, "unknown action %s", name);
+		}
+		return 0;
+	}
+	if (!lua_istable(L, idx)) {
+		return luaL_error(L, "action step must be a string or table");
+	}
+	lua_getfield(L, idx, "action");
+	const char *name = lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL;
+	if (name == NULL || !sf_action_parse_ok(name, &step->action)) {
+		lua_pop(L, 1);
+		return luaL_error(L, "action step: missing/unknown :action");
+	}
+	lua_pop(L, 1);
+	lua_getfield(L, idx, "cmd");
+	if (lua_isstring(L, -1)) {
+		step->cmd = sf_xstrdup(lua_tostring(L, -1));
+	}
+	lua_pop(L, 1);
+	return 0;
+}
+
+/* :action string | sf.chain table → heap steps. Empty/nil → n=0. */
+static int parse_action_field(lua_State *L, int opts, const char *field,
+			      struct sf_action_step **out, size_t *out_n) {
+	*out = NULL;
+	*out_n = 0;
+	lua_getfield(L, opts, field);
+	int idx = lua_gettop(L);
+	if (lua_isnil(L, idx)) {
+		lua_pop(L, 1);
+		return 0;
+	}
+	if (lua_type(L, idx) == LUA_TSTRING) {
+		struct sf_action_step step;
+		if (parse_action_step_value(L, idx, &step) != 0) {
+			return lua_error(L); /* already pushed */
+		}
+		lua_pop(L, 1);
+		if (!sf_action_steps_one(step.action, step.cmd, out, out_n)) {
+			free(step.cmd);
+			return luaL_error(L, "action: OOM");
+		}
+		free(step.cmd);
+		return 0;
+	}
+	if (!lua_istable(L, idx)) {
+		lua_pop(L, 1);
+		return luaL_error(L, "%s must be a string or chain table", field);
+	}
+	lua_getfield(L, idx, "__sf_chain");
+	bool is_chain = lua_toboolean(L, -1);
+	lua_pop(L, 1);
+	if (!is_chain) {
+		/* Single step table {:action :cmd} */
+		struct sf_action_step step;
+		if (parse_action_step_value(L, idx, &step) != 0) {
+			return lua_error(L);
+		}
+		lua_pop(L, 1);
+		if (!sf_action_steps_one(step.action, step.cmd, out, out_n)) {
+			free(step.cmd);
+			return luaL_error(L, "action: OOM");
+		}
+		free(step.cmd);
+		return 0;
+	}
+	size_t n = (size_t)lua_objlen(L, idx);
+	if (n == 0) {
+		lua_pop(L, 1);
+		return 0;
+	}
+	struct sf_action_step *steps = calloc(n, sizeof *steps);
+	if (steps == NULL) {
+		lua_pop(L, 1);
+		return luaL_error(L, "action: OOM");
+	}
+	for (size_t i = 0; i < n; i++) {
+		lua_rawgeti(L, idx, (int)i + 1);
+		if (parse_action_step_value(L, -1, &steps[i]) != 0) {
+			sf_action_steps_free(steps, i);
+			return lua_error(L);
+		}
+		lua_pop(L, 1);
+	}
+	lua_pop(L, 1);
+	*out = steps;
+	*out_n = n;
+	return 0;
+}
+
+/* sf.chain(...) → marked table of normalized step tables. */
+static int l_chain(lua_State *L) {
+	int narg = lua_gettop(L);
+	if (narg < 1) {
+		return luaL_error(L, "chain: need at least one step");
+	}
+	lua_createtable(L, narg, 1);
+	lua_pushboolean(L, 1);
+	lua_setfield(L, -2, "__sf_chain");
+	for (int i = 1; i <= narg; i++) {
+		struct sf_action_step step;
+		if (parse_action_step_value(L, i, &step) != 0) {
+			return lua_error(L);
+		}
+		lua_createtable(L, 0, 2);
+		lua_pushstring(L, sf_action_name(step.action));
+		lua_setfield(L, -2, "action");
+		if (step.cmd != NULL) {
+			lua_pushstring(L, step.cmd);
+			lua_setfield(L, -2, "cmd");
+			free(step.cmd);
+		}
+		lua_rawseti(L, -2, i);
+	}
+	return 1;
+}
+
+bool sf_lua_pattern_match(const struct sf_config *cfg, const char *subject, const char *pattern) {
 	if (pattern == NULL || pattern[0] == '\0') {
 		return true;
 	}
@@ -404,8 +534,7 @@ static int check_lua_pattern(lua_State *L, const char *pat, const char *which) {
 	return 0;
 }
 
-static const struct stonefly_window_rule *find_window_rule(const struct stonefly_config *cfg,
-							   const char *id) {
+static const struct sf_window_rule *find_window_rule(const struct sf_config *cfg, const char *id) {
 	if (id == NULL || id[0] == '\0') {
 		return NULL;
 	}
@@ -417,7 +546,7 @@ static const struct stonefly_window_rule *find_window_rule(const struct stonefly
 	return NULL;
 }
 
-static int parse_rule_match(lua_State *L, int idx, struct stonefly_window_rule *out) {
+static int parse_rule_match(lua_State *L, int idx, struct sf_window_rule *out) {
 	if (!lua_istable(L, idx)) {
 		return luaL_error(L, "window_rule: match must be a table");
 	}
@@ -435,7 +564,7 @@ static int parse_rule_match(lua_State *L, int idx, struct stonefly_window_rule *
 			}
 			check_lua_pattern(L, s, "app_id");
 			free(out->app_id);
-			out->app_id = stonefly_xstrdup(s);
+			out->app_id = sf_xstrdup(s);
 		} else if (strcmp(k, "title") == 0) {
 			const char *s = lua_tostring(L, -1);
 			if (s == NULL) {
@@ -443,7 +572,7 @@ static int parse_rule_match(lua_State *L, int idx, struct stonefly_window_rule *
 			}
 			check_lua_pattern(L, s, "title");
 			free(out->title);
-			out->title = stonefly_xstrdup(s);
+			out->title = sf_xstrdup(s);
 		} else if (strcmp(k, "title_exact") == 0) {
 			return luaL_error(L,
 					  "window_rule: title_exact removed; use title \"^...$\" "
@@ -456,7 +585,7 @@ static int parse_rule_match(lua_State *L, int idx, struct stonefly_window_rule *
 	return 0;
 }
 
-static int parse_rule_actions(lua_State *L, int idx, struct stonefly_window_rule *out) {
+static int parse_rule_actions(lua_State *L, int idx, struct sf_window_rule *out) {
 	if (!lua_istable(L, idx)) {
 		return luaL_error(L, "window_rule: actions must be a table");
 	}
@@ -491,7 +620,7 @@ static int parse_rule_actions(lua_State *L, int idx, struct stonefly_window_rule
 			if (s == NULL) {
 				return luaL_error(L, "window_rule: actions.ssd must be a string");
 			}
-			out->ssd_mode = (int)stonefly_ssd_mode_parse(s);
+			out->ssd_mode = sf_ssd_mode_parse(s);
 			out->ssd_set = true;
 		} else if (strcmp(k, "width") == 0) {
 			if (!lua_isnumber(L, -1)) {
@@ -514,6 +643,8 @@ static int parse_rule_actions(lua_State *L, int idx, struct stonefly_window_rule
 			}
 			out->height = h;
 			out->height_set = true;
+		} else if (strcmp(k, "action") == 0) {
+			/* Parsed after the loop via parse_action_field on the actions table. */
 		} else {
 			return luaL_error(L, "window_rule: unknown actions key %s", k);
 		}
@@ -522,22 +653,21 @@ static int parse_rule_actions(lua_State *L, int idx, struct stonefly_window_rule
 	return 0;
 }
 
-static void merge_window_rule(struct stonefly_window_rule *dst,
-			      const struct stonefly_window_rule *parent,
-			      const struct stonefly_window_rule *child) {
-	*dst = (struct stonefly_window_rule){0};
+static void merge_window_rule(struct sf_window_rule *dst, const struct sf_window_rule *parent,
+			      const struct sf_window_rule *child) {
+	*dst = (struct sf_window_rule){0};
 	snprintf(dst->id, sizeof dst->id, "%s", child->id);
 	snprintf(dst->parent_id, sizeof dst->parent_id, "%s", parent->id);
 
-	dst->app_id = parent->app_id != NULL ? stonefly_xstrdup(parent->app_id) : NULL;
-	dst->title = parent->title != NULL ? stonefly_xstrdup(parent->title) : NULL;
+	dst->app_id = parent->app_id != NULL ? sf_xstrdup(parent->app_id) : NULL;
+	dst->title = parent->title != NULL ? sf_xstrdup(parent->title) : NULL;
 	if (child->app_id != NULL && child->app_id[0] != '\0') {
 		free(dst->app_id);
-		dst->app_id = stonefly_xstrdup(child->app_id);
+		dst->app_id = sf_xstrdup(child->app_id);
 	}
 	if (child->title != NULL && child->title[0] != '\0') {
 		free(dst->title);
-		dst->title = stonefly_xstrdup(child->title);
+		dst->title = sf_xstrdup(child->title);
 	}
 
 	dst->center = parent->center;
@@ -577,6 +707,19 @@ static void merge_window_rule(struct stonefly_window_rule *dst,
 		dst->height = child->height;
 		dst->height_set = true;
 	}
+	if (child->n_steps > 0) {
+		if (!sf_action_steps_dup(child->steps, child->n_steps, &dst->steps,
+					 &dst->n_steps)) {
+			dst->steps = NULL;
+			dst->n_steps = 0;
+		}
+	} else if (parent->n_steps > 0) {
+		if (!sf_action_steps_dup(parent->steps, parent->n_steps, &dst->steps,
+					 &dst->n_steps)) {
+			dst->steps = NULL;
+			dst->n_steps = 0;
+		}
+	}
 }
 
 /*
@@ -592,19 +735,20 @@ static int l_window_rule(lua_State *L) {
 	if (G == NULL) {
 		return luaL_error(L, "window_rule: no runtime");
 	}
-	struct stonefly_config *cfg = &G->server->config;
+	struct sf_config *cfg = &G->server->config;
 	if (!G->rules_replaced) {
 		clear_window_rules(cfg);
 		G->rules_replaced = true;
 		G->rule_seq = 0;
 	}
-	if (cfg->n_window_rules >= STONEFLY_WINDOW_RULE_MAX) {
-		return luaL_error(L, "window_rule: max %d", STONEFLY_WINDOW_RULE_MAX);
+	if (cfg->n_window_rules >= SF_WINDOW_RULE_MAX) {
+		return luaL_error(L, "window_rule: max %d", SF_WINDOW_RULE_MAX);
 	}
 
-	struct stonefly_window_rule raw = {0};
+	struct sf_window_rule raw = {0};
 	parse_rule_match(L, 1, &raw);
 	parse_rule_actions(L, 2, &raw);
+	parse_action_field(L, 2, "action", &raw.steps, &raw.n_steps);
 
 	/* Parent id only — realloc may move window_rules; re-resolve after. */
 	char parent_id[40] = {0};
@@ -613,11 +757,13 @@ static int l_window_rule(lua_State *L) {
 		if (pid == NULL || pid[0] == '\0') {
 			free(raw.app_id);
 			free(raw.title);
+			sf_action_steps_free(raw.steps, raw.n_steps);
 			return luaL_error(L, "window_rule: parent must be a rule tag string");
 		}
 		if (find_window_rule(cfg, pid) == NULL) {
 			free(raw.app_id);
 			free(raw.title);
+			sf_action_steps_free(raw.steps, raw.n_steps);
 			return luaL_error(L, "window_rule: unknown parent tag %s", pid);
 		}
 		snprintf(parent_id, sizeof parent_id, "%s", pid);
@@ -626,30 +772,35 @@ static int l_window_rule(lua_State *L) {
 	G->rule_seq++;
 	snprintf(raw.id, sizeof raw.id, "rule-%u", G->rule_seq);
 
-	struct stonefly_window_rule *nb =
+	struct sf_window_rule *nb =
 		realloc(cfg->window_rules, (cfg->n_window_rules + 1) * sizeof *nb);
 	if (nb == NULL) {
 		free(raw.app_id);
 		free(raw.title);
+		sf_action_steps_free(raw.steps, raw.n_steps);
 		return luaL_error(L, "window_rule: OOM");
 	}
 	cfg->window_rules = nb;
-	struct stonefly_window_rule *dst = &cfg->window_rules[cfg->n_window_rules];
+	struct sf_window_rule *dst = &cfg->window_rules[cfg->n_window_rules];
 
 	if (parent_id[0] != '\0') {
-		const struct stonefly_window_rule *parent = find_window_rule(cfg, parent_id);
+		const struct sf_window_rule *parent = find_window_rule(cfg, parent_id);
 		if (parent == NULL) {
 			free(raw.app_id);
 			free(raw.title);
+			sf_action_steps_free(raw.steps, raw.n_steps);
 			return luaL_error(L, "window_rule: unknown parent tag %s", parent_id);
 		}
 		merge_window_rule(dst, parent, &raw);
 		free(raw.app_id);
 		free(raw.title);
+		sf_action_steps_free(raw.steps, raw.n_steps);
 	} else {
 		*dst = raw;
 		raw.app_id = NULL;
 		raw.title = NULL;
+		raw.steps = NULL;
+		raw.n_steps = 0;
 	}
 
 	bool has_match = (dst->app_id != NULL && dst->app_id[0] != '\0') ||
@@ -657,6 +808,9 @@ static int l_window_rule(lua_State *L) {
 	if (!has_match) {
 		free(dst->app_id);
 		free(dst->title);
+		sf_action_steps_free(dst->steps, dst->n_steps);
+		dst->steps = NULL;
+		dst->n_steps = 0;
 		return luaL_error(L, "window_rule: match needs app_id or title");
 	}
 	cfg->n_window_rules++;
@@ -667,14 +821,16 @@ static int l_window_rule(lua_State *L) {
 /*
  * bind forms:
  *   bind("Super+w", { action = "exec", cmd = "..." })
+ *   bind("Super+x", { action = (sf.chain "maximize" ...) })
  *   bind({ key = "Super+Shift+Tab", action = "focus_prev" })  -- chord-in-key
- * Optional: key_alt, cmd. Shift+Tab auto-adds ISO_Left_Tab as key_alt.
+ * Optional: key_alt. Shift+Tab auto-adds ISO_Left_Tab as key_alt.
+ * Legacy :cmd next to a string :action still works (one-step with cmd).
  */
 static int l_bind(lua_State *L) {
 	if (G == NULL) {
 		return luaL_error(L, "bind: no runtime");
 	}
-	struct stonefly_config *cfg = &G->server->config;
+	struct sf_config *cfg = &G->server->config;
 	if (!G->binds_replaced) {
 		clear_keybinds(cfg);
 		G->binds_replaced = true;
@@ -718,41 +874,48 @@ static int l_bind(lua_State *L) {
 	lua_pop(L, 1);
 	maybe_tab_alt(mods, sym, &sym_alt);
 
-	lua_getfield(L, opts, "action");
-	const char *act = luaL_checkstring(L, -1);
-	enum stonefly_action action = stonefly_action_parse(act);
-	lua_pop(L, 1);
-
-	lua_getfield(L, opts, "cmd");
-	const char *cmd = lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL;
-
-	struct stonefly_keybind *nb = realloc(cfg->keybinds, (cfg->n_keybinds + 1) * sizeof *nb);
-	if (nb == NULL) {
+	struct sf_action_step *steps = NULL;
+	size_t n_steps = 0;
+	parse_action_field(L, opts, "action", &steps, &n_steps);
+	if (n_steps == 0) {
+		return luaL_error(L, "bind: missing action");
+	}
+	/* Legacy: string action + sibling :cmd attaches cmd to the sole step. */
+	if (n_steps == 1 && steps[0].cmd == NULL) {
+		lua_getfield(L, opts, "cmd");
+		if (lua_isstring(L, -1)) {
+			steps[0].cmd = sf_xstrdup(lua_tostring(L, -1));
+		}
 		lua_pop(L, 1);
+	}
+
+	struct sf_keybind *nb = realloc(cfg->keybinds, (cfg->n_keybinds + 1) * sizeof *nb);
+	if (nb == NULL) {
+		sf_action_steps_free(steps, n_steps);
 		return luaL_error(L, "bind: OOM");
 	}
 	cfg->keybinds = nb;
-	struct stonefly_keybind *b = &cfg->keybinds[cfg->n_keybinds++];
+	struct sf_keybind *b = &cfg->keybinds[cfg->n_keybinds++];
 	memset(b, 0, sizeof *b);
 	b->mods = mods;
 	b->sym = sym;
 	b->sym_alt = sym_alt;
-	b->action = action;
-	b->cmd = stonefly_xstrdup(cmd);
-	lua_pop(L, 1);
+	b->steps = steps;
+	b->n_steps = n_steps;
 	return 0;
 }
 
 /*
  * tap forms (modifier name only; L+R via parse_tap_mod):
- *   tap("Super", { single = "exec", double = "scratch_toggle", ... })
- *   tap({ key = "Super", ... })
+ *   tap("Super", { single = "exec", single_cmd = "…", double = "scratch_toggle", … })
+ *   tap({ key = "Super", single = (sf.chain …), … })
+ * :single / :double accept string, step table, or sf.chain (same as :action).
  */
 static int l_tap(lua_State *L) {
 	if (G == NULL) {
 		return luaL_error(L, "tap: no runtime");
 	}
-	struct stonefly_config *cfg = &G->server->config;
+	struct sf_config *cfg = &G->server->config;
 	if (!G->taps_replaced) {
 		clear_tapbinds(cfg);
 		G->taps_replaced = true;
@@ -780,37 +943,42 @@ static int l_tap(lua_State *L) {
 		}
 	}
 
-	lua_getfield(L, opts, "single");
-	enum stonefly_action single =
-		stonefly_action_parse(lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL);
-	lua_pop(L, 1);
-	lua_getfield(L, opts, "double");
-	enum stonefly_action dbl =
-		stonefly_action_parse(lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL);
-	lua_pop(L, 1);
+	struct sf_action_step *single_steps = NULL;
+	size_t n_single = 0;
+	struct sf_action_step *double_steps = NULL;
+	size_t n_double = 0;
+	parse_action_field(L, opts, "single", &single_steps, &n_single);
+	parse_action_field(L, opts, "double", &double_steps, &n_double);
+	if (n_single == 1 && single_steps[0].cmd == NULL) {
+		lua_getfield(L, opts, "single_cmd");
+		if (lua_isstring(L, -1)) {
+			single_steps[0].cmd = sf_xstrdup(lua_tostring(L, -1));
+		}
+		lua_pop(L, 1);
+	}
+	if (n_double == 1 && double_steps != NULL && double_steps[0].cmd == NULL) {
+		lua_getfield(L, opts, "double_cmd");
+		if (lua_isstring(L, -1)) {
+			double_steps[0].cmd = sf_xstrdup(lua_tostring(L, -1));
+		}
+		lua_pop(L, 1);
+	}
 
-	lua_getfield(L, opts, "single_cmd");
-	char *scmd_c = stonefly_xstrdup(lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL);
-	lua_pop(L, 1);
-	lua_getfield(L, opts, "double_cmd");
-	char *dcmd_c = stonefly_xstrdup(lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL);
-	lua_pop(L, 1);
-
-	struct stonefly_tapbind *nb = realloc(cfg->tapbinds, (cfg->n_tapbinds + 1) * sizeof *nb);
+	struct sf_tapbind *nb = realloc(cfg->tapbinds, (cfg->n_tapbinds + 1) * sizeof *nb);
 	if (nb == NULL) {
-		free(scmd_c);
-		free(dcmd_c);
+		sf_action_steps_free(single_steps, n_single);
+		sf_action_steps_free(double_steps, n_double);
 		return luaL_error(L, "tap: OOM");
 	}
 	cfg->tapbinds = nb;
-	struct stonefly_tapbind *t = &cfg->tapbinds[cfg->n_tapbinds++];
+	struct sf_tapbind *t = &cfg->tapbinds[cfg->n_tapbinds++];
 	memset(t, 0, sizeof *t);
 	t->sym = sym;
 	t->sym_alt = sym_alt;
-	t->single = single;
-	t->double_tap = dbl;
-	t->single_cmd = scmd_c;
-	t->double_cmd = dcmd_c;
+	t->single_steps = single_steps;
+	t->n_single_steps = n_single;
+	t->double_steps = double_steps;
+	t->n_double_steps = n_double;
 	return 0;
 }
 
@@ -819,13 +987,13 @@ static int l_scratchpad(lua_State *L) {
 	if (G == NULL) {
 		return luaL_error(L, "scratchpad: no runtime");
 	}
-	struct stonefly_config *cfg = &G->server->config;
+	struct sf_config *cfg = &G->server->config;
 	if (!G->scratches_replaced) {
 		clear_scratchpads(cfg);
 		G->scratches_replaced = true;
 	}
-	if (cfg->n_scratchpads >= STONEFLY_SCRATCHPAD_MAX) {
-		return luaL_error(L, "scratchpad: max %d", STONEFLY_SCRATCHPAD_MAX);
+	if (cfg->n_scratchpads >= SF_SCRATCHPAD_MAX) {
+		return luaL_error(L, "scratchpad: max %d", SF_SCRATCHPAD_MAX);
 	}
 	lua_getfield(L, 1, "name");
 	const char *name = luaL_checkstring(L, -1);
@@ -837,16 +1005,16 @@ static int l_scratchpad(lua_State *L) {
 	/* Peeble default: auto_hide true when omitted. */
 	bool auto_hide = !lua_isboolean(L, -1) || lua_toboolean(L, -1);
 
-	struct stonefly_scratchpad_spec *nb =
+	struct sf_scratchpad_spec *nb =
 		realloc(cfg->scratchpads, (cfg->n_scratchpads + 1) * sizeof *nb);
 	if (nb == NULL) {
 		return luaL_error(L, "scratchpad: OOM");
 	}
 	cfg->scratchpads = nb;
-	struct stonefly_scratchpad_spec *s = &cfg->scratchpads[cfg->n_scratchpads++];
-	s->name = stonefly_xstrdup(name);
-	s->cmd = stonefly_xstrdup(cmd);
-	s->app_id = stonefly_xstrdup(app);
+	struct sf_scratchpad_spec *s = &cfg->scratchpads[cfg->n_scratchpads++];
+	s->name = sf_xstrdup(name);
+	s->cmd = sf_xstrdup(cmd);
+	s->app_id = sf_xstrdup(app);
 	s->auto_hide = auto_hide;
 	lua_pop(L, 4);
 	return 0;
@@ -862,15 +1030,15 @@ struct opt_num {
 	const char *name;
 	enum opt_num_kind kind;
 	size_t off;
-	void (*set)(struct stonefly_config *cfg, double v);
+	void (*set)(struct sf_config *cfg, double v);
 };
 
-static void opt_set_ssd_height(struct stonefly_config *cfg, double v) {
+static void opt_set_ssd_height(struct sf_config *cfg, double v) {
 	int h = (int)v;
 	cfg->ssd_height = h < 16 ? 16 : h;
 }
 
-static void opt_set_ssd_font_size(struct stonefly_config *cfg, double v) {
+static void opt_set_ssd_font_size(struct sf_config *cfg, double v) {
 	int s = (int)v;
 	if (s < 8) {
 		s = 8;
@@ -881,50 +1049,44 @@ static void opt_set_ssd_font_size(struct stonefly_config *cfg, double v) {
 	cfg->ssd_font_size = s;
 }
 
-static void opt_set_resize_border_in(struct stonefly_config *cfg, double v) {
+static void opt_set_resize_border_in(struct sf_config *cfg, double v) {
 	int n = (int)v;
 	cfg->resize_border_in = n < 0 ? 0 : n;
 }
 
-static void opt_set_resize_border_out(struct stonefly_config *cfg, double v) {
+static void opt_set_resize_border_out(struct sf_config *cfg, double v) {
 	int n = (int)v;
 	cfg->resize_border_out = n < 0 ? 0 : n;
 }
 
 static const struct opt_num opt_numbers[] = {
-	{"scale", OPT_NUM_FLOAT, offsetof(struct stonefly_config, output_scale), NULL},
-	{"cursor_size", OPT_NUM_INT, offsetof(struct stonefly_config, cursor_size_default), NULL},
-	{"gap", OPT_NUM_INT, offsetof(struct stonefly_config, gap_size), NULL},
-	{"cascade_step", OPT_NUM_INT, offsetof(struct stonefly_config, cascade_step), NULL},
-	{"cascade_wrap", OPT_NUM_INT, offsetof(struct stonefly_config, cascade_wrap), NULL},
-	{"slide_duration_ms", OPT_NUM_INT, offsetof(struct stonefly_config, slide_duration_ms),
+	{"scale", OPT_NUM_FLOAT, offsetof(struct sf_config, output_scale), NULL},
+	{"cursor_size", OPT_NUM_INT, offsetof(struct sf_config, cursor_size_default), NULL},
+	{"gap", OPT_NUM_INT, offsetof(struct sf_config, gap_size), NULL},
+	{"cascade_step", OPT_NUM_INT, offsetof(struct sf_config, cascade_step), NULL},
+	{"cascade_wrap", OPT_NUM_INT, offsetof(struct sf_config, cascade_wrap), NULL},
+	{"slide_duration_ms", OPT_NUM_INT, offsetof(struct sf_config, slide_duration_ms), NULL},
+	{"morph_duration_ms", OPT_NUM_INT, offsetof(struct sf_config, morph_duration_ms), NULL},
+	{"client_opacity", OPT_NUM_FLOAT, offsetof(struct sf_config, client_opacity), NULL},
+	{"inactive_opacity", OPT_NUM_FLOAT, offsetof(struct sf_config, inactive_opacity), NULL},
+	{"corner_radius", OPT_NUM_INT, offsetof(struct sf_config, corner_radius), NULL},
+	{"border_thickness", OPT_NUM_INT, offsetof(struct sf_config, border_thickness), NULL},
+	{"shadow_blur_sigma", OPT_NUM_FLOAT, offsetof(struct sf_config, shadow_blur_sigma), NULL},
+	{"blur_num_passes", OPT_NUM_INT, offsetof(struct sf_config, blur_num_passes), NULL},
+	{"blur_radius", OPT_NUM_INT, offsetof(struct sf_config, blur_radius), NULL},
+	{"blur_noise", OPT_NUM_FLOAT, offsetof(struct sf_config, blur_noise), NULL},
+	{"blur_brightness", OPT_NUM_FLOAT, offsetof(struct sf_config, blur_brightness), NULL},
+	{"blur_contrast", OPT_NUM_FLOAT, offsetof(struct sf_config, blur_contrast), NULL},
+	{"blur_saturation", OPT_NUM_FLOAT, offsetof(struct sf_config, blur_saturation), NULL},
+	{"bell_flash_ms", OPT_NUM_INT, offsetof(struct sf_config, bell_flash_ms), NULL},
+	{"snap_threshold", OPT_NUM_INT, offsetof(struct sf_config, snap_threshold), NULL},
+	{"snap_preview_border", OPT_NUM_INT, offsetof(struct sf_config, snap_preview_border), NULL},
+	{"snap_preview_opacity", OPT_NUM_FLOAT, offsetof(struct sf_config, snap_preview_opacity),
 	 NULL},
-	{"morph_duration_ms", OPT_NUM_INT, offsetof(struct stonefly_config, morph_duration_ms),
-	 NULL},
-	{"client_opacity", OPT_NUM_FLOAT, offsetof(struct stonefly_config, client_opacity), NULL},
-	{"inactive_opacity", OPT_NUM_FLOAT, offsetof(struct stonefly_config, inactive_opacity),
-	 NULL},
-	{"corner_radius", OPT_NUM_INT, offsetof(struct stonefly_config, corner_radius), NULL},
-	{"border_thickness", OPT_NUM_INT, offsetof(struct stonefly_config, border_thickness), NULL},
-	{"shadow_blur_sigma", OPT_NUM_FLOAT, offsetof(struct stonefly_config, shadow_blur_sigma),
-	 NULL},
-	{"blur_num_passes", OPT_NUM_INT, offsetof(struct stonefly_config, blur_num_passes), NULL},
-	{"blur_radius", OPT_NUM_INT, offsetof(struct stonefly_config, blur_radius), NULL},
-	{"blur_noise", OPT_NUM_FLOAT, offsetof(struct stonefly_config, blur_noise), NULL},
-	{"blur_brightness", OPT_NUM_FLOAT, offsetof(struct stonefly_config, blur_brightness), NULL},
-	{"blur_contrast", OPT_NUM_FLOAT, offsetof(struct stonefly_config, blur_contrast), NULL},
-	{"blur_saturation", OPT_NUM_FLOAT, offsetof(struct stonefly_config, blur_saturation), NULL},
-	{"bell_flash_ms", OPT_NUM_INT, offsetof(struct stonefly_config, bell_flash_ms), NULL},
-	{"snap_threshold", OPT_NUM_INT, offsetof(struct stonefly_config, snap_threshold), NULL},
-	{"snap_preview_border", OPT_NUM_INT, offsetof(struct stonefly_config, snap_preview_border),
-	 NULL},
-	{"snap_preview_opacity", OPT_NUM_FLOAT,
-	 offsetof(struct stonefly_config, snap_preview_opacity), NULL},
-	{"tap_max_hold_ms", OPT_NUM_INT, offsetof(struct stonefly_config, tap_max_hold_ms), NULL},
-	{"double_tap_gap_ms", OPT_NUM_INT, offsetof(struct stonefly_config, double_tap_gap_ms),
-	 NULL},
+	{"tap_max_hold_ms", OPT_NUM_INT, offsetof(struct sf_config, tap_max_hold_ms), NULL},
+	{"double_tap_gap_ms", OPT_NUM_INT, offsetof(struct sf_config, double_tap_gap_ms), NULL},
 	{"swipe_workspace_threshold", OPT_NUM_INT,
-	 offsetof(struct stonefly_config, swipe_workspace_threshold), NULL},
+	 offsetof(struct sf_config, swipe_workspace_threshold), NULL},
 	{"ssd_height", OPT_NUM_FN, 0, opt_set_ssd_height},
 	{"ssd_font_size", OPT_NUM_FN, 0, opt_set_ssd_font_size},
 	{"resize_border_in", OPT_NUM_FN, 0, opt_set_resize_border_in},
@@ -935,23 +1097,23 @@ static const struct {
 	const char *name;
 	size_t off;
 } opt_bools[] = {
-	{"slide_dir_closest", offsetof(struct stonefly_config, slide_dir_closest)},
-	{"window_blur", offsetof(struct stonefly_config, window_blur)},
-	{"blur_xray", offsetof(struct stonefly_config, blur_xray)},
-	{"swipe_workspace_natural", offsetof(struct stonefly_config, swipe_workspace_natural)},
+	{"slide_dir_closest", offsetof(struct sf_config, slide_dir_closest)},
+	{"window_blur", offsetof(struct sf_config, window_blur)},
+	{"blur_xray", offsetof(struct sf_config, blur_xray)},
+	{"swipe_workspace_natural", offsetof(struct sf_config, swipe_workspace_natural)},
 };
 
 static const struct {
 	const char *name;
-	size_t off; /* float[4] */
+	size_t off; /* struct sf_rgba (contiguous float r,g,b,a) */
 } opt_colors[] = {
-	{"border_active", offsetof(struct stonefly_config, border_active)},
-	{"border_inactive", offsetof(struct stonefly_config, border_inactive)},
-	{"border_urgent", offsetof(struct stonefly_config, border_urgent)},
-	{"shadow_color", offsetof(struct stonefly_config, shadow_color)},
+	{"border_active", offsetof(struct sf_config, border_active)},
+	{"border_inactive", offsetof(struct sf_config, border_inactive)},
+	{"border_urgent", offsetof(struct sf_config, border_urgent)},
+	{"shadow_color", offsetof(struct sf_config, shadow_color)},
 };
 
-static void opt_set_number(struct stonefly_config *cfg, const char *k, double v) {
+static void opt_set_number(struct sf_config *cfg, const char *k, double v) {
 	for (size_t i = 0; i < sizeof opt_numbers / sizeof opt_numbers[0]; i++) {
 		const struct opt_num *e = &opt_numbers[i];
 		if (strcmp(k, e->name) != 0) {
@@ -973,12 +1135,12 @@ static int l_opt_newindex(lua_State *L) {
 	if (G == NULL) {
 		return 0;
 	}
-	struct stonefly_config *cfg = &G->server->config;
+	struct sf_config *cfg = &G->server->config;
 	if (lua_isboolean(L, 3)) {
 		int v = lua_toboolean(L, 3);
 		for (size_t i = 0; i < sizeof opt_bools / sizeof opt_bools[0]; i++) {
 			if (strcmp(k, opt_bools[i].name) == 0) {
-				*(int *)((char *)cfg + opt_bools[i].off) = v;
+				*(bool *)((char *)cfg + opt_bools[i].off) = v != 0;
 				break;
 			}
 		}
@@ -991,11 +1153,11 @@ static int l_opt_newindex(lua_State *L) {
 	if (lua_isstring(L, 3)) {
 		const char *s = lua_tostring(L, 3);
 		if (strcmp(k, "capture_block_app_ids") == 0) {
-			stonefly_replace_str(&cfg->capture_block_app_ids, s);
+			sf_replace_str(&cfg->capture_block_app_ids, s);
 		} else if (strcmp(k, "layout") == 0) {
-			cfg->layout = (int)stonefly_layout_parse(s);
+			cfg->layout = sf_layout_parse(s);
 		} else if (strcmp(k, "ssd_mode") == 0) {
-			cfg->ssd_mode = (int)stonefly_ssd_mode_parse(s);
+			cfg->ssd_mode = sf_ssd_mode_parse(s);
 		}
 		return 0;
 	}
@@ -1044,7 +1206,8 @@ static int l_opt_newindex(lua_State *L) {
 			if (strcmp(k, opt_colors[i].name) != 0) {
 				continue;
 			}
-			float *dst = (float *)((char *)cfg + opt_colors[i].off);
+			struct sf_rgba *color = (struct sf_rgba *)((char *)cfg + opt_colors[i].off);
+			float *dst = sf_rgba_vec_mut(color);
 			for (int c = 0; c < 4; c++) {
 				lua_rawgeti(L, 3, c + 1);
 				dst[c] = (float)lua_tonumber(L, -1);
@@ -1056,9 +1219,9 @@ static int l_opt_newindex(lua_State *L) {
 	return 0;
 }
 
-static void push_stonefly_table(struct lua_runtime *rt) {
+static void push_sf_table(struct lua_runtime *rt) {
 	lua_State *L = rt->L;
-	lua_newtable(L); /* stonefly */
+	lua_newtable(L); /* sf */
 
 	lua_pushcfunction(L, l_stdpath);
 	lua_setfield(L, -2, "stdpath");
@@ -1068,6 +1231,8 @@ static void push_stonefly_table(struct lua_runtime *rt) {
 	lua_setfield(L, -2, "_fs_mtime");
 	lua_pushcfunction(L, l_packadd);
 	lua_setfield(L, -2, "packadd");
+	lua_pushcfunction(L, l_chain);
+	lua_setfield(L, -2, "chain");
 	lua_pushcfunction(L, l_bind);
 	lua_setfield(L, -2, "bind");
 	lua_pushcfunction(L, l_tap);
@@ -1077,7 +1242,7 @@ static void push_stonefly_table(struct lua_runtime *rt) {
 	lua_pushcfunction(L, l_window_rule);
 	lua_setfield(L, -2, "window_rule");
 
-	/* stonefly.opt with __newindex */
+	/* sf.opt with __newindex */
 	lua_newtable(L); /* opt */
 	lua_newtable(L); /* mt */
 	lua_pushcfunction(L, l_opt_newindex);
@@ -1085,19 +1250,19 @@ static void push_stonefly_table(struct lua_runtime *rt) {
 	lua_setmetatable(L, -2);
 	lua_setfield(L, -2, "opt");
 
-	lua_setglobal(L, "stonefly");
+	lua_setglobal(L, "sf");
 }
 
 static void setup_rtp(struct lua_runtime *rt) {
 	char config[PATH_MAX_SF], data[PATH_MAX_SF];
-	if (stonefly_config_dir(config, sizeof config) == 0) {
+	if (sf_config_dir(config, sizeof config) == 0) {
 		rtp_add(rt, config);
 	}
-	if (stonefly_data_dir(data, sizeof data) == 0) {
+	if (sf_data_dir(data, sizeof data) == 0) {
 		rtp_add(rt, data);
 	}
-	rtp_add(rt, STONEFLY_DATADIR "/runtime");
-	rtp_add(rt, STONEFLY_DATADIR);
+	rtp_add(rt, SF_DATADIR "/runtime");
+	rtp_add(rt, SF_DATADIR);
 
 	for (size_t i = 0; i < rt->n_rtp; i++) {
 		package_path_append(rt->L, rt->rtp[i]);
@@ -1122,11 +1287,11 @@ static bool eval_buffer(struct lua_runtime *rt, const char *name, const unsigned
 }
 
 static bool write_embed_tree_to(const char *dir) {
-	if (stonefly_mkdir_p(dir) != 0) {
+	if (sf_mkdir_p(dir) != 0) {
 		return false;
 	}
-	for (size_t i = 0; i < stonefly_default_files_len; i++) {
-		const struct stonefly_embed_file *f = &stonefly_default_files[i];
+	for (size_t i = 0; i < sf_default_files_len; i++) {
+		const struct sf_embed_file *f = &sf_default_files[i];
 		char path[PATH_MAX_SF];
 		snprintf(path, sizeof path, "%s/%s", dir, f->name);
 		FILE *out = fopen(path, "we");
@@ -1152,7 +1317,7 @@ static bool run_embedded_default(struct lua_runtime *rt) {
 	 */
 	char cache[PATH_MAX_SF];
 	char emb[PATH_MAX_SF];
-	if (stonefly_cache_dir(cache, sizeof cache) != 0) {
+	if (sf_cache_dir(cache, sizeof cache) != 0) {
 		return false;
 	}
 	snprintf(emb, sizeof emb, "%s/embedded-default", cache);
@@ -1164,11 +1329,11 @@ static bool run_embedded_default(struct lua_runtime *rt) {
 	rtp_add(rt, emb);
 	package_path_append(rt->L, emb);
 
-	const struct stonefly_embed_file *init = &stonefly_default_files[0];
+	const struct sf_embed_file *init = &sf_default_files[0];
 	return eval_buffer(rt, "=embedded:init.lua", init->data, init->len);
 }
 
-static bool lua_boot(struct stonefly_server *server) {
+static bool lua_boot(struct sf_server *server) {
 	struct lua_runtime *rt = calloc(1, sizeof *rt);
 	if (rt == NULL) {
 		return false;
@@ -1182,12 +1347,12 @@ static bool lua_boot(struct stonefly_server *server) {
 	luaL_openlibs(rt->L);
 	G = rt;
 	server->config.lua = rt;
-	push_stonefly_table(rt);
+	push_sf_table(rt);
 	setup_rtp(rt);
 	return true;
 }
 
-bool stonefly_config_load(struct stonefly_server *server) {
+bool sf_config_load(struct sf_server *server) {
 	const char *noconfig = getenv("STONEFLY_NOCONFIG");
 	if (noconfig != NULL && noconfig[0] != '\0' && strcmp(noconfig, "0") != 0) {
 		SF_LOGI("config", sf_str("mode", "STONEFLY_NOCONFIG"));
@@ -1201,8 +1366,7 @@ bool stonefly_config_load(struct stonefly_server *server) {
 
 	char init_path[PATH_MAX_SF];
 	bool ok;
-	if (stonefly_config_init_path(init_path, sizeof init_path) == 0 &&
-	    access(init_path, R_OK) == 0) {
+	if (sf_config_init_path(init_path, sizeof init_path) == 0 && access(init_path, R_OK) == 0) {
 		SF_LOGI("config", sf_str("path", init_path));
 		ok = luaL_dofile(G->L, init_path) == LUA_OK;
 		if (!ok) {
@@ -1222,9 +1386,9 @@ bool stonefly_config_load(struct stonefly_server *server) {
 			}
 			lua_pop(G->L, 1);
 			/* recreate clean state */
-			stonefly_config_lua_close(&server->config);
-			stonefly_config_finish(&server->config);
-			stonefly_config_set_defaults(&server->config);
+			sf_config_lua_close(&server->config);
+			sf_config_finish(&server->config);
+			sf_config_set_defaults(&server->config);
 			if (!lua_boot(server)) {
 				return false;
 			}
@@ -1237,9 +1401,9 @@ bool stonefly_config_load(struct stonefly_server *server) {
 
 	if (!ok) {
 		SF_LOGE("config: embedded default failed; keeping C defaults");
-		stonefly_config_lua_close(&server->config);
-		stonefly_config_finish(&server->config);
-		stonefly_config_set_defaults(&server->config);
+		sf_config_lua_close(&server->config);
+		sf_config_finish(&server->config);
+		sf_config_set_defaults(&server->config);
 		return true; /* compositor still starts */
 	}
 	return true;

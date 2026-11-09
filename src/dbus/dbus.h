@@ -1,7 +1,7 @@
-#ifndef STONEFLY_DBUS_H
-#define STONEFLY_DBUS_H
+#ifndef SF_DBUS_H
+#define SF_DBUS_H
 
-struct stonefly_server;
+struct sf_server;
 
 /*
  * Session-bus helpers via sd-bus (libelogind / libsystemd).
@@ -9,16 +9,16 @@ struct stonefly_server;
  */
 
 /* Push the process environment into D-Bus activation (WAYLAND_DISPLAY, …). */
-void stonefly_dbus_update_activation_environment(void);
+void sf_dbus_update_activation_environment(void);
 
 /*
  * If server->config_warn is set: wait (≤20s) for org.freedesktop.Notifications
  * via NameOwnerChanged, then Notify. Bail on the toast only if nothing claims
  * the name. Non-blocking — hooks the Wayland event loop.
  */
-void stonefly_dbus_notify_config_warn(struct stonefly_server *server);
+void sf_dbus_notify_config_warn(struct sf_server *server);
 
 /* Cancel a pending config-warn wait (safe if none). */
-void stonefly_dbus_finish(struct stonefly_server *server);
+void sf_dbus_finish(struct sf_server *server);
 
 #endif

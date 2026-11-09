@@ -8,17 +8,19 @@
 #include "config/config.h"
 #include "server/server.h"
 #include "ssd/ssd_policy.h"
+#include "util/color.h"
 #include "util/json.h"
 #include "wm/workspace.h"
 
-static void json_rgba(struct json_buf *b, const float c[4]) {
+static void json_rgba(struct json_buf *b, const struct sf_rgba *c) {
 	json_byte(b, '[');
-	for (int i = 0; i < 4; i++) {
-		if (i > 0) {
-			json_byte(b, ',');
-		}
-		json_f64(b, c[i]);
-	}
+	json_f64(b, c->r);
+	json_byte(b, ',');
+	json_f64(b, c->g);
+	json_byte(b, ',');
+	json_f64(b, c->b);
+	json_byte(b, ',');
+	json_f64(b, c->a);
 	json_byte(b, ']');
 }
 
@@ -29,10 +31,10 @@ static void json_mods(struct json_buf *b, uint32_t mods) {
 		uint32_t bit;
 		const char *name;
 	} tab[] = {
-		{STONEFLY_SUPER, "super"},
-		{STONEFLY_SHIFT, "shift"},
-		{STONEFLY_CTRL, "ctrl"},
-		{STONEFLY_ALT, "alt"},
+		{SF_SUPER, "super"},
+		{SF_SHIFT, "shift"},
+		{SF_CTRL, "ctrl"},
+		{SF_ALT, "alt"},
 	};
 	for (size_t i = 0; i < sizeof tab / sizeof tab[0]; i++) {
 		if ((mods & tab[i].bit) == 0) {
@@ -56,7 +58,7 @@ static void json_keysym(struct json_buf *b, xkb_keysym_t sym) {
 	json_str(b, name);
 }
 
-static void emit_options(struct json_buf *b, const struct stonefly_config *cfg) {
+static void emit_options(struct json_buf *b, const struct sf_config *cfg) {
 	json_byte(b, '{');
 
 	json_key(b, "scale");
@@ -78,7 +80,7 @@ static void emit_options(struct json_buf *b, const struct stonefly_config *cfg) 
 	json_i64(b, cfg->slide_duration_ms);
 	json_byte(b, ',');
 	json_key(b, "slide_dir_closest");
-	json_bool(b, cfg->slide_dir_closest != 0);
+	json_bool(b, cfg->slide_dir_closest);
 	json_byte(b, ',');
 	json_key(b, "morph_duration_ms");
 	json_i64(b, cfg->morph_duration_ms);
@@ -99,22 +101,22 @@ static void emit_options(struct json_buf *b, const struct stonefly_config *cfg) 
 	json_f64(b, cfg->shadow_blur_sigma);
 	json_byte(b, ',');
 	json_key(b, "border_active");
-	json_rgba(b, cfg->border_active);
+	json_rgba(b, &cfg->border_active);
 	json_byte(b, ',');
 	json_key(b, "border_inactive");
-	json_rgba(b, cfg->border_inactive);
+	json_rgba(b, &cfg->border_inactive);
 	json_byte(b, ',');
 	json_key(b, "border_urgent");
-	json_rgba(b, cfg->border_urgent);
+	json_rgba(b, &cfg->border_urgent);
 	json_byte(b, ',');
 	json_key(b, "shadow_color");
-	json_rgba(b, cfg->shadow_color);
+	json_rgba(b, &cfg->shadow_color);
 	json_byte(b, ',');
 	json_key(b, "window_blur");
-	json_bool(b, cfg->window_blur != 0);
+	json_bool(b, cfg->window_blur);
 	json_byte(b, ',');
 	json_key(b, "blur_xray");
-	json_bool(b, cfg->blur_xray != 0);
+	json_bool(b, cfg->blur_xray);
 	json_byte(b, ',');
 	json_key(b, "blur_num_passes");
 	json_i64(b, cfg->blur_num_passes);
@@ -153,16 +155,16 @@ static void emit_options(struct json_buf *b, const struct stonefly_config *cfg) 
 	json_i64(b, cfg->double_tap_gap_ms);
 	json_byte(b, ',');
 	json_key(b, "layout");
-	json_str(b, stonefly_layout_name((enum stonefly_layout)cfg->layout));
+	json_str(b, sf_layout_name(cfg->layout));
 	json_byte(b, ',');
 	json_key(b, "swipe_workspace_threshold");
 	json_i64(b, cfg->swipe_workspace_threshold);
 	json_byte(b, ',');
 	json_key(b, "swipe_workspace_natural");
-	json_bool(b, cfg->swipe_workspace_natural != 0);
+	json_bool(b, cfg->swipe_workspace_natural);
 	json_byte(b, ',');
 	json_key(b, "ssd_mode");
-	json_str(b, stonefly_ssd_mode_name((enum stonefly_ssd_mode)cfg->ssd_mode));
+	json_str(b, sf_ssd_mode_name(cfg->ssd_mode));
 	json_byte(b, ',');
 	json_key(b, "resize_border_in");
 	json_i64(b, cfg->resize_border_in);
@@ -182,10 +184,45 @@ static void emit_options(struct json_buf *b, const struct stonefly_config *cfg) 
 	json_byte(b, '}');
 }
 
-static void emit_binds(struct json_buf *b, const struct stonefly_config *cfg) {
+static void emit_action_steps(struct json_buf *b, const struct sf_action_step *steps, size_t n) {
+	if (n == 0) {
+		json_raw(b, "null");
+		return;
+	}
+	if (n == 1) {
+		json_byte(b, '{');
+		json_key(b, "action");
+		json_str(b, sf_action_name(steps[0].action));
+		if (steps[0].cmd != NULL && steps[0].cmd[0] != '\0') {
+			json_byte(b, ',');
+			json_key(b, "cmd");
+			json_str(b, steps[0].cmd);
+		}
+		json_byte(b, '}');
+		return;
+	}
+	json_byte(b, '[');
+	for (size_t i = 0; i < n; i++) {
+		if (i > 0) {
+			json_byte(b, ',');
+		}
+		json_byte(b, '{');
+		json_key(b, "action");
+		json_str(b, sf_action_name(steps[i].action));
+		if (steps[i].cmd != NULL && steps[i].cmd[0] != '\0') {
+			json_byte(b, ',');
+			json_key(b, "cmd");
+			json_str(b, steps[i].cmd);
+		}
+		json_byte(b, '}');
+	}
+	json_byte(b, ']');
+}
+
+static void emit_binds(struct json_buf *b, const struct sf_config *cfg) {
 	json_byte(b, '[');
 	for (size_t i = 0; i < cfg->n_keybinds; i++) {
-		const struct stonefly_keybind *k = &cfg->keybinds[i];
+		const struct sf_keybind *k = &cfg->keybinds[i];
 		if (i > 0) {
 			json_byte(b, ',');
 		}
@@ -202,21 +239,16 @@ static void emit_binds(struct json_buf *b, const struct stonefly_config *cfg) {
 		}
 		json_byte(b, ',');
 		json_key(b, "action");
-		json_str(b, stonefly_action_name(k->action));
-		if (k->cmd != NULL && k->cmd[0] != '\0') {
-			json_byte(b, ',');
-			json_key(b, "cmd");
-			json_str(b, k->cmd);
-		}
+		emit_action_steps(b, k->steps, k->n_steps);
 		json_byte(b, '}');
 	}
 	json_byte(b, ']');
 }
 
-static void emit_taps(struct json_buf *b, const struct stonefly_config *cfg) {
+static void emit_taps(struct json_buf *b, const struct sf_config *cfg) {
 	json_byte(b, '[');
 	for (size_t i = 0; i < cfg->n_tapbinds; i++) {
-		const struct stonefly_tapbind *t = &cfg->tapbinds[i];
+		const struct sf_tapbind *t = &cfg->tapbinds[i];
 		if (i > 0) {
 			json_byte(b, ',');
 		}
@@ -230,31 +262,21 @@ static void emit_taps(struct json_buf *b, const struct stonefly_config *cfg) {
 		}
 		json_byte(b, ',');
 		json_key(b, "single");
-		json_str(b, stonefly_action_name(t->single));
-		if (t->single_cmd != NULL && t->single_cmd[0] != '\0') {
-			json_byte(b, ',');
-			json_key(b, "single_cmd");
-			json_str(b, t->single_cmd);
-		}
-		if (t->double_tap != STONEFLY_ACTION_NONE) {
+		emit_action_steps(b, t->single_steps, t->n_single_steps);
+		if (t->n_double_steps > 0) {
 			json_byte(b, ',');
 			json_key(b, "double");
-			json_str(b, stonefly_action_name(t->double_tap));
-			if (t->double_cmd != NULL && t->double_cmd[0] != '\0') {
-				json_byte(b, ',');
-				json_key(b, "double_cmd");
-				json_str(b, t->double_cmd);
-			}
+			emit_action_steps(b, t->double_steps, t->n_double_steps);
 		}
 		json_byte(b, '}');
 	}
 	json_byte(b, ']');
 }
 
-static void emit_scratchpads(struct json_buf *b, const struct stonefly_config *cfg) {
+static void emit_scratchpads(struct json_buf *b, const struct sf_config *cfg) {
 	json_byte(b, '[');
 	for (size_t i = 0; i < cfg->n_scratchpads; i++) {
-		const struct stonefly_scratchpad_spec *s = &cfg->scratchpads[i];
+		const struct sf_scratchpad_spec *s = &cfg->scratchpads[i];
 		if (i > 0) {
 			json_byte(b, ',');
 		}
@@ -275,10 +297,10 @@ static void emit_scratchpads(struct json_buf *b, const struct stonefly_config *c
 	json_byte(b, ']');
 }
 
-static void emit_window_rules(struct json_buf *b, const struct stonefly_config *cfg) {
+static void emit_window_rules(struct json_buf *b, const struct sf_config *cfg) {
 	json_byte(b, '[');
 	for (size_t i = 0; i < cfg->n_window_rules; i++) {
-		const struct stonefly_window_rule *r = &cfg->window_rules[i];
+		const struct sf_window_rule *r = &cfg->window_rules[i];
 		if (i > 0) {
 			json_byte(b, ',');
 		}
@@ -318,7 +340,7 @@ static void emit_window_rules(struct json_buf *b, const struct stonefly_config *
 		json_byte(b, ',');
 		json_key(b, "ssd");
 		if (r->ssd_set) {
-			json_str(b, stonefly_ssd_mode_name((enum stonefly_ssd_mode)r->ssd_mode));
+			json_str(b, sf_ssd_mode_name(r->ssd_mode));
 		} else {
 			json_raw(b, "null");
 		}
@@ -336,6 +358,9 @@ static void emit_window_rules(struct json_buf *b, const struct stonefly_config *
 		} else {
 			json_raw(b, "null");
 		}
+		json_byte(b, ',');
+		json_key(b, "action");
+		emit_action_steps(b, r->steps, r->n_steps);
 		json_byte(b, '}');
 	}
 	json_byte(b, ']');
@@ -348,12 +373,11 @@ static bool section_ok(const char *section) {
 	       strcmp(section, "inputs") == 0 || strcmp(section, "outputs") == 0;
 }
 
-int stonefly_config_to_json(struct stonefly_server *server, const char *section, char *buf,
-			    size_t cap) {
+int sf_config_to_json(struct sf_server *server, const char *section, char *buf, size_t cap) {
 	if (server == NULL || buf == NULL || cap == 0 || !section_ok(section)) {
 		return -1;
 	}
-	const struct stonefly_config *cfg = stonefly_cfg(server);
+	const struct sf_config *cfg = sf_cfg(server);
 	struct json_buf b;
 	json_buf_init(&b, buf, cap);
 
@@ -442,7 +466,7 @@ int stonefly_config_to_json(struct stonefly_server *server, const char *section,
 }
 
 /* Indenting pretty-printer for the compact JSON we emit (no nested strings with {). */
-void stonefly_config_print_json(const char *json, FILE *fp) {
+void sf_config_print_json(const char *json, FILE *fp) {
 	if (json == NULL || fp == NULL) {
 		return;
 	}

@@ -1,5 +1,5 @@
-#ifndef STONEFLY_UTIL_JSON_H
-#define STONEFLY_UTIL_JSON_H
+#ifndef SF_UTIL_JSON_H
+#define SF_UTIL_JSON_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -39,7 +39,7 @@ void json_finish(struct json_buf *b);
 
 /*
  * Minimal scanner for whitespace, punctuation, strings, bools, and
- * integers. Enough for stonefly IPC replies and {"cmd":"..."} requests.
+ * integers. Enough for sf IPC replies and {"cmd":"..."} requests.
  */
 
 struct json_scan {

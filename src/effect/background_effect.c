@@ -14,9 +14,9 @@
 
 #include "ext-background-effect-v1-protocol.h"
 
-struct stonefly_background_effect {
+struct sf_background_effect {
 	struct wl_resource *resource;
-	struct stonefly_server *server;
+	struct sf_server *server;
 	struct wlr_surface *surface;
 	struct wlr_addon addon;
 	struct wl_listener surface_commit;
@@ -26,11 +26,11 @@ struct stonefly_background_effect {
 	pixman_region32_t current;
 };
 
-static void effect_destroy(struct stonefly_background_effect *effect);
+static void effect_destroy(struct sf_background_effect *effect);
 
 /* Resolve xdg toplevels before map (Foot often binds blur early). */
-static struct stonefly_toplevel *toplevel_for_surface(struct stonefly_server *server,
-						      struct wlr_surface *surface) {
+static struct sf_toplevel *toplevel_for_surface(struct sf_server *server,
+						struct wlr_surface *surface) {
 	(void)server;
 	if (surface == NULL) {
 		return NULL;
@@ -44,16 +44,16 @@ static struct stonefly_toplevel *toplevel_for_surface(struct stonefly_server *se
 	if (tree->node.data == NULL) {
 		return NULL;
 	}
-	struct stonefly_toplevel *t = tree->node.data;
-	if (t->kind != STONEFLY_NODE_TOPLEVEL) {
+	struct sf_toplevel *t = tree->node.data;
+	if (t->kind != SF_NODE_TOPLEVEL) {
 		return NULL;
 	}
 	return t;
 }
 
-static void effect_apply_client_blur(struct stonefly_background_effect *effect) {
+static void effect_apply_client_blur(struct sf_background_effect *effect) {
 	bool want = pixman_region32_not_empty(&effect->current);
-	struct stonefly_toplevel *toplevel = toplevel_for_surface(effect->server, effect->surface);
+	struct sf_toplevel *toplevel = toplevel_for_surface(effect->server, effect->surface);
 	if (toplevel == NULL) {
 		return;
 	}
@@ -61,22 +61,22 @@ static void effect_apply_client_blur(struct stonefly_background_effect *effect) 
 		return;
 	}
 	toplevel->client_blur = want;
-	stonefly_decor_update_geom(toplevel);
-	stonefly_decor_refresh_blur(toplevel);
+	sf_decor_update_geom(toplevel);
+	sf_decor_refresh_blur(toplevel);
 	SF_LOGI("client blur", sf_i64("id", (int64_t)toplevel->id), sf_bool("on", want));
 }
 
-static void effect_clear_client_blur(struct stonefly_background_effect *effect) {
-	struct stonefly_toplevel *toplevel = toplevel_for_surface(effect->server, effect->surface);
+static void effect_clear_client_blur(struct sf_background_effect *effect) {
+	struct sf_toplevel *toplevel = toplevel_for_surface(effect->server, effect->surface);
 	if (toplevel == NULL || !toplevel->client_blur) {
 		return;
 	}
 	toplevel->client_blur = false;
-	stonefly_decor_update_geom(toplevel);
-	stonefly_decor_refresh_blur(toplevel);
+	sf_decor_update_geom(toplevel);
+	sf_decor_refresh_blur(toplevel);
 }
 
-static void effect_finish_body(struct stonefly_background_effect *effect) {
+static void effect_finish_body(struct sf_background_effect *effect) {
 	if (effect->resource != NULL) {
 		wl_resource_set_user_data(effect->resource, NULL);
 		effect->resource = NULL;
@@ -91,7 +91,7 @@ static void effect_finish_body(struct stonefly_background_effect *effect) {
  * the addon destroy callback. wlr_addon_finish must run whenever the addon
  * was initialized — wlroots set_finish asserts an empty list after destroy.
  */
-static void effect_destroy(struct stonefly_background_effect *effect) {
+static void effect_destroy(struct sf_background_effect *effect) {
 	if (effect->surface != NULL) {
 		effect_clear_client_blur(effect);
 		wl_list_remove(&effect->surface_commit.link);
@@ -104,7 +104,7 @@ static void effect_destroy(struct stonefly_background_effect *effect) {
 
 /* Surface addon-set teardown: must call wlr_addon_finish (wlroots contract). */
 static void effect_addon_destroy(struct wlr_addon *addon) {
-	struct stonefly_background_effect *effect = wl_container_of(addon, effect, addon);
+	struct sf_background_effect *effect = wl_container_of(addon, effect, addon);
 	effect_destroy(effect);
 }
 
@@ -115,8 +115,7 @@ static const struct wlr_addon_interface effect_addon_impl = {
 
 static void effect_surface_commit(struct wl_listener *listener, void *data) {
 	(void)data;
-	struct stonefly_background_effect *effect =
-		wl_container_of(listener, effect, surface_commit);
+	struct sf_background_effect *effect = wl_container_of(listener, effect, surface_commit);
 	if (!effect->pending_set) {
 		return;
 	}
@@ -132,7 +131,7 @@ static void effect_surface_commit(struct wl_listener *listener, void *data) {
 
 static void effect_surface_destroy_req(struct wl_client *client, struct wl_resource *resource) {
 	(void)client;
-	struct stonefly_background_effect *effect = wl_resource_get_user_data(resource);
+	struct sf_background_effect *effect = wl_resource_get_user_data(resource);
 	if (effect == NULL) {
 		return;
 	}
@@ -150,7 +149,7 @@ static void effect_surface_destroy_req(struct wl_client *client, struct wl_resou
 static void effect_set_blur_region(struct wl_client *client, struct wl_resource *resource,
 				   struct wl_resource *region_resource) {
 	(void)client;
-	struct stonefly_background_effect *effect = wl_resource_get_user_data(resource);
+	struct sf_background_effect *effect = wl_resource_get_user_data(resource);
 	if (effect == NULL) {
 		return;
 	}
@@ -177,7 +176,7 @@ static const struct ext_background_effect_surface_v1_interface effect_surface_im
 };
 
 static void effect_resource_destroy(struct wl_resource *resource) {
-	struct stonefly_background_effect *effect = wl_resource_get_user_data(resource);
+	struct sf_background_effect *effect = wl_resource_get_user_data(resource);
 	if (effect == NULL) {
 		return;
 	}
@@ -200,7 +199,7 @@ static void manager_destroy(struct wl_client *client, struct wl_resource *resour
 
 static void manager_get_background_effect(struct wl_client *client, struct wl_resource *resource,
 					  uint32_t id, struct wl_resource *surface_resource) {
-	struct stonefly_server *server = wl_resource_get_user_data(resource);
+	struct sf_server *server = wl_resource_get_user_data(resource);
 	struct wlr_surface *surface = wlr_surface_from_resource(surface_resource);
 
 	if (wlr_addon_find(&surface->addons, surface, &effect_addon_impl) != NULL) {
@@ -210,7 +209,7 @@ static void manager_get_background_effect(struct wl_client *client, struct wl_re
 		return;
 	}
 
-	struct stonefly_background_effect *effect = calloc(1, sizeof(*effect));
+	struct sf_background_effect *effect = calloc(1, sizeof(*effect));
 	if (effect == NULL) {
 		wl_client_post_no_memory(client);
 		return;
@@ -244,7 +243,7 @@ static const struct ext_background_effect_manager_v1_interface manager_impl = {
 };
 
 static void manager_bind(struct wl_client *client, void *data, uint32_t version, uint32_t id) {
-	struct stonefly_server *server = data;
+	struct sf_server *server = data;
 	struct wl_resource *resource = wl_resource_create(
 		client, &ext_background_effect_manager_v1_interface, (int)version, id);
 	if (resource == NULL) {
@@ -256,7 +255,7 @@ static void manager_bind(struct wl_client *client, void *data, uint32_t version,
 		resource, EXT_BACKGROUND_EFFECT_MANAGER_V1_CAPABILITY_BLUR);
 }
 
-void stonefly_background_effect_setup(struct stonefly_server *server) {
+void sf_background_effect_setup(struct sf_server *server) {
 	server->background_effect_global =
 		wl_global_create(server->wl_display, &ext_background_effect_manager_v1_interface, 1,
 				 server, manager_bind);
@@ -267,7 +266,7 @@ void stonefly_background_effect_setup(struct stonefly_server *server) {
 	SF_LOGI("ext-background-effect-v1", sf_str("capability", "blur"));
 }
 
-void stonefly_background_effect_finish(struct stonefly_server *server) {
+void sf_background_effect_finish(struct sf_server *server) {
 	if (server->background_effect_global != NULL) {
 		wl_global_destroy(server->background_effect_global);
 		server->background_effect_global = NULL;

@@ -19,7 +19,7 @@ static struct fcft_font *title_font;
 static int title_font_pt;
 static bool fcft_ready;
 
-bool stonefly_ssd_paint_ensure_font(int size_pt) {
+bool sf_ssd_paint_ensure_font(int size_pt) {
 	if (size_pt < ssd_font_pt_min) {
 		size_pt = ssd_font_pt_min;
 	}
@@ -63,11 +63,11 @@ bool stonefly_ssd_paint_ensure_font(int size_pt) {
 	return true;
 }
 
-bool stonefly_ssd_paint_init(void) {
-	return stonefly_ssd_paint_ensure_font(ssd_font_pt_default);
+bool sf_ssd_paint_init(void) {
+	return sf_ssd_paint_ensure_font(ssd_font_pt_default);
 }
 
-void stonefly_ssd_paint_fini(void) {
+void sf_ssd_paint_fini(void) {
 	if (title_font != NULL) {
 		fcft_destroy(title_font);
 		title_font = NULL;
@@ -305,9 +305,8 @@ static void draw_title(uint8_t *pix, int buf_w, int buf_h, const char *title, in
 	}
 }
 
-void stonefly_ssd_paint_titlebar(uint8_t *pix, int buf_w, int buf_h, const char *title,
-				 bool focused, bool maximized, const uint8_t fill[4],
-				 const struct stonefly_ssd_layout *lay) {
+void sf_ssd_paint_titlebar(uint8_t *pix, int buf_w, int buf_h, const char *title, bool focused,
+			   bool maximized, const uint8_t fill[4], const struct sf_ssd_layout *lay) {
 	if (pix == NULL || buf_w < 1 || buf_h < 1 || lay == NULL) {
 		return;
 	}

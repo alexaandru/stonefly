@@ -11,8 +11,7 @@
 #include "server/server.h"
 #include "util/json.h"
 
-size_t stonefly_outputs_collect(struct stonefly_server *server, struct stonefly_output_info *out,
-				size_t cap) {
+size_t sf_outputs_collect(struct sf_server *server, struct sf_output_info *out, size_t cap) {
 	if (server == NULL || out == NULL || cap == 0) {
 		return 0;
 	}
@@ -24,7 +23,7 @@ size_t stonefly_outputs_collect(struct stonefly_server *server, struct stonefly_
 	}
 
 	size_t n = 0;
-	struct stonefly_output *output;
+	struct sf_output *output;
 	wl_list_for_each(output, &server->outputs, link) {
 		if (n >= cap) {
 			break;
@@ -34,7 +33,7 @@ size_t stonefly_outputs_collect(struct stonefly_server *server, struct stonefly_
 			continue;
 		}
 
-		struct stonefly_output_info *info = &out[n++];
+		struct sf_output_info *info = &out[n++];
 		memset(info, 0, sizeof(*info));
 		snprintf(info->name, sizeof(info->name), "%s", wlr->name != NULL ? wlr->name : "");
 		info->enabled = wlr->enabled;
@@ -54,14 +53,13 @@ size_t stonefly_outputs_collect(struct stonefly_server *server, struct stonefly_
 	return n;
 }
 
-int stonefly_outputs_to_json(const struct stonefly_output_info *infos, size_t n, char *buf,
-			     size_t cap) {
+int sf_outputs_to_json(const struct sf_output_info *infos, size_t n, char *buf, size_t cap) {
 	struct json_buf b;
 	json_buf_init(&b, buf, cap);
 
 	json_byte(&b, '[');
 	for (size_t i = 0; i < n; i++) {
-		const struct stonefly_output_info *o = &infos[i];
+		const struct sf_output_info *o = &infos[i];
 		if (i > 0) {
 			json_byte(&b, ',');
 		}
@@ -163,7 +161,7 @@ static bool scan_number_token(struct json_scan *s, char *out, size_t cap) {
 	return true;
 }
 
-static bool parse_usable(struct json_scan *s, struct stonefly_output_info *out) {
+static bool parse_usable(struct json_scan *s, struct sf_output_info *out) {
 	if (!json_scan_expect(s, '{')) {
 		return false;
 	}
@@ -199,7 +197,7 @@ static bool parse_usable(struct json_scan *s, struct stonefly_output_info *out) 
 	}
 }
 
-static bool parse_object(struct json_scan *s, struct stonefly_output_info *out) {
+static bool parse_object(struct json_scan *s, struct sf_output_info *out) {
 	memset(out, 0, sizeof(*out));
 	if (!json_scan_expect(s, '{')) {
 		return false;
@@ -275,7 +273,7 @@ static bool parse_object(struct json_scan *s, struct stonefly_output_info *out) 
 				}
 			} else if (s->p < s->end && *s->p == '{') {
 				/* Skip unknown object by consuming braces roughly via usable. */
-				struct stonefly_output_info discard_info;
+				struct sf_output_info discard_info;
 				if (!parse_usable(s, &discard_info)) {
 					return false;
 				}
@@ -296,8 +294,7 @@ static bool parse_object(struct json_scan *s, struct stonefly_output_info *out) 
 	}
 }
 
-bool stonefly_outputs_from_json(const char *json, struct stonefly_output_info *out, size_t cap,
-				size_t *n_out) {
+bool sf_outputs_from_json(const char *json, struct sf_output_info *out, size_t cap, size_t *n_out) {
 	if (n_out != NULL) {
 		*n_out = 0;
 	}
@@ -342,9 +339,9 @@ bool stonefly_outputs_from_json(const char *json, struct stonefly_output_info *o
 	}
 }
 
-void stonefly_outputs_print(const struct stonefly_output_info *infos, size_t n, FILE *fp) {
+void sf_outputs_print(const struct sf_output_info *infos, size_t n, FILE *fp) {
 	for (size_t i = 0; i < n; i++) {
-		const struct stonefly_output_info *o = &infos[i];
+		const struct sf_output_info *o = &infos[i];
 		fprintf(fp, "%s%s  %dx%d@%.2f  layout %d,%d %dx%d  usable %d,%d %dx%d\n", o->name,
 			o->focused ? "*" : " ", o->w, o->h, o->scale, o->x, o->y, o->logical_w,
 			o->logical_h, o->usable_x, o->usable_y, o->usable_w, o->usable_h);

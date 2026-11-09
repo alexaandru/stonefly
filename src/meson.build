@@ -1,4 +1,4 @@
-stonefly_src = files(
+sf_src = files(
   'main.c',
   'util/json.c',
   'util/str.c',
@@ -41,7 +41,7 @@ stonefly_src = files(
   'toplevel/ext_capture.c',
 )
 
-stonefly_inc = include_directories('.')
+sf_inc = include_directories('.')
 
 luajit = dependency('luajit')
 fcft = dependency('fcft')
@@ -53,12 +53,12 @@ if not libsystemd.found()
   libsystemd = dependency('libelogind', required: true)
 endif
 
-stonefly_datadir = get_option('prefix') / get_option('datadir') / 'stonefly'
+sf_datadir = get_option('prefix') / get_option('datadir') / 'stonefly'
 
 # C23 #embed of default/*.fnl is not always tracked in compiler depfiles.
 # Regenerate a stamp header whenever those inputs change so config_embed.c
 # (which #includes it) is forced to rebuild and re-#embed fresh bytes.
-stonefly_embed_defaults = files(
+sf_embed_defaults = files(
   'config/default/init.lua',
   'config/default/options.fnl',
   'config/default/binds.fnl',
@@ -66,17 +66,18 @@ stonefly_embed_defaults = files(
   'config/default/rules.fnl',
   'config/default/inputs.fnl',
   'config/default/outputs.fnl',
+  'config/default/flsproject.fnl',
 )
-stonefly_embed_stamp = custom_target(
-  'stonefly-embed-stamp',
-  input: stonefly_embed_defaults,
+sf_embed_stamp = custom_target(
+  'sf-embed-stamp',
+  input: sf_embed_defaults,
   output: 'embed_defaults_stamp.h',
   # Rewrite on any default/* change (mtime bump). Content hashes inputs so a
   # no-op edit still changes the header when bytes differ.
   command: [
     'sh',
     '-c',
-    'printf \'#define STONEFLY_EMBED_STAMP "%s"\\n\' "$(cksum "$@" | cksum)" > "$0"',
+    'printf \'#define SF_EMBED_STAMP "%s"\\n\' "$(cksum "$@" | cksum)" > "$0"',
     '@OUTPUT@',
     '@INPUT@',
   ],
@@ -85,8 +86,8 @@ stonefly_embed_stamp = custom_target(
 
 executable(
   'stonefly',
-  stonefly_src + [stonefly_embed_stamp],
-  include_directories: stonefly_inc,
+  sf_src + [sf_embed_stamp],
+  include_directories: sf_inc,
   dependencies: [
     scenefx,
     wlroots,
@@ -97,10 +98,10 @@ executable(
     fcft,
     pixman,
     meson.get_compiler('c').find_library('m'),
-    stonefly_protocols_dep,
+    sf_protocols_dep,
   ],
   c_args: [
-    '-DSTONEFLY_DATADIR="@0@"'.format(stonefly_datadir),
+    '-DSF_DATADIR="@0@"'.format(sf_datadir),
   ],
   install: true,
 )

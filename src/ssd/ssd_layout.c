@@ -18,7 +18,7 @@ static int maxi(int a, int b) {
 	return a > b ? a : b;
 }
 
-void stonefly_ssd_layout_title(int width, int height, struct stonefly_ssd_layout *out) {
+void sf_ssd_layout_title(int width, int height, struct sf_ssd_layout *out) {
 	if (width < 1) {
 		width = 1;
 	}
@@ -35,20 +35,19 @@ void stonefly_ssd_layout_title(int width, int height, struct stonefly_ssd_layout
 	out->title_right = maxi(out->min_x - title_pad_r, out->title_left);
 }
 
-enum stonefly_ssd_button stonefly_ssd_layout_hit(const struct stonefly_ssd_layout *lay, int x,
-						 int y) {
+enum sf_ssd_button sf_ssd_layout_hit(const struct sf_ssd_layout *lay, int x, int y) {
 	if (lay == NULL || y < 0 || y >= lay->height || x < 0 || x >= lay->width) {
-		return STONEFLY_SSD_BTN_NONE;
+		return SF_SSD_BTN_NONE;
 	}
 	int box = mini(button_box, lay->height);
 	if (x >= lay->close_x && x < lay->close_x + box) {
-		return STONEFLY_SSD_BTN_CLOSE;
+		return SF_SSD_BTN_CLOSE;
 	}
 	if (x >= lay->max_x && x < lay->max_x + box) {
-		return STONEFLY_SSD_BTN_MAXIMIZE;
+		return SF_SSD_BTN_MAXIMIZE;
 	}
 	if (x >= lay->min_x && x < lay->min_x + box) {
-		return STONEFLY_SSD_BTN_MINIMIZE;
+		return SF_SSD_BTN_MINIMIZE;
 	}
-	return STONEFLY_SSD_BTN_NONE;
+	return SF_SSD_BTN_NONE;
 }

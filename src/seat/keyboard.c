@@ -17,11 +17,10 @@
 #include "util/time.h"
 #include "wm/wm.h"
 
-static const struct stonefly_tapbind *tapbind_for_sym(struct stonefly_server *server,
-						      xkb_keysym_t sym) {
-	const struct stonefly_config *cfg = stonefly_cfg(server);
+static const struct sf_tapbind *tapbind_for_sym(struct sf_server *server, xkb_keysym_t sym) {
+	const struct sf_config *cfg = sf_cfg(server);
 	for (size_t i = 0; i < cfg->n_tapbinds; i++) {
-		const struct stonefly_tapbind *b = &cfg->tapbinds[i];
+		const struct sf_tapbind *b = &cfg->tapbinds[i];
 		if (sym == b->sym || (b->sym_alt != 0 && sym == b->sym_alt)) {
 			return b;
 		}
@@ -29,11 +28,11 @@ static const struct stonefly_tapbind *tapbind_for_sym(struct stonefly_server *se
 	return NULL;
 }
 
-void stonefly_tap_disarm(struct stonefly_server *server) {
+void sf_tap_disarm(struct sf_server *server) {
 	server->tap.armed = false;
 }
 
-void tap_clear_timer(struct stonefly_server *server) {
+void tap_clear_timer(struct sf_server *server) {
 	if (server->tap.timer != NULL) {
 		wl_event_source_remove(server->tap.timer);
 		server->tap.timer = NULL;
@@ -41,60 +40,53 @@ void tap_clear_timer(struct stonefly_server *server) {
 }
 
 static int tap_double_timer(void *data) {
-	struct stonefly_server *server = data;
+	struct sf_server *server = data;
 	server->tap.timer = NULL;
 	if (server->tap.taps != 1) {
 		return 0;
 	}
-	enum stonefly_action single = (enum stonefly_action)server->tap.single;
-	const char *cmd = server->tap.single_cmd;
+	const struct sf_action_step *steps = server->tap.single_steps;
+	size_t n = server->tap.n_single_steps;
 	server->tap.taps = 0;
-	if (single != STONEFLY_ACTION_NONE) {
-		stonefly_run_action(server, single, cmd);
-	}
+	sf_run_actions(server, NULL, steps, n);
 	return 0;
 }
 
-static void tap_finish(struct stonefly_server *server, enum stonefly_action action,
-		       const char *cmd) {
+static void tap_finish(struct sf_server *server, const struct sf_action_step *steps, size_t n) {
 	tap_clear_timer(server);
 	server->tap.taps = 0;
-	if (action != STONEFLY_ACTION_NONE) {
-		stonefly_run_action(server, action, cmd);
-	}
+	sf_run_actions(server, NULL, steps, n);
 }
 
-static void tap_on_press(struct stonefly_server *server, const struct stonefly_tapbind *bind) {
+static void tap_on_press(struct sf_server *server, const struct sf_tapbind *bind) {
 	server->tap.armed = true;
 	clock_gettime(CLOCK_MONOTONIC, &server->tap.since);
-	server->tap.single = bind->single;
-	server->tap.double_tap = bind->double_tap;
 	/* Config lives for process lifetime; pointers into cfg are stable. */
-	server->tap.single_cmd = bind->single_cmd;
-	server->tap.double_cmd = bind->double_cmd;
+	server->tap.single_steps = bind->single_steps;
+	server->tap.n_single_steps = bind->n_single_steps;
+	server->tap.double_steps = bind->double_steps;
+	server->tap.n_double_steps = bind->n_double_steps;
 }
 
-static void tap_on_release(struct stonefly_server *server) {
+static void tap_on_release(struct sf_server *server) {
 	bool armed = server->tap.armed;
 	server->tap.armed = false;
 	if (!armed) {
 		return;
 	}
-	const struct stonefly_config *cfg = stonefly_cfg(server);
-	if (stonefly_timespec_ms_since(&server->tap.since) > cfg->tap_max_hold_ms) {
+	const struct sf_config *cfg = sf_cfg(server);
+	if (sf_timespec_ms_since(&server->tap.since) > cfg->tap_max_hold_ms) {
 		return;
 	}
 
-	if (server->tap.double_tap == STONEFLY_ACTION_NONE) {
-		tap_finish(server, (enum stonefly_action)server->tap.single,
-			   server->tap.single_cmd);
+	if (server->tap.n_double_steps == 0) {
+		tap_finish(server, server->tap.single_steps, server->tap.n_single_steps);
 		return;
 	}
 
 	server->tap.taps++;
 	if (server->tap.taps >= 2) {
-		tap_finish(server, (enum stonefly_action)server->tap.double_tap,
-			   server->tap.double_cmd);
+		tap_finish(server, server->tap.double_steps, server->tap.n_double_steps);
 		return;
 	}
 
@@ -109,7 +101,7 @@ static void keyboard_handle_modifiers(struct wl_listener *listener, void *data) 
 	(void)data;
 	/* This event is raised when a modifier key, such as shift or alt, is
 	 * pressed. We simply communicate this to the client. */
-	struct stonefly_keyboard *keyboard = wl_container_of(listener, keyboard, modifiers);
+	struct sf_keyboard *keyboard = wl_container_of(listener, keyboard, modifiers);
 	/*
 	 * A seat can only have one keyboard, but this is a limitation of the
 	 * Wayland protocol - not wlroots. We assign all connected keyboards to the
@@ -122,7 +114,7 @@ static void keyboard_handle_modifiers(struct wl_listener *listener, void *data) 
 					   &keyboard->wlr_keyboard->modifiers);
 }
 
-static bool handle_vt_switch(struct stonefly_server *server, xkb_keysym_t sym) {
+static bool handle_vt_switch(struct sf_server *server, xkb_keysym_t sym) {
 	/* Ctrl+Alt+Fn is mapped by xkb to XF86Switch_VT_*; the compositor must
 	 * call wlr_session_change_vt or the switch is unreliable / can yank DRM
 	 * mid-frame (seen as mass unmap + death). */
@@ -138,27 +130,26 @@ static bool handle_vt_switch(struct stonefly_server *server, xkb_keysym_t sym) {
 	return true;
 }
 
-static bool handle_keybinding(struct stonefly_server *server, uint32_t modifiers,
-			      xkb_keysym_t sym) {
+static bool handle_keybinding(struct sf_server *server, uint32_t modifiers, xkb_keysym_t sym) {
 	if (handle_vt_switch(server, sym)) {
 		return true;
 	}
 	/* Session lock owns input; only VT switch escapes. */
-	if (stonefly_session_locked(server)) {
+	if (sf_session_locked(server)) {
 		return false;
 	}
-	uint32_t mods = modifiers & (uint32_t)STONEFLY_MOD_MASK;
-	const struct stonefly_config *cfg = stonefly_cfg(server);
+	uint32_t mods = modifiers & (uint32_t)SF_MOD_MASK;
+	const struct sf_config *cfg = sf_cfg(server);
 	for (size_t i = 0; i < cfg->n_keybinds; i++) {
-		const struct stonefly_keybind *bind = &cfg->keybinds[i];
+		const struct sf_keybind *bind = &cfg->keybinds[i];
 		if (bind->mods != mods) {
 			continue;
 		}
 		if (sym != bind->sym && (bind->sym_alt == 0 || sym != bind->sym_alt)) {
 			continue;
 		}
-		stonefly_tap_disarm(server);
-		stonefly_run_action(server, bind->action, bind->cmd);
+		sf_tap_disarm(server);
+		sf_run_actions(server, NULL, bind->steps, bind->n_steps);
 		return true;
 	}
 	return false;
@@ -166,12 +157,12 @@ static bool handle_keybinding(struct stonefly_server *server, uint32_t modifiers
 
 static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 	/* This event is raised when a key is pressed or released. */
-	struct stonefly_keyboard *keyboard = wl_container_of(listener, keyboard, key);
-	struct stonefly_server *server = keyboard->server;
+	struct sf_keyboard *keyboard = wl_container_of(listener, keyboard, key);
+	struct sf_server *server = keyboard->server;
 	struct wlr_keyboard_key_event *event = data;
 	struct wlr_seat *seat = server->seat;
 
-	stonefly_session_notify_activity(server);
+	sf_session_notify_activity(server);
 
 	/* Translate libinput keycode -> xkbcommon */
 	uint32_t keycode = event->keycode + 8;
@@ -181,14 +172,14 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 
 	bool handled = false;
 	uint32_t modifiers = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
-	bool locked = stonefly_session_locked(server);
+	bool locked = sf_session_locked(server);
 
 	/* Virtual keyboards skip compositor binds (untrusted injectors). */
 	if (!keyboard->is_virtual) {
 		if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
 			for (int i = 0; i < nsyms; i++) {
 				if (!locked) {
-					const struct stonefly_tapbind *tap =
+					const struct sf_tapbind *tap =
 						tapbind_for_sym(server, syms[i]);
 					if (tap != NULL) {
 						tap_on_press(server, tap);
@@ -197,7 +188,7 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 					}
 					/* Other key while tap armed → chord, not a tap. */
 					if (server->tap.armed) {
-						stonefly_tap_disarm(server);
+						sf_tap_disarm(server);
 					}
 				}
 				if (handle_keybinding(server, modifiers, syms[i])) {
@@ -229,8 +220,8 @@ static void keyboard_handle_destroy(struct wl_listener *listener, void *data) {
 	 * the destruction of the wlr_keyboard. It will no longer receive events
 	 * and should be destroyed.
 	 */
-	struct stonefly_keyboard *keyboard = wl_container_of(listener, keyboard, destroy);
-	struct stonefly_server *server = keyboard->server;
+	struct sf_keyboard *keyboard = wl_container_of(listener, keyboard, destroy);
+	struct sf_server *server = keyboard->server;
 	wl_list_remove(&keyboard->modifiers.link);
 	wl_list_remove(&keyboard->key.link);
 	wl_list_remove(&keyboard->destroy.link);
@@ -239,11 +230,11 @@ static void keyboard_handle_destroy(struct wl_listener *listener, void *data) {
 	seat_update_capabilities(server);
 }
 
-void server_new_keyboard(struct stonefly_server *server, struct wlr_input_device *device,
+void server_new_keyboard(struct sf_server *server, struct wlr_input_device *device,
 			 bool is_virtual) {
 	struct wlr_keyboard *wlr_keyboard = wlr_keyboard_from_input_device(device);
 
-	struct stonefly_keyboard *keyboard = calloc(1, sizeof(*keyboard));
+	struct sf_keyboard *keyboard = calloc(1, sizeof(*keyboard));
 	if (keyboard == NULL) {
 		return;
 	}
@@ -277,7 +268,7 @@ void server_new_keyboard(struct stonefly_server *server, struct wlr_input_device
 }
 
 void server_new_virtual_keyboard(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server = wl_container_of(listener, server, new_virtual_keyboard);
+	struct sf_server *server = wl_container_of(listener, server, new_virtual_keyboard);
 	struct wlr_virtual_keyboard_v1 *virtual_keyboard = data;
 	/* wlroots 0.20: keyboard is a wlr_keyboard; device is keyboard.base. */
 	server_new_keyboard(server, &virtual_keyboard->keyboard.base, true);

@@ -14,17 +14,17 @@
 #include "wm/wm.h"
 #include "wm/workspace.h"
 
-static const char *snap_dir_name(enum stonefly_snap snap) {
+static const char *snap_dir_name(enum sf_snap snap) {
 	switch (snap) {
-	case STONEFLY_SNAP_LEFT:
+	case SF_SNAP_LEFT:
 		return "left";
-	case STONEFLY_SNAP_RIGHT:
+	case SF_SNAP_RIGHT:
 		return "right";
-	case STONEFLY_SNAP_TOP:
+	case SF_SNAP_TOP:
 		return "top";
-	case STONEFLY_SNAP_BOTTOM:
+	case SF_SNAP_BOTTOM:
 		return "bottom";
-	case STONEFLY_SNAP_NONE:
+	case SF_SNAP_NONE:
 		break;
 	}
 	return "";
@@ -37,26 +37,25 @@ static void copy_str(char *dst, size_t cap, const char *src) {
 	snprintf(dst, cap, "%s", src);
 }
 
-size_t stonefly_windows_collect(struct stonefly_server *server, struct stonefly_window_info *out,
-				size_t cap) {
+size_t sf_windows_collect(struct sf_server *server, struct sf_window_info *out, size_t cap) {
 	if (server == NULL || out == NULL || cap == 0) {
 		return 0;
 	}
 
-	struct stonefly_toplevel *focused = stonefly_focused_toplevel(server);
+	struct sf_toplevel *focused = sf_focused_toplevel(server);
 	size_t n = 0;
 
 	/* toplevels link order is top-first; reverse → bottom-most first. */
-	struct stonefly_toplevel *toplevel;
+	struct sf_toplevel *toplevel;
 	wl_list_for_each_reverse(toplevel, &server->toplevels, link) {
 		if (n >= cap) {
 			break;
 		}
 
 		struct wlr_box geom;
-		stonefly_toplevel_layout_geom(toplevel, &geom);
+		sf_toplevel_layout_geom(toplevel, &geom);
 
-		struct stonefly_window_info *info = &out[n++];
+		struct sf_window_info *info = &out[n++];
 		memset(info, 0, sizeof(*info));
 		info->id = toplevel->id;
 		copy_str(info->app_id, sizeof(info->app_id), toplevel->xdg_toplevel->app_id);
@@ -71,7 +70,7 @@ size_t stonefly_windows_collect(struct stonefly_server *server, struct stonefly_
 		info->focused = toplevel == focused;
 		info->maximized_to_edges = toplevel->maximized_edges;
 		info->minimized = toplevel->minimized;
-		info->snapped = toplevel->snapped != STONEFLY_SNAP_NONE;
+		info->snapped = toplevel->snapped != SF_SNAP_NONE;
 		info->urgent = toplevel->urgent;
 		info->capture_blocked = toplevel->capture_blocked;
 		info->floating =
@@ -83,7 +82,7 @@ size_t stonefly_windows_collect(struct stonefly_server *server, struct stonefly_
 			copy_str(info->output, sizeof(info->output), wo != NULL ? wo->name : "");
 		} else {
 			info->workspace = 0;
-			struct stonefly_output *out = stonefly_output_for_toplevel(toplevel);
+			struct sf_output *out = sf_output_for_toplevel(toplevel);
 			copy_str(info->output, sizeof(info->output),
 				 out != NULL && out->wlr_output != NULL ? out->wlr_output->name
 									: "");
@@ -93,14 +92,13 @@ size_t stonefly_windows_collect(struct stonefly_server *server, struct stonefly_
 	return n;
 }
 
-int stonefly_windows_to_json(const struct stonefly_window_info *infos, size_t n, char *buf,
-			     size_t cap) {
+int sf_windows_to_json(const struct sf_window_info *infos, size_t n, char *buf, size_t cap) {
 	struct json_buf b;
 	json_buf_init(&b, buf, cap);
 
 	json_byte(&b, '[');
 	for (size_t i = 0; i < n; i++) {
-		const struct stonefly_window_info *w = &infos[i];
+		const struct sf_window_info *w = &infos[i];
 		if (i > 0) {
 			json_byte(&b, ',');
 		}
@@ -196,7 +194,7 @@ int stonefly_windows_to_json(const struct stonefly_window_info *infos, size_t n,
 	return (int)b.len;
 }
 
-static bool parse_object(struct json_scan *s, struct stonefly_window_info *out) {
+static bool parse_object(struct json_scan *s, struct sf_window_info *out) {
 	memset(out, 0, sizeof(*out));
 	if (!json_scan_expect(s, '{')) {
 		return false;
@@ -319,8 +317,7 @@ static bool parse_object(struct json_scan *s, struct stonefly_window_info *out) 
 	}
 }
 
-bool stonefly_windows_from_json(const char *json, struct stonefly_window_info *out, size_t cap,
-				size_t *n_out) {
+bool sf_windows_from_json(const char *json, struct sf_window_info *out, size_t cap, size_t *n_out) {
 	if (n_out != NULL) {
 		*n_out = 0;
 	}
@@ -365,12 +362,12 @@ bool stonefly_windows_from_json(const char *json, struct stonefly_window_info *o
 	}
 }
 
-void stonefly_windows_print(const struct stonefly_window_info *infos, size_t n, FILE *fp) {
+void sf_windows_print(const struct sf_window_info *infos, size_t n, FILE *fp) {
 	if (fp == NULL) {
 		fp = stdout;
 	}
 	for (size_t i = 0; i < n; i++) {
-		const struct stonefly_window_info *w = &infos[i];
+		const struct sf_window_info *w = &infos[i];
 		fprintf(fp, "%s %llu\t%s\t%s", w->focused ? "*" : " ", (unsigned long long)w->id,
 			w->app_id, w->title);
 		if (w->tag[0] != '\0') {

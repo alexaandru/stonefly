@@ -1,9 +1,9 @@
-#ifndef STONEFLY_IPC_H
-#define STONEFLY_IPC_H
+#ifndef SF_IPC_H
+#define SF_IPC_H
 
 #include <stdbool.h>
 
-struct stonefly_server;
+struct sf_server;
 
 /*
  * Unix-socket control plane (peeble wire shape).
@@ -28,26 +28,26 @@ struct stonefly_server;
  *                                       outputs)
  *
  * Socket: $STONEFLY_SOCKET, else
- * $XDG_RUNTIME_DIR/stonefly-$WAYLAND_DISPLAY.sock.
+ * $XDG_RUNTIME_DIR/sf-$WAYLAND_DISPLAY.sock.
  */
 
-bool stonefly_ipc_start(struct stonefly_server *server);
-void stonefly_ipc_stop(struct stonefly_server *server);
+bool sf_ipc_start(struct sf_server *server);
+void sf_ipc_stop(struct sf_server *server);
 
 /* Client entries. Return process exit status. */
-int stonefly_ipc_cmd_windows(int argc, char **argv);
-int stonefly_ipc_cmd_layers(int argc, char **argv);
-int stonefly_ipc_cmd_outputs(int argc, char **argv);
-int stonefly_ipc_cmd_workspaces(int argc, char **argv);
-int stonefly_ipc_cmd_config(int argc, char **argv);
-int stonefly_ipc_cmd_focus(int argc, char **argv);
-int stonefly_ipc_cmd_close(int argc, char **argv);
-int stonefly_ipc_cmd_block_capture(int argc, char **argv);
-int stonefly_ipc_cmd_unblock_capture(int argc, char **argv);
-int stonefly_ipc_cmd_set_urgent(int argc, char **argv);
-int stonefly_ipc_cmd_unset_urgent(int argc, char **argv);
-int stonefly_ipc_cmd_toggle_quick_terminal(int argc, char **argv);
+int sf_ipc_cmd_windows(int argc, char **argv);
+int sf_ipc_cmd_layers(int argc, char **argv);
+int sf_ipc_cmd_outputs(int argc, char **argv);
+int sf_ipc_cmd_workspaces(int argc, char **argv);
+int sf_ipc_cmd_config(int argc, char **argv);
+int sf_ipc_cmd_focus(int argc, char **argv);
+int sf_ipc_cmd_close(int argc, char **argv);
+int sf_ipc_cmd_block_capture(int argc, char **argv);
+int sf_ipc_cmd_unblock_capture(int argc, char **argv);
+int sf_ipc_cmd_set_urgent(int argc, char **argv);
+int sf_ipc_cmd_unset_urgent(int argc, char **argv);
+int sf_ipc_cmd_toggle_quick_terminal(int argc, char **argv);
 /* Terminate the compositor that owns STONEFLY_SOCKET / WAYLAND_DISPLAY. */
-int stonefly_ipc_cmd_exit(int argc, char **argv);
+int sf_ipc_cmd_exit(int argc, char **argv);
 
 #endif

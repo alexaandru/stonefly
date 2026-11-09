@@ -21,7 +21,7 @@
 #include "output/output.h"
 #include "wm/wm.h"
 
-void seat_update_capabilities(struct stonefly_server *server) {
+void seat_update_capabilities(struct sf_server *server) {
 	/* Always advertise pointer so the cursor theme works without a mouse. */
 	uint32_t caps = (uint32_t)WL_SEAT_CAPABILITY_POINTER;
 	if (!wl_list_empty(&server->keyboards)) {
@@ -36,7 +36,7 @@ void seat_update_capabilities(struct stonefly_server *server) {
 static void server_new_input(struct wl_listener *listener, void *data) {
 	/* This event is raised by the backend when a new input device becomes
 	 * available. */
-	struct stonefly_server *server = wl_container_of(listener, server, new_input);
+	struct sf_server *server = wl_container_of(listener, server, new_input);
 	struct wlr_input_device *device = data;
 	switch (device->type) {
 	case WLR_INPUT_DEVICE_KEYBOARD:
@@ -57,21 +57,20 @@ static void server_new_input(struct wl_listener *listener, void *data) {
 static void seat_request_set_selection(struct wl_listener *listener, void *data) {
 	/* This event is raised by the seat when a client wants to set the selection,
 	 * usually when the user copies something. wlroots allows compositors to
-	 * ignore such requests if they so choose, but in stonefly we always honor
+	 * ignore such requests if they so choose, but in sf we always honor
 	 */
-	struct stonefly_server *server = wl_container_of(listener, server, request_set_selection);
+	struct sf_server *server = wl_container_of(listener, server, request_set_selection);
 	struct wlr_seat_request_set_selection_event *event = data;
 	wlr_seat_set_selection(server->seat, event->source, event->serial);
 }
 
 static void seat_request_set_primary_selection(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server =
-		wl_container_of(listener, server, request_set_primary_selection);
+	struct sf_server *server = wl_container_of(listener, server, request_set_primary_selection);
 	struct wlr_seat_request_set_primary_selection_event *event = data;
 	wlr_seat_set_primary_selection(server->seat, event->source, event->serial);
 }
 
-void stonefly_seat_setup(struct stonefly_server *server) {
+void sf_seat_setup(struct sf_server *server) {
 	server->cursor = wlr_cursor_create();
 	wlr_cursor_attach_output_layout(server->cursor, server->output_layout);
 
@@ -86,12 +85,12 @@ void stonefly_seat_setup(struct stonefly_server *server) {
 		setenv("XCURSOR_THEME", theme, 1);
 	}
 	server->cursor_mgr = wlr_xcursor_manager_create(theme, size);
-	wlr_xcursor_manager_load(server->cursor_mgr, stonefly_output_scale_factor(server));
+	wlr_xcursor_manager_load(server->cursor_mgr, sf_output_scale_factor(server));
 	SF_LOGI("cursor theme", sf_str("theme", theme != NULL ? theme : ""), sf_i64("size", size),
 		sf_bool("nested", server->session == NULL));
 	free(theme);
 
-	server->cursor_mode = STONEFLY_CURSOR_PASSTHROUGH;
+	server->cursor_mode = SF_CURSOR_PASSTHROUGH;
 	server->cursor_motion.notify = server_cursor_motion;
 	wl_signal_add(&server->cursor->events.motion, &server->cursor_motion);
 	server->cursor_motion_absolute.notify = server_cursor_motion_absolute;
@@ -150,19 +149,21 @@ void stonefly_seat_setup(struct stonefly_server *server) {
 	server->tap.armed = false;
 	server->tap.taps = 0;
 	server->tap.timer = NULL;
-	server->tap.single = STONEFLY_ACTION_NONE;
-	server->tap.double_tap = STONEFLY_ACTION_NONE;
+	server->tap.single_steps = NULL;
+	server->tap.n_single_steps = 0;
+	server->tap.double_steps = NULL;
+	server->tap.n_double_steps = 0;
 }
 
-void stonefly_seat_finish(struct stonefly_server *server) {
+void sf_seat_finish(struct sf_server *server) {
 	tap_clear_timer(server);
 	server->tap.armed = false;
 	server->tap.taps = 0;
-	struct stonefly_pointer *pointer, *tmp;
+	struct sf_pointer *pointer, *tmp;
 	wl_list_for_each_safe(pointer, tmp, &server->pointers, link) {
 		destroy_pointer(pointer);
 	}
-	struct stonefly_touch *touch, *ttmp;
+	struct sf_touch *touch, *ttmp;
 	wl_list_for_each_safe(touch, ttmp, &server->touch, link) {
 		destroy_touch(touch);
 	}

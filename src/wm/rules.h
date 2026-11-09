@@ -1,25 +1,25 @@
-#ifndef STONEFLY_RULES_H
-#define STONEFLY_RULES_H
+#ifndef SF_RULES_H
+#define SF_RULES_H
 
 #include <stdbool.h>
 
-struct stonefly_toplevel;
-struct stonefly_window_rule;
-struct stonefly_server;
+struct sf_toplevel;
+struct sf_window_rule;
+struct sf_server;
 
 /* Longest-matching window_rule for this toplevel's app_id/title, or NULL. */
-const struct stonefly_window_rule *stonefly_rules_match(const struct stonefly_toplevel *toplevel);
+const struct sf_window_rule *sf_rules_match(const struct sf_toplevel *toplevel);
 
 /* Apply matched rule actions (float/size/ssd/borderless). Placement is separate. */
-void stonefly_rules_apply(struct stonefly_toplevel *toplevel);
+void sf_rules_apply(struct sf_toplevel *toplevel);
 
 /* True when the best match asks to center. */
-bool stonefly_rules_wants_center(const struct stonefly_toplevel *toplevel);
+bool sf_rules_wants_center(const struct sf_toplevel *toplevel);
 
 /* Late title/app_id: re-engage auto_place when a center rule now matches. */
-void stonefly_rules_consider_place(struct stonefly_toplevel *toplevel);
+void sf_rules_consider_place(struct sf_toplevel *toplevel);
 
 /* Re-apply rules to every mapped toplevel (config reload). */
-void stonefly_rules_reapply_all(struct stonefly_server *server);
+void sf_rules_reapply_all(struct sf_server *server);
 
-#endif /* STONEFLY_RULES_H */
+#endif /* SF_RULES_H */

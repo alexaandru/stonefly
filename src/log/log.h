@@ -1,5 +1,5 @@
-#ifndef STONEFLY_LOG_H
-#define STONEFLY_LOG_H
+#ifndef SF_LOG_H
+#define SF_LOG_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -8,7 +8,7 @@
 /*
  * Structured JSON logging (peeble slog shape).
  *
- * Each record is one JSON object on stderr and ~/.var/log/stonefly/wm.log:
+ * Each record is one JSON object on stderr and ~/.var/log/sf/wm.log:
  *   {"time":"...","level":"INFO","msg":"...","display":"wayland-1"}
  *
  * On start, any existing wm.log is renamed to wm.last.json (previous

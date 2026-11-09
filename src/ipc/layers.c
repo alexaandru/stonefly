@@ -45,18 +45,17 @@ static const char *keyboard_name(enum zwlr_layer_surface_v1_keyboard_interactivi
 	return "unknown";
 }
 
-size_t stonefly_layers_collect(struct stonefly_server *server, struct stonefly_layer_info *out,
-			       size_t cap) {
+size_t sf_layers_collect(struct sf_server *server, struct sf_layer_info *out, size_t cap) {
 	if (server == NULL || out == NULL || cap == 0) {
 		return 0;
 	}
 
 	size_t n = 0;
-	struct stonefly_output *output;
+	struct sf_output *output;
 	wl_list_for_each(output, &server->outputs, link) {
 		for (int layer_idx = ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND;
 		     layer_idx <= ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY; layer_idx++) {
-			struct stonefly_layer_surface *layer;
+			struct sf_layer_surface *layer;
 			wl_list_for_each(layer, &output->layers[layer_idx], link) {
 				if (n >= cap) {
 					return n;
@@ -65,7 +64,7 @@ size_t stonefly_layers_collect(struct stonefly_server *server, struct stonefly_l
 				struct wlr_layer_surface_v1 *ls = layer->layer_surface;
 				struct wlr_layer_surface_v1_state *state = &ls->current;
 
-				struct stonefly_layer_info *info = &out[n++];
+				struct sf_layer_info *info = &out[n++];
 				memset(info, 0, sizeof(*info));
 				copy_str(info->namespace, sizeof(info->namespace), ls->namespace);
 				copy_str(info->output, sizeof(info->output),
@@ -94,14 +93,13 @@ size_t stonefly_layers_collect(struct stonefly_server *server, struct stonefly_l
 	return n;
 }
 
-int stonefly_layers_to_json(const struct stonefly_layer_info *infos, size_t n, char *buf,
-			    size_t cap) {
+int sf_layers_to_json(const struct sf_layer_info *infos, size_t n, char *buf, size_t cap) {
 	struct json_buf b;
 	json_buf_init(&b, buf, cap);
 
 	json_byte(&b, '[');
 	for (size_t i = 0; i < n; i++) {
-		const struct stonefly_layer_info *L = &infos[i];
+		const struct sf_layer_info *L = &infos[i];
 		if (i > 0) {
 			json_byte(&b, ',');
 		}
@@ -162,7 +160,7 @@ int stonefly_layers_to_json(const struct stonefly_layer_info *infos, size_t n, c
 	return (int)b.len;
 }
 
-static bool parse_object(struct json_scan *s, struct stonefly_layer_info *out) {
+static bool parse_object(struct json_scan *s, struct sf_layer_info *out) {
 	memset(out, 0, sizeof(*out));
 	if (!json_scan_expect(s, '{')) {
 		return false;
@@ -255,8 +253,7 @@ static bool parse_object(struct json_scan *s, struct stonefly_layer_info *out) {
 	}
 }
 
-bool stonefly_layers_from_json(const char *json, struct stonefly_layer_info *out, size_t cap,
-			       size_t *n_out) {
+bool sf_layers_from_json(const char *json, struct sf_layer_info *out, size_t cap, size_t *n_out) {
 	if (n_out != NULL) {
 		*n_out = 0;
 	}
@@ -301,12 +298,12 @@ bool stonefly_layers_from_json(const char *json, struct stonefly_layer_info *out
 	}
 }
 
-void stonefly_layers_print(const struct stonefly_layer_info *infos, size_t n, FILE *fp) {
+void sf_layers_print(const struct sf_layer_info *infos, size_t n, FILE *fp) {
 	if (fp == NULL) {
 		fp = stdout;
 	}
 	for (size_t i = 0; i < n; i++) {
-		const struct stonefly_layer_info *L = &infos[i];
+		const struct sf_layer_info *L = &infos[i];
 		fprintf(fp, "%s %-28s %-10s %-8s %d,%d %dx%d excl=%d kbd=%s%s\n",
 			L->focused ? "*" : " ", L->namespace[0] != '\0' ? L->namespace : "-",
 			L->layer, L->output[0] != '\0' ? L->output : "-", L->x, L->y, L->w, L->h,

@@ -15,12 +15,12 @@ static int iabs(int v) {
 	return v < 0 ? -v : v;
 }
 
-void stonefly_drag_snap_reset(struct stonefly_drag_snap *drag) {
+void sf_drag_snap_reset(struct sf_drag_snap *drag) {
 	if (drag == NULL) {
 		return;
 	}
-	*drag = (struct stonefly_drag_snap){0};
-	drag->stuck = (int)STONEFLY_SNAP_NONE;
+	*drag = (struct sf_drag_snap){0};
+	drag->stuck = SF_SNAP_NONE;
 }
 
 /* Port of peeble SnapGeom.resist (seat/op/move.go). */
@@ -57,36 +57,36 @@ static int resist_axis(int delta, int pos, int size, int usable_pos, int usable_
 	return pos;
 }
 
-static enum stonefly_snap stuck_edge(const struct stonefly_drag_snap *drag) {
+static enum sf_snap stuck_edge(const struct sf_drag_snap *drag) {
 	if (drag->lo_x) {
-		return STONEFLY_SNAP_LEFT;
+		return SF_SNAP_LEFT;
 	}
 	if (drag->hi_x) {
-		return STONEFLY_SNAP_RIGHT;
+		return SF_SNAP_RIGHT;
 	}
 	if (drag->lo_y) {
-		return STONEFLY_SNAP_TOP;
+		return SF_SNAP_TOP;
 	}
 	if (drag->hi_y) {
-		return STONEFLY_SNAP_BOTTOM;
+		return SF_SNAP_BOTTOM;
 	}
-	return STONEFLY_SNAP_NONE;
+	return SF_SNAP_NONE;
 }
 
-static bool pointer_usable(struct stonefly_server *server, struct wlr_box *box) {
-	return stonefly_layout_usable_at(server, server->cursor->x, server->cursor->y, box);
+static bool pointer_usable(struct sf_server *server, struct wlr_box *box) {
+	return sf_layout_usable_at(server, server->cursor->x, server->cursor->y, box);
 }
 
-void stonefly_drag_snap_prepare(struct stonefly_toplevel *toplevel) {
-	struct stonefly_server *server = toplevel->server;
-	struct stonefly_drag_snap *drag = &server->drag_snap;
-	stonefly_drag_snap_reset(drag);
-	stonefly_toplevel_clear_auto_place(toplevel);
+void sf_drag_snap_prepare(struct sf_toplevel *toplevel) {
+	struct sf_server *server = toplevel->server;
+	struct sf_drag_snap *drag = &server->drag_snap;
+	sf_drag_snap_reset(drag);
+	sf_toplevel_clear_auto_place(toplevel);
 
 	struct wlr_box geom;
-	stonefly_toplevel_layout_geom(toplevel, &geom);
+	sf_toplevel_layout_geom(toplevel, &geom);
 
-	if (toplevel->snapped != STONEFLY_SNAP_NONE) {
+	if (toplevel->snapped != SF_SNAP_NONE) {
 		drag->started_snapped = true;
 		/* Peeble PrepareDrag: restore PreSnap size, keep pointer ratio. */
 		if (toplevel->has_saved_geom) {
@@ -114,10 +114,10 @@ void stonefly_drag_snap_prepare(struct stonefly_toplevel *toplevel) {
 			int h = toplevel->saved_geom.height;
 			int x = (int)(server->cursor->x - rx * (double)w);
 			int y = (int)(server->cursor->y - ry * (double)h);
-			stonefly_toplevel_apply_saved_at(toplevel, x, y);
-			stonefly_toplevel_ensure_on_screen(toplevel);
+			sf_toplevel_apply_saved_at(toplevel, x, y);
+			sf_toplevel_ensure_on_screen(toplevel);
 		} else {
-			toplevel->snapped = STONEFLY_SNAP_NONE;
+			toplevel->snapped = SF_SNAP_NONE;
 		}
 		return;
 	}
@@ -127,8 +127,8 @@ void stonefly_drag_snap_prepare(struct stonefly_toplevel *toplevel) {
 			int w = toplevel->saved_geom.width;
 			int x = (int)server->cursor->x - w / 2;
 			int y = (int)server->cursor->y - 16;
-			stonefly_toplevel_apply_saved_at(toplevel, x, y);
-			stonefly_toplevel_ensure_on_screen(toplevel);
+			sf_toplevel_apply_saved_at(toplevel, x, y);
+			sf_toplevel_ensure_on_screen(toplevel);
 		} else if (toplevel->maximized_edges) {
 			wlr_xdg_toplevel_set_maximized(toplevel->xdg_toplevel, false);
 			toplevel->maximized_edges = false;
@@ -146,8 +146,8 @@ void stonefly_drag_snap_prepare(struct stonefly_toplevel *toplevel) {
 	}
 }
 
-void stonefly_drag_snap_begin(struct stonefly_server *server, struct stonefly_toplevel *toplevel) {
-	struct stonefly_drag_snap *drag = &server->drag_snap;
+void sf_drag_snap_begin(struct sf_server *server, struct sf_toplevel *toplevel) {
+	struct sf_drag_snap *drag = &server->drag_snap;
 	drag->active = true;
 	drag->start_cx = server->cursor->x;
 	drag->start_cy = server->cursor->y;
@@ -160,17 +160,17 @@ void stonefly_drag_snap_begin(struct stonefly_server *server, struct stonefly_to
 		drag->height = toplevel->saved_geom.height;
 	} else {
 		struct wlr_box geom;
-		stonefly_toplevel_layout_geom(toplevel, &geom);
+		sf_toplevel_layout_geom(toplevel, &geom);
 		drag->width = geom.width;
 		drag->height = geom.height;
 	}
-	drag->stuck = (int)STONEFLY_SNAP_NONE;
+	drag->stuck = SF_SNAP_NONE;
 	drag->lo_x = drag->hi_x = drag->lo_y = drag->hi_y = false;
 }
 
-void stonefly_drag_snap_motion(struct stonefly_server *server) {
-	struct stonefly_drag_snap *drag = &server->drag_snap;
-	struct stonefly_toplevel *toplevel = server->grabbed_toplevel;
+void sf_drag_snap_motion(struct sf_server *server) {
+	struct sf_drag_snap *drag = &server->drag_snap;
+	struct sf_toplevel *toplevel = server->grabbed_toplevel;
 	if (!drag->active || toplevel == NULL) {
 		return;
 	}
@@ -181,7 +181,7 @@ void stonefly_drag_snap_motion(struct stonefly_server *server) {
 	int y = drag->start_y + dy;
 
 	struct wlr_box usable;
-	const struct stonefly_config *cfg = stonefly_cfg(server);
+	const struct sf_config *cfg = sf_cfg(server);
 	const int threshold = cfg->snap_threshold;
 	const int border = cfg->border_thickness;
 	const int gap = cfg->gap_size;
@@ -201,26 +201,26 @@ void stonefly_drag_snap_motion(struct stonefly_server *server) {
 	toplevel->resting_x = x;
 	toplevel->resting_y = y;
 
-	enum stonefly_snap edge = stuck_edge(drag);
-	if ((int)edge != drag->stuck) {
-		drag->stuck = (int)edge;
-		if (edge == STONEFLY_SNAP_NONE) {
-			stonefly_snap_preview_hide(server);
+	enum sf_snap edge = stuck_edge(drag);
+	if (edge != drag->stuck) {
+		drag->stuck = edge;
+		if (edge == SF_SNAP_NONE) {
+			sf_snap_preview_hide(server);
 		} else if (pointer_usable(server, &usable)) {
-			stonefly_snap_preview_show(server, edge, &usable);
+			sf_snap_preview_show(server, edge, &usable);
 		}
-	} else if (edge != STONEFLY_SNAP_NONE && pointer_usable(server, &usable)) {
+	} else if (edge != SF_SNAP_NONE && pointer_usable(server, &usable)) {
 		/* Multi-mon: refresh preview geom as usable under pointer moves. */
-		stonefly_snap_preview_show(server, edge, &usable);
+		sf_snap_preview_show(server, edge, &usable);
 	}
 }
 
 /* Peeble snapDragCandidate: closest edge with 0 ≤ dist ≤ threshold. */
-static bool snap_candidate(struct stonefly_toplevel *toplevel, const struct wlr_box *usable,
-			   enum stonefly_snap *out) {
+static bool snap_candidate(struct sf_toplevel *toplevel, const struct wlr_box *usable,
+			   enum sf_snap *out) {
 	struct wlr_box geom;
-	stonefly_toplevel_layout_geom(toplevel, &geom);
-	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+	sf_toplevel_layout_geom(toplevel, &geom);
+	const struct sf_config *cfg = sf_cfg(toplevel->server);
 	const int b = cfg->border_thickness;
 	const int g = cfg->gap_size;
 	const int threshold = cfg->snap_threshold;
@@ -231,18 +231,18 @@ static bool snap_candidate(struct stonefly_toplevel *toplevel, const struct wlr_
 	int bottom = geom.y + geom.height + b;
 
 	struct {
-		enum stonefly_snap edge;
+		enum sf_snap edge;
 		int dist;
 	} cands[] = {
-		{STONEFLY_SNAP_LEFT, left - (usable->x + g)},
-		{STONEFLY_SNAP_RIGHT, usable->x + usable->width - g - right},
-		{STONEFLY_SNAP_TOP, top - (usable->y + g)},
-		{STONEFLY_SNAP_BOTTOM, usable->y + usable->height - g - bottom},
+		{SF_SNAP_LEFT, left - (usable->x + g)},
+		{SF_SNAP_RIGHT, usable->x + usable->width - g - right},
+		{SF_SNAP_TOP, top - (usable->y + g)},
+		{SF_SNAP_BOTTOM, usable->y + usable->height - g - bottom},
 	};
 
 	int best = threshold + 1;
 	bool ok = false;
-	enum stonefly_snap edge = STONEFLY_SNAP_NONE;
+	enum sf_snap edge = SF_SNAP_NONE;
 	for (size_t i = 0; i < sizeof(cands) / sizeof(cands[0]); i++) {
 		int d = cands[i].dist;
 		if (d >= 0 && d <= threshold && d < best) {
@@ -257,36 +257,36 @@ static bool snap_candidate(struct stonefly_toplevel *toplevel, const struct wlr_
 	return ok;
 }
 
-void stonefly_drag_snap_finish(struct stonefly_server *server) {
-	struct stonefly_drag_snap *drag = &server->drag_snap;
-	struct stonefly_toplevel *toplevel = server->grabbed_toplevel;
-	stonefly_snap_preview_hide(server);
+void sf_drag_snap_finish(struct sf_server *server) {
+	struct sf_drag_snap *drag = &server->drag_snap;
+	struct sf_toplevel *toplevel = server->grabbed_toplevel;
+	sf_snap_preview_hide(server);
 
 	if (!drag->active || toplevel == NULL) {
-		stonefly_drag_snap_reset(drag);
+		sf_drag_snap_reset(drag);
 		return;
 	}
 
 	struct wlr_box usable;
-	enum stonefly_snap edge = STONEFLY_SNAP_NONE;
+	enum sf_snap edge = SF_SNAP_NONE;
 	if (pointer_usable(server, &usable) && snap_candidate(toplevel, &usable, &edge)) {
 		if (drag->has_drag_origin && !toplevel->has_saved_geom) {
-			stonefly_toplevel_capture_geom(toplevel, &drag->drag_origin);
+			sf_toplevel_capture_geom(toplevel, &drag->drag_origin);
 		}
-		stonefly_toplevel_snap_in(toplevel, edge, &usable);
-		stonefly_drag_snap_reset(drag);
+		sf_toplevel_snap_in(toplevel, edge, &usable);
+		sf_drag_snap_reset(drag);
 		return;
 	}
 
 	if (drag->started_snapped) {
 		/* Dragged off every snap edge: restore PreSnap. */
 		if (toplevel->has_saved_geom) {
-			stonefly_toplevel_restore_saved(toplevel);
+			sf_toplevel_restore_saved(toplevel);
 		} else {
-			toplevel->snapped = STONEFLY_SNAP_NONE;
-			stonefly_toplevel_ensure_on_screen(toplevel);
+			toplevel->snapped = SF_SNAP_NONE;
+			sf_toplevel_ensure_on_screen(toplevel);
 		}
-		stonefly_drag_snap_reset(drag);
+		sf_drag_snap_reset(drag);
 		return;
 	}
 
@@ -295,6 +295,6 @@ void stonefly_drag_snap_finish(struct stonefly_server *server) {
 	if (drag->has_drag_origin) {
 		/* Never committed to a snap; leave floating where released. */
 	}
-	stonefly_toplevel_ensure_on_screen(toplevel);
-	stonefly_drag_snap_reset(drag);
+	sf_toplevel_ensure_on_screen(toplevel);
+	sf_drag_snap_reset(drag);
 }

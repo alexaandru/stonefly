@@ -42,16 +42,21 @@ or Go conventions.
 
 - Meson: `c_std=c23,c11`, `warning_level=2`, `werror=true`.
 - Prefer `stdbool.h` (`bool` / `true` / `false`) and `NULL`.
-- Use tagged structs: `struct stonefly_foo`, not `typedef ... foo_t`.
+- Use tagged structs: `struct sf_foo`, not `typedef ... foo_t`.
 - Forward-declare structs in headers; keep includes minimal.
-- Header guards: `#ifndef STONEFLY_*_H` / `#define` / `#endif` (no
+- Header guards: `#ifndef SF_*_H` / `#define` / `#endif` (no
   `#pragma once`).
 
 ### Naming
 
-- Public compositor API: `stonefly_*` functions, `struct stonefly_*`,
-  `enum stonefly_*`, `STONEFLY_*` constants.
-- Log helpers only: `sf_*` / `SF_*` in `src/log/` (structured JSON slog).
+- Public compositor API: `sf_*` functions, `struct sf_*`, `enum sf_*`,
+  `SF_*` constants (same prefix as `SF_LOG*` / `sf_str` in `src/log/`).
+- Lua/Fennel global: `sf` (`sf.opt`, `sf.bind`, `sf.tap`, `sf.scratchpad`,
+  `sf.window_rule`, `sf.stdpath`, `sf.packadd`, …).
+- Product / process / env stay `stonefly` / `STONEFLY_*`: binary name,
+  datadir paths, socket `stonefly-*.sock`, env `STONEFLY_CONFIG` /
+  `STONEFLY_SOCKET` / `STONEFLY_NOCONFIG`, scratchpad app_ids like
+  `stonefly.scratch.term`, docs/product prose.
 - Snake_case everywhere; no CamelCase in new C.
 
 ### Modules and file layout
@@ -79,10 +84,10 @@ predictable:
   `src/util/` (`math.h`, `str.c`/`str.h`, `time.h`, `json.c`/`json.h`). Do
   not copy static `clamp01` / `xstrdup` / timespec helpers into new files —
   extend `util/` instead.
-- **`struct stonefly_server`:** nest related protocol/state blobs
+- **`struct sf_server`:** nest related protocol/state blobs
   (`lock`, `idle`, `foreign`, `constraints`, `tap`, `swipe`, …). Keep DRM
   `session` and scene `layers.lock` distinct from session-lock state.
-- Add new `.c` files to `src/meson.build` `stonefly_src` in the same change.
+- Add new `.c` files to `src/meson.build` `sf_src` in the same change.
 
 ### Control flow and APIs
 

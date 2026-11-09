@@ -25,9 +25,9 @@ add_project_arguments(
 subdir('protocol')
 subdir('src')
 
-stonefly_datadir = get_option('prefix') / get_option('datadir') / 'stonefly'
+sf_datadir = get_option('prefix') / get_option('datadir') / 'stonefly'
 install_subdir(
   'runtime',
-  install_dir: stonefly_datadir,
+  install_dir: sf_datadir,
   strip_directory: true,
 )

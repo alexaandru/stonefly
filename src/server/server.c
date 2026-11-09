@@ -52,8 +52,8 @@ static void tearing_new_object(struct wl_listener *listener, void *data) {
 		sf_i64("hint", (int64_t)control->current));
 }
 
-bool stonefly_server_init(struct stonefly_server *server) {
-	stonefly_config_set_defaults(&server->config);
+bool sf_server_init(struct sf_server *server) {
+	sf_config_set_defaults(&server->config);
 
 	server->wl_display = wl_display_create();
 	server->session = NULL;
@@ -99,7 +99,7 @@ bool stonefly_server_init(struct stonefly_server *server) {
 	/*
 	 * Logical size/position for clients (Noctalia panel centering, etc.).
 	 * Without this, shells fall back to mode/wl_output.scale (integer) and
-	 * mis-center under fractional STONEFLY_OUTPUT_SCALE.
+	 * mis-center under fractional SF_OUTPUT_SCALE.
 	 */
 	wlr_xdg_output_manager_v1_create(server->wl_display, server->output_layout);
 
@@ -134,31 +134,31 @@ bool stonefly_server_init(struct stonefly_server *server) {
 	}
 
 	/* Config before seat/scratchpad/output consumers read policy. */
-	if (!stonefly_config_load(server)) {
+	if (!sf_config_load(server)) {
 		SF_LOGE("config load failed");
 		return false;
 	}
-	stonefly_decor_apply_blur_params(server);
+	sf_decor_apply_blur_params(server);
 
-	stonefly_layer_setup(server);
+	sf_layer_setup(server);
 	/* After layers so layers.lock sits above overlay. */
-	stonefly_session_setup(server);
-	stonefly_snap_preview_init(server);
-	stonefly_drag_snap_reset(&server->drag_snap);
+	sf_session_setup(server);
+	sf_snap_preview_init(server);
+	sf_drag_snap_reset(&server->drag_snap);
 	/* Before outputs so each head can create an ext-workspace group. */
-	stonefly_workspace_setup(server);
-	stonefly_output_setup(server);
-	stonefly_ssd_setup(server);
-	stonefly_xdg_setup(server);
-	stonefly_foreign_toplevel_setup(server);
-	stonefly_background_effect_setup(server);
-	stonefly_ext_capture_setup(server);
-	stonefly_seat_setup(server);
-	stonefly_scratchpad_init(server);
+	sf_workspace_setup(server);
+	sf_output_setup(server);
+	sf_ssd_setup(server);
+	sf_xdg_setup(server);
+	sf_foreign_toplevel_setup(server);
+	sf_background_effect_setup(server);
+	sf_ext_capture_setup(server);
+	sf_seat_setup(server);
+	sf_scratchpad_init(server);
 	return true;
 }
 
-int stonefly_server_run(struct stonefly_server *server, const char *startup_cmd) {
+int sf_server_run(struct sf_server *server, const char *startup_cmd) {
 	const char *socket = wl_display_add_socket_auto(server->wl_display);
 	if (!socket) {
 		wlr_backend_destroy(server->backend);
@@ -172,8 +172,8 @@ int stonefly_server_run(struct stonefly_server *server, const char *startup_cmd)
 	}
 
 	setenv("WAYLAND_DISPLAY", socket, true);
-	stonefly_dbus_update_activation_environment();
-	if (!stonefly_ipc_start(server)) {
+	sf_dbus_update_activation_environment();
+	if (!sf_ipc_start(server)) {
 		SF_LOGW("ipc not available");
 	}
 	if (startup_cmd != NULL) {
@@ -183,29 +183,29 @@ int stonefly_server_run(struct stonefly_server *server, const char *startup_cmd)
 		}
 	}
 	/* After -s so Noctalia can claim org.freedesktop.Notifications. */
-	stonefly_dbus_notify_config_warn(server);
+	sf_dbus_notify_config_warn(server);
 
 	SF_LOGI("Running Wayland compositor", sf_str("display", socket));
 	wl_display_run(server->wl_display);
 	return 0;
 }
 
-void stonefly_server_finish(struct stonefly_server *server) {
+void sf_server_finish(struct sf_server *server) {
 	/* Drop bus watches before the display/event loop goes away. */
-	stonefly_dbus_finish(server);
-	stonefly_ipc_stop(server);
-	stonefly_ssd_finish(server);
+	sf_dbus_finish(server);
+	sf_ipc_stop(server);
+	sf_ssd_finish(server);
 	wl_display_destroy_clients(server->wl_display);
 	free(server->config_warn);
 	server->config_warn = NULL;
-	stonefly_config_finish(&server->config);
+	sf_config_finish(&server->config);
 
-	stonefly_ghost_finish_all(server);
-	stonefly_snap_preview_finish(server);
-	stonefly_seat_finish(server);
-	stonefly_scratchpad_finish(server);
-	stonefly_session_finish(server);
-	stonefly_layer_finish(server);
+	sf_ghost_finish_all(server);
+	sf_snap_preview_finish(server);
+	sf_seat_finish(server);
+	sf_scratchpad_finish(server);
+	sf_session_finish(server);
+	sf_layer_finish(server);
 
 	wl_list_remove(&server->new_xdg_toplevel.link);
 	wl_list_remove(&server->new_xdg_popup.link);
@@ -228,10 +228,10 @@ void stonefly_server_finish(struct stonefly_server *server) {
 		wl_list_remove(&server->xdg_toplevel_set_icon.link);
 		server->xdg_toplevel_icon_mgr = NULL;
 	}
-	stonefly_background_effect_finish(server);
-	stonefly_foreign_toplevel_finish(server);
-	stonefly_ext_capture_finish(server);
-	stonefly_workspace_finish(server);
+	sf_background_effect_finish(server);
+	sf_foreign_toplevel_finish(server);
+	sf_ext_capture_finish(server);
+	sf_workspace_finish(server);
 
 	wl_list_remove(&server->cursor_motion.link);
 	wl_list_remove(&server->cursor_motion_absolute.link);
@@ -255,7 +255,7 @@ void stonefly_server_finish(struct stonefly_server *server) {
 	}
 
 	wl_list_remove(&server->new_output.link);
-	stonefly_output_finish(server);
+	sf_output_finish(server);
 	if (server->tearing_control_mgr != NULL) {
 		wl_list_remove(&server->tearing_new_object.link);
 		server->tearing_control_mgr = NULL;

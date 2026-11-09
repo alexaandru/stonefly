@@ -9,4 +9,4 @@
 ])
 
 (each [_ pad (ipairs pads)]
-  (stonefly.scratchpad pad))
+  (sf.scratchpad pad))

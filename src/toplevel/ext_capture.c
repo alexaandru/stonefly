@@ -13,8 +13,8 @@
 #include "toplevel/ext_capture.h"
 
 /* Match app_id against comma-separated substrings in capture_block_app_ids. */
-static bool capture_app_id_blocked(const struct stonefly_server *server, const char *app_id) {
-	const char *list = stonefly_cfg(server)->capture_block_app_ids;
+static bool capture_app_id_blocked(const struct sf_server *server, const char *app_id) {
+	const char *list = sf_cfg(server)->capture_block_app_ids;
 	if (list == NULL || list[0] == '\0' || app_id == NULL || app_id[0] == '\0') {
 		return false;
 	}
@@ -47,7 +47,7 @@ static bool capture_app_id_blocked(const struct stonefly_server *server, const c
 	return false;
 }
 
-void stonefly_ext_capture_apply_block_rules(struct stonefly_toplevel *toplevel) {
+void sf_ext_capture_apply_block_rules(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL) {
 		return;
 	}
@@ -57,7 +57,7 @@ void stonefly_ext_capture_apply_block_rules(struct stonefly_toplevel *toplevel) 
 	}
 }
 
-static void ext_capture_update_state(struct stonefly_toplevel *toplevel) {
+static void ext_capture_update_state(struct sf_toplevel *toplevel) {
 	if (toplevel->ext_handle == NULL) {
 		return;
 	}
@@ -68,7 +68,7 @@ static void ext_capture_update_state(struct stonefly_toplevel *toplevel) {
 	wlr_ext_foreign_toplevel_handle_v1_update_state(toplevel->ext_handle, &state);
 }
 
-static void ext_capture_destroy_handle(struct stonefly_toplevel *toplevel) {
+static void ext_capture_destroy_handle(struct sf_toplevel *toplevel) {
 	if (toplevel->ext_handle == NULL) {
 		return;
 	}
@@ -76,7 +76,7 @@ static void ext_capture_destroy_handle(struct stonefly_toplevel *toplevel) {
 	toplevel->ext_handle = NULL;
 }
 
-static void ext_capture_destroy_scene(struct stonefly_toplevel *toplevel) {
+static void ext_capture_destroy_scene(struct sf_toplevel *toplevel) {
 	if (toplevel->image_capture_scene == NULL) {
 		return;
 	}
@@ -88,10 +88,9 @@ static void ext_capture_destroy_scene(struct stonefly_toplevel *toplevel) {
 }
 
 static void handle_capture_request(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server =
-		wl_container_of(listener, server, foreign.on_capture_request);
+	struct sf_server *server = wl_container_of(listener, server, foreign.on_capture_request);
 	struct wlr_ext_foreign_toplevel_image_capture_source_manager_v1_request *request = data;
-	struct stonefly_toplevel *toplevel = request->toplevel_handle->data;
+	struct sf_toplevel *toplevel = request->toplevel_handle->data;
 	if (toplevel == NULL || toplevel->image_capture_scene == NULL) {
 		return;
 	}
@@ -120,7 +119,7 @@ static void handle_capture_request(struct wl_listener *listener, void *data) {
 	}
 }
 
-void stonefly_ext_capture_setup(struct stonefly_server *server) {
+void sf_ext_capture_setup(struct sf_server *server) {
 	/* Clients copy frames from sources created below. */
 	wlr_ext_image_copy_capture_manager_v1_create(server->wl_display, 1);
 
@@ -146,7 +145,7 @@ void stonefly_ext_capture_setup(struct stonefly_server *server) {
 		sf_str("image_copy", "v1"));
 }
 
-void stonefly_ext_capture_finish(struct stonefly_server *server) {
+void sf_ext_capture_finish(struct sf_server *server) {
 	if (server->foreign.capture_mgr != NULL) {
 		wl_list_remove(&server->foreign.on_capture_request.link);
 		server->foreign.capture_mgr = NULL;
@@ -154,9 +153,9 @@ void stonefly_ext_capture_finish(struct stonefly_server *server) {
 	server->foreign.ext_list = NULL;
 }
 
-void stonefly_ext_capture_on_map(struct stonefly_toplevel *toplevel) {
-	struct stonefly_server *server = toplevel->server;
-	stonefly_ext_capture_apply_block_rules(toplevel);
+void sf_ext_capture_on_map(struct sf_toplevel *toplevel) {
+	struct sf_server *server = toplevel->server;
+	sf_ext_capture_apply_block_rules(toplevel);
 	if (server->foreign.ext_list == NULL) {
 		return;
 	}
@@ -196,22 +195,22 @@ void stonefly_ext_capture_on_map(struct stonefly_toplevel *toplevel) {
 	}
 }
 
-void stonefly_ext_capture_on_unmap(struct stonefly_toplevel *toplevel) {
+void sf_ext_capture_on_unmap(struct sf_toplevel *toplevel) {
 	/* Match zwlr: drop the public handle while unmapped. Capture scene stays
 	 * so a remap can re-announce without rebuilding the xdg tree. */
 	ext_capture_destroy_handle(toplevel);
 }
 
-void stonefly_ext_capture_on_title_change(struct stonefly_toplevel *toplevel) {
+void sf_ext_capture_on_title_change(struct sf_toplevel *toplevel) {
 	ext_capture_update_state(toplevel);
 }
 
-void stonefly_ext_capture_on_app_id_change(struct stonefly_toplevel *toplevel) {
-	stonefly_ext_capture_apply_block_rules(toplevel);
+void sf_ext_capture_on_app_id_change(struct sf_toplevel *toplevel) {
+	sf_ext_capture_apply_block_rules(toplevel);
 	ext_capture_update_state(toplevel);
 }
 
-void stonefly_ext_capture_on_close(struct stonefly_toplevel *toplevel) {
+void sf_ext_capture_on_close(struct sf_toplevel *toplevel) {
 	ext_capture_destroy_handle(toplevel);
 	ext_capture_destroy_scene(toplevel);
 }

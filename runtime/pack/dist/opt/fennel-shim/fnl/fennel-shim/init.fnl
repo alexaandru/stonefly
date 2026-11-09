@@ -1,9 +1,9 @@
-;; Fennel shim for stonefly — adapted from fennel-nvim/fnl/fennel-shim/init.fnl.
+;; Fennel shim for sf — adapted from fennel-nvim/fnl/fennel-shim/init.fnl.
 ;; All shim logic is Fennel. plugin/fennel.lua only: require fennel + dofile this.
 
 (local fennel (require :fennel))
 
-(local cache-dir (.. (stonefly.stdpath :cache) :/fennel))
+(local cache-dir (.. (sf.stdpath :cache) :/fennel))
 (os.execute (.. "mkdir -p '" (cache-dir:gsub "'" "'\\''") "'"))
 
 (local cache {:cache {}})
@@ -55,7 +55,7 @@
     data))
 
 (fn cache.fetch-or-set [file]
-  (let [sec (or (stonefly._fs_mtime file) 0)
+  (let [sec (or (sf._fs_mtime file) 0)
         mem (cache.fetch file)]
     (if (and mem (not (< mem.sec sec)))
         (values mem.data :hit)
@@ -78,7 +78,7 @@
                     (.. :fnl/ name :.fnl)
                     (.. :fnl/ name :/init.fnl)]]
     (accumulate [found nil _ rel (ipairs candidates) :until found]
-      (stonefly.runtime_file rel))))
+      (sf.runtime_file rel))))
 
 ;; Searcher: return nil on miss so later loaders can run.
 ;; Appended after Lua path searchers — never ship lua/X.lua and fnl/X.fnl
@@ -90,7 +90,7 @@
 
 (table.insert package.loaders load-lib)
 
-(tset package.preload :stonefly.fennel
+(tset package.preload :sf.fennel
       (fn []
         {:dofile (fn [path] (fennel-loader path))}))
 

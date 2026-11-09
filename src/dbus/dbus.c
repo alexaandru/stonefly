@@ -13,11 +13,11 @@
 
 extern char **environ;
 
-#define STONEFLY_NOTIFY_BUS_NAME "org.freedesktop.Notifications"
-#define STONEFLY_NOTIFY_WAIT_MS 20000
+#define SF_NOTIFY_BUS_NAME "org.freedesktop.Notifications"
+#define SF_NOTIFY_WAIT_MS 20000
 
-struct stonefly_dbus_notify {
-	struct stonefly_server *server;
+struct sf_dbus_notify {
+	struct sf_server *server;
 	sd_bus *bus;
 	sd_bus_slot *match_slot;
 	struct wl_event_source *bus_source;
@@ -26,7 +26,7 @@ struct stonefly_dbus_notify {
 	bool finished; /* Notify attempted; destroy after sd_bus_process returns */
 };
 
-static void notify_pending_destroy(struct stonefly_dbus_notify *n) {
+static void notify_pending_destroy(struct sf_dbus_notify *n) {
 	if (n == NULL) {
 		return;
 	}
@@ -56,9 +56,9 @@ static int notify_send(sd_bus *bus, const char *body) {
 	sd_bus_message *reply = NULL;
 	int r;
 
-	r = sd_bus_message_new_method_call(bus, &m, STONEFLY_NOTIFY_BUS_NAME,
-					   "/org/freedesktop/Notifications",
-					   STONEFLY_NOTIFY_BUS_NAME, "Notify");
+	r = sd_bus_message_new_method_call(bus, &m, SF_NOTIFY_BUS_NAME,
+					   "/org/freedesktop/Notifications", SF_NOTIFY_BUS_NAME,
+					   "Notify");
 	if (r < 0) {
 		return r;
 	}
@@ -91,7 +91,7 @@ static int notify_send(sd_bus *bus, const char *body) {
  * destroy_now=false when called from a bus match inside sd_bus_process —
  * tear down only after the process loop returns (see on_bus_fd).
  */
-static void notify_complete(struct stonefly_dbus_notify *n, bool destroy_now) {
+static void notify_complete(struct sf_dbus_notify *n, bool destroy_now) {
 	if (n == NULL || n->finished) {
 		return;
 	}
@@ -114,7 +114,7 @@ static int notifications_name_owned(sd_bus *bus, bool *owned) {
 	int has = 0;
 	int r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus",
 				   "org.freedesktop.DBus", "NameHasOwner", &error, &reply, "s",
-				   STONEFLY_NOTIFY_BUS_NAME);
+				   SF_NOTIFY_BUS_NAME);
 	if (r < 0) {
 		SF_LOGW("NameHasOwner failed",
 			sf_str("err", error.message != NULL ? error.message : strerror(-r)));
@@ -133,7 +133,7 @@ static int notifications_name_owned(sd_bus *bus, bool *owned) {
 
 static int on_name_owner_changed(sd_bus_message *m, void *userdata, sd_bus_error *ret_error) {
 	(void)ret_error;
-	struct stonefly_dbus_notify *n = userdata;
+	struct sf_dbus_notify *n = userdata;
 	const char *name = NULL;
 	const char *old_owner = NULL;
 	const char *new_owner = NULL;
@@ -141,7 +141,7 @@ static int on_name_owner_changed(sd_bus_message *m, void *userdata, sd_bus_error
 	if (sd_bus_message_read(m, "sss", &name, &old_owner, &new_owner) < 0) {
 		return 0;
 	}
-	if (name == NULL || strcmp(name, STONEFLY_NOTIFY_BUS_NAME) != 0) {
+	if (name == NULL || strcmp(name, SF_NOTIFY_BUS_NAME) != 0) {
 		return 0;
 	}
 	if (new_owner == NULL || new_owner[0] == '\0') {
@@ -154,7 +154,7 @@ static int on_name_owner_changed(sd_bus_message *m, void *userdata, sd_bus_error
 
 static int on_bus_fd(int fd, uint32_t mask, void *data) {
 	(void)fd;
-	struct stonefly_dbus_notify *n = data;
+	struct sf_dbus_notify *n = data;
 	if (n == NULL || n->bus == NULL) {
 		return 0;
 	}
@@ -179,13 +179,13 @@ static int on_bus_fd(int fd, uint32_t mask, void *data) {
 }
 
 static int on_notify_timeout(void *data) {
-	struct stonefly_dbus_notify *n = data;
+	struct sf_dbus_notify *n = data;
 	SF_LOGW("config warn notify: no org.freedesktop.Notifications within 20s; giving up");
 	notify_pending_destroy(n);
 	return 0;
 }
 
-void stonefly_dbus_update_activation_environment(void) {
+void sf_dbus_update_activation_environment(void) {
 	sd_bus *bus = NULL;
 	sd_bus_error error = SD_BUS_ERROR_NULL;
 	sd_bus_message *m = NULL;
@@ -246,7 +246,7 @@ out:
 	sd_bus_flush_close_unref(bus);
 }
 
-void stonefly_dbus_notify_config_warn(struct stonefly_server *server) {
+void sf_dbus_notify_config_warn(struct sf_server *server) {
 	if (server == NULL || server->config_warn == NULL || server->config_warn[0] == '\0') {
 		return;
 	}
@@ -254,7 +254,7 @@ void stonefly_dbus_notify_config_warn(struct stonefly_server *server) {
 		return;
 	}
 
-	struct stonefly_dbus_notify *n = calloc(1, sizeof(*n));
+	struct sf_dbus_notify *n = calloc(1, sizeof(*n));
 	if (n == NULL) {
 		SF_LOGW("config warn notify: out of memory");
 		return;
@@ -284,7 +284,7 @@ void stonefly_dbus_notify_config_warn(struct stonefly_server *server) {
 			     "path='/org/freedesktop/DBus',"
 			     "interface='org.freedesktop.DBus',"
 			     "member='NameOwnerChanged',"
-			     "arg0='" STONEFLY_NOTIFY_BUS_NAME "'",
+			     "arg0='" SF_NOTIFY_BUS_NAME "'",
 			     on_name_owner_changed, n);
 	if (r < 0) {
 		SF_LOGW("config warn notify: NameOwnerChanged match failed",
@@ -317,7 +317,7 @@ void stonefly_dbus_notify_config_warn(struct stonefly_server *server) {
 		notify_pending_destroy(n);
 		return;
 	}
-	wl_event_source_timer_update(n->timer_source, STONEFLY_NOTIFY_WAIT_MS);
+	wl_event_source_timer_update(n->timer_source, SF_NOTIFY_WAIT_MS);
 
 	server->config_notify = n;
 
@@ -333,7 +333,7 @@ void stonefly_dbus_notify_config_warn(struct stonefly_server *server) {
 	}
 }
 
-void stonefly_dbus_finish(struct stonefly_server *server) {
+void sf_dbus_finish(struct sf_server *server) {
 	if (server == NULL) {
 		return;
 	}

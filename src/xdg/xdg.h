@@ -1,5 +1,5 @@
-#ifndef STONEFLY_XDG_H
-#define STONEFLY_XDG_H
+#ifndef SF_XDG_H
+#define SF_XDG_H
 
 #include <stdint.h>
 #include <wayland-server-core.h>
@@ -8,16 +8,15 @@
 
 struct wlr_xdg_popup;
 
-struct stonefly_popup {
+struct sf_popup {
 	struct wlr_xdg_popup *xdg_popup;
 	struct wl_listener commit;
 	struct wl_listener destroy;
 };
 
-void stonefly_xdg_setup(struct stonefly_server *server);
+void sf_xdg_setup(struct sf_server *server);
 
 /* Used by seat for interactive move/resize. */
-void stonefly_begin_interactive(struct stonefly_toplevel *toplevel, enum stonefly_cursor_mode mode,
-				uint32_t edges);
+void sf_begin_interactive(struct sf_toplevel *toplevel, enum sf_cursor_mode mode, uint32_t edges);
 
 #endif

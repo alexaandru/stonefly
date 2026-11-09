@@ -1,5 +1,5 @@
-#ifndef STONEFLY_SERVER_H
-#define STONEFLY_SERVER_H
+#ifndef SF_SERVER_H
+#define SF_SERVER_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -49,31 +49,31 @@ struct wlr_relative_pointer_manager_v1;
 struct wlr_pointer_constraints_v1;
 struct wlr_pointer_constraint_v1;
 
-struct stonefly_toplevel;
-struct stonefly_output;
-struct stonefly_keyboard;
-struct stonefly_ipc;
-struct stonefly_layer_surface;
-struct stonefly_snap_preview;
-struct stonefly_dbus_notify;
+struct sf_toplevel;
+struct sf_output;
+struct sf_keyboard;
+struct sf_ipc;
+struct sf_layer_surface;
+struct sf_snap_preview;
+struct sf_dbus_notify;
 
 #include "config/config.h"
 #include "wm/drag_snap.h"
 
-enum stonefly_cursor_mode {
-	STONEFLY_CURSOR_PASSTHROUGH,
-	STONEFLY_CURSOR_MOVE,
-	STONEFLY_CURSOR_RESIZE,
+enum sf_cursor_mode {
+	SF_CURSOR_PASSTHROUGH,
+	SF_CURSOR_MOVE,
+	SF_CURSOR_RESIZE,
 };
 
 /* Discriminator for scene node->data (toplevel vs layer vs SSD). First field. */
-enum stonefly_node_kind {
-	STONEFLY_NODE_TOPLEVEL = 1,
-	STONEFLY_NODE_LAYER = 2,
-	STONEFLY_NODE_SSD = 3,
+enum sf_node_kind {
+	SF_NODE_TOPLEVEL = 1,
+	SF_NODE_LAYER = 2,
+	SF_NODE_SSD = 3,
 };
 
-struct stonefly_server {
+struct sf_server {
 	struct wl_display *wl_display;
 	struct wlr_backend *backend;
 	/* DRM/seat session from autocreate; NULL under nested backends. */
@@ -99,7 +99,7 @@ struct stonefly_server {
 
 	struct wlr_layer_shell_v1 *layer_shell;
 	struct wl_listener new_layer_surface;
-	struct stonefly_layer_surface *exclusive_layer;
+	struct sf_layer_surface *exclusive_layer;
 
 	struct wlr_xdg_shell *xdg_shell;
 	struct wl_listener new_xdg_toplevel;
@@ -160,13 +160,13 @@ struct stonefly_server {
 	struct wl_listener request_set_primary_selection;
 	struct wl_list keyboards;
 	struct wl_list touch;
-	enum stonefly_cursor_mode cursor_mode;
-	struct stonefly_toplevel *grabbed_toplevel;
+	enum sf_cursor_mode cursor_mode;
+	struct sf_toplevel *grabbed_toplevel;
 	double grab_x, grab_y;
 	struct wlr_box grab_geobox;
 	uint32_t resize_edges;
-	struct stonefly_drag_snap drag_snap;
-	struct stonefly_snap_preview *snap_preview;
+	struct sf_drag_snap drag_snap;
+	struct sf_snap_preview *snap_preview;
 
 	struct wlr_output_layout *output_layout;
 	struct wl_list outputs;
@@ -196,20 +196,21 @@ struct stonefly_server {
 		struct wl_listener on_capture_request;
 	} foreign;
 
-	struct stonefly_ipc *ipc;
+	struct sf_ipc *ipc;
 
-	struct stonefly_config config;
+	struct sf_config config;
 
-	/* Lone-modifier tap (Super): peeble bind_tap semantics. */
+	/* Lone-modifier tap (Super): peeble bind_tap semantics.
+	 * Step pointers alias into live config (stable until reload). */
 	struct {
 		bool armed;
 		struct timespec since;
 		int taps;
 		struct wl_event_source *timer;
-		int single;
-		int double_tap;
-		char *single_cmd;
-		char *double_cmd;
+		const struct sf_action_step *single_steps;
+		size_t n_single_steps;
+		const struct sf_action_step *double_steps;
+		size_t n_double_steps;
 	} tap;
 
 	/* ext-session-lock-v1 (Noctalia auto-lock). */
@@ -274,11 +275,11 @@ struct stonefly_server {
 	 * Surfaced via FDO Notifications after the display is up (peeble-style). */
 	char *config_warn;
 	/* Pending NameOwnerChanged wait + Notify (owned by dbus.c). */
-	struct stonefly_dbus_notify *config_notify;
+	struct sf_dbus_notify *config_notify;
 };
 
-bool stonefly_server_init(struct stonefly_server *server);
-int stonefly_server_run(struct stonefly_server *server, const char *startup_cmd);
-void stonefly_server_finish(struct stonefly_server *server);
+bool sf_server_init(struct sf_server *server);
+int sf_server_run(struct sf_server *server, const char *startup_cmd);
+void sf_server_finish(struct sf_server *server);
 
 #endif

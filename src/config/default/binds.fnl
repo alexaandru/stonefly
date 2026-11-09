@@ -3,7 +3,7 @@
   (.. "noctalia msg " msg))
 
 (fn bind [chord opts]
-  (stonefly.bind chord opts))
+  (sf.bind chord opts))
 
 (local binds [
   ;; session / window
@@ -16,8 +16,8 @@
   ["Alt+Tab" {:action :exec :cmd (noctalia "window-switcher")}]
   ["Alt+Shift+Tab" {:action :focus_prev_all}]
   ;; maximize / minimize
-  ["Super+f" {:action :toggle_max_edges}]
-  ["Super+m" {:action :toggle_max_gaps}]
+  ["Super+f" {:action :toggle_maximize_to_edges}]
+  ["Super+m" {:action :toggle_maximize}]
   ["Ctrl+Esc" {:action :minimize}]
   ["Ctrl+Shift+Esc" {:action :unminimize}]
   ;; snap (Super+arrows stay snap; workspaces use Page / digits)
@@ -81,7 +81,7 @@
   (bind (. b 1) (. b 2)))
 
 ;; Super tap → launcher; double-tap → scratchpad term.
-(stonefly.tap "Super" {:single :exec
+(sf.tap "Super" {:single :exec
                        :single_cmd "noctalia msg panel-toggle launcher"
                        :double :scratch_toggle
                        :double_cmd "term"})

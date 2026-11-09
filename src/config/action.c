@@ -1,58 +1,115 @@
 #include "config/action.h"
 
-#include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
-struct stonefly_action_entry {
+#include "util/str.h"
+
+struct sf_action_entry {
 	const char *name;
-	enum stonefly_action action;
+	enum sf_action action;
 };
 
-static const struct stonefly_action_entry stonefly_actions[] = {
-	{"none", STONEFLY_ACTION_NONE},
-	{"quit", STONEFLY_ACTION_QUIT},
-	{"close", STONEFLY_ACTION_CLOSE},
-	{"focus_next", STONEFLY_ACTION_FOCUS_NEXT},
-	{"focus_prev", STONEFLY_ACTION_FOCUS_PREV},
-	{"focus_next_all", STONEFLY_ACTION_FOCUS_NEXT_ALL},
-	{"focus_prev_all", STONEFLY_ACTION_FOCUS_PREV_ALL},
-	{"toggle_max_edges", STONEFLY_ACTION_TOGGLE_MAX_EDGES},
-	{"toggle_max_gaps", STONEFLY_ACTION_TOGGLE_MAX_GAPS},
-	{"minimize", STONEFLY_ACTION_MINIMIZE},
-	{"unminimize", STONEFLY_ACTION_UNMINIMIZE},
-	{"snap_left", STONEFLY_ACTION_SNAP_LEFT},
-	{"snap_right", STONEFLY_ACTION_SNAP_RIGHT},
-	{"snap_top", STONEFLY_ACTION_SNAP_TOP},
-	{"snap_bottom", STONEFLY_ACTION_SNAP_BOTTOM},
-	{"unsnap", STONEFLY_ACTION_UNSNAP},
-	{"exec", STONEFLY_ACTION_EXEC},
-	{"scratch_toggle", STONEFLY_ACTION_SCRATCH_TOGGLE},
-	{"scratch_claim", STONEFLY_ACTION_SCRATCH_CLAIM},
-	{"workspace_next", STONEFLY_ACTION_WORKSPACE_NEXT},
-	{"workspace_prev", STONEFLY_ACTION_WORKSPACE_PREV},
-	{"workspace_switch", STONEFLY_ACTION_WORKSPACE_SWITCH},
-	{"move_to_workspace_next", STONEFLY_ACTION_MOVE_TO_WORKSPACE_NEXT},
-	{"move_to_workspace_prev", STONEFLY_ACTION_MOVE_TO_WORKSPACE_PREV},
-	{"move_to_workspace", STONEFLY_ACTION_MOVE_TO_WORKSPACE},
+static const struct sf_action_entry sf_actions[] = {
+	{"none", SF_ACTION_NONE},
+	{"quit", SF_ACTION_QUIT},
+	{"close", SF_ACTION_CLOSE},
+	{"focus_next", SF_ACTION_FOCUS_NEXT},
+	{"focus_prev", SF_ACTION_FOCUS_PREV},
+	{"focus_next_all", SF_ACTION_FOCUS_NEXT_ALL},
+	{"focus_prev_all", SF_ACTION_FOCUS_PREV_ALL},
+	{"maximize", SF_ACTION_MAXIMIZE},
+	{"maximize_to_edges", SF_ACTION_MAXIMIZE_TO_EDGES},
+	{"unmaximize", SF_ACTION_UNMAXIMIZE},
+	{"toggle_maximize", SF_ACTION_TOGGLE_MAXIMIZE},
+	{"toggle_maximize_to_edges", SF_ACTION_TOGGLE_MAXIMIZE_TO_EDGES},
+	{"minimize", SF_ACTION_MINIMIZE},
+	{"unminimize", SF_ACTION_UNMINIMIZE},
+	{"snap_left", SF_ACTION_SNAP_LEFT},
+	{"snap_right", SF_ACTION_SNAP_RIGHT},
+	{"snap_top", SF_ACTION_SNAP_TOP},
+	{"snap_bottom", SF_ACTION_SNAP_BOTTOM},
+	{"unsnap", SF_ACTION_UNSNAP},
+	{"exec", SF_ACTION_EXEC},
+	{"scratch_toggle", SF_ACTION_SCRATCH_TOGGLE},
+	{"scratch_claim", SF_ACTION_SCRATCH_CLAIM},
+	{"workspace_next", SF_ACTION_WORKSPACE_NEXT},
+	{"workspace_prev", SF_ACTION_WORKSPACE_PREV},
+	{"workspace_switch", SF_ACTION_WORKSPACE_SWITCH},
+	{"move_to_workspace_next", SF_ACTION_MOVE_TO_WORKSPACE_NEXT},
+	{"move_to_workspace_prev", SF_ACTION_MOVE_TO_WORKSPACE_PREV},
+	{"move_to_workspace", SF_ACTION_MOVE_TO_WORKSPACE},
 };
 
-const char *stonefly_action_name(enum stonefly_action action) {
-	for (size_t i = 0; i < sizeof stonefly_actions / sizeof stonefly_actions[0]; i++) {
-		if (stonefly_actions[i].action == action) {
-			return stonefly_actions[i].name;
+const char *sf_action_name(enum sf_action action) {
+	for (size_t i = 0; i < sizeof sf_actions / sizeof sf_actions[0]; i++) {
+		if (sf_actions[i].action == action) {
+			return sf_actions[i].name;
 		}
 	}
 	return "unknown";
 }
 
-enum stonefly_action stonefly_action_parse(const char *name) {
-	if (name == NULL) {
-		return STONEFLY_ACTION_NONE;
+enum sf_action sf_action_parse(const char *name) {
+	enum sf_action action = SF_ACTION_NONE;
+	(void)sf_action_parse_ok(name, &action);
+	return action;
+}
+
+bool sf_action_parse_ok(const char *name, enum sf_action *out) {
+	if (name == NULL || out == NULL) {
+		return false;
 	}
-	for (size_t i = 0; i < sizeof stonefly_actions / sizeof stonefly_actions[0]; i++) {
-		if (strcmp(name, stonefly_actions[i].name) == 0) {
-			return stonefly_actions[i].action;
+	for (size_t i = 0; i < sizeof sf_actions / sizeof sf_actions[0]; i++) {
+		if (strcmp(name, sf_actions[i].name) == 0) {
+			*out = sf_actions[i].action;
+			return true;
 		}
 	}
-	return STONEFLY_ACTION_NONE;
+	return false;
+}
+
+void sf_action_steps_free(struct sf_action_step *steps, size_t n) {
+	if (steps == NULL) {
+		return;
+	}
+	for (size_t i = 0; i < n; i++) {
+		free(steps[i].cmd);
+	}
+	free(steps);
+}
+
+bool sf_action_steps_dup(const struct sf_action_step *src, size_t n, struct sf_action_step **out,
+			 size_t *out_n) {
+	if (out == NULL || out_n == NULL) {
+		return false;
+	}
+	if (n == 0 || src == NULL) {
+		*out = NULL;
+		*out_n = 0;
+		return true;
+	}
+	struct sf_action_step *steps = calloc(n, sizeof *steps);
+	if (steps == NULL) {
+		return false;
+	}
+	for (size_t i = 0; i < n; i++) {
+		steps[i].action = src[i].action;
+		if (src[i].cmd != NULL) {
+			steps[i].cmd = sf_xstrdup(src[i].cmd);
+			if (steps[i].cmd == NULL && src[i].cmd[0] != '\0') {
+				sf_action_steps_free(steps, i);
+				return false;
+			}
+		}
+	}
+	*out = steps;
+	*out_n = n;
+	return true;
+}
+
+bool sf_action_steps_one(enum sf_action action, const char *cmd, struct sf_action_step **out,
+			 size_t *out_n) {
+	struct sf_action_step one = {.action = action, .cmd = (char *)cmd};
+	return sf_action_steps_dup(&one, 1, out, out_n);
 }

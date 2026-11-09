@@ -25,8 +25,11 @@ static const unsigned char emb_inputs_fnl[] = {
 static const unsigned char emb_outputs_fnl[] = {
 #embed "default/outputs.fnl"
 };
+static const unsigned char emb_flsproject_fnl[] = {
+#embed "default/flsproject.fnl"
+};
 
-const struct stonefly_embed_file stonefly_default_files[] = {
+const struct sf_embed_file sf_default_files[] = {
 	{"init.lua", emb_init_lua, sizeof emb_init_lua},
 	{"options.fnl", emb_options_fnl, sizeof emb_options_fnl},
 	{"binds.fnl", emb_binds_fnl, sizeof emb_binds_fnl},
@@ -34,7 +37,7 @@ const struct stonefly_embed_file stonefly_default_files[] = {
 	{"rules.fnl", emb_rules_fnl, sizeof emb_rules_fnl},
 	{"inputs.fnl", emb_inputs_fnl, sizeof emb_inputs_fnl},
 	{"outputs.fnl", emb_outputs_fnl, sizeof emb_outputs_fnl},
+	{"flsproject.fnl", emb_flsproject_fnl, sizeof emb_flsproject_fnl},
 };
 
-const size_t stonefly_default_files_len =
-	sizeof stonefly_default_files / sizeof stonefly_default_files[0];
+const size_t sf_default_files_len = sizeof sf_default_files / sizeof sf_default_files[0];

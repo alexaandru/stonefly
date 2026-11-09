@@ -28,27 +28,27 @@
 
 #include <wlr/types/wlr_xdg_shell.h>
 
-#define STONEFLY_IPC_ENV "STONEFLY_SOCKET"
-#define STONEFLY_IPC_REPLY_CAP ((size_t)64 * 1024)
-#define STONEFLY_IPC_REQ_CAP 4096
-#define STONEFLY_IPC_MAX_WINDOWS 256
-#define STONEFLY_IPC_MAX_LAYERS 256
-#define STONEFLY_IPC_MAX_OUTPUTS 32
-#define STONEFLY_IPC_MAX_WORKSPACES 128
-#define STONEFLY_IPC_QUICK_TERM "term"
+#define SF_IPC_ENV "STONEFLY_SOCKET"
+#define SF_IPC_REPLY_CAP ((size_t)64 * 1024)
+#define SF_IPC_REQ_CAP 4096
+#define SF_IPC_MAX_WINDOWS 256
+#define SF_IPC_MAX_LAYERS 256
+#define SF_IPC_MAX_OUTPUTS 32
+#define SF_IPC_MAX_WORKSPACES 128
+#define SF_IPC_QUICK_TERM "term"
 
-struct stonefly_ipc {
-	struct stonefly_server *server;
+struct sf_ipc {
+	struct sf_server *server;
 	int fd;
 	char *path;
 	struct wl_event_source *source;
 };
 
-struct stonefly_ipc_client {
-	struct stonefly_ipc *ipc;
+struct sf_ipc_client {
+	struct sf_ipc *ipc;
 	int fd;
 	struct wl_event_source *source;
-	char buf[STONEFLY_IPC_REQ_CAP];
+	char buf[SF_IPC_REQ_CAP];
 	size_t len;
 };
 
@@ -60,7 +60,7 @@ static void fd_set_cloexec(int fd) {
 }
 
 static char *socket_path(void) {
-	const char *override = getenv(STONEFLY_IPC_ENV);
+	const char *override = getenv(SF_IPC_ENV);
 	if (override != NULL && override[0] != '\0') {
 		return strdup(override);
 	}
@@ -127,8 +127,8 @@ static bool parse_cmd_arg(const char *line, char *cmd, size_t cmd_cap, char *arg
 	}
 }
 
-static struct stonefly_toplevel *toplevel_by_id(struct stonefly_server *server, uint64_t id) {
-	struct stonefly_toplevel *toplevel;
+static struct sf_toplevel *toplevel_by_id(struct sf_server *server, uint64_t id) {
+	struct sf_toplevel *toplevel;
 	wl_list_for_each(toplevel, &server->toplevels, link) {
 		if (toplevel->id == id) {
 			return toplevel;
@@ -169,7 +169,7 @@ static bool parse_workspace_index(const char *arg, int *out) {
 	return true;
 }
 
-static void ipc_client_destroy(struct stonefly_ipc_client *client) {
+static void ipc_client_destroy(struct sf_ipc_client *client) {
 	if (client->source != NULL) {
 		wl_event_source_remove(client->source);
 		client->source = NULL;
@@ -196,11 +196,11 @@ static void ipc_write_line(int fd, const char *payload) {
 	free(line);
 }
 
-static void ipc_write_ok(struct stonefly_ipc_client *client) {
+static void ipc_write_ok(struct sf_ipc_client *client) {
 	ipc_write_line(client->fd, "{\"ok\":true}");
 }
 
-static void ipc_write_err(struct stonefly_ipc_client *client, const char *msg) {
+static void ipc_write_err(struct sf_ipc_client *client, const char *msg) {
 	char err[192];
 	struct json_buf b;
 	json_buf_init(&b, err, sizeof(err));
@@ -212,16 +212,16 @@ static void ipc_write_err(struct stonefly_ipc_client *client, const char *msg) {
 	ipc_write_line(client->fd, json_ok(&b) ? err : "{\"error\":\"oom\"}");
 }
 
-static void ipc_handle_windows(struct stonefly_ipc_client *client) {
-	struct stonefly_window_info infos[STONEFLY_IPC_MAX_WINDOWS];
-	size_t n = stonefly_windows_collect(client->ipc->server, infos, STONEFLY_IPC_MAX_WINDOWS);
+static void ipc_handle_windows(struct sf_ipc_client *client) {
+	struct sf_window_info infos[SF_IPC_MAX_WINDOWS];
+	size_t n = sf_windows_collect(client->ipc->server, infos, SF_IPC_MAX_WINDOWS);
 
-	char *out = malloc(STONEFLY_IPC_REPLY_CAP);
+	char *out = malloc(SF_IPC_REPLY_CAP);
 	if (out == NULL) {
 		ipc_write_line(client->fd, "{\"error\":\"oom\"}");
 		return;
 	}
-	if (stonefly_windows_to_json(infos, n, out, STONEFLY_IPC_REPLY_CAP) < 0) {
+	if (sf_windows_to_json(infos, n, out, SF_IPC_REPLY_CAP) < 0) {
 		ipc_write_line(client->fd, "{\"error\":\"windows snapshot overflow\"}");
 	} else {
 		ipc_write_line(client->fd, out);
@@ -229,16 +229,16 @@ static void ipc_handle_windows(struct stonefly_ipc_client *client) {
 	free(out);
 }
 
-static void ipc_handle_layers(struct stonefly_ipc_client *client) {
-	struct stonefly_layer_info infos[STONEFLY_IPC_MAX_LAYERS];
-	size_t n = stonefly_layers_collect(client->ipc->server, infos, STONEFLY_IPC_MAX_LAYERS);
+static void ipc_handle_layers(struct sf_ipc_client *client) {
+	struct sf_layer_info infos[SF_IPC_MAX_LAYERS];
+	size_t n = sf_layers_collect(client->ipc->server, infos, SF_IPC_MAX_LAYERS);
 
-	char *out = malloc(STONEFLY_IPC_REPLY_CAP);
+	char *out = malloc(SF_IPC_REPLY_CAP);
 	if (out == NULL) {
 		ipc_write_line(client->fd, "{\"error\":\"oom\"}");
 		return;
 	}
-	if (stonefly_layers_to_json(infos, n, out, STONEFLY_IPC_REPLY_CAP) < 0) {
+	if (sf_layers_to_json(infos, n, out, SF_IPC_REPLY_CAP) < 0) {
 		ipc_write_line(client->fd, "{\"error\":\"layers snapshot overflow\"}");
 	} else {
 		ipc_write_line(client->fd, out);
@@ -246,16 +246,16 @@ static void ipc_handle_layers(struct stonefly_ipc_client *client) {
 	free(out);
 }
 
-static void ipc_handle_outputs(struct stonefly_ipc_client *client) {
-	struct stonefly_output_info infos[STONEFLY_IPC_MAX_OUTPUTS];
-	size_t n = stonefly_outputs_collect(client->ipc->server, infos, STONEFLY_IPC_MAX_OUTPUTS);
+static void ipc_handle_outputs(struct sf_ipc_client *client) {
+	struct sf_output_info infos[SF_IPC_MAX_OUTPUTS];
+	size_t n = sf_outputs_collect(client->ipc->server, infos, SF_IPC_MAX_OUTPUTS);
 
-	char *out = malloc(STONEFLY_IPC_REPLY_CAP);
+	char *out = malloc(SF_IPC_REPLY_CAP);
 	if (out == NULL) {
 		ipc_write_line(client->fd, "{\"error\":\"oom\"}");
 		return;
 	}
-	if (stonefly_outputs_to_json(infos, n, out, STONEFLY_IPC_REPLY_CAP) < 0) {
+	if (sf_outputs_to_json(infos, n, out, SF_IPC_REPLY_CAP) < 0) {
 		ipc_write_line(client->fd, "{\"error\":\"outputs snapshot overflow\"}");
 	} else {
 		ipc_write_line(client->fd, out);
@@ -263,17 +263,16 @@ static void ipc_handle_outputs(struct stonefly_ipc_client *client) {
 	free(out);
 }
 
-static void ipc_handle_workspaces(struct stonefly_ipc_client *client) {
-	struct stonefly_workspace_info infos[STONEFLY_IPC_MAX_WORKSPACES];
-	size_t n = stonefly_workspaces_collect(client->ipc->server, infos,
-					       STONEFLY_IPC_MAX_WORKSPACES);
+static void ipc_handle_workspaces(struct sf_ipc_client *client) {
+	struct sf_workspace_info infos[SF_IPC_MAX_WORKSPACES];
+	size_t n = sf_workspaces_collect(client->ipc->server, infos, SF_IPC_MAX_WORKSPACES);
 
-	char *out = malloc(STONEFLY_IPC_REPLY_CAP);
+	char *out = malloc(SF_IPC_REPLY_CAP);
 	if (out == NULL) {
 		ipc_write_line(client->fd, "{\"error\":\"oom\"}");
 		return;
 	}
-	if (stonefly_workspaces_to_json(infos, n, out, STONEFLY_IPC_REPLY_CAP) < 0) {
+	if (sf_workspaces_to_json(infos, n, out, SF_IPC_REPLY_CAP) < 0) {
 		ipc_write_line(client->fd, "{\"error\":\"workspaces snapshot overflow\"}");
 	} else {
 		ipc_write_line(client->fd, out);
@@ -281,9 +280,9 @@ static void ipc_handle_workspaces(struct stonefly_ipc_client *client) {
 	free(out);
 }
 
-static void ipc_handle_workspace(struct stonefly_ipc_client *client, const char *arg) {
-	struct stonefly_server *server = client->ipc->server;
-	struct stonefly_output *output = stonefly_output_at_cursor(server);
+static void ipc_handle_workspace(struct sf_ipc_client *client, const char *arg) {
+	struct sf_server *server = client->ipc->server;
+	struct sf_output *output = sf_output_at_cursor(server);
 	if (output == NULL) {
 		ipc_write_err(client, "no output");
 		return;
@@ -293,26 +292,26 @@ static void ipc_handle_workspace(struct stonefly_ipc_client *client, const char 
 		return;
 	}
 	if (strcmp(arg, "next") == 0) {
-		stonefly_workspace_switch_offset(output, 1);
+		sf_workspace_switch_offset(output, 1);
 		ipc_write_ok(client);
 		return;
 	}
 	if (strcmp(arg, "prev") == 0) {
-		stonefly_workspace_switch_offset(output, -1);
+		sf_workspace_switch_offset(output, -1);
 		ipc_write_ok(client);
 		return;
 	}
 	int idx;
-	if (!parse_workspace_index(arg, &idx) || !stonefly_workspace_switch_index(output, idx)) {
+	if (!parse_workspace_index(arg, &idx) || !sf_workspace_switch_index(output, idx)) {
 		ipc_write_err(client, "unknown workspace");
 		return;
 	}
 	ipc_write_ok(client);
 }
 
-static void ipc_handle_move_to_workspace(struct stonefly_ipc_client *client, const char *arg) {
-	struct stonefly_server *server = client->ipc->server;
-	struct stonefly_toplevel *focused = stonefly_focused_toplevel(server);
+static void ipc_handle_move_to_workspace(struct sf_ipc_client *client, const char *arg) {
+	struct sf_server *server = client->ipc->server;
+	struct sf_toplevel *focused = sf_focused_toplevel(server);
 	if (focused == NULL) {
 		ipc_write_err(client, "no focused window");
 		return;
@@ -322,49 +321,48 @@ static void ipc_handle_move_to_workspace(struct stonefly_ipc_client *client, con
 		return;
 	}
 	if (strcmp(arg, "next") == 0) {
-		stonefly_workspace_move_offset(focused, 1, true);
+		sf_workspace_move_offset(focused, 1, true);
 		ipc_write_ok(client);
 		return;
 	}
 	if (strcmp(arg, "prev") == 0) {
-		stonefly_workspace_move_offset(focused, -1, true);
+		sf_workspace_move_offset(focused, -1, true);
 		ipc_write_ok(client);
 		return;
 	}
 	int idx;
-	if (!parse_workspace_index(arg, &idx) ||
-	    !stonefly_workspace_move_index(focused, idx, true)) {
+	if (!parse_workspace_index(arg, &idx) || !sf_workspace_move_index(focused, idx, true)) {
 		ipc_write_err(client, "unknown workspace");
 		return;
 	}
 	ipc_write_ok(client);
 }
 
-static void ipc_handle_focus(struct stonefly_ipc_client *client, const char *arg) {
+static void ipc_handle_focus(struct sf_ipc_client *client, const char *arg) {
 	uint64_t id;
 	if (!parse_id_arg(arg, &id)) {
 		ipc_write_err(client, "focus requires numeric id arg");
 		return;
 	}
-	struct stonefly_toplevel *toplevel = toplevel_by_id(client->ipc->server, id);
+	struct sf_toplevel *toplevel = toplevel_by_id(client->ipc->server, id);
 	if (toplevel == NULL) {
 		ipc_write_err(client, "no window with that id");
 		return;
 	}
 	if (toplevel->minimized) {
-		stonefly_toplevel_unminimize(toplevel);
+		sf_toplevel_unminimize(toplevel);
 	}
-	stonefly_focus_toplevel(toplevel);
+	sf_focus_toplevel(toplevel);
 	ipc_write_ok(client);
 }
 
-static void ipc_handle_close(struct stonefly_ipc_client *client, const char *arg) {
+static void ipc_handle_close(struct sf_ipc_client *client, const char *arg) {
 	uint64_t id;
 	if (!parse_id_arg(arg, &id)) {
 		ipc_write_err(client, "close requires numeric id arg");
 		return;
 	}
-	struct stonefly_toplevel *toplevel = toplevel_by_id(client->ipc->server, id);
+	struct sf_toplevel *toplevel = toplevel_by_id(client->ipc->server, id);
 	if (toplevel == NULL) {
 		ipc_write_err(client, "no window with that id");
 		return;
@@ -373,15 +371,14 @@ static void ipc_handle_close(struct stonefly_ipc_client *client, const char *arg
 	ipc_write_ok(client);
 }
 
-static void ipc_handle_block_capture(struct stonefly_ipc_client *client, const char *arg,
-				     bool block) {
+static void ipc_handle_block_capture(struct sf_ipc_client *client, const char *arg, bool block) {
 	uint64_t id;
 	if (!parse_id_arg(arg, &id)) {
 		ipc_write_err(client, block ? "block-capture requires numeric id arg"
 					    : "unblock-capture requires numeric id arg");
 		return;
 	}
-	struct stonefly_toplevel *toplevel = toplevel_by_id(client->ipc->server, id);
+	struct sf_toplevel *toplevel = toplevel_by_id(client->ipc->server, id);
 	if (toplevel == NULL) {
 		ipc_write_err(client, "no window with that id");
 		return;
@@ -390,43 +387,43 @@ static void ipc_handle_block_capture(struct stonefly_ipc_client *client, const c
 	ipc_write_ok(client);
 }
 
-static void ipc_handle_urgent(struct stonefly_ipc_client *client, const char *arg, bool urgent) {
+static void ipc_handle_urgent(struct sf_ipc_client *client, const char *arg, bool urgent) {
 	uint64_t id;
 	if (!parse_id_arg(arg, &id)) {
 		ipc_write_err(client, urgent ? "set-urgent requires numeric id arg"
 					     : "unset-urgent requires numeric id arg");
 		return;
 	}
-	struct stonefly_toplevel *toplevel = toplevel_by_id(client->ipc->server, id);
+	struct sf_toplevel *toplevel = toplevel_by_id(client->ipc->server, id);
 	if (toplevel == NULL) {
 		ipc_write_err(client, "no window with that id");
 		return;
 	}
-	stonefly_decor_set_urgent(toplevel, urgent);
+	sf_decor_set_urgent(toplevel, urgent);
 	ipc_write_ok(client);
 }
 
-static void ipc_handle_toggle_quick_terminal(struct stonefly_ipc_client *client) {
-	stonefly_scratchpad_toggle(client->ipc->server, STONEFLY_IPC_QUICK_TERM);
+static void ipc_handle_toggle_quick_terminal(struct sf_ipc_client *client) {
+	sf_scratchpad_toggle(client->ipc->server, SF_IPC_QUICK_TERM);
 	ipc_write_ok(client);
 }
 
 /* Stop this compositor only (socket is per WAYLAND_DISPLAY / STONEFLY_SOCKET). */
-static void ipc_handle_exit(struct stonefly_ipc_client *client) {
-	struct stonefly_server *server = client->ipc->server;
+static void ipc_handle_exit(struct sf_ipc_client *client) {
+	struct sf_server *server = client->ipc->server;
 	ipc_write_ok(client);
 	SF_LOGI("ipc exit");
 	wl_display_terminate(server->wl_display);
 }
 
-static void ipc_handle_config(struct stonefly_ipc_client *client, const char *arg) {
-	char *out = malloc(STONEFLY_IPC_REPLY_CAP);
+static void ipc_handle_config(struct sf_ipc_client *client, const char *arg) {
+	char *out = malloc(SF_IPC_REPLY_CAP);
 	if (out == NULL) {
 		ipc_write_line(client->fd, "{\"error\":\"oom\"}");
 		return;
 	}
 	const char *section = (arg != NULL && arg[0] != '\0') ? arg : NULL;
-	int n = stonefly_config_to_json(client->ipc->server, section, out, STONEFLY_IPC_REPLY_CAP);
+	int n = sf_config_to_json(client->ipc->server, section, out, SF_IPC_REPLY_CAP);
 	if (n < 0) {
 		free(out);
 		if (section != NULL) {
@@ -442,7 +439,7 @@ static void ipc_handle_config(struct stonefly_ipc_client *client, const char *ar
 	free(out);
 }
 
-static void ipc_handle_request(struct stonefly_ipc_client *client, const char *line) {
+static void ipc_handle_request(struct sf_ipc_client *client, const char *line) {
 	char cmd[64];
 	char arg[128];
 	if (!parse_cmd_arg(line, cmd, sizeof(cmd), arg, sizeof(arg))) {
@@ -517,7 +514,7 @@ static void ipc_handle_request(struct stonefly_ipc_client *client, const char *l
 }
 
 static int ipc_client_readable(int fd, uint32_t mask, void *data) {
-	struct stonefly_ipc_client *client = data;
+	struct sf_ipc_client *client = data;
 	(void)fd;
 
 	if (mask & ((uint32_t)WL_EVENT_ERROR | (uint32_t)WL_EVENT_HANGUP)) {
@@ -554,7 +551,7 @@ static int ipc_client_readable(int fd, uint32_t mask, void *data) {
 }
 
 static int ipc_listen_readable(int fd, uint32_t mask, void *data) {
-	struct stonefly_ipc *ipc = data;
+	struct sf_ipc *ipc = data;
 	(void)fd;
 
 	if (mask & ((uint32_t)WL_EVENT_ERROR | (uint32_t)WL_EVENT_HANGUP)) {
@@ -572,7 +569,7 @@ static int ipc_listen_readable(int fd, uint32_t mask, void *data) {
 	}
 	fd_set_cloexec(cfd);
 
-	struct stonefly_ipc_client *client = calloc(1, sizeof(*client));
+	struct sf_ipc_client *client = calloc(1, sizeof(*client));
 	if (client == NULL) {
 		close(cfd);
 		return 0;
@@ -592,7 +589,7 @@ static int ipc_listen_readable(int fd, uint32_t mask, void *data) {
 	return 0;
 }
 
-bool stonefly_ipc_start(struct stonefly_server *server) {
+bool sf_ipc_start(struct sf_server *server) {
 	char *path = socket_path();
 	if (path == NULL) {
 		SF_LOGE("ipc", sf_str("err", "neither STONEFLY_SOCKET nor "
@@ -635,7 +632,7 @@ bool stonefly_ipc_start(struct stonefly_server *server) {
 		return false;
 	}
 
-	struct stonefly_ipc *ipc = calloc(1, sizeof(*ipc));
+	struct sf_ipc *ipc = calloc(1, sizeof(*ipc));
 	if (ipc == NULL) {
 		close(fd);
 		(void)unlink(path);
@@ -664,8 +661,8 @@ bool stonefly_ipc_start(struct stonefly_server *server) {
 	return true;
 }
 
-void stonefly_ipc_stop(struct stonefly_server *server) {
-	struct stonefly_ipc *ipc = server->ipc;
+void sf_ipc_stop(struct sf_server *server) {
+	struct sf_ipc *ipc = server->ipc;
 	if (ipc == NULL) {
 		return;
 	}
@@ -692,7 +689,7 @@ static int ipc_request_arg(const char *cmd, const char *arg, char **reply_out) {
 	if (path == NULL) {
 		fprintf(stderr,
 			"stonefly: neither %s nor XDG_RUNTIME_DIR+WAYLAND_DISPLAY are set\n",
-			STONEFLY_IPC_ENV);
+			SF_IPC_ENV);
 		return 1;
 	}
 
@@ -744,7 +741,7 @@ static int ipc_request_arg(const char *cmd, const char *arg, char **reply_out) {
 		return 1;
 	}
 
-	char *reply = malloc(STONEFLY_IPC_REPLY_CAP);
+	char *reply = malloc(SF_IPC_REPLY_CAP);
 	if (reply == NULL) {
 		close(fd);
 		return 1;
@@ -752,10 +749,10 @@ static int ipc_request_arg(const char *cmd, const char *arg, char **reply_out) {
 
 	size_t len = 0;
 	for (;;) {
-		if (len + 1 >= STONEFLY_IPC_REPLY_CAP) {
+		if (len + 1 >= SF_IPC_REPLY_CAP) {
 			break;
 		}
-		size_t space = STONEFLY_IPC_REPLY_CAP - len - 1;
+		size_t space = SF_IPC_REPLY_CAP - len - 1;
 		ssize_t r = read(fd, reply + len, space);
 		if (r < 0) {
 			fprintf(stderr, "stonefly: read: %s\n", strerror(errno));
@@ -777,8 +774,8 @@ static int ipc_request_arg(const char *cmd, const char *arg, char **reply_out) {
 	}
 	close(fd);
 
-	if (len >= STONEFLY_IPC_REPLY_CAP) {
-		len = STONEFLY_IPC_REPLY_CAP - 1;
+	if (len >= SF_IPC_REPLY_CAP) {
+		len = SF_IPC_REPLY_CAP - 1;
 	}
 	reply[len] = '\0';
 	char *nl = strchr(reply, '\n');
@@ -896,105 +893,105 @@ static int ipc_cmd_ok_noarg(int argc, char **argv, const char *cmd, const char *
 }
 
 static int windows_format(const char *reply) {
-	struct stonefly_window_info infos[STONEFLY_IPC_MAX_WINDOWS];
+	struct sf_window_info infos[SF_IPC_MAX_WINDOWS];
 	size_t n = 0;
-	if (!stonefly_windows_from_json(reply, infos, STONEFLY_IPC_MAX_WINDOWS, &n)) {
+	if (!sf_windows_from_json(reply, infos, SF_IPC_MAX_WINDOWS, &n)) {
 		fprintf(stderr, "stonefly: bad windows reply\n");
 		return 1;
 	}
-	stonefly_windows_print(infos, n, stdout);
+	sf_windows_print(infos, n, stdout);
 	return 0;
 }
 
 static int layers_format(const char *reply) {
-	struct stonefly_layer_info infos[STONEFLY_IPC_MAX_LAYERS];
+	struct sf_layer_info infos[SF_IPC_MAX_LAYERS];
 	size_t n = 0;
-	if (!stonefly_layers_from_json(reply, infos, STONEFLY_IPC_MAX_LAYERS, &n)) {
+	if (!sf_layers_from_json(reply, infos, SF_IPC_MAX_LAYERS, &n)) {
 		fprintf(stderr, "stonefly: bad layers reply\n");
 		return 1;
 	}
-	stonefly_layers_print(infos, n, stdout);
+	sf_layers_print(infos, n, stdout);
 	return 0;
 }
 
 static int outputs_format(const char *reply) {
-	struct stonefly_output_info infos[STONEFLY_IPC_MAX_OUTPUTS];
+	struct sf_output_info infos[SF_IPC_MAX_OUTPUTS];
 	size_t n = 0;
-	if (!stonefly_outputs_from_json(reply, infos, STONEFLY_IPC_MAX_OUTPUTS, &n)) {
+	if (!sf_outputs_from_json(reply, infos, SF_IPC_MAX_OUTPUTS, &n)) {
 		fprintf(stderr, "stonefly: bad outputs reply\n");
 		return 1;
 	}
-	stonefly_outputs_print(infos, n, stdout);
+	sf_outputs_print(infos, n, stdout);
 	return 0;
 }
 
 static int workspaces_format(const char *reply) {
-	struct stonefly_workspace_info infos[STONEFLY_IPC_MAX_WORKSPACES];
+	struct sf_workspace_info infos[SF_IPC_MAX_WORKSPACES];
 	size_t n = 0;
-	if (!stonefly_workspaces_from_json(reply, infos, STONEFLY_IPC_MAX_WORKSPACES, &n)) {
+	if (!sf_workspaces_from_json(reply, infos, SF_IPC_MAX_WORKSPACES, &n)) {
 		fprintf(stderr, "stonefly: bad workspaces reply\n");
 		return 1;
 	}
-	stonefly_workspaces_print(infos, n, stdout);
+	sf_workspaces_print(infos, n, stdout);
 	return 0;
 }
 
-int stonefly_ipc_cmd_windows(int argc, char **argv) {
+int sf_ipc_cmd_windows(int argc, char **argv) {
 	return ipc_cmd_list(argc, argv, "windows", "Usage: stonefly windows [--json]",
 			    windows_format);
 }
 
-int stonefly_ipc_cmd_layers(int argc, char **argv) {
+int sf_ipc_cmd_layers(int argc, char **argv) {
 	return ipc_cmd_list(argc, argv, "layers", "Usage: stonefly layers [--json]", layers_format);
 }
 
-int stonefly_ipc_cmd_outputs(int argc, char **argv) {
+int sf_ipc_cmd_outputs(int argc, char **argv) {
 	return ipc_cmd_list(argc, argv, "outputs", "Usage: stonefly outputs [--json]",
 			    outputs_format);
 }
 
-int stonefly_ipc_cmd_workspaces(int argc, char **argv) {
+int sf_ipc_cmd_workspaces(int argc, char **argv) {
 	return ipc_cmd_list(argc, argv, "workspaces", "Usage: stonefly workspaces [--json]",
 			    workspaces_format);
 }
 
-int stonefly_ipc_cmd_focus(int argc, char **argv) {
+int sf_ipc_cmd_focus(int argc, char **argv) {
 	return ipc_cmd_with_id(argc, argv, "focus", "Usage: stonefly focus <id>");
 }
 
-int stonefly_ipc_cmd_close(int argc, char **argv) {
+int sf_ipc_cmd_close(int argc, char **argv) {
 	return ipc_cmd_with_id(argc, argv, "close", "Usage: stonefly close <id>");
 }
 
-int stonefly_ipc_cmd_block_capture(int argc, char **argv) {
+int sf_ipc_cmd_block_capture(int argc, char **argv) {
 	return ipc_cmd_with_id(argc, argv, "block-capture", "Usage: stonefly block-capture <id>");
 }
 
-int stonefly_ipc_cmd_unblock_capture(int argc, char **argv) {
+int sf_ipc_cmd_unblock_capture(int argc, char **argv) {
 	return ipc_cmd_with_id(argc, argv, "unblock-capture",
 			       "Usage: stonefly unblock-capture <id>");
 }
 
-int stonefly_ipc_cmd_set_urgent(int argc, char **argv) {
+int sf_ipc_cmd_set_urgent(int argc, char **argv) {
 	return ipc_cmd_with_id(argc, argv, "set-urgent", "Usage: stonefly set-urgent <id>");
 }
 
-int stonefly_ipc_cmd_unset_urgent(int argc, char **argv) {
+int sf_ipc_cmd_unset_urgent(int argc, char **argv) {
 	return ipc_cmd_with_id(argc, argv, "unset-urgent", "Usage: stonefly unset-urgent <id>");
 }
 
-int stonefly_ipc_cmd_toggle_quick_terminal(int argc, char **argv) {
+int sf_ipc_cmd_toggle_quick_terminal(int argc, char **argv) {
 	return ipc_cmd_ok_noarg(argc, argv, "toggle-quick-terminal",
 				"Usage: stonefly toggle-quick-terminal", NULL);
 }
 
-int stonefly_ipc_cmd_exit(int argc, char **argv) {
+int sf_ipc_cmd_exit(int argc, char **argv) {
 	return ipc_cmd_ok_noarg(argc, argv, "exit", "Usage: stonefly exit",
 				"  Quit the compositor for WAYLAND_DISPLAY / STONEFLY_SOCKET.\n"
 				"  Nested: run with that session's WAYLAND_DISPLAY set.\n");
 }
 
-int stonefly_ipc_cmd_config(int argc, char **argv) {
+int sf_ipc_cmd_config(int argc, char **argv) {
 	bool as_json = false;
 	const char *section = NULL;
 
@@ -1030,7 +1027,7 @@ int stonefly_ipc_cmd_config(int argc, char **argv) {
 	if (as_json) {
 		printf("%s\n", reply);
 	} else {
-		stonefly_config_print_json(reply, stdout);
+		sf_config_print_json(reply, stdout);
 	}
 	free(reply);
 	return 0;

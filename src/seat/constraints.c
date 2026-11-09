@@ -8,13 +8,13 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/region.h>
 
-struct stonefly_constraint {
-	struct stonefly_server *server;
+struct sf_constraint {
+	struct sf_server *server;
 	struct wlr_pointer_constraint_v1 *constraint;
 	struct wl_listener destroy;
 };
 
-static void warp_to_constraint_hint(struct stonefly_server *server,
+static void warp_to_constraint_hint(struct sf_server *server,
 				    struct wlr_pointer_constraint_v1 *constraint) {
 	if (constraint == NULL) {
 		return;
@@ -32,7 +32,7 @@ static void warp_to_constraint_hint(struct stonefly_server *server,
 	wlr_seat_pointer_warp(server->seat, sx, sy);
 }
 
-static void stonefly_constraint_deactivate(struct stonefly_server *server, bool warp_hint) {
+static void sf_constraint_deactivate(struct sf_server *server, bool warp_hint) {
 	if (server->constraints.current == NULL) {
 		return;
 	}
@@ -43,13 +43,13 @@ static void stonefly_constraint_deactivate(struct stonefly_server *server, bool 
 	server->constraints.current = NULL;
 }
 
-static void stonefly_constraint_activate(struct stonefly_server *server,
-					 struct wlr_pointer_constraint_v1 *constraint) {
+static void sf_constraint_activate(struct sf_server *server,
+				   struct wlr_pointer_constraint_v1 *constraint) {
 	if (server->constraints.current == constraint) {
 		return;
 	}
 	if (server->constraints.current != NULL) {
-		stonefly_constraint_deactivate(server, constraint == NULL);
+		sf_constraint_deactivate(server, constraint == NULL);
 	}
 	server->constraints.current = constraint;
 	if (constraint == NULL) {
@@ -59,8 +59,8 @@ static void stonefly_constraint_activate(struct stonefly_server *server,
 }
 
 static void constraint_handle_destroy(struct wl_listener *listener, void *data) {
-	struct stonefly_constraint *c = wl_container_of(listener, c, destroy);
-	struct stonefly_server *server = c->server;
+	struct sf_constraint *c = wl_container_of(listener, c, destroy);
+	struct sf_server *server = c->server;
 	struct wlr_pointer_constraint_v1 *constraint = data;
 
 	wl_list_remove(&c->destroy.link);
@@ -72,10 +72,10 @@ static void constraint_handle_destroy(struct wl_listener *listener, void *data) 
 }
 
 void server_new_pointer_constraint(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server = wl_container_of(listener, server, constraints.on_new);
+	struct sf_server *server = wl_container_of(listener, server, constraints.on_new);
 	struct wlr_pointer_constraint_v1 *constraint = data;
 
-	struct stonefly_constraint *c = calloc(1, sizeof(*c));
+	struct sf_constraint *c = calloc(1, sizeof(*c));
 	if (c == NULL) {
 		return;
 	}
@@ -85,11 +85,11 @@ void server_new_pointer_constraint(struct wl_listener *listener, void *data) {
 	wl_signal_add(&constraint->events.destroy, &c->destroy);
 
 	if (server->seat->pointer_state.focused_surface == constraint->surface) {
-		stonefly_constraint_activate(server, constraint);
+		sf_constraint_activate(server, constraint);
 	}
 }
 
-void apply_pointer_constraint(struct stonefly_server *server, double *dx, double *dy) {
+void apply_pointer_constraint(struct sf_server *server, double *dx, double *dy) {
 	struct wlr_pointer_constraint_v1 *constraint = server->constraints.current;
 	if (constraint == NULL) {
 		return;
@@ -116,7 +116,7 @@ void apply_pointer_constraint(struct stonefly_server *server, double *dx, double
 }
 
 void seat_pointer_focus_change(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server = wl_container_of(listener, server, pointer_focus_change);
+	struct sf_server *server = wl_container_of(listener, server, pointer_focus_change);
 	/* This event is raised when the pointer focus is changed, including when the
 	 * client is closed. We set the cursor image to its default if target surface
 	 * is NULL */
@@ -135,6 +135,6 @@ void seat_pointer_focus_change(struct wl_listener *listener, void *data) {
 			server->constraints.mgr, event->new_surface, server->seat);
 	}
 	if (server->constraints.current != constraint) {
-		stonefly_constraint_activate(server, constraint);
+		sf_constraint_activate(server, constraint);
 	}
 }

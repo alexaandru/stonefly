@@ -1,19 +1,19 @@
-#ifndef STONEFLY_SSD_POLICY_H
-#define STONEFLY_SSD_POLICY_H
+#ifndef SF_SSD_POLICY_H
+#define SF_SSD_POLICY_H
 
 #include <stdbool.h>
 
-enum stonefly_ssd_mode {
-	STONEFLY_SSD_NEVER = 0,
-	STONEFLY_SSD_AUTO,
-	STONEFLY_SSD_PREFER,
-	STONEFLY_SSD_ALWAYS,
+enum sf_ssd_mode {
+	SF_SSD_NEVER = 0,
+	SF_SSD_AUTO,
+	SF_SSD_PREFER,
+	SF_SSD_ALWAYS,
 };
 
-enum stonefly_ssd_mode stonefly_ssd_mode_parse(const char *s);
-const char *stonefly_ssd_mode_name(enum stonefly_ssd_mode mode);
+enum sf_ssd_mode sf_ssd_mode_parse(const char *s);
+const char *sf_ssd_mode_name(enum sf_ssd_mode mode);
 
 /* requested_mode is WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_*. */
-bool stonefly_ssd_want(enum stonefly_ssd_mode mode, int requested_mode);
+bool sf_ssd_want(enum sf_ssd_mode mode, int requested_mode);
 
-#endif /* STONEFLY_SSD_POLICY_H */
+#endif /* SF_SSD_POLICY_H */

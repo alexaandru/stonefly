@@ -18,20 +18,20 @@
 #include "toplevel/toplevel.h"
 
 /* Optimized blur caches wallpaper/bottom; refresh when those layers change. */
-static void layer_maybe_dirty_blur(struct stonefly_layer_surface *layer) {
+static void layer_maybe_dirty_blur(struct sf_layer_surface *layer) {
 	if (layer == NULL || layer->layer_surface == NULL) {
 		return;
 	}
 	enum zwlr_layer_shell_v1_layer z = layer->layer_surface->current.layer;
 	if (z == ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND || z == ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM) {
-		stonefly_decor_mark_blur_dirty(layer->server);
+		sf_decor_mark_blur_dirty(layer->server);
 	}
 }
 
-#define STONEFLY_LAYER_SHELL_VERSION 5
+#define SF_LAYER_SHELL_VERSION 5
 
-struct wlr_scene_tree *stonefly_layer_tree(struct stonefly_server *server,
-					   enum zwlr_layer_shell_v1_layer layer) {
+struct wlr_scene_tree *sf_layer_tree(struct sf_server *server,
+				     enum zwlr_layer_shell_v1_layer layer) {
 	switch (layer) {
 	case ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND:
 		return server->layers.background;
@@ -45,7 +45,7 @@ struct wlr_scene_tree *stonefly_layer_tree(struct stonefly_server *server,
 	return server->layers.top;
 }
 
-bool stonefly_output_usable_box(struct stonefly_output *output, struct wlr_box *box) {
+bool sf_output_usable_box(struct sf_output *output, struct wlr_box *box) {
 	if (output == NULL || box == NULL) {
 		return false;
 	}
@@ -53,23 +53,22 @@ bool stonefly_output_usable_box(struct stonefly_output *output, struct wlr_box *
 	return box->width > 0 && box->height > 0;
 }
 
-bool stonefly_layout_usable_at(struct stonefly_server *server, double lx, double ly,
-			       struct wlr_box *box) {
+bool sf_layout_usable_at(struct sf_server *server, double lx, double ly, struct wlr_box *box) {
 	struct wlr_output *wlr_output = wlr_output_layout_output_at(server->output_layout, lx, ly);
 	if (wlr_output == NULL) {
 		return false;
 	}
-	struct stonefly_output *output = wlr_output->data;
+	struct sf_output *output = wlr_output->data;
 	if (output == NULL) {
 		wlr_output_layout_get_box(server->output_layout, wlr_output, box);
 		return box->width > 0 && box->height > 0;
 	}
-	return stonefly_output_usable_box(output, box);
+	return sf_output_usable_box(output, box);
 }
 
-static void layer_focus_interactive(struct stonefly_output *output) {
-	struct stonefly_server *server = output->server;
-	if (stonefly_session_locked(server)) {
+static void layer_focus_interactive(struct sf_output *output) {
+	struct sf_server *server = output->server;
+	if (sf_session_locked(server)) {
 		return;
 	}
 	static const enum zwlr_layer_shell_v1_layer above[] = {
@@ -78,7 +77,7 @@ static void layer_focus_interactive(struct stonefly_output *output) {
 	};
 
 	for (size_t i = 0; i < sizeof(above) / sizeof(above[0]); i++) {
-		struct stonefly_layer_surface *layer;
+		struct sf_layer_surface *layer;
 		wl_list_for_each_reverse(layer, &output->layers[above[i]], link) {
 			struct wlr_layer_surface_v1 *ls = layer->layer_surface;
 			if (!ls->surface->mapped) {
@@ -98,10 +97,10 @@ static void layer_focus_interactive(struct stonefly_output *output) {
 					wlr_xdg_toplevel_set_activated(prev_xdg, false);
 					struct wlr_surface *root =
 						wlr_surface_get_root_surface(prev);
-					struct stonefly_toplevel *t;
+					struct sf_toplevel *t;
 					wl_list_for_each(t, &server->toplevels, link) {
 						if (t->xdg_toplevel->base->surface == root) {
-							stonefly_decor_set_focused(t, false);
+							sf_decor_set_focused(t, false);
 							break;
 						}
 					}
@@ -123,14 +122,14 @@ static void layer_focus_interactive(struct stonefly_output *output) {
 
 	if (server->exclusive_layer != NULL && server->exclusive_layer->output == output) {
 		server->exclusive_layer = NULL;
-		stonefly_focus_top(server);
+		sf_focus_top(server);
 	}
 }
 
-static void layer_arrange_list(struct stonefly_output *output, struct wl_list *list,
+static void layer_arrange_list(struct sf_output *output, struct wl_list *list,
 			       struct wlr_box *usable, bool exclusive) {
 	struct wlr_box full = output->full;
-	struct stonefly_layer_surface *layer;
+	struct sf_layer_surface *layer;
 	wl_list_for_each(layer, list, link) {
 		struct wlr_layer_surface_v1 *ls = layer->layer_surface;
 		/* wlroots 0.20 asserts configure only after the first commit. */
@@ -149,7 +148,7 @@ static void layer_arrange_list(struct stonefly_output *output, struct wl_list *l
 	}
 }
 
-void stonefly_layer_arrange_output(struct stonefly_output *output) {
+void sf_layer_arrange_output(struct sf_output *output) {
 	if (output == NULL || output->wlr_output == NULL) {
 		return;
 	}
@@ -157,7 +156,7 @@ void stonefly_layer_arrange_output(struct stonefly_output *output) {
 		return;
 	}
 
-	struct stonefly_server *server = output->server;
+	struct sf_server *server = output->server;
 	struct wlr_box full = {0};
 	wlr_output_layout_get_box(server->output_layout, output->wlr_output, &full);
 	if (full.width <= 0 || full.height <= 0) {
@@ -184,7 +183,7 @@ void stonefly_layer_arrange_output(struct stonefly_output *output) {
 			sf_i64("x", output->usable.x), sf_i64("y", output->usable.y),
 			sf_i64("w", output->usable.width), sf_i64("h", output->usable.height));
 		/* Peeble UsableAreaChanged: bar exclusive often arrives after map. */
-		stonefly_wm_relayout_output(output);
+		sf_wm_relayout_output(output);
 	}
 
 	layer_focus_interactive(output);
@@ -192,46 +191,46 @@ void stonefly_layer_arrange_output(struct stonefly_output *output) {
 
 static void layer_surface_map(struct wl_listener *listener, void *data) {
 	(void)data;
-	struct stonefly_layer_surface *layer = wl_container_of(listener, layer, map);
+	struct sf_layer_surface *layer = wl_container_of(listener, layer, map);
 	if (layer->output != NULL) {
-		stonefly_layer_arrange_output(layer->output);
+		sf_layer_arrange_output(layer->output);
 	}
 	layer_maybe_dirty_blur(layer);
 }
 
 static void layer_surface_unmap(struct wl_listener *listener, void *data) {
 	(void)data;
-	struct stonefly_layer_surface *layer = wl_container_of(listener, layer, unmap);
-	struct stonefly_server *server = layer->server;
+	struct sf_layer_surface *layer = wl_container_of(listener, layer, unmap);
+	struct sf_server *server = layer->server;
 
 	if (server->exclusive_layer == layer) {
 		server->exclusive_layer = NULL;
 	}
 	if (layer->output != NULL) {
-		stonefly_layer_arrange_output(layer->output);
+		sf_layer_arrange_output(layer->output);
 	}
 	if (server->seat->keyboard_state.focused_surface == layer->layer_surface->surface) {
-		stonefly_focus_top(server);
+		sf_focus_top(server);
 	}
 	layer_maybe_dirty_blur(layer);
 }
 
 static void layer_surface_commit(struct wl_listener *listener, void *data) {
 	(void)data;
-	struct stonefly_layer_surface *layer = wl_container_of(listener, layer, commit);
+	struct sf_layer_surface *layer = wl_container_of(listener, layer, commit);
 	struct wlr_layer_surface_v1 *ls = layer->layer_surface;
 	struct wlr_output *wlr_output = ls->output;
 
 	if (wlr_output == NULL) {
 		return;
 	}
-	struct stonefly_output *output = wlr_output->data;
+	struct sf_output *output = wlr_output->data;
 	if (output == NULL) {
 		return;
 	}
 	layer->output = output;
 
-	struct wlr_scene_tree *tree = stonefly_layer_tree(layer->server, ls->current.layer);
+	struct wlr_scene_tree *tree = sf_layer_tree(layer->server, ls->current.layer);
 	if (layer->scene->node.parent != tree) {
 		wlr_scene_node_reparent(&layer->scene->node, tree);
 		wlr_scene_node_reparent(&layer->popups->node, tree);
@@ -244,7 +243,7 @@ static void layer_surface_commit(struct wl_listener *listener, void *data) {
 	}
 
 	if (ls->current.committed != 0 || ls->initial_commit) {
-		stonefly_layer_arrange_output(output);
+		sf_layer_arrange_output(output);
 	}
 	/* Buffer damage on wallpaper/bottom also needs a blur cache refresh. */
 	if (ls->current.committed != 0 || ls->initial_commit ||
@@ -259,7 +258,7 @@ static void layer_surface_commit(struct wl_listener *listener, void *data) {
  * under overlay until this runs; reparent onto the layer popup tree.
  */
 static void layer_surface_new_popup(struct wl_listener *listener, void *data) {
-	struct stonefly_layer_surface *layer = wl_container_of(listener, layer, new_popup);
+	struct sf_layer_surface *layer = wl_container_of(listener, layer, new_popup);
 	struct wlr_xdg_popup *xdg_popup = data;
 	struct wlr_scene_tree *tree = xdg_popup->base->data;
 
@@ -270,9 +269,9 @@ static void layer_surface_new_popup(struct wl_listener *listener, void *data) {
 
 static void layer_surface_destroy(struct wl_listener *listener, void *data) {
 	(void)data;
-	struct stonefly_layer_surface *layer = wl_container_of(listener, layer, destroy);
-	struct stonefly_server *server = layer->server;
-	struct stonefly_output *output = layer->output;
+	struct sf_layer_surface *layer = wl_container_of(listener, layer, destroy);
+	struct sf_server *server = layer->server;
+	struct sf_output *output = layer->output;
 	bool restore_focus =
 		server->exclusive_layer == layer ||
 		server->seat->keyboard_state.focused_surface == layer->layer_surface->surface;
@@ -293,20 +292,20 @@ static void layer_surface_destroy(struct wl_listener *listener, void *data) {
 	free(layer);
 
 	if (output != NULL) {
-		stonefly_layer_arrange_output(output);
+		sf_layer_arrange_output(output);
 	}
 	if (restore_focus && server->exclusive_layer == NULL) {
-		stonefly_focus_top(server);
+		sf_focus_top(server);
 	}
 }
 
-static struct wlr_output *pick_layer_output(struct stonefly_server *server) {
+static struct wlr_output *pick_layer_output(struct sf_server *server) {
 	struct wlr_output *under = wlr_output_layout_output_at(
 		server->output_layout, server->cursor->x, server->cursor->y);
 	if (under != NULL) {
 		return under;
 	}
-	struct stonefly_output *output;
+	struct sf_output *output;
 	wl_list_for_each(output, &server->outputs, link) {
 		if (output->wlr_output->enabled) {
 			return output->wlr_output;
@@ -316,7 +315,7 @@ static struct wlr_output *pick_layer_output(struct stonefly_server *server) {
 }
 
 static void server_new_layer_surface(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server = wl_container_of(listener, server, new_layer_surface);
+	struct sf_server *server = wl_container_of(listener, server, new_layer_surface);
 	struct wlr_layer_surface_v1 *ls = data;
 
 	if (ls->output == NULL) {
@@ -329,7 +328,7 @@ static void server_new_layer_surface(struct wl_listener *listener, void *data) {
 		return;
 	}
 
-	struct stonefly_output *output = ls->output->data;
+	struct sf_output *output = ls->output->data;
 	if (output == NULL) {
 		SF_LOGW("layer surface output not ready; destroying",
 			sf_str("namespace", ls->namespace != NULL ? ls->namespace : ""));
@@ -338,14 +337,14 @@ static void server_new_layer_surface(struct wl_listener *listener, void *data) {
 	}
 
 	enum zwlr_layer_shell_v1_layer layer_idx = ls->pending.layer;
-	struct wlr_scene_tree *parent = stonefly_layer_tree(server, layer_idx);
+	struct wlr_scene_tree *parent = sf_layer_tree(server, layer_idx);
 
-	struct stonefly_layer_surface *layer = calloc(1, sizeof(*layer));
+	struct sf_layer_surface *layer = calloc(1, sizeof(*layer));
 	if (layer == NULL) {
 		wlr_layer_surface_v1_destroy(ls);
 		return;
 	}
-	layer->kind = STONEFLY_NODE_LAYER;
+	layer->kind = SF_NODE_LAYER;
 	layer->server = server;
 	layer->output = output;
 	layer->layer_surface = ls;
@@ -377,7 +376,7 @@ static void server_new_layer_surface(struct wl_listener *listener, void *data) {
 	 * assert(surface->initialized) in wlr_layer_surface_v1_configure. */
 }
 
-void stonefly_layer_setup(struct stonefly_server *server) {
+void sf_layer_setup(struct sf_server *server) {
 	server->layers.background = wlr_scene_tree_create(&server->scene->tree);
 	server->layers.bottom = wlr_scene_tree_create(&server->scene->tree);
 	/* Optimized blur samples everything below (wallpaper / bottom). */
@@ -386,15 +385,14 @@ void stonefly_layer_setup(struct stonefly_server *server) {
 	server->layers.top = wlr_scene_tree_create(&server->scene->tree);
 	server->layers.overlay = wlr_scene_tree_create(&server->scene->tree);
 
-	server->layer_shell =
-		wlr_layer_shell_v1_create(server->wl_display, STONEFLY_LAYER_SHELL_VERSION);
+	server->layer_shell = wlr_layer_shell_v1_create(server->wl_display, SF_LAYER_SHELL_VERSION);
 	server->new_layer_surface.notify = server_new_layer_surface;
 	wl_signal_add(&server->layer_shell->events.new_surface, &server->new_layer_surface);
 	server->exclusive_layer = NULL;
 
-	SF_LOGI("layer shell", sf_i64("version", STONEFLY_LAYER_SHELL_VERSION));
+	SF_LOGI("layer shell", sf_i64("version", SF_LAYER_SHELL_VERSION));
 }
 
-void stonefly_layer_finish(struct stonefly_server *server) {
+void sf_layer_finish(struct sf_server *server) {
 	wl_list_remove(&server->new_layer_surface.link);
 }

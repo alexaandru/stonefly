@@ -12,6 +12,7 @@
 #include "log/log.h"
 #include "server/server.h"
 #include "ssd/ssd.h"
+#include "util/color.h"
 #include "util/math.h"
 #include "util/time.h"
 #include "wm/wm.h"
@@ -19,9 +20,9 @@
 
 #include <wlr/types/wlr_buffer.h>
 
-struct stonefly_ghost {
+struct sf_ghost {
 	struct wl_list link;
-	struct stonefly_server *server;
+	struct sf_server *server;
 	struct wlr_scene_tree *tree;
 	struct wlr_scene_buffer *buffer;
 	struct wlr_buffer *locked;
@@ -35,16 +36,16 @@ struct stonefly_ghost {
 	int anim_to_x, anim_to_y;
 };
 
-void stonefly_decor_setup_scene(struct stonefly_server *server) {
-	/* Blur node is created in stonefly_layer_setup (z-order). */
+void sf_decor_setup_scene(struct sf_server *server) {
+	/* Blur node is created in sf_layer_setup (z-order). */
 	(void)server;
 }
 
-void stonefly_decor_apply_blur_params(struct stonefly_server *server) {
+void sf_decor_apply_blur_params(struct sf_server *server) {
 	if (server == NULL || server->scene == NULL) {
 		return;
 	}
-	const struct stonefly_config *cfg = stonefly_cfg(server);
+	const struct sf_config *cfg = sf_cfg(server);
 	int passes = cfg->blur_num_passes;
 	int radius = cfg->blur_radius;
 	if (passes < 1) {
@@ -57,7 +58,7 @@ void stonefly_decor_apply_blur_params(struct stonefly_server *server) {
 				cfg->blur_brightness, cfg->blur_contrast, cfg->blur_saturation);
 }
 
-void stonefly_decor_update_blur_size(struct stonefly_server *server) {
+void sf_decor_update_blur_size(struct sf_server *server) {
 	if (server->blur_layer == NULL) {
 		return;
 	}
@@ -71,7 +72,7 @@ void stonefly_decor_update_blur_size(struct stonefly_server *server) {
 	wlr_scene_optimized_blur_set_size(server->blur_layer, layout.width, layout.height);
 }
 
-void stonefly_decor_mark_blur_dirty(struct stonefly_server *server) {
+void sf_decor_mark_blur_dirty(struct sf_server *server) {
 	if (server == NULL || server->blur_layer == NULL) {
 		return;
 	}
@@ -81,12 +82,12 @@ void stonefly_decor_mark_blur_dirty(struct stonefly_server *server) {
 /* Border/shadow/corners off for edge-max, fullscreen, and window_rule borderless.
  * Blur is separate (stays on for edge-max / quick terminal; off only for true
  * fullscreen). */
-static bool decor_chrome_on(const struct stonefly_toplevel *toplevel) {
+static bool decor_chrome_on(const struct sf_toplevel *toplevel) {
 	return !toplevel->maximized_edges && !toplevel->fullscreen && !toplevel->borderless;
 }
 
-static bool decor_blur_on(const struct stonefly_toplevel *toplevel) {
-	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+static bool decor_blur_on(const struct sf_toplevel *toplevel) {
+	const struct sf_config *cfg = sf_cfg(toplevel->server);
 	return (cfg->window_blur || toplevel->client_blur) && !toplevel->fullscreen;
 }
 
@@ -105,15 +106,15 @@ enum {
 	border_overlap_px = 1
 };
 
-void stonefly_decor_refresh_blur(struct stonefly_toplevel *toplevel) {
+void sf_decor_refresh_blur(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->blur == NULL) {
 		return;
 	}
 	wlr_scene_node_set_enabled(&toplevel->blur->node, decor_blur_on(toplevel));
 }
 
-static void decor_set_chrome_enabled(struct stonefly_toplevel *toplevel, bool on) {
-	stonefly_decor_refresh_blur(toplevel);
+static void decor_set_chrome_enabled(struct sf_toplevel *toplevel, bool on) {
+	sf_decor_refresh_blur(toplevel);
 	if (toplevel->border != NULL) {
 		wlr_scene_node_set_enabled(&toplevel->border->node, on);
 	}
@@ -155,16 +156,16 @@ static struct fx_corner_radii corners_for_buffer(int sx, int sy, int bw, int bh,
 /* Focused uses client_opacity; unfocused uses inactive_opacity.
  * Fullscreen stays opaque; edge-max (quick terminal) still gets opacity so
  * blur can show through. */
-static float toplevel_chrome_opacity(struct stonefly_toplevel *toplevel, bool focused) {
+static float toplevel_chrome_opacity(struct sf_toplevel *toplevel, bool focused) {
 	if (toplevel->fullscreen) {
 		return 1.0f;
 	}
-	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+	const struct sf_config *cfg = sf_cfg(toplevel->server);
 	return focused ? cfg->client_opacity : cfg->inactive_opacity;
 }
 
 struct apply_buffers_ctx {
-	struct stonefly_toplevel *toplevel;
+	struct sf_toplevel *toplevel;
 	float opacity;
 	bool chrome;
 	int radius;
@@ -192,18 +193,18 @@ static void iter_apply_buffers(struct wlr_scene_buffer *buffer, int sx, int sy, 
 	struct wlr_box *geo = &ctx->toplevel->xdg_toplevel->base->geometry;
 	/* Same radius as CSD / border hole — do not use outer. */
 	int radius = ctx->chrome ? ctx->radius : 0;
-	bool round_top = !stonefly_ssd_should_show(ctx->toplevel);
+	bool round_top = !sf_ssd_should_show(ctx->toplevel);
 	wlr_scene_buffer_set_corner_radii(
 		buffer, corners_for_buffer(sx, sy, bw, bh, geo, radius, round_top));
 }
 
-static void decor_apply_buffers_focused(struct stonefly_toplevel *toplevel, bool focused) {
+static void decor_apply_buffers_focused(struct sf_toplevel *toplevel, bool focused) {
 	if (toplevel->xdg_scene_tree == NULL) {
 		return;
 	}
 	bool chrome = decor_chrome_on(toplevel);
 	decor_set_chrome_enabled(toplevel, chrome);
-	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+	const struct sf_config *cfg = sf_cfg(toplevel->server);
 	struct apply_buffers_ctx ctx = {
 		.toplevel = toplevel,
 		.opacity = toplevel_chrome_opacity(toplevel, focused),
@@ -213,47 +214,33 @@ static void decor_apply_buffers_focused(struct stonefly_toplevel *toplevel, bool
 	wlr_scene_node_for_each_buffer(&toplevel->xdg_scene_tree->node, iter_apply_buffers, &ctx);
 }
 
-void stonefly_decor_apply_buffers(struct stonefly_toplevel *toplevel) {
-	bool focused = stonefly_focused_toplevel(toplevel->server) == toplevel;
+void sf_decor_apply_buffers(struct sf_toplevel *toplevel) {
+	bool focused = sf_focused_toplevel(toplevel->server) == toplevel;
 	decor_apply_buffers_focused(toplevel, focused);
 }
 
-/* SceneFX rect colors are premultiplied (wlroots/scenefx contract). */
-static void border_rgba_premul(const float src[4], float opacity, float out[4]) {
-	float a = src[3] * opacity;
-	out[0] = src[0] * a;
-	out[1] = src[1] * a;
-	out[2] = src[2] * a;
-	out[3] = a;
-}
-
-static void apply_border_color(struct stonefly_toplevel *toplevel, const float *src,
+static void apply_border_color(struct sf_toplevel *toplevel, const struct sf_rgba *src,
 			       float opacity) {
 	if (toplevel->border == NULL) {
 		return;
 	}
-	float rgba[4];
-	border_rgba_premul(src, opacity, rgba);
-	wlr_scene_rect_set_color(toplevel->border, rgba);
+	struct sf_rgba rgba;
+	sf_rgba_premul(src, opacity, &rgba);
+	wlr_scene_rect_set_color(toplevel->border, sf_rgba_vec(&rgba));
 }
 
-static void apply_shadow_opacity(struct stonefly_toplevel *toplevel, float opacity) {
+static void apply_shadow_opacity(struct sf_toplevel *toplevel, float opacity) {
 	if (toplevel->shadow == NULL) {
 		return;
 	}
-	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
-	float shadow_a = cfg->shadow_color[3] * opacity;
-	float shadow[4] = {
-		cfg->shadow_color[0] * shadow_a,
-		cfg->shadow_color[1] * shadow_a,
-		cfg->shadow_color[2] * shadow_a,
-		shadow_a,
-	};
-	wlr_scene_shadow_set_color(toplevel->shadow, shadow);
+	const struct sf_config *cfg = sf_cfg(toplevel->server);
+	struct sf_rgba shadow;
+	sf_rgba_premul(&cfg->shadow_color, opacity, &shadow);
+	wlr_scene_shadow_set_color(toplevel->shadow, sf_rgba_vec(&shadow));
 }
 
-void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel) {
-	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+void sf_decor_init_toplevel(struct sf_toplevel *toplevel) {
+	const struct sf_config *cfg = sf_cfg(toplevel->server);
 	const int inner = cfg->corner_radius;
 	const int border = cfg->border_thickness;
 	const int outer = outer_corner_radius(inner, border);
@@ -261,15 +248,16 @@ void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel) {
 
 	toplevel->blur = wlr_scene_blur_create(toplevel->scene_tree, 0, 0);
 	/* blur_xray: sample optimized wallpaper only. Off: blur real backdrop. */
-	wlr_scene_blur_set_should_only_blur_bottom_layer(toplevel->blur, cfg->blur_xray != 0);
+	wlr_scene_blur_set_should_only_blur_bottom_layer(toplevel->blur, cfg->blur_xray);
 	wlr_scene_blur_set_corner_radii(toplevel->blur, corner_radii_all(inner));
-	stonefly_decor_refresh_blur(toplevel);
+	sf_decor_refresh_blur(toplevel);
 
 	/* New windows start unfocused until focus_toplevel runs. */
 	float start_opacity = cfg->inactive_opacity;
-	float inactive[4];
-	border_rgba_premul(cfg->border_inactive, start_opacity, inactive);
-	toplevel->border = wlr_scene_rect_create(toplevel->scene_tree, 0, 0, inactive);
+	struct sf_rgba inactive;
+	sf_rgba_premul(&cfg->border_inactive, start_opacity, &inactive);
+	toplevel->border =
+		wlr_scene_rect_create(toplevel->scene_tree, 0, 0, sf_rgba_vec(&inactive));
 	/* Hole/client = corner_radius; outer rim = inner + border. */
 	wlr_scene_rect_set_corner_radii(toplevel->border, corner_radii_all(outer));
 	wlr_scene_node_set_position(&toplevel->border->node, -border, -border);
@@ -280,15 +268,10 @@ void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel) {
 			.corners = corner_radii_all(inner),
 		});
 
-	float shadow_a = cfg->shadow_color[3] * start_opacity;
-	float shadow[4] = {
-		cfg->shadow_color[0] * shadow_a,
-		cfg->shadow_color[1] * shadow_a,
-		cfg->shadow_color[2] * shadow_a,
-		shadow_a,
-	};
-	toplevel->shadow =
-		wlr_scene_shadow_create(toplevel->scene_tree, 0, 0, outer, sigma, shadow);
+	struct sf_rgba shadow;
+	sf_rgba_premul(&cfg->shadow_color, start_opacity, &shadow);
+	toplevel->shadow = wlr_scene_shadow_create(toplevel->scene_tree, 0, 0, outer, sigma,
+						   sf_rgba_vec(&shadow));
 	wlr_scene_node_set_position(&toplevel->shadow->node, -border - (int)sigma,
 				    -border - (int)sigma);
 
@@ -300,7 +283,7 @@ void stonefly_decor_init_toplevel(struct stonefly_toplevel *toplevel) {
 
 /* Clip the subsurface tree inside wlr_scene_xdg_surface_create's wrapper.
  * set_clip on the outer tree is a no-op — only the subsurface tree accepts it. */
-static void decor_clip_xdg_surface(struct stonefly_toplevel *toplevel, const struct wlr_box *geo) {
+static void decor_clip_xdg_surface(struct sf_toplevel *toplevel, const struct wlr_box *geo) {
 	struct wlr_scene_node *child;
 	wl_list_for_each(child, &toplevel->xdg_scene_tree->children, link) {
 		wlr_scene_subsurface_tree_set_clip(child, geo);
@@ -309,20 +292,20 @@ static void decor_clip_xdg_surface(struct stonefly_toplevel *toplevel, const str
 	SF_LOGW("decor clip: no subsurface child", sf_i64("id", (int64_t)toplevel->id));
 }
 
-void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
+void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 	struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
 	if (geo->width <= 0 || geo->height <= 0) {
 		return;
 	}
 
 	const bool chrome = decor_chrome_on(toplevel);
-	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+	const struct sf_config *cfg = sf_cfg(toplevel->server);
 	const int border = chrome ? cfg->border_thickness : 0;
 	const int inner = chrome ? cfg->corner_radius : 0;
 	const int outer = chrome ? outer_corner_radius(inner, border) : 0;
 	const float sigma = chrome ? cfg->shadow_blur_sigma : 0.0f;
 	/* Titlebar sits above content; border/shadow/blur wrap both. */
-	const int ssd_h = chrome ? stonefly_ssd_top_inset(toplevel) : 0;
+	const int ssd_h = chrome ? sf_ssd_top_inset(toplevel) : 0;
 	struct fx_corner_radii outer_corners = corner_radii_all(outer);
 	struct fx_corner_radii inner_corners = corner_radii_all(inner);
 
@@ -389,70 +372,70 @@ void stonefly_decor_update_geom(struct stonefly_toplevel *toplevel) {
 						    });
 	}
 
-	stonefly_decor_apply_buffers(toplevel);
-	stonefly_ssd_update(toplevel);
-	stonefly_decor_refresh_close_snap(toplevel);
+	sf_decor_apply_buffers(toplevel);
+	sf_ssd_update(toplevel);
+	sf_decor_refresh_close_snap(toplevel);
 }
 
-void stonefly_decor_refresh_border(struct stonefly_toplevel *toplevel) {
-	bool focused = stonefly_focused_toplevel(toplevel->server) == toplevel;
-	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+void sf_decor_refresh_border(struct sf_toplevel *toplevel) {
+	bool focused = sf_focused_toplevel(toplevel->server) == toplevel;
+	const struct sf_config *cfg = sf_cfg(toplevel->server);
 	float opacity = toplevel_chrome_opacity(toplevel, focused);
-	const float *color = cfg->border_inactive;
+	const struct sf_rgba *color = &cfg->border_inactive;
 	if (toplevel->bell_flash || toplevel->urgent) {
-		color = cfg->border_urgent;
+		color = &cfg->border_urgent;
 	} else if (focused) {
-		color = cfg->border_active;
+		color = &cfg->border_active;
 	}
 	apply_border_color(toplevel, color, opacity);
 	apply_shadow_opacity(toplevel, opacity);
 }
 
-void stonefly_decor_set_focused(struct stonefly_toplevel *toplevel, bool focused) {
+void sf_decor_set_focused(struct sf_toplevel *toplevel, bool focused) {
 	if (focused) {
 		toplevel->urgent = false;
 	}
-	stonefly_ssd_set_focused(toplevel, focused);
+	sf_ssd_set_focused(toplevel, focused);
 	/* Use the caller-supplied focus bit: seat focus may not have moved yet. */
-	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+	const struct sf_config *cfg = sf_cfg(toplevel->server);
 	float opacity = toplevel_chrome_opacity(toplevel, focused);
-	const float *color = cfg->border_inactive;
+	const struct sf_rgba *color = &cfg->border_inactive;
 	if (toplevel->bell_flash || toplevel->urgent) {
-		color = cfg->border_urgent;
+		color = &cfg->border_urgent;
 	} else if (focused) {
-		color = cfg->border_active;
+		color = &cfg->border_active;
 	}
 	apply_border_color(toplevel, color, opacity);
 	apply_shadow_opacity(toplevel, opacity);
 	decor_apply_buffers_focused(toplevel, focused);
 }
 
-void stonefly_decor_set_urgent(struct stonefly_toplevel *toplevel, bool urgent) {
-	if (stonefly_focused_toplevel(toplevel->server) == toplevel) {
+void sf_decor_set_urgent(struct sf_toplevel *toplevel, bool urgent) {
+	if (sf_focused_toplevel(toplevel->server) == toplevel) {
 		toplevel->urgent = false;
-		stonefly_decor_refresh_border(toplevel);
+		sf_decor_refresh_border(toplevel);
 		return;
 	}
 	toplevel->urgent = urgent;
-	stonefly_decor_refresh_border(toplevel);
+	sf_decor_refresh_border(toplevel);
 }
 
 static int bell_flash_done(void *data) {
-	struct stonefly_toplevel *toplevel = data;
+	struct sf_toplevel *toplevel = data;
 	toplevel->bell_timer = NULL;
 	toplevel->bell_flash = false;
-	stonefly_decor_refresh_border(toplevel);
+	sf_decor_refresh_border(toplevel);
 	return 0;
 }
 
-void stonefly_decor_ring_bell(struct stonefly_toplevel *toplevel) {
+void sf_decor_ring_bell(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->border == NULL) {
 		return;
 	}
 	toplevel->bell_flash = true;
-	stonefly_decor_refresh_border(toplevel);
+	sf_decor_refresh_border(toplevel);
 
-	int flash_ms = stonefly_cfg(toplevel->server)->bell_flash_ms;
+	int flash_ms = sf_cfg(toplevel->server)->bell_flash_ms;
 	struct wl_event_loop *loop = wl_display_get_event_loop(toplevel->server->wl_display);
 	if (toplevel->bell_timer != NULL) {
 		wl_event_source_timer_update(toplevel->bell_timer, flash_ms);
@@ -464,13 +447,13 @@ void stonefly_decor_ring_bell(struct stonefly_toplevel *toplevel) {
 	}
 }
 
-void stonefly_decor_finish_toplevel(struct stonefly_toplevel *toplevel) {
+void sf_decor_finish_toplevel(struct sf_toplevel *toplevel) {
 	if (toplevel->bell_timer != NULL) {
 		wl_event_source_remove(toplevel->bell_timer);
 		toplevel->bell_timer = NULL;
 	}
 	toplevel->bell_flash = false;
-	stonefly_decor_clear_close_snap(toplevel);
+	sf_decor_clear_close_snap(toplevel);
 
 	/* Wrapper owns blur/shadow/border (+ xdg child if still linked). */
 	if (toplevel->scene_tree != NULL) {
@@ -559,7 +542,7 @@ static void iter_pick_largest(struct wlr_scene_buffer *buffer, int sx, int sy, v
 	pick->height = h;
 }
 
-static void ghost_destroy(struct stonefly_ghost *ghost) {
+static void ghost_destroy(struct sf_ghost *ghost) {
 	if (ghost->locked != NULL) {
 		wlr_buffer_unlock(ghost->locked);
 		ghost->locked = NULL;
@@ -572,8 +555,8 @@ static void ghost_destroy(struct stonefly_ghost *ghost) {
 	free(ghost);
 }
 
-bool stonefly_decor_lock_snapshot(struct stonefly_toplevel *toplevel,
-				  struct wlr_buffer **out_locked, int *out_w, int *out_h) {
+bool sf_decor_lock_snapshot(struct sf_toplevel *toplevel, struct wlr_buffer **out_locked,
+			    int *out_w, int *out_h) {
 	if (toplevel == NULL || toplevel->xdg_scene_tree == NULL || out_locked == NULL ||
 	    out_w == NULL || out_h == NULL) {
 		return false;
@@ -597,7 +580,7 @@ bool stonefly_decor_lock_snapshot(struct stonefly_toplevel *toplevel,
 	return true;
 }
 
-void stonefly_decor_clear_close_snap(struct stonefly_toplevel *toplevel) {
+void sf_decor_clear_close_snap(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->close_snap == NULL) {
 		return;
 	}
@@ -607,7 +590,7 @@ void stonefly_decor_clear_close_snap(struct stonefly_toplevel *toplevel) {
 	toplevel->close_snap_h = 0;
 }
 
-void stonefly_decor_refresh_close_snap(struct stonefly_toplevel *toplevel) {
+void sf_decor_refresh_close_snap(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->xdg_toplevel == NULL ||
 	    toplevel->xdg_toplevel->base == NULL || toplevel->xdg_toplevel->base->surface == NULL) {
 		return;
@@ -619,7 +602,7 @@ void stonefly_decor_refresh_close_snap(struct stonefly_toplevel *toplevel) {
 	}
 	struct wlr_buffer *locked = NULL;
 	int w = 0, h = 0;
-	if (!stonefly_decor_lock_snapshot(toplevel, &locked, &w, &h)) {
+	if (!sf_decor_lock_snapshot(toplevel, &locked, &w, &h)) {
 		return;
 	}
 	if (toplevel->close_snap != NULL) {
@@ -630,7 +613,7 @@ void stonefly_decor_refresh_close_snap(struct stonefly_toplevel *toplevel) {
 	toplevel->close_snap_h = h;
 }
 
-void stonefly_ghost_try_spawn(struct stonefly_toplevel *toplevel) {
+void sf_ghost_try_spawn(struct sf_toplevel *toplevel) {
 	if (toplevel->minimized || toplevel->anim_hide) {
 		return;
 	}
@@ -649,11 +632,11 @@ void stonefly_ghost_try_spawn(struct stonefly_toplevel *toplevel) {
 		toplevel->close_snap = NULL;
 		toplevel->close_snap_w = 0;
 		toplevel->close_snap_h = 0;
-	} else if (!stonefly_decor_lock_snapshot(toplevel, &locked, &pick_w, &pick_h)) {
+	} else if (!sf_decor_lock_snapshot(toplevel, &locked, &pick_w, &pick_h)) {
 		return;
 	}
 
-	struct stonefly_ghost *ghost = calloc(1, sizeof(*ghost));
+	struct sf_ghost *ghost = calloc(1, sizeof(*ghost));
 	if (ghost == NULL) {
 		wlr_buffer_unlock(locked);
 		return;
@@ -672,7 +655,7 @@ void stonefly_ghost_try_spawn(struct stonefly_toplevel *toplevel) {
 	ghost->resting_x = toplevel->scene_tree->node.x - geo_x;
 	ghost->resting_y = toplevel->scene_tree->node.y - geo_y;
 
-	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+	const struct sf_config *cfg = sf_cfg(toplevel->server);
 	ghost->tree = wlr_scene_tree_create(toplevel->server->layers.toplevel);
 	if (ghost->tree == NULL) {
 		wlr_buffer_unlock(locked);
@@ -693,8 +676,8 @@ void stonefly_ghost_try_spawn(struct stonefly_toplevel *toplevel) {
 	wlr_scene_node_raise_to_top(&ghost->tree->node);
 
 	int to_x, to_y;
-	stonefly_anim_offscreen_for_box(ghost->server, ghost->resting_x, ghost->resting_y,
-					ghost->width, ghost->height, &to_x, &to_y);
+	sf_anim_offscreen_for_box(ghost->server, ghost->resting_x, ghost->resting_y, ghost->width,
+				  ghost->height, &to_x, &to_y);
 
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
@@ -708,28 +691,27 @@ void stonefly_ghost_try_spawn(struct stonefly_toplevel *toplevel) {
 	ghost->anim_hide = true;
 
 	wl_list_insert(&toplevel->server->ghosts, &ghost->link);
-	stonefly_anim_schedule(toplevel->server);
+	sf_anim_schedule(toplevel->server);
 	SF_LOGI("close ghost", sf_i64("id", (int64_t)toplevel->id), sf_i64("w", (int64_t)pick_w),
 		sf_i64("h", (int64_t)pick_h));
 }
 
-void stonefly_ghost_tick(struct stonefly_server *server, const struct timespec *now) {
-	struct stonefly_ghost *ghost, *tmp;
+void sf_ghost_tick(struct sf_server *server, const struct timespec *now) {
+	struct sf_ghost *ghost, *tmp;
 	wl_list_for_each_safe(ghost, tmp, &server->ghosts, link) {
 		if (!ghost->anim_active) {
 			ghost_destroy(ghost);
 			continue;
 		}
 		wlr_scene_node_raise_to_top(&ghost->tree->node);
-		int64_t elapsed =
-			stonefly_timespec_ns(now) - stonefly_timespec_ns(&ghost->anim_start);
+		int64_t elapsed = sf_timespec_ns(now) - sf_timespec_ns(&ghost->anim_start);
 		double t = 1.0;
 		if (ghost->anim_dur_ns > 0) {
 			t = (double)elapsed / (double)ghost->anim_dur_ns;
 		}
-		double p = stonefly_ease_out_cubic(t);
-		int x = stonefly_lerp_i(ghost->anim_from_x, ghost->anim_to_x, p);
-		int y = stonefly_lerp_i(ghost->anim_from_y, ghost->anim_to_y, p);
+		double p = sf_ease_out_cubic(t);
+		int x = sf_lerp_i(ghost->anim_from_x, ghost->anim_to_x, p);
+		int y = sf_lerp_i(ghost->anim_from_y, ghost->anim_to_y, p);
 		wlr_scene_node_set_position(&ghost->tree->node, x, y);
 		if (t >= 1.0) {
 			ghost->anim_active = false;
@@ -738,8 +720,8 @@ void stonefly_ghost_tick(struct stonefly_server *server, const struct timespec *
 	}
 }
 
-void stonefly_ghost_finish_all(struct stonefly_server *server) {
-	struct stonefly_ghost *ghost, *tmp;
+void sf_ghost_finish_all(struct sf_server *server) {
+	struct sf_ghost *ghost, *tmp;
 	wl_list_for_each_safe(ghost, tmp, &server->ghosts, link) {
 		ghost_destroy(ghost);
 	}

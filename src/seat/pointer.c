@@ -35,11 +35,10 @@
 #include "wm/wm.h"
 #include "xdg/xdg.h"
 
-static void process_cursor_motion(struct stonefly_server *server, uint32_t time);
-static void seat_set_xcursor_fallback(struct stonefly_server *server, const char *const *names);
-static struct stonefly_toplevel *border_resize_toplevel_at(struct stonefly_server *server,
-							   double lx, double ly,
-							   uint32_t *edges_out);
+static void process_cursor_motion(struct sf_server *server, uint32_t time);
+static void seat_set_xcursor_fallback(struct sf_server *server, const char *const *names);
+static struct sf_toplevel *border_resize_toplevel_at(struct sf_server *server, double lx, double ly,
+						     uint32_t *edges_out);
 
 /* Peeble setupCursorTheme: honor XCURSOR_* so desktop and clients match. */
 static uint32_t cursor_size_from_env(uint32_t fallback) {
@@ -62,10 +61,10 @@ static uint32_t cursor_size_from_env(uint32_t fallback) {
  * Nested/headless: parent already applied HiDPI to XCURSOR_* (e.g. size 36 and
  * Hackneyed-36px under output scale 1.5). Using those again with nested scale
  * 1.0 makes the cursor huge once the parent scales our cursor surface. Mirror
- * stonefly_output_scale_factor: logical defaults only when session == NULL.
+ * sf_output_scale_factor: logical defaults only when session == NULL.
  */
-uint32_t cursor_size_for_server(struct stonefly_server *server) {
-	uint32_t fallback = (uint32_t)stonefly_cfg(server)->cursor_size_default;
+uint32_t cursor_size_for_server(struct sf_server *server) {
+	uint32_t fallback = (uint32_t)sf_cfg(server)->cursor_size_default;
 	if (fallback < 1) {
 		fallback = 24;
 	}
@@ -76,7 +75,7 @@ uint32_t cursor_size_for_server(struct stonefly_server *server) {
 }
 
 /* Dup XCURSOR_THEME; when nested, strip a trailing "-NNpx" HiDPI variant. */
-char *cursor_theme_dup(struct stonefly_server *server) {
+char *cursor_theme_dup(struct sf_server *server) {
 	const char *env = getenv("XCURSOR_THEME");
 	if (env == NULL || env[0] == '\0') {
 		return NULL;
@@ -101,8 +100,8 @@ char *cursor_theme_dup(struct stonefly_server *server) {
 	return out;
 }
 
-void destroy_touch(struct stonefly_touch *touch) {
-	struct stonefly_server *server = touch->server;
+void destroy_touch(struct sf_touch *touch) {
+	struct sf_server *server = touch->server;
 	wl_list_remove(&touch->destroy.link);
 	wl_list_remove(&touch->link);
 	free(touch);
@@ -111,14 +110,14 @@ void destroy_touch(struct stonefly_touch *touch) {
 
 static void touch_handle_destroy(struct wl_listener *listener, void *data) {
 	(void)data;
-	struct stonefly_touch *touch = wl_container_of(listener, touch, destroy);
+	struct sf_touch *touch = wl_container_of(listener, touch, destroy);
 	destroy_touch(touch);
 }
 
-void server_new_touch(struct stonefly_server *server, struct wlr_input_device *device) {
+void server_new_touch(struct sf_server *server, struct wlr_input_device *device) {
 	wlr_cursor_attach_input_device(server->cursor, device);
 
-	struct stonefly_touch *touch = calloc(1, sizeof(*touch));
+	struct sf_touch *touch = calloc(1, sizeof(*touch));
 	if (touch == NULL) {
 		return;
 	}
@@ -129,7 +128,7 @@ void server_new_touch(struct stonefly_server *server, struct wlr_input_device *d
 }
 
 /* True when the pointer sits in the WM border/corner resize hit band. */
-static bool seat_pointer_in_border_resize(struct stonefly_server *server) {
+static bool seat_pointer_in_border_resize(struct sf_server *server) {
 	uint32_t edges = 0;
 	return border_resize_toplevel_at(server, server->cursor->x, server->cursor->y, &edges) !=
 		       NULL &&
@@ -137,12 +136,12 @@ static bool seat_pointer_in_border_resize(struct stonefly_server *server) {
 }
 
 void seat_request_cursor(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server = wl_container_of(listener, server, request_cursor);
+	struct sf_server *server = wl_container_of(listener, server, request_cursor);
 	/* This event is raised by the seat when a client provides a cursor image */
 	struct wlr_seat_pointer_request_set_cursor_event *event = data;
 	struct wlr_seat_client *focused_client = server->seat->pointer_state.focused_client;
 	/* WM interactive move/resize owns the face; ignore client images. */
-	if (server->cursor_mode != STONEFLY_CURSOR_PASSTHROUGH) {
+	if (server->cursor_mode != SF_CURSOR_PASSTHROUGH) {
 		return;
 	}
 	/* Border hit band shows a resize face while still forwarding enter/motion. */
@@ -164,11 +163,10 @@ void seat_request_cursor(struct wl_listener *listener, void *data) {
 /* Clients that speak wp_cursor_shape_v1 ask for a named shape; we render it
  * from the compositor xcursor theme so theme and size match the desktop. */
 void seat_request_set_cursor_shape(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server =
-		wl_container_of(listener, server, request_set_cursor_shape);
+	struct sf_server *server = wl_container_of(listener, server, request_set_cursor_shape);
 	struct wlr_cursor_shape_manager_v1_request_set_shape_event *event = data;
 
-	if (server->cursor_mode != STONEFLY_CURSOR_PASSTHROUGH) {
+	if (server->cursor_mode != SF_CURSOR_PASSTHROUGH) {
 		return;
 	}
 	if (seat_pointer_in_border_resize(server)) {
@@ -181,9 +179,8 @@ void seat_request_set_cursor_shape(struct wl_listener *listener, void *data) {
 			       wlr_cursor_shape_v1_name(event->shape));
 }
 
-struct stonefly_toplevel *stonefly_desktop_toplevel_at(struct stonefly_server *server, double lx,
-						       double ly, struct wlr_surface **surface,
-						       double *sx, double *sy) {
+struct sf_toplevel *sf_desktop_toplevel_at(struct sf_server *server, double lx, double ly,
+					   struct wlr_surface **surface, double *sx, double *sy) {
 	/* Topmost buffer at layout coords. Client surfaces or compositor SSD. */
 	struct wlr_scene_node *node = wlr_scene_node_at(&server->scene->tree.node, lx, ly, sx, sy);
 	if (node == NULL || node->type != WLR_SCENE_NODE_BUFFER) {
@@ -191,9 +188,9 @@ struct stonefly_toplevel *stonefly_desktop_toplevel_at(struct stonefly_server *s
 	}
 	struct wlr_scene_buffer *scene_buffer = wlr_scene_buffer_from_node(node);
 
-	/* SSD titlebar: no wlr_surface; node.data is stonefly_ssd. */
-	struct stonefly_toplevel *ssd_tl = NULL;
-	if (stonefly_ssd_node_is_titlebar(node, &ssd_tl)) {
+	/* SSD titlebar: no wlr_surface; node.data is sf_ssd. */
+	struct sf_toplevel *ssd_tl = NULL;
+	if (sf_ssd_node_is_titlebar(node, &ssd_tl)) {
 		*surface = NULL;
 		return ssd_tl;
 	}
@@ -213,37 +210,37 @@ struct stonefly_toplevel *stonefly_desktop_toplevel_at(struct stonefly_server *s
 	if (tree == NULL || tree->node.data == NULL) {
 		return NULL;
 	}
-	enum stonefly_node_kind kind = *(enum stonefly_node_kind *)tree->node.data;
-	if (kind != STONEFLY_NODE_TOPLEVEL) {
+	enum sf_node_kind kind = *(enum sf_node_kind *)tree->node.data;
+	if (kind != SF_NODE_TOPLEVEL) {
 		return NULL;
 	}
 	return tree->node.data;
 }
 
-void stonefly_reset_cursor_mode(struct stonefly_server *server) {
+void sf_reset_cursor_mode(struct sf_server *server) {
 	/* Reset the cursor mode to passthrough. */
 	if (server->drag_snap.active) {
-		stonefly_snap_preview_hide(server);
-		stonefly_drag_snap_reset(&server->drag_snap);
+		sf_snap_preview_hide(server);
+		sf_drag_snap_reset(&server->drag_snap);
 	}
-	server->cursor_mode = STONEFLY_CURSOR_PASSTHROUGH;
+	server->cursor_mode = SF_CURSOR_PASSTHROUGH;
 	server->grabbed_toplevel = NULL;
 	/* Re-enter under the pointer so the client (or empty-desktop default) face
 	 * replaces the WM grabbing/resize xcursor without waiting for motion. */
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
-	uint32_t msec = (uint32_t)stonefly_timespec_ms(&now);
+	uint32_t msec = (uint32_t)sf_timespec_ms(&now);
 	process_cursor_motion(server, msec);
 }
 
-static void process_cursor_move(struct stonefly_server *server) {
+static void process_cursor_move(struct sf_server *server) {
 	/* Keep WM face over any lingering client set_cursor surface. */
-	stonefly_seat_apply_grab_cursor(server);
+	sf_seat_apply_grab_cursor(server);
 	/* Magnetic resistance + snap preview (peeble Move.Render). */
-	stonefly_drag_snap_motion(server);
+	sf_drag_snap_motion(server);
 }
 
-static void process_cursor_resize(struct stonefly_server *server) {
+static void process_cursor_resize(struct sf_server *server) {
 	/*
 	 * Resizing the grabbed toplevel can be a little bit complicated, because we
 	 * could be resizing from any corner or edge. This not only resizes the
@@ -254,7 +251,7 @@ static void process_cursor_resize(struct stonefly_server *server) {
 	 * compositor, you'd wait for the client to prepare a buffer at the new
 	 * size, then commit any movement that was prepared.
 	 */
-	struct stonefly_toplevel *toplevel = server->grabbed_toplevel;
+	struct sf_toplevel *toplevel = server->grabbed_toplevel;
 	double border_x = server->cursor->x - server->grab_x;
 	double border_y = server->cursor->y - server->grab_y;
 	int new_left = server->grab_geobox.x;
@@ -295,7 +292,7 @@ static void process_cursor_resize(struct stonefly_server *server) {
 	int new_width = new_right - new_left;
 	int new_height = new_bottom - new_top;
 	wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, new_width, new_height);
-	stonefly_seat_apply_grab_cursor(server);
+	sf_seat_apply_grab_cursor(server);
 }
 
 struct seat_surface_coords_ctx {
@@ -330,7 +327,7 @@ static void seat_surface_coords_iter(struct wlr_scene_buffer *buffer, int sx, in
 }
 
 /* Layout cursor → surface-local for an arbitrary scene-backed surface. */
-static bool seat_pointer_surface_coords(struct stonefly_server *server, struct wlr_surface *surface,
+static bool seat_pointer_surface_coords(struct sf_server *server, struct wlr_surface *surface,
 					double *sx, double *sy) {
 	if (surface == NULL) {
 		return false;
@@ -349,12 +346,12 @@ static bool seat_pointer_surface_coords(struct stonefly_server *server, struct w
 	return true;
 }
 
-static void process_cursor_motion(struct stonefly_server *server, uint32_t time) {
+static void process_cursor_motion(struct sf_server *server, uint32_t time) {
 	/* If the mode is non-passthrough, delegate to those functions. */
-	if (server->cursor_mode == STONEFLY_CURSOR_MOVE) {
+	if (server->cursor_mode == SF_CURSOR_MOVE) {
 		process_cursor_move(server);
 		return;
-	} else if (server->cursor_mode == STONEFLY_CURSOR_RESIZE) {
+	} else if (server->cursor_mode == SF_CURSOR_RESIZE) {
 		process_cursor_resize(server);
 		return;
 	}
@@ -364,7 +361,7 @@ static void process_cursor_motion(struct stonefly_server *server, uint32_t time)
 	double sx, sy;
 	struct wlr_seat *seat = server->seat;
 	struct wlr_surface *surface = NULL;
-	struct stonefly_toplevel *toplevel = stonefly_desktop_toplevel_at(
+	struct sf_toplevel *toplevel = sf_desktop_toplevel_at(
 		server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
 	bool buttons_down = seat->pointer_state.button_count > 0;
 	struct wlr_surface *grabbed = buttons_down ? seat->pointer_state.focused_surface : NULL;
@@ -393,14 +390,14 @@ static void process_cursor_motion(struct stonefly_server *server, uint32_t time)
 	 * focus when a surface is still under the cursor (inner band) so leave
 	 * does not cancel selection; ignore client set_cursor while in-band.
 	 */
-	if (!stonefly_session_locked(server)) {
+	if (!sf_session_locked(server)) {
 		uint32_t bedges = 0;
-		struct stonefly_toplevel *border_tl = border_resize_toplevel_at(
+		struct sf_toplevel *border_tl = border_resize_toplevel_at(
 			server, server->cursor->x, server->cursor->y, &bedges);
 		if (border_tl != NULL && bedges != 0) {
 			(void)toplevel;
 			wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr,
-					       stonefly_resize_xcursor_name(bedges));
+					       sf_resize_xcursor_name(bedges));
 			if (surface != NULL) {
 				wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
 				wlr_seat_pointer_notify_motion(seat, time, sx, sy);
@@ -416,9 +413,8 @@ static void process_cursor_motion(struct stonefly_server *server, uint32_t time)
 		double hx, hy;
 		struct wlr_scene_node *node = wlr_scene_node_at(
 			&server->scene->tree.node, server->cursor->x, server->cursor->y, &hx, &hy);
-		struct stonefly_toplevel *ssd_tl = NULL;
-		if (node != NULL && stonefly_ssd_node_is_titlebar(node, &ssd_tl) &&
-		    ssd_tl == toplevel) {
+		struct sf_toplevel *ssd_tl = NULL;
+		if (node != NULL && sf_ssd_node_is_titlebar(node, &ssd_tl) && ssd_tl == toplevel) {
 			static const char *const move_names[] = {"grabbing", "closedhand", "move",
 								 "fleur", NULL};
 			seat_set_xcursor_fallback(server, move_names);
@@ -456,9 +452,9 @@ static void process_cursor_motion(struct stonefly_server *server, uint32_t time)
 void server_cursor_motion(struct wl_listener *listener, void *data) {
 	/* This event is forwarded by the cursor when a pointer emits a _relative_
 	 * pointer motion event (i.e. a delta) */
-	struct stonefly_server *server = wl_container_of(listener, server, cursor_motion);
+	struct sf_server *server = wl_container_of(listener, server, cursor_motion);
 	struct wlr_pointer_motion_event *event = data;
-	stonefly_session_notify_activity(server);
+	sf_session_notify_activity(server);
 
 	/* Relative-pointer gets unclamped deltas even when the cursor is locked. */
 	if (server->relative_pointer_mgr != NULL) {
@@ -489,9 +485,9 @@ void server_cursor_motion_absolute(struct wl_listener *listener, void *data) {
 	 * move the mouse over the window. You could enter the window from any edge,
 	 * so we have to warp the mouse there. There is also some hardware which
 	 * emits these events. */
-	struct stonefly_server *server = wl_container_of(listener, server, cursor_motion_absolute);
+	struct sf_server *server = wl_container_of(listener, server, cursor_motion_absolute);
 	struct wlr_pointer_motion_absolute_event *event = data;
-	stonefly_session_notify_activity(server);
+	sf_session_notify_activity(server);
 
 	double lx, ly;
 	wlr_cursor_absolute_to_layout_coords(server->cursor, &event->pointer->base, event->x,
@@ -509,7 +505,7 @@ void server_cursor_motion_absolute(struct wl_listener *listener, void *data) {
 	process_cursor_motion(server, event->time_msec);
 }
 
-static uint32_t seat_keyboard_mods(struct stonefly_server *server) {
+static uint32_t seat_keyboard_mods(struct sf_server *server) {
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(server->seat);
 	if (kb == NULL) {
 		return 0;
@@ -518,9 +514,9 @@ static uint32_t seat_keyboard_mods(struct stonefly_server *server) {
 }
 
 /* Resize from the edges nearest the pointer (sway/i3-style). */
-static uint32_t resize_edges_at(struct stonefly_toplevel *toplevel, double lx, double ly) {
+static uint32_t resize_edges_at(struct sf_toplevel *toplevel, double lx, double ly) {
 	struct wlr_box geom;
-	stonefly_toplevel_layout_geom(toplevel, &geom);
+	sf_toplevel_layout_geom(toplevel, &geom);
 	uint32_t edges = 0;
 	if (lx < geom.x + geom.width / 2.0) {
 		edges |= (uint32_t)WLR_EDGE_LEFT;
@@ -536,7 +532,7 @@ static uint32_t resize_edges_at(struct stonefly_toplevel *toplevel, double lx, d
 }
 
 /* Same mapping as wlroots wlr_xcursor_get_resize_name; uint32_t bitflags. */
-const char *stonefly_resize_xcursor_name(uint32_t edges) {
+const char *sf_resize_xcursor_name(uint32_t edges) {
 	if (edges & (uint32_t)WLR_EDGE_TOP) {
 		if (edges & (uint32_t)WLR_EDGE_RIGHT) {
 			return "ne-resize";
@@ -564,15 +560,15 @@ const char *stonefly_resize_xcursor_name(uint32_t edges) {
 	return "se-resize";
 }
 
-static bool xcursor_theme_has(struct stonefly_server *server, const char *name) {
+static bool xcursor_theme_has(struct sf_server *server, const char *name) {
 	if (server->cursor_mgr == NULL || name == NULL) {
 		return false;
 	}
-	float scale = stonefly_output_scale_factor(server);
+	float scale = sf_output_scale_factor(server);
 	return wlr_xcursor_manager_get_xcursor(server->cursor_mgr, name, scale) != NULL;
 }
 
-static void seat_set_xcursor_fallback(struct stonefly_server *server, const char *const *names) {
+static void seat_set_xcursor_fallback(struct sf_server *server, const char *const *names) {
 	for (size_t i = 0; names[i] != NULL; i++) {
 		if (xcursor_theme_has(server, names[i])) {
 			wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, names[i]);
@@ -582,18 +578,18 @@ static void seat_set_xcursor_fallback(struct stonefly_server *server, const char
 	wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "default");
 }
 
-void stonefly_seat_apply_grab_cursor(struct stonefly_server *server) {
+void sf_seat_apply_grab_cursor(struct sf_server *server) {
 	if (server == NULL || server->cursor == NULL || server->cursor_mgr == NULL) {
 		return;
 	}
-	if (server->cursor_mode == STONEFLY_CURSOR_MOVE) {
+	if (server->cursor_mode == SF_CURSOR_MOVE) {
 		static const char *const move_names[] = {
 			"grabbing", "closedhand", "move", "fleur", "all-scroll", "size_all", NULL};
 		seat_set_xcursor_fallback(server, move_names);
 		return;
 	}
-	if (server->cursor_mode == STONEFLY_CURSOR_RESIZE) {
-		const char *name = stonefly_resize_xcursor_name(server->resize_edges);
+	if (server->cursor_mode == SF_CURSOR_RESIZE) {
+		const char *name = sf_resize_xcursor_name(server->resize_edges);
 		if (xcursor_theme_has(server, name)) {
 			wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, name);
 		} else {
@@ -603,26 +599,26 @@ void stonefly_seat_apply_grab_cursor(struct stonefly_server *server) {
 }
 
 /* Content + SSD titlebar in layout coords (drawn border sits outside this). */
-static void toplevel_frame_box(struct stonefly_toplevel *toplevel, struct wlr_box *frame) {
-	stonefly_toplevel_layout_geom(toplevel, frame);
-	int ssd_h = stonefly_ssd_top_inset(toplevel);
+static void toplevel_frame_box(struct sf_toplevel *toplevel, struct wlr_box *frame) {
+	sf_toplevel_layout_geom(toplevel, frame);
+	int ssd_h = sf_ssd_top_inset(toplevel);
 	frame->y -= ssd_h;
 	frame->height += ssd_h;
 }
 
-static int toplevel_chrome_border(struct stonefly_toplevel *toplevel) {
+static int toplevel_chrome_border(struct sf_toplevel *toplevel) {
 	if (toplevel->fullscreen || toplevel->maximized_edges || toplevel->borderless) {
 		return 0;
 	}
-	return stonefly_cfg(toplevel->server)->border_thickness;
+	return sf_cfg(toplevel->server)->border_thickness;
 }
 
 /*
  * Edges under the pointer for border/corner resize, or 0 when not in the hit
  * band. Band = from (content/SSD edge − in) out through (drawn border + out).
  */
-static uint32_t border_resize_edges_at(struct stonefly_toplevel *toplevel, double lx, double ly) {
-	const struct stonefly_config *cfg = stonefly_cfg(toplevel->server);
+static uint32_t border_resize_edges_at(struct sf_toplevel *toplevel, double lx, double ly) {
+	const struct sf_config *cfg = sf_cfg(toplevel->server);
 	int inner = cfg->resize_border_in;
 	int outer = cfg->resize_border_out;
 	if (inner <= 0 && outer <= 0) {
@@ -685,17 +681,17 @@ static uint32_t border_resize_edges_at(struct stonefly_toplevel *toplevel, doubl
 }
 
 /* True when a layer-shell surface sits under the pointer (above windows). */
-static bool seat_layer_blocks_border_resize(struct stonefly_server *server, double lx, double ly) {
+static bool seat_layer_blocks_border_resize(struct sf_server *server, double lx, double ly) {
 	double sx, sy;
 	struct wlr_scene_node *node =
 		wlr_scene_node_at(&server->scene->tree.node, lx, ly, &sx, &sy);
 	while (node != NULL) {
 		if (node->data != NULL) {
-			enum stonefly_node_kind kind = *(enum stonefly_node_kind *)node->data;
-			if (kind == STONEFLY_NODE_LAYER) {
+			enum sf_node_kind kind = *(enum sf_node_kind *)node->data;
+			if (kind == SF_NODE_LAYER) {
 				return true;
 			}
-			if (kind == STONEFLY_NODE_TOPLEVEL || kind == STONEFLY_NODE_SSD) {
+			if (kind == SF_NODE_TOPLEVEL || kind == SF_NODE_SSD) {
 				return false;
 			}
 		}
@@ -708,11 +704,10 @@ static bool seat_layer_blocks_border_resize(struct stonefly_server *server, doub
  * Frontmost mapped toplevel whose outer resize box contains (lx, ly). Sets
  * *edges_out to border_resize_edges_at (may be 0 when deep inside that window).
  */
-static struct stonefly_toplevel *border_resize_toplevel_at(struct stonefly_server *server,
-							   double lx, double ly,
-							   uint32_t *edges_out) {
+static struct sf_toplevel *border_resize_toplevel_at(struct sf_server *server, double lx, double ly,
+						     uint32_t *edges_out) {
 	*edges_out = 0;
-	const struct stonefly_config *cfg = stonefly_cfg(server);
+	const struct sf_config *cfg = sf_cfg(server);
 	if (cfg->resize_border_in <= 0 && cfg->resize_border_out <= 0) {
 		return NULL;
 	}
@@ -720,7 +715,7 @@ static struct stonefly_toplevel *border_resize_toplevel_at(struct stonefly_serve
 		return NULL;
 	}
 
-	struct stonefly_toplevel *toplevel;
+	struct sf_toplevel *toplevel;
 	wl_list_for_each(toplevel, &server->toplevels, link) {
 		if (toplevel->fullscreen || toplevel->minimized) {
 			continue;
@@ -751,28 +746,28 @@ static struct stonefly_toplevel *border_resize_toplevel_at(struct stonefly_serve
 void server_cursor_button(struct wl_listener *listener, void *data) {
 	/* This event is forwarded by the cursor when a pointer emits a button
 	 * event. */
-	struct stonefly_server *server = wl_container_of(listener, server, cursor_button);
+	struct sf_server *server = wl_container_of(listener, server, cursor_button);
 	struct wlr_pointer_button_event *event = data;
 
-	stonefly_session_notify_activity(server);
+	sf_session_notify_activity(server);
 
 	if (event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
-		bool grabbing = server->cursor_mode != STONEFLY_CURSOR_PASSTHROUGH;
-		if (server->cursor_mode == STONEFLY_CURSOR_MOVE) {
-			stonefly_drag_snap_finish(server);
+		bool grabbing = server->cursor_mode != SF_CURSOR_PASSTHROUGH;
+		if (server->cursor_mode == SF_CURSOR_MOVE) {
+			sf_drag_snap_finish(server);
 		}
-		stonefly_reset_cursor_mode(server);
+		sf_reset_cursor_mode(server);
 		/* Titlebar-initiated move: drop pending button state. */
 		if (grabbing) {
-			stonefly_ssd_pointer_reset();
+			sf_ssd_pointer_reset();
 		}
-		if (!grabbing && !stonefly_session_locked(server)) {
+		if (!grabbing && !sf_session_locked(server)) {
 			double sx, sy;
 			struct wlr_surface *surface = NULL;
-			struct stonefly_toplevel *toplevel = stonefly_desktop_toplevel_at(
+			struct sf_toplevel *toplevel = sf_desktop_toplevel_at(
 				server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
 			if (toplevel != NULL && surface == NULL && toplevel->ssd != NULL &&
-			    stonefly_ssd_pointer_button(server, toplevel, sx, sy, event)) {
+			    sf_ssd_pointer_button(server, toplevel, sx, sy, event)) {
 				return;
 			}
 			wlr_seat_pointer_notify_button(server->seat, event->time_msec,
@@ -785,25 +780,23 @@ void server_cursor_button(struct wl_listener *listener, void *data) {
 	}
 
 	/* Super+LMB move, Super+RMB resize — do not forward the press. */
-	if (!stonefly_session_locked(server)) {
-		uint32_t mods = seat_keyboard_mods(server) & (uint32_t)STONEFLY_MOD_MASK;
-		if (mods == STONEFLY_SUPER &&
-		    (event->button == BTN_LEFT || event->button == BTN_RIGHT)) {
-			stonefly_tap_disarm(server);
+	if (!sf_session_locked(server)) {
+		uint32_t mods = seat_keyboard_mods(server) & (uint32_t)SF_MOD_MASK;
+		if (mods == SF_SUPER && (event->button == BTN_LEFT || event->button == BTN_RIGHT)) {
+			sf_tap_disarm(server);
 			double sx, sy;
 			struct wlr_surface *surface = NULL;
-			struct stonefly_toplevel *toplevel = stonefly_desktop_toplevel_at(
+			struct sf_toplevel *toplevel = sf_desktop_toplevel_at(
 				server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
 			if (toplevel != NULL) {
-				stonefly_focus_toplevel(toplevel);
+				sf_focus_toplevel(toplevel);
 				if (event->button == BTN_LEFT) {
-					stonefly_begin_interactive(toplevel, STONEFLY_CURSOR_MOVE,
-								   0);
+					sf_begin_interactive(toplevel, SF_CURSOR_MOVE, 0);
 				} else {
-					stonefly_begin_interactive(
-						toplevel, STONEFLY_CURSOR_RESIZE,
-						resize_edges_at(toplevel, server->cursor->x,
-								server->cursor->y));
+					sf_begin_interactive(toplevel, SF_CURSOR_RESIZE,
+							     resize_edges_at(toplevel,
+									     server->cursor->x,
+									     server->cursor->y));
 				}
 				return;
 			}
@@ -811,31 +804,31 @@ void server_cursor_button(struct wl_listener *listener, void *data) {
 	}
 
 	/* LMB on border/corner hit band → resize (no Super required). */
-	if (!stonefly_session_locked(server) && event->button == BTN_LEFT) {
+	if (!sf_session_locked(server) && event->button == BTN_LEFT) {
 		uint32_t bedges = 0;
-		struct stonefly_toplevel *border_tl = border_resize_toplevel_at(
+		struct sf_toplevel *border_tl = border_resize_toplevel_at(
 			server, server->cursor->x, server->cursor->y, &bedges);
 		if (border_tl != NULL && bedges != 0) {
-			stonefly_tap_disarm(server);
-			stonefly_focus_toplevel(border_tl);
-			stonefly_begin_interactive(border_tl, STONEFLY_CURSOR_RESIZE, bedges);
+			sf_tap_disarm(server);
+			sf_focus_toplevel(border_tl);
+			sf_begin_interactive(border_tl, SF_CURSOR_RESIZE, bedges);
 			return;
 		}
 	}
 
-	if (!stonefly_session_locked(server)) {
+	if (!sf_session_locked(server)) {
 		double sx, sy;
 		struct wlr_surface *surface = NULL;
-		struct stonefly_toplevel *toplevel = stonefly_desktop_toplevel_at(
+		struct sf_toplevel *toplevel = sf_desktop_toplevel_at(
 			server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
 		/* SSD titlebar: no client surface; consume button locally. */
 		if (toplevel != NULL && surface == NULL && toplevel->ssd != NULL &&
-		    stonefly_ssd_pointer_button(server, toplevel, sx, sy, event)) {
+		    sf_ssd_pointer_button(server, toplevel, sx, sy, event)) {
 			return;
 		}
 		wlr_seat_pointer_notify_button(server->seat, event->time_msec, event->button,
 					       event->state);
-		stonefly_focus_toplevel(toplevel);
+		sf_focus_toplevel(toplevel);
 		return;
 	}
 
@@ -845,9 +838,9 @@ void server_cursor_button(struct wl_listener *listener, void *data) {
 void server_cursor_axis(struct wl_listener *listener, void *data) {
 	/* This event is forwarded by the cursor when a pointer emits an axis event,
 	 * for example when you move the scroll wheel. */
-	struct stonefly_server *server = wl_container_of(listener, server, cursor_axis);
+	struct sf_server *server = wl_container_of(listener, server, cursor_axis);
 	struct wlr_pointer_axis_event *event = data;
-	stonefly_session_notify_activity(server);
+	sf_session_notify_activity(server);
 	/* Notify the client with pointer focus of the axis event. */
 	wlr_seat_pointer_notify_axis(server->seat, event->time_msec, event->orientation,
 				     event->delta, event->delta_discrete, event->source,
@@ -860,15 +853,15 @@ void server_cursor_frame(struct wl_listener *listener, void *data) {
 	 * event. Frame events are sent after regular pointer events to group
 	 * multiple events together. For instance, two axis events may happen at the
 	 * same time, in which case a frame event won't be sent in between. */
-	struct stonefly_server *server = wl_container_of(listener, server, cursor_frame);
+	struct sf_server *server = wl_container_of(listener, server, cursor_frame);
 	/* Notify the client with pointer focus of the frame event. */
 	wlr_seat_pointer_notify_frame(server->seat);
 }
 
 void server_cursor_touch_down(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server = wl_container_of(listener, server, cursor_touch_down);
+	struct sf_server *server = wl_container_of(listener, server, cursor_touch_down);
 	struct wlr_touch_down_event *event = data;
-	stonefly_session_notify_activity(server);
+	sf_session_notify_activity(server);
 
 	double lx, ly;
 	wlr_cursor_absolute_to_layout_coords(server->cursor, &event->touch->base, event->x,
@@ -876,22 +869,21 @@ void server_cursor_touch_down(struct wl_listener *listener, void *data) {
 
 	double sx, sy;
 	struct wlr_surface *surface = NULL;
-	struct stonefly_toplevel *toplevel =
-		stonefly_desktop_toplevel_at(server, lx, ly, &surface, &sx, &sy);
+	struct sf_toplevel *toplevel = sf_desktop_toplevel_at(server, lx, ly, &surface, &sx, &sy);
 	if (surface == NULL) {
 		return;
 	}
 	wlr_seat_touch_notify_down(server->seat, surface, event->time_msec, event->touch_id, sx,
 				   sy);
-	if (toplevel != NULL && !stonefly_session_locked(server)) {
-		stonefly_focus_toplevel(toplevel);
+	if (toplevel != NULL && !sf_session_locked(server)) {
+		sf_focus_toplevel(toplevel);
 	}
 }
 
 void server_cursor_touch_up(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server = wl_container_of(listener, server, cursor_touch_up);
+	struct sf_server *server = wl_container_of(listener, server, cursor_touch_up);
 	struct wlr_touch_up_event *event = data;
-	stonefly_session_notify_activity(server);
+	sf_session_notify_activity(server);
 	if (wlr_seat_touch_get_point(server->seat, event->touch_id) == NULL) {
 		return;
 	}
@@ -899,9 +891,9 @@ void server_cursor_touch_up(struct wl_listener *listener, void *data) {
 }
 
 void server_cursor_touch_motion(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server = wl_container_of(listener, server, cursor_touch_motion);
+	struct sf_server *server = wl_container_of(listener, server, cursor_touch_motion);
 	struct wlr_touch_motion_event *event = data;
-	stonefly_session_notify_activity(server);
+	sf_session_notify_activity(server);
 	if (wlr_seat_touch_get_point(server->seat, event->touch_id) == NULL) {
 		return;
 	}
@@ -912,7 +904,7 @@ void server_cursor_touch_motion(struct wl_listener *listener, void *data) {
 
 	double sx, sy;
 	struct wlr_surface *surface = NULL;
-	stonefly_desktop_toplevel_at(server, lx, ly, &surface, &sx, &sy);
+	sf_desktop_toplevel_at(server, lx, ly, &surface, &sx, &sy);
 	if (surface != NULL) {
 		wlr_seat_touch_point_focus(server->seat, surface, event->time_msec, event->touch_id,
 					   sx, sy);
@@ -924,7 +916,7 @@ void server_cursor_touch_motion(struct wl_listener *listener, void *data) {
 }
 
 void server_cursor_touch_cancel(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server = wl_container_of(listener, server, cursor_touch_cancel);
+	struct sf_server *server = wl_container_of(listener, server, cursor_touch_cancel);
 	struct wlr_touch_cancel_event *event = data;
 	struct wlr_touch_point *point = wlr_seat_touch_get_point(server->seat, event->touch_id);
 	if (point == NULL) {
@@ -935,6 +927,6 @@ void server_cursor_touch_cancel(struct wl_listener *listener, void *data) {
 
 void server_cursor_touch_frame(struct wl_listener *listener, void *data) {
 	(void)data;
-	struct stonefly_server *server = wl_container_of(listener, server, cursor_touch_frame);
+	struct sf_server *server = wl_container_of(listener, server, cursor_touch_frame);
 	wlr_seat_touch_notify_frame(server->seat);
 }

@@ -14,7 +14,7 @@
 #include "session/session.h"
 #include "wm/workspace.h"
 
-void destroy_pointer(struct stonefly_pointer *pointer) {
+void destroy_pointer(struct sf_pointer *pointer) {
 	wl_list_remove(&pointer->swipe_begin.link);
 	wl_list_remove(&pointer->swipe_update.link);
 	wl_list_remove(&pointer->swipe_end.link);
@@ -30,13 +30,13 @@ void destroy_pointer(struct stonefly_pointer *pointer) {
 
 static void pointer_destroy(struct wl_listener *listener, void *data) {
 	(void)data;
-	struct stonefly_pointer *pointer = wl_container_of(listener, pointer, destroy);
+	struct sf_pointer *pointer = wl_container_of(listener, pointer, destroy);
 	destroy_pointer(pointer);
 }
 
 static void pointer_swipe_begin(struct wl_listener *listener, void *data) {
-	struct stonefly_pointer *pointer = wl_container_of(listener, pointer, swipe_begin);
-	struct stonefly_server *server = pointer->server;
+	struct sf_pointer *pointer = wl_container_of(listener, pointer, swipe_begin);
+	struct sf_server *server = pointer->server;
 	struct wlr_pointer_swipe_begin_event *event = data;
 
 	server->swipe.active = true;
@@ -52,8 +52,8 @@ static void pointer_swipe_begin(struct wl_listener *listener, void *data) {
 }
 
 static void pointer_swipe_update(struct wl_listener *listener, void *data) {
-	struct stonefly_pointer *pointer = wl_container_of(listener, pointer, swipe_update);
-	struct stonefly_server *server = pointer->server;
+	struct sf_pointer *pointer = wl_container_of(listener, pointer, swipe_update);
+	struct sf_server *server = pointer->server;
 	struct wlr_pointer_swipe_update_event *event = data;
 
 	if (!server->swipe.active) {
@@ -63,25 +63,25 @@ static void pointer_swipe_update(struct wl_listener *listener, void *data) {
 	server->swipe.dy += event->dy;
 
 	bool workspace_swipe = server->swipe.fingers == 3 &&
-			       server->cursor_mode == STONEFLY_CURSOR_PASSTHROUGH &&
-			       !stonefly_session_locked(server);
+			       server->cursor_mode == SF_CURSOR_PASSTHROUGH &&
+			       !sf_session_locked(server);
 	double adx = fabs(server->swipe.dx);
 	double ady = fabs(server->swipe.dy);
-	int threshold = stonefly_cfg(server)->swipe_workspace_threshold;
+	int threshold = sf_cfg(server)->swipe_workspace_threshold;
 	if (threshold < 1) {
 		threshold = 80;
 	}
 
 	if (workspace_swipe && !server->swipe.consumed && ady > adx && ady >= (double)threshold) {
-		struct stonefly_output *output = stonefly_output_at_cursor(server);
+		struct sf_output *output = sf_output_at_cursor(server);
 		if (output != NULL) {
 			/* Classic: finger down → next. Natural (default): content
 			 * tracks the finger — finger up → next, finger down → prev. */
 			int offset = server->swipe.dy < 0 ? -1 : 1;
-			if (stonefly_cfg(server)->swipe_workspace_natural) {
+			if (sf_cfg(server)->swipe_workspace_natural) {
 				offset = -offset;
 			}
-			stonefly_workspace_switch_offset(output, offset);
+			sf_workspace_switch_offset(output, offset);
 		}
 		server->swipe.consumed = true;
 		server->swipe.dx = 0;
@@ -95,8 +95,8 @@ static void pointer_swipe_update(struct wl_listener *listener, void *data) {
 }
 
 static void pointer_swipe_end(struct wl_listener *listener, void *data) {
-	struct stonefly_pointer *pointer = wl_container_of(listener, pointer, swipe_end);
-	struct stonefly_server *server = pointer->server;
+	struct sf_pointer *pointer = wl_container_of(listener, pointer, swipe_end);
+	struct sf_server *server = pointer->server;
 	struct wlr_pointer_swipe_end_event *event = data;
 
 	if (server->pointer_gestures != NULL && !server->swipe.consumed) {
@@ -111,8 +111,8 @@ static void pointer_swipe_end(struct wl_listener *listener, void *data) {
 }
 
 static void pointer_pinch_begin(struct wl_listener *listener, void *data) {
-	struct stonefly_pointer *pointer = wl_container_of(listener, pointer, pinch_begin);
-	struct stonefly_server *server = pointer->server;
+	struct sf_pointer *pointer = wl_container_of(listener, pointer, pinch_begin);
+	struct sf_server *server = pointer->server;
 	struct wlr_pointer_pinch_begin_event *event = data;
 	if (server->pointer_gestures != NULL) {
 		wlr_pointer_gestures_v1_send_pinch_begin(server->pointer_gestures, server->seat,
@@ -121,8 +121,8 @@ static void pointer_pinch_begin(struct wl_listener *listener, void *data) {
 }
 
 static void pointer_pinch_update(struct wl_listener *listener, void *data) {
-	struct stonefly_pointer *pointer = wl_container_of(listener, pointer, pinch_update);
-	struct stonefly_server *server = pointer->server;
+	struct sf_pointer *pointer = wl_container_of(listener, pointer, pinch_update);
+	struct sf_server *server = pointer->server;
 	struct wlr_pointer_pinch_update_event *event = data;
 	if (server->pointer_gestures != NULL) {
 		wlr_pointer_gestures_v1_send_pinch_update(server->pointer_gestures, server->seat,
@@ -132,8 +132,8 @@ static void pointer_pinch_update(struct wl_listener *listener, void *data) {
 }
 
 static void pointer_pinch_end(struct wl_listener *listener, void *data) {
-	struct stonefly_pointer *pointer = wl_container_of(listener, pointer, pinch_end);
-	struct stonefly_server *server = pointer->server;
+	struct sf_pointer *pointer = wl_container_of(listener, pointer, pinch_end);
+	struct sf_server *server = pointer->server;
 	struct wlr_pointer_pinch_end_event *event = data;
 	if (server->pointer_gestures != NULL) {
 		wlr_pointer_gestures_v1_send_pinch_end(server->pointer_gestures, server->seat,
@@ -142,8 +142,8 @@ static void pointer_pinch_end(struct wl_listener *listener, void *data) {
 }
 
 static void pointer_hold_begin(struct wl_listener *listener, void *data) {
-	struct stonefly_pointer *pointer = wl_container_of(listener, pointer, hold_begin);
-	struct stonefly_server *server = pointer->server;
+	struct sf_pointer *pointer = wl_container_of(listener, pointer, hold_begin);
+	struct sf_server *server = pointer->server;
 	struct wlr_pointer_hold_begin_event *event = data;
 	if (server->pointer_gestures != NULL) {
 		wlr_pointer_gestures_v1_send_hold_begin(server->pointer_gestures, server->seat,
@@ -152,8 +152,8 @@ static void pointer_hold_begin(struct wl_listener *listener, void *data) {
 }
 
 static void pointer_hold_end(struct wl_listener *listener, void *data) {
-	struct stonefly_pointer *pointer = wl_container_of(listener, pointer, hold_end);
-	struct stonefly_server *server = pointer->server;
+	struct sf_pointer *pointer = wl_container_of(listener, pointer, hold_end);
+	struct sf_server *server = pointer->server;
 	struct wlr_pointer_hold_end_event *event = data;
 	if (server->pointer_gestures != NULL) {
 		wlr_pointer_gestures_v1_send_hold_end(server->pointer_gestures, server->seat,
@@ -161,7 +161,7 @@ static void pointer_hold_end(struct wl_listener *listener, void *data) {
 	}
 }
 
-void server_new_pointer(struct stonefly_server *server, struct wlr_input_device *device) {
+void server_new_pointer(struct sf_server *server, struct wlr_input_device *device) {
 	/* Pointer motion/button go through wlr_cursor; gestures are listened on
 	 * the raw wlr_pointer so we can consume 3-finger vertical swipes. */
 	wlr_cursor_attach_input_device(server->cursor, device);
@@ -170,7 +170,7 @@ void server_new_pointer(struct stonefly_server *server, struct wlr_input_device 
 	if (wlr_pointer == NULL) {
 		return;
 	}
-	struct stonefly_pointer *pointer = calloc(1, sizeof(*pointer));
+	struct sf_pointer *pointer = calloc(1, sizeof(*pointer));
 	if (pointer == NULL) {
 		return;
 	}

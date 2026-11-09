@@ -146,7 +146,7 @@ Wire format matches peeble: one JSON object per line, e.g. `{"cmd":"windows"}`,
 | **Super+e** | spawn text editor |
 | **Alt+Enter** | spawn Ghostty quick terminal |
 
-Default output scale is **1.5** (`stonefly.opt.scale`) with `wp_fractional_scale_v1` + viewporter.
+Default output scale is **1.5** (`sf.opt.scale`) with `wp_fractional_scale_v1` + viewporter.
 
 ## Notes
 
@@ -155,7 +155,7 @@ Default output scale is **1.5** (`stonefly.opt.scale`) with `wp_fractional_scale
 - Urgency: `xdg-activation-v1` → amber border until focus (never steals focus). IPC `windows.urgent`, `set-urgent` / `unset-urgent`. System bell: `xdg-system-bell-v1` → 200ms amber flash.
 - Usable area: layer exclusive zones (`exclusive_zone != 0`, including `-1`) shrink the box used by max/snap/cascade. When the bar’s zone arrives after map, floaters are EnsureOnScreen’d (gap-max if oversized).
 - Drag-snap (peeble parity): Super+LMB / CSD move has magnetic edge resistance (`snap_threshold` 26, push-through `4×`), neon half-snap preview on `layers.overlay` (SceneFX rects), release-to-snap / push-through cancel, PrepareDrag float from snap/max keeping PreSnap.
-- No Xwayland yet. Config is LuaJIT + Fennel-first (`stonefly --write-config` / `stonefly config`), including Fennel `window_rule` (Lua-pattern `app_id`/`title`; center/float/size/ssd/borderless; defaults for Chrome profile + gcr-prompter). Layer-shell is implemented.
+- No Xwayland yet. Config is LuaJIT + Fennel-first (`stonefly --write-config` / `stonefly config`), including Fennel `window_rule` (Lua-pattern `app_id`/`title`; center/float/size/ssd/borderless; defaults for Chrome profile + gcr-prompter). Layer-shell is implemented. Editor completion for `sf.*`: copy `dist/fennel-ls/docsets/sf.lua` into fennel-ls docsets (see `dist/fennel-ls/README.md`).
 - `LICENSE.tinywl` is upstream’s MIT notice for the seed.
 
 ## FORK.md → stonefly (remaining gaps)

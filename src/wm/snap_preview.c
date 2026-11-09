@@ -4,27 +4,27 @@
 
 #include "config/config.h"
 #include "server/server.h"
+#include "util/color.h"
 #include "wm/snap_preview.h"
 #include "wm/wm.h"
 #include "toplevel/toplevel.h"
 
-static void preview_colors(struct stonefly_server *server, float fill[4], float rim[4]) {
-	const struct stonefly_config *cfg = stonefly_cfg(server);
-	const float *active = cfg->border_active;
-	const float a = cfg->snap_preview_opacity;
-	/* Premultiplied fill at preview opacity. */
-	fill[0] = active[0] * a;
-	fill[1] = active[1] * a;
-	fill[2] = active[2] * a;
-	fill[3] = active[3] * a;
-	rim[0] = active[0];
-	rim[1] = active[1];
-	rim[2] = active[2];
-	rim[3] = active[3];
+static void preview_colors(struct sf_server *server, float fill[4], float rim[4]) {
+	const struct sf_config *cfg = sf_cfg(server);
+	struct sf_rgba premul;
+	sf_rgba_premul(&cfg->border_active, cfg->snap_preview_opacity, &premul);
+	fill[0] = premul.r;
+	fill[1] = premul.g;
+	fill[2] = premul.b;
+	fill[3] = premul.a;
+	rim[0] = cfg->border_active.r;
+	rim[1] = cfg->border_active.g;
+	rim[2] = cfg->border_active.b;
+	rim[3] = cfg->border_active.a;
 }
 
-void stonefly_snap_preview_init(struct stonefly_server *server) {
-	struct stonefly_snap_preview *p = calloc(1, sizeof(*p));
+void sf_snap_preview_init(struct sf_server *server) {
+	struct sf_snap_preview *p = calloc(1, sizeof(*p));
 	if (p == NULL) {
 		return;
 	}
@@ -36,12 +36,12 @@ void stonefly_snap_preview_init(struct stonefly_server *server) {
 	p->rim = wlr_scene_rect_create(p->tree, 0, 0, rim);
 	wlr_scene_node_set_enabled(&p->tree->node, false);
 	p->visible = false;
-	p->edge = STONEFLY_SNAP_NONE;
+	p->edge = SF_SNAP_NONE;
 	server->snap_preview = p;
 }
 
-void stonefly_snap_preview_finish(struct stonefly_server *server) {
-	struct stonefly_snap_preview *p = server->snap_preview;
+void sf_snap_preview_finish(struct sf_server *server) {
+	struct sf_snap_preview *p = server->snap_preview;
 	if (p == NULL) {
 		return;
 	}
@@ -52,31 +52,31 @@ void stonefly_snap_preview_finish(struct stonefly_server *server) {
 	server->snap_preview = NULL;
 }
 
-void stonefly_snap_preview_hide(struct stonefly_server *server) {
-	struct stonefly_snap_preview *p = server->snap_preview;
+void sf_snap_preview_hide(struct sf_server *server) {
+	struct sf_snap_preview *p = server->snap_preview;
 	if (p == NULL || !p->visible) {
 		return;
 	}
 	wlr_scene_node_set_enabled(&p->tree->node, false);
 	p->visible = false;
-	p->edge = STONEFLY_SNAP_NONE;
+	p->edge = SF_SNAP_NONE;
 }
 
-void stonefly_snap_preview_show(struct stonefly_server *server, int edge,
-				const struct wlr_box *usable) {
+void sf_snap_preview_show(struct sf_server *server, enum sf_snap edge,
+			  const struct wlr_box *usable) {
 	if (server->snap_preview == NULL) {
-		stonefly_snap_preview_init(server);
+		sf_snap_preview_init(server);
 	}
-	struct stonefly_snap_preview *p = server->snap_preview;
-	if (p == NULL || usable == NULL || edge == STONEFLY_SNAP_NONE) {
-		stonefly_snap_preview_hide(server);
+	struct sf_snap_preview *p = server->snap_preview;
+	if (p == NULL || usable == NULL || edge == SF_SNAP_NONE) {
+		sf_snap_preview_hide(server);
 		return;
 	}
 
-	const struct stonefly_config *cfg = stonefly_cfg(server);
-	struct wlr_box box = stonefly_wm_snap_box((enum stonefly_snap)edge, usable, cfg->gap_size);
+	const struct sf_config *cfg = sf_cfg(server);
+	struct wlr_box box = sf_wm_snap_box(edge, usable, cfg->gap_size);
 	if (box.width <= 0 || box.height <= 0) {
-		stonefly_snap_preview_hide(server);
+		sf_snap_preview_hide(server);
 		return;
 	}
 

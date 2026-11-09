@@ -11,36 +11,35 @@
 #include "wm/workspace.h"
 #include "toplevel/toplevel.h"
 
-static int workspace_member_count(struct stonefly_workspace *ws) {
+static int workspace_member_count(struct sf_workspace *ws) {
 	int n = 0;
-	struct stonefly_toplevel *t;
+	struct sf_toplevel *t;
 	wl_list_for_each(t, &ws->output->server->toplevels, link) {
-		if (t->workspace == ws && !stonefly_toplevel_is_scratchpad(t)) {
+		if (t->workspace == ws && !sf_toplevel_is_scratchpad(t)) {
 			n++;
 		}
 	}
 	wl_list_for_each(t, &ws->output->server->minimized, minimize_link) {
-		if (t->workspace == ws && !stonefly_toplevel_is_scratchpad(t)) {
+		if (t->workspace == ws && !sf_toplevel_is_scratchpad(t)) {
 			n++;
 		}
 	}
 	return n;
 }
 
-size_t stonefly_workspaces_collect(struct stonefly_server *server,
-				   struct stonefly_workspace_info *out, size_t cap) {
+size_t sf_workspaces_collect(struct sf_server *server, struct sf_workspace_info *out, size_t cap) {
 	if (server == NULL || out == NULL || cap == 0) {
 		return 0;
 	}
 	size_t n = 0;
-	struct stonefly_output *output;
+	struct sf_output *output;
 	wl_list_for_each(output, &server->outputs, link) {
-		struct stonefly_workspace *ws;
+		struct sf_workspace *ws;
 		wl_list_for_each(ws, &output->workspaces, link) {
 			if (n >= cap) {
 				return n;
 			}
-			struct stonefly_workspace_info *info = &out[n++];
+			struct sf_workspace_info *info = &out[n++];
 			memset(info, 0, sizeof(*info));
 			snprintf(info->output, sizeof(info->output), "%s",
 				 output->wlr_output->name != NULL ? output->wlr_output->name : "");
@@ -50,19 +49,18 @@ size_t stonefly_workspaces_collect(struct stonefly_server *server,
 			info->windows = workspace_member_count(ws);
 			info->empty = info->windows == 0;
 			snprintf(info->layout, sizeof(info->layout), "%s",
-				 stonefly_layout_name(stonefly_workspace_layout(ws)));
+				 sf_layout_name(sf_workspace_layout(ws)));
 		}
 	}
 	return n;
 }
 
-int stonefly_workspaces_to_json(const struct stonefly_workspace_info *infos, size_t n, char *buf,
-				size_t cap) {
+int sf_workspaces_to_json(const struct sf_workspace_info *infos, size_t n, char *buf, size_t cap) {
 	struct json_buf b;
 	json_buf_init(&b, buf, cap);
 	json_byte(&b, '[');
 	for (size_t i = 0; i < n; i++) {
-		const struct stonefly_workspace_info *w = &infos[i];
+		const struct sf_workspace_info *w = &infos[i];
 		if (i > 0) {
 			json_byte(&b, ',');
 		}
@@ -94,7 +92,7 @@ int stonefly_workspaces_to_json(const struct stonefly_workspace_info *infos, siz
 	return json_ok(&b) ? (int)b.len : -1;
 }
 
-static bool parse_object(struct json_scan *s, struct stonefly_workspace_info *out) {
+static bool parse_object(struct json_scan *s, struct sf_workspace_info *out) {
 	memset(out, 0, sizeof(*out));
 	if (!json_scan_expect(s, '{')) {
 		return false;
@@ -173,8 +171,8 @@ static bool parse_object(struct json_scan *s, struct stonefly_workspace_info *ou
 	}
 }
 
-bool stonefly_workspaces_from_json(const char *json, struct stonefly_workspace_info *out,
-				   size_t cap, size_t *n_out) {
+bool sf_workspaces_from_json(const char *json, struct sf_workspace_info *out, size_t cap,
+			     size_t *n_out) {
 	if (n_out != NULL) {
 		*n_out = 0;
 	}
@@ -219,12 +217,12 @@ bool stonefly_workspaces_from_json(const char *json, struct stonefly_workspace_i
 	}
 }
 
-void stonefly_workspaces_print(const struct stonefly_workspace_info *infos, size_t n, FILE *fp) {
+void sf_workspaces_print(const struct sf_workspace_info *infos, size_t n, FILE *fp) {
 	if (fp == NULL) {
 		fp = stdout;
 	}
 	for (size_t i = 0; i < n; i++) {
-		const struct stonefly_workspace_info *w = &infos[i];
+		const struct sf_workspace_info *w = &infos[i];
 		fprintf(fp, "%s%s  %s  ws %d  %s  windows=%d  layout=%s\n", w->active ? "*" : " ",
 			w->empty ? "." : " ", w->output, w->index, w->name, w->windows, w->layout);
 	}

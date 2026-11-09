@@ -5,7 +5,7 @@
 
 #include "log/log.h"
 
-char *stonefly_xstrdup(const char *s) {
+char *sf_xstrdup(const char *s) {
 	if (s == NULL) {
 		return NULL;
 	}
@@ -16,7 +16,7 @@ char *stonefly_xstrdup(const char *s) {
 	return d;
 }
 
-void stonefly_replace_str(char **dst, const char *src) {
+void sf_replace_str(char **dst, const char *src) {
 	char *copy = NULL;
 	if (src != NULL) {
 		copy = strdup(src);

@@ -1,6 +1,6 @@
 /* Runtime config: C defaults + LuaJIT/Fennel overlays (MATRIX §10). */
-#ifndef STONEFLY_CONFIG_H
-#define STONEFLY_CONFIG_H
+#ifndef SF_CONFIG_H
+#define SF_CONFIG_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -8,71 +8,85 @@
 #include <xkbcommon/xkbcommon.h>
 #include <wlr/types/wlr_keyboard.h>
 
-struct stonefly_server;
+#include "ssd/ssd_policy.h"
+#include "util/color.h"
+#include "wm/workspace.h"
+
+struct sf_server;
 
 /* Interesting modifiers for bind matching (ignore Caps etc.). */
-#define STONEFLY_MOD_MASK                                                                          \
+#define SF_MOD_MASK                                                                                \
 	((uint32_t)WLR_MODIFIER_SHIFT | (uint32_t)WLR_MODIFIER_CTRL | (uint32_t)WLR_MODIFIER_ALT | \
 	 (uint32_t)WLR_MODIFIER_LOGO)
 
-#define STONEFLY_SUPER ((uint32_t)WLR_MODIFIER_LOGO)
-#define STONEFLY_ALT ((uint32_t)WLR_MODIFIER_ALT)
-#define STONEFLY_CTRL ((uint32_t)WLR_MODIFIER_CTRL)
-#define STONEFLY_SHIFT ((uint32_t)WLR_MODIFIER_SHIFT)
+#define SF_SUPER ((uint32_t)WLR_MODIFIER_LOGO)
+#define SF_ALT ((uint32_t)WLR_MODIFIER_ALT)
+#define SF_CTRL ((uint32_t)WLR_MODIFIER_CTRL)
+#define SF_SHIFT ((uint32_t)WLR_MODIFIER_SHIFT)
 
-#define STONEFLY_SCRATCHPAD_MAX 8
-#define STONEFLY_WINDOW_RULE_MAX 64
+#define SF_SCRATCHPAD_MAX 8
+#define SF_WINDOW_RULE_MAX 64
 
-enum stonefly_action {
-	STONEFLY_ACTION_NONE = 0,
-	STONEFLY_ACTION_QUIT,
-	STONEFLY_ACTION_CLOSE,
-	STONEFLY_ACTION_FOCUS_NEXT,
-	STONEFLY_ACTION_FOCUS_PREV,
-	STONEFLY_ACTION_FOCUS_NEXT_ALL,
-	STONEFLY_ACTION_FOCUS_PREV_ALL,
-	STONEFLY_ACTION_TOGGLE_MAX_EDGES,
-	STONEFLY_ACTION_TOGGLE_MAX_GAPS,
-	STONEFLY_ACTION_MINIMIZE,
-	STONEFLY_ACTION_UNMINIMIZE,
-	STONEFLY_ACTION_SNAP_LEFT,
-	STONEFLY_ACTION_SNAP_RIGHT,
-	STONEFLY_ACTION_SNAP_TOP,
-	STONEFLY_ACTION_SNAP_BOTTOM,
-	STONEFLY_ACTION_UNSNAP,
+enum sf_action {
+	SF_ACTION_NONE = 0,
+	SF_ACTION_QUIT,
+	SF_ACTION_CLOSE,
+	SF_ACTION_FOCUS_NEXT,
+	SF_ACTION_FOCUS_PREV,
+	SF_ACTION_FOCUS_NEXT_ALL,
+	SF_ACTION_FOCUS_PREV_ALL,
+	/* Gap-max (usual maximize) / edge-max / restore either. */
+	SF_ACTION_MAXIMIZE,
+	SF_ACTION_MAXIMIZE_TO_EDGES,
+	SF_ACTION_UNMAXIMIZE,
+	SF_ACTION_TOGGLE_MAXIMIZE,
+	SF_ACTION_TOGGLE_MAXIMIZE_TO_EDGES,
+	SF_ACTION_MINIMIZE,
+	SF_ACTION_UNMINIMIZE,
+	SF_ACTION_SNAP_LEFT,
+	SF_ACTION_SNAP_RIGHT,
+	SF_ACTION_SNAP_TOP,
+	SF_ACTION_SNAP_BOTTOM,
+	SF_ACTION_UNSNAP,
 	/* Run keybind.cmd via /bin/sh -c (spawn, noctalia msg, etc.). */
-	STONEFLY_ACTION_EXEC,
+	SF_ACTION_EXEC,
 	/* Named scratchpad; cmd holds pad name (default "term"). */
-	STONEFLY_ACTION_SCRATCH_TOGGLE,
-	STONEFLY_ACTION_SCRATCH_CLAIM,
+	SF_ACTION_SCRATCH_TOGGLE,
+	SF_ACTION_SCRATCH_CLAIM,
 	/* Dynamic workspaces (cmd holds 1-based index for switch/move). */
-	STONEFLY_ACTION_WORKSPACE_NEXT,
-	STONEFLY_ACTION_WORKSPACE_PREV,
-	STONEFLY_ACTION_WORKSPACE_SWITCH,
-	STONEFLY_ACTION_MOVE_TO_WORKSPACE_NEXT,
-	STONEFLY_ACTION_MOVE_TO_WORKSPACE_PREV,
-	STONEFLY_ACTION_MOVE_TO_WORKSPACE,
+	SF_ACTION_WORKSPACE_NEXT,
+	SF_ACTION_WORKSPACE_PREV,
+	SF_ACTION_WORKSPACE_SWITCH,
+	SF_ACTION_MOVE_TO_WORKSPACE_NEXT,
+	SF_ACTION_MOVE_TO_WORKSPACE_PREV,
+	SF_ACTION_MOVE_TO_WORKSPACE,
 };
 
-struct stonefly_keybind {
-	uint32_t mods; /* compared against (modifiers & STONEFLY_MOD_MASK) */
+/* One step in a bind/tap/rule action (or sf.chain). cmd for EXEC / scratch / ws. */
+struct sf_action_step {
+	enum sf_action action;
+	char *cmd;
+};
+
+struct sf_keybind {
+	uint32_t mods; /* compared against (modifiers & SF_MOD_MASK) */
 	xkb_keysym_t sym;
 	xkb_keysym_t sym_alt; /* optional second sym (e.g. ISO_Left_Tab); 0 = none */
-	enum stonefly_action action;
-	char *cmd; /* EXEC / scratch name; owned when on heap config */
+	struct sf_action_step *steps;
+	size_t n_steps;
 };
 
 /* Lone-modifier tap: press+release without other keys. Double waits the gap. */
-struct stonefly_tapbind {
+struct sf_tapbind {
 	xkb_keysym_t sym;
 	xkb_keysym_t sym_alt; /* e.g. Super_R; 0 = none */
-	enum stonefly_action single;
-	enum stonefly_action double_tap; /* NONE = single-only */
-	char *single_cmd;
-	char *double_cmd;
+	struct sf_action_step *single_steps;
+	size_t n_single_steps;
+	struct sf_action_step *double_steps; /* NULL / 0 = single-only */
+	size_t n_double_steps;
 };
 
-struct stonefly_scratchpad_spec {
+struct sf_scratchpad_spec {
 	char *name;
 	char *cmd;
 	char *app_id; /* match for spawn claim; empty = first map while pending */
@@ -82,7 +96,7 @@ struct stonefly_scratchpad_spec {
 
 /* Fennel window_rule(match, actions [, parent]). Parent merge baked in.
  * app_id / title are Lua patterns (string.find); empty/NULL = any. */
-struct stonefly_window_rule {
+struct sf_window_rule {
 	char id[40];
 	char parent_id[40];
 	char *app_id;
@@ -94,35 +108,38 @@ struct stonefly_window_rule {
 	bool borderless;
 	bool borderless_set;
 	bool ssd_set;
-	int ssd_mode; /* enum stonefly_ssd_mode when ssd_set */
+	enum sf_ssd_mode ssd_mode;
 	bool width_set;
 	bool height_set;
 	int width;
 	int height;
+	/* Optional WM actions (:action string or sf.chain); run on the matched window. */
+	struct sf_action_step *steps;
+	size_t n_steps;
 };
 
-struct stonefly_config {
+struct sf_config {
 	float output_scale;
 	int cursor_size_default;
 	int gap_size;
 	int cascade_step;
 	int cascade_wrap;
 	int slide_duration_ms;
-	int slide_dir_closest;
+	bool slide_dir_closest;
 	int morph_duration_ms;
 	float client_opacity;	/* focused / active chrome */
 	float inactive_opacity; /* unfocused; default = client_opacity (no dim) */
 	int corner_radius;
 	int border_thickness;
 	float shadow_blur_sigma;
-	float border_active[4];
-	float border_inactive[4];
-	float border_urgent[4];
-	float shadow_color[4];
-	int window_blur; /* per-window SceneFX blur behind chrome */
+	struct sf_rgba border_active;
+	struct sf_rgba border_inactive;
+	struct sf_rgba border_urgent;
+	struct sf_rgba shadow_color;
+	bool window_blur; /* per-window SceneFX blur behind chrome */
 	/* true → blur wallpaper/optimized underlay only (mango xray);
 	 * false → blur whatever is actually behind the window (other clients). */
-	int blur_xray;
+	bool blur_xray;
 	/* Global SceneFX blur_data (optimized wallpaper pass). */
 	int blur_num_passes;
 	int blur_radius;
@@ -138,15 +155,15 @@ struct stonefly_config {
 	int double_tap_gap_ms;
 
 	/* Global layout default (workspace → output → global). */
-	int layout; /* enum stonefly_layout; STACKING today */
+	enum sf_layout layout;
 	/* 3-finger vertical swipe distance (logical px) to change workspace. */
 	int swipe_workspace_threshold;
 	/* Natural: finger up moves content up → next; finger down → prev.
 	 * Classic (false): finger points at the destination (down → next). */
-	int swipe_workspace_natural;
+	bool swipe_workspace_natural;
 
-	/* SSD titlebars: never|auto|prefer_ssd|always (enum stonefly_ssd_mode). */
-	int ssd_mode;
+	/* SSD titlebars: never|auto|prefer_ssd|always. */
+	enum sf_ssd_mode ssd_mode;
 	int ssd_height;	   /* logical px; default 28 */
 	int ssd_font_size; /* fcft pt; default 17 */
 
@@ -158,37 +175,37 @@ struct stonefly_config {
 	/* Comma-separated app_id substrings that auto-set capture_blocked. */
 	char *capture_block_app_ids;
 
-	struct stonefly_keybind *keybinds;
+	struct sf_keybind *keybinds;
 	size_t n_keybinds;
-	struct stonefly_tapbind *tapbinds;
+	struct sf_tapbind *tapbinds;
 	size_t n_tapbinds;
-	struct stonefly_scratchpad_spec *scratchpads;
+	struct sf_scratchpad_spec *scratchpads;
 	size_t n_scratchpads;
-	struct stonefly_window_rule *window_rules;
+	struct sf_window_rule *window_rules;
 	size_t n_window_rules;
 
-	/* LuaJIT state; NULL when STONEFLY_NOCONFIG or before load. */
+	/* LuaJIT state; NULL when SF_NOCONFIG or before load. */
 	void *lua; /* lua_State * — opaque here to avoid forcing luajit.h on all TUs */
 };
 
-void stonefly_config_set_defaults(struct stonefly_config *cfg);
-void stonefly_config_finish(struct stonefly_config *cfg);
+void sf_config_set_defaults(struct sf_config *cfg);
+void sf_config_finish(struct sf_config *cfg);
 
 /* XDG paths — honor env; never hardcode ~/.config. Return 0 on success. */
-int stonefly_config_dir(char *buf, size_t n);
-int stonefly_data_dir(char *buf, size_t n);
-int stonefly_cache_dir(char *buf, size_t n);
-int stonefly_config_init_path(char *buf, size_t n);
+int sf_config_dir(char *buf, size_t n);
+int sf_data_dir(char *buf, size_t n);
+int sf_cache_dir(char *buf, size_t n);
+int sf_config_init_path(char *buf, size_t n);
 
 /* Recursive mkdir (mkdir -p); 0 = ok. */
-int stonefly_mkdir_p(const char *path);
+int sf_mkdir_p(const char *path);
 
 /* Write embedded default tree; refuse if init.lua exists. 0 = ok. */
-int stonefly_config_write_default(void);
+int sf_config_write_default(void);
 
 /* Load user init.lua or embedded Fennel-first default into server->config. */
-bool stonefly_config_load(struct stonefly_server *server);
+bool sf_config_load(struct sf_server *server);
 
-const struct stonefly_config *stonefly_cfg(const struct stonefly_server *server);
+const struct sf_config *sf_cfg(const struct sf_server *server);
 
-#endif /* STONEFLY_CONFIG_H */
+#endif /* SF_CONFIG_H */
