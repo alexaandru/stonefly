@@ -186,15 +186,15 @@ struct stonefly_server {
 
 	uint64_t next_toplevel_id;
 
-	/* zwlr_foreign_toplevel_management_v1 */
-	struct wl_global *foreign_toplevel_global;
-	struct wl_list foreign_managers;
-	struct wl_list foreign_handles;
-
-	/* ext-foreign-toplevel-list + image-capture (Noctalia switcher snapshots) */
-	struct wlr_ext_foreign_toplevel_list_v1 *ext_foreign_toplevel_list;
-	struct wlr_ext_foreign_toplevel_image_capture_source_manager_v1 *ext_toplevel_capture_mgr;
-	struct wl_listener ext_toplevel_capture_request;
+	/* zwlr-foreign-toplevel + ext-foreign-toplevel-list + image-capture */
+	struct {
+		struct wl_global *wlr_global;
+		struct wl_list managers;
+		struct wl_list handles;
+		struct wlr_ext_foreign_toplevel_list_v1 *ext_list;
+		struct wlr_ext_foreign_toplevel_image_capture_source_manager_v1 *capture_mgr;
+		struct wl_listener on_capture_request;
+	} foreign;
 
 	struct stonefly_ipc *ipc;
 
@@ -212,24 +212,30 @@ struct stonefly_server {
 		char *double_cmd;
 	} tap;
 
-	/* ext-session-lock-v1 + idle + output-power (Noctalia auto-lock / DPMS). */
-	bool locked;
-	struct wlr_session_lock_manager_v1 *session_lock_mgr;
-	struct wlr_session_lock_v1 *session_lock;
-	struct wlr_scene_tree *session_lock_tree;
-	struct wlr_scene_rect *lock_blank;
-	struct wl_list lock_surfaces;
-	struct wl_listener session_lock_new;
-	struct wl_listener session_lock_new_surface;
-	struct wl_listener session_lock_unlock;
-	struct wl_listener session_lock_destroy;
+	/* ext-session-lock-v1 (Noctalia auto-lock). */
+	struct {
+		bool active;
+		struct wlr_session_lock_manager_v1 *mgr;
+		struct wlr_session_lock_v1 *current;
+		struct wlr_scene_tree *tree;
+		struct wlr_scene_rect *blank;
+		struct wl_list surfaces;
+		struct wl_listener on_new;
+		struct wl_listener on_new_surface;
+		struct wl_listener on_unlock;
+		struct wl_listener on_destroy;
+	} lock;
 
-	struct wlr_idle_notifier_v1 *idle_notifier;
-	struct wlr_idle_inhibit_manager_v1 *idle_inhibit_mgr;
-	struct wl_listener idle_inhibitor_new;
+	struct {
+		struct wlr_idle_notifier_v1 *notifier;
+		struct wlr_idle_inhibit_manager_v1 *inhibit_mgr;
+		struct wl_listener on_inhibitor_new;
+	} idle;
 
-	struct wlr_output_power_manager_v1 *output_power_mgr;
-	struct wl_listener output_power_set_mode;
+	struct {
+		struct wlr_output_power_manager_v1 *mgr;
+		struct wl_listener on_set_mode;
+	} output_power;
 
 	/* ext-workspace-v1 — one group per output, handles per workspace. */
 	struct wlr_ext_workspace_manager_v1 *ext_workspace_mgr;
@@ -258,9 +264,11 @@ struct stonefly_server {
 	struct wlr_relative_pointer_manager_v1 *relative_pointer_mgr;
 
 	/* zwp_pointer_constraints_v1 — lock/confine when surface has focus. */
-	struct wlr_pointer_constraints_v1 *pointer_constraints;
-	struct wl_listener new_pointer_constraint;
-	struct wlr_pointer_constraint_v1 *current_constraint;
+	struct {
+		struct wlr_pointer_constraints_v1 *mgr;
+		struct wl_listener on_new;
+		struct wlr_pointer_constraint_v1 *current;
+	} constraints;
 
 	/* Heap; set when user init.lua fails and we fall back to embedded/C.
 	 * Surfaced via FDO Notifications after the display is up (peeble-style). */

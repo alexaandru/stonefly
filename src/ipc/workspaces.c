@@ -9,7 +9,7 @@
 #include "util/json.h"
 #include "wm/scratchpad.h"
 #include "wm/workspace.h"
-#include "xdg/xdg.h"
+#include "toplevel/toplevel.h"
 
 static int workspace_member_count(struct stonefly_workspace *ws) {
 	int n = 0;

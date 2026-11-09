@@ -6,7 +6,7 @@
 #include "server/server.h"
 #include "wm/snap_preview.h"
 #include "wm/wm.h"
-#include "xdg/xdg.h"
+#include "toplevel/toplevel.h"
 
 static void preview_colors(struct stonefly_server *server, float fill[4], float rim[4]) {
 	const struct stonefly_config *cfg = stonefly_cfg(server);

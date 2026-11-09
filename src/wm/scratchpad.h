@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 #include "server/server.h"
-#include "xdg/xdg.h"
+#include "toplevel/toplevel.h"
 
 void stonefly_scratchpad_init(struct stonefly_server *server);
 void stonefly_scratchpad_finish(struct stonefly_server *server);

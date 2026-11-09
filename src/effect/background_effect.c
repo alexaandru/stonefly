@@ -10,7 +10,7 @@
 #include "effect/background_effect.h"
 #include "log/log.h"
 #include "server/server.h"
-#include "xdg/xdg.h"
+#include "toplevel/toplevel.h"
 
 #include "ext-background-effect-v1-protocol.h"
 

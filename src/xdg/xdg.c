@@ -24,6 +24,7 @@
 #include "ssd/ssd.h"
 #include "toplevel/ext_capture.h"
 #include "toplevel/foreign.h"
+#include "util/str.h"
 #include "wm/drag_snap.h"
 #include "wm/rules.h"
 #include "wm/scratchpad.h"
@@ -70,18 +71,6 @@ static struct stonefly_toplevel *toplevel_from_xdg(struct stonefly_server *serve
 	return NULL;
 }
 
-static void replace_str(char **dst, const char *src) {
-	char *copy = NULL;
-	if (src != NULL) {
-		copy = strdup(src);
-		if (copy == NULL) {
-			return;
-		}
-	}
-	free(*dst);
-	*dst = copy;
-}
-
 static void xdg_toplevel_set_tag(struct wl_listener *listener, void *data) {
 	struct stonefly_server *server = wl_container_of(listener, server, xdg_toplevel_set_tag);
 	const struct wlr_xdg_toplevel_tag_manager_v1_set_tag_event *event = data;
@@ -89,7 +78,7 @@ static void xdg_toplevel_set_tag(struct wl_listener *listener, void *data) {
 	if (toplevel == NULL) {
 		return;
 	}
-	replace_str(&toplevel->tag, event->tag);
+	stonefly_replace_str(&toplevel->tag, event->tag);
 	SF_LOGI("toplevel tag", sf_i64("id", (int64_t)toplevel->id),
 		sf_str("tag", toplevel->tag != NULL ? toplevel->tag : ""));
 }
@@ -102,7 +91,7 @@ static void xdg_toplevel_set_description(struct wl_listener *listener, void *dat
 	if (toplevel == NULL) {
 		return;
 	}
-	replace_str(&toplevel->description, event->description);
+	stonefly_replace_str(&toplevel->description, event->description);
 	SF_LOGI("toplevel description", sf_i64("id", (int64_t)toplevel->id),
 		sf_str("description", toplevel->description != NULL ? toplevel->description : ""));
 }

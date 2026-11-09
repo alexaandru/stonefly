@@ -15,7 +15,7 @@
 #include "output/output.h"
 #include "session/session.h"
 #include "wm/wm.h"
-#include "xdg/xdg.h"
+#include "toplevel/toplevel.h"
 
 /* Optimized blur caches wallpaper/bottom; refresh when those layers change. */
 static void layer_maybe_dirty_blur(struct stonefly_layer_surface *layer) {

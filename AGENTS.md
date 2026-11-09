@@ -52,8 +52,37 @@ or Go conventions.
 - Public compositor API: `stonefly_*` functions, `struct stonefly_*`,
   `enum stonefly_*`, `STONEFLY_*` constants.
 - Log helpers only: `sf_*` / `SF_*` in `src/log/` (structured JSON slog).
-- File layout mirrors modules: `src/<module>/<module>.c` + `.h`.
 - Snake_case everywhere; no CamelCase in new C.
+
+### Modules and file layout
+
+C has no packages — directories only group related TUs. Keep that flat and
+predictable:
+
+- **One directory per module:** `src/<module>/`. Entry point is usually
+  `<module>.c` + `<module>.h` (public API).
+- **Split large TUs by feature name in the same folder**, matching neighbors:
+  `seat/keyboard.c`, `seat/pointer.c`, `wm/drag_snap.c`, `ipc/windows.c`.
+  Prefer that over deeper nests (`seat/pointer/foo.c`) or a single growing
+  god-file.
+- **Module-prefixed names** when the files are inseparable parts of one
+  surface (`ssd/ssd_layout.c`, `ssd/ssd_paint.c`). Feature names when they
+  are distinct subsystems that share a folder.
+- **Module-private cross-file decls** go in `<module>/internal.h` (or a
+  similarly named private header). Do not grow the public `<module>.h` for
+  helpers only other files in that module need.
+- **Type homes:** put durable types where their domain lives, not inside a
+  protocol adapter. Window state is `toplevel/toplevel.h`; `xdg/` sets up
+  xdg-shell and fills that type. Consumers that only need the window type
+  include `toplevel/toplevel.h`.
+- **Shared helpers:** cross-module math/string/time/JSON live under
+  `src/util/` (`math.h`, `str.c`/`str.h`, `time.h`, `json.c`/`json.h`). Do
+  not copy static `clamp01` / `xstrdup` / timespec helpers into new files —
+  extend `util/` instead.
+- **`struct stonefly_server`:** nest related protocol/state blobs
+  (`lock`, `idle`, `foreign`, `constraints`, `tap`, `swipe`, …). Keep DRM
+  `session` and scene `layers.lock` distinct from session-lock state.
+- Add new `.c` files to `src/meson.build` `stonefly_src` in the same change.
 
 ### Control flow and APIs
 
@@ -61,6 +90,13 @@ or Go conventions.
 - `goto` is rare (cleanup paths only). Prefer matching existing neighbors.
 - Listeners and scene nodes follow wlroots patterns already in
   `server/`, `xdg/`, `output/`, etc.
+- Prefer **tables** for name↔enum / option setters / parallel switch arms
+  (see `config/action.c`, `config_lua.c` `opt_*` tables) over duplicated
+  `strcmp` ladders or mirrored `switch`es in several TUs.
+- Prefer **generic actions + data** (`EXEC` + `cmd`, `SCRATCH_TOGGLE` + pad
+  name) over new specialized enum values for each app or pad.
+- Drop deprecated shims and legacy config forms once defaults and docs use
+  the current API — do not keep parallel parse paths “just in case.”
 
 ### Lint / analyzer
 
@@ -144,9 +180,11 @@ later cleanup pass.
 
 Before calling work finished:
 
-1. Code matches wlroots/tinywl style (`.clang-format` / neighboring `./src`).
+1. Code matches wlroots/tinywl style (`.clang-format` / neighboring `./src`),
+   including module layout and `util/` reuse above.
 2. No host library/pkg-config probing; verify via abuild (`make apk`).
 3. No new internal shell-outs.
 4. `MATRIX.md` rows for the touched feature are current.
 5. `pkgrel` / `pkgver` untouched unless requested.
 6. Do not run `make fmt` unless the user asks — formatting is their call.
+7. New sources are listed in `src/meson.build` when applicable.

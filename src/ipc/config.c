@@ -4,83 +4,12 @@
 #include <string.h>
 #include <xkbcommon/xkbcommon.h>
 
+#include "config/action.h"
 #include "config/config.h"
 #include "server/server.h"
 #include "ssd/ssd_policy.h"
 #include "util/json.h"
 #include "wm/workspace.h"
-
-static const char *action_name(enum stonefly_action a) {
-	switch (a) {
-	case STONEFLY_ACTION_NONE:
-		return "none";
-	case STONEFLY_ACTION_QUIT:
-		return "quit";
-	case STONEFLY_ACTION_CLOSE:
-		return "close";
-	case STONEFLY_ACTION_FOCUS_NEXT:
-		return "focus_next";
-	case STONEFLY_ACTION_FOCUS_PREV:
-		return "focus_prev";
-	case STONEFLY_ACTION_FOCUS_NEXT_ALL:
-		return "focus_next_all";
-	case STONEFLY_ACTION_FOCUS_PREV_ALL:
-		return "focus_prev_all";
-	case STONEFLY_ACTION_TOGGLE_MAX_EDGES:
-		return "toggle_max_edges";
-	case STONEFLY_ACTION_TOGGLE_MAX_GAPS:
-		return "toggle_max_gaps";
-	case STONEFLY_ACTION_MINIMIZE:
-		return "minimize";
-	case STONEFLY_ACTION_UNMINIMIZE:
-		return "unminimize";
-	case STONEFLY_ACTION_SNAP_LEFT:
-		return "snap_left";
-	case STONEFLY_ACTION_SNAP_RIGHT:
-		return "snap_right";
-	case STONEFLY_ACTION_SNAP_TOP:
-		return "snap_top";
-	case STONEFLY_ACTION_SNAP_BOTTOM:
-		return "snap_bottom";
-	case STONEFLY_ACTION_UNSNAP:
-		return "unsnap";
-	case STONEFLY_ACTION_SPAWN_FOOT:
-		return "spawn_foot";
-	case STONEFLY_ACTION_SPAWN_NAUTILUS:
-		return "spawn_nautilus";
-	case STONEFLY_ACTION_SPAWN_GHOSTTY:
-		return "spawn_ghostty";
-	case STONEFLY_ACTION_SPAWN_GHOSTTY_QT:
-		return "spawn_ghostty_qt";
-	case STONEFLY_ACTION_SPAWN_EDITOR:
-		return "spawn_editor";
-	case STONEFLY_ACTION_SPAWN_LAUNCHER:
-		return "spawn_launcher";
-	case STONEFLY_ACTION_SCRATCH_TOGGLE_TERM:
-		return "scratch_toggle_term";
-	case STONEFLY_ACTION_SCRATCH_CLAIM_TERM:
-		return "scratch_claim_term";
-	case STONEFLY_ACTION_EXEC:
-		return "exec";
-	case STONEFLY_ACTION_SCRATCH_TOGGLE:
-		return "scratch_toggle";
-	case STONEFLY_ACTION_SCRATCH_CLAIM:
-		return "scratch_claim";
-	case STONEFLY_ACTION_WORKSPACE_NEXT:
-		return "workspace_next";
-	case STONEFLY_ACTION_WORKSPACE_PREV:
-		return "workspace_prev";
-	case STONEFLY_ACTION_WORKSPACE_SWITCH:
-		return "workspace_switch";
-	case STONEFLY_ACTION_MOVE_TO_WORKSPACE_NEXT:
-		return "move_to_workspace_next";
-	case STONEFLY_ACTION_MOVE_TO_WORKSPACE_PREV:
-		return "move_to_workspace_prev";
-	case STONEFLY_ACTION_MOVE_TO_WORKSPACE:
-		return "move_to_workspace";
-	}
-	return "unknown";
-}
 
 static void json_rgba(struct json_buf *b, const float c[4]) {
 	json_byte(b, '[');
@@ -253,28 +182,6 @@ static void emit_options(struct json_buf *b, const struct stonefly_config *cfg) 
 	json_byte(b, '}');
 }
 
-static void emit_cmds(struct json_buf *b, const struct stonefly_config *cfg) {
-	json_byte(b, '{');
-	json_key(b, "foot");
-	json_str(b, cfg->cmd_foot ? cfg->cmd_foot : "");
-	json_byte(b, ',');
-	json_key(b, "nautilus");
-	json_str(b, cfg->cmd_nautilus ? cfg->cmd_nautilus : "");
-	json_byte(b, ',');
-	json_key(b, "ghostty");
-	json_str(b, cfg->cmd_ghostty ? cfg->cmd_ghostty : "");
-	json_byte(b, ',');
-	json_key(b, "ghostty_qt");
-	json_str(b, cfg->cmd_ghostty_qt ? cfg->cmd_ghostty_qt : "");
-	json_byte(b, ',');
-	json_key(b, "editor");
-	json_str(b, cfg->cmd_editor ? cfg->cmd_editor : "");
-	json_byte(b, ',');
-	json_key(b, "launcher");
-	json_str(b, cfg->cmd_launcher ? cfg->cmd_launcher : "");
-	json_byte(b, '}');
-}
-
 static void emit_binds(struct json_buf *b, const struct stonefly_config *cfg) {
 	json_byte(b, '[');
 	for (size_t i = 0; i < cfg->n_keybinds; i++) {
@@ -295,7 +202,7 @@ static void emit_binds(struct json_buf *b, const struct stonefly_config *cfg) {
 		}
 		json_byte(b, ',');
 		json_key(b, "action");
-		json_str(b, action_name(k->action));
+		json_str(b, stonefly_action_name(k->action));
 		if (k->cmd != NULL && k->cmd[0] != '\0') {
 			json_byte(b, ',');
 			json_key(b, "cmd");
@@ -323,7 +230,7 @@ static void emit_taps(struct json_buf *b, const struct stonefly_config *cfg) {
 		}
 		json_byte(b, ',');
 		json_key(b, "single");
-		json_str(b, action_name(t->single));
+		json_str(b, stonefly_action_name(t->single));
 		if (t->single_cmd != NULL && t->single_cmd[0] != '\0') {
 			json_byte(b, ',');
 			json_key(b, "single_cmd");
@@ -332,7 +239,7 @@ static void emit_taps(struct json_buf *b, const struct stonefly_config *cfg) {
 		if (t->double_tap != STONEFLY_ACTION_NONE) {
 			json_byte(b, ',');
 			json_key(b, "double");
-			json_str(b, action_name(t->double_tap));
+			json_str(b, stonefly_action_name(t->double_tap));
 			if (t->double_cmd != NULL && t->double_cmd[0] != '\0') {
 				json_byte(b, ',');
 				json_key(b, "double_cmd");
@@ -438,8 +345,7 @@ static bool section_ok(const char *section) {
 	return section == NULL || section[0] == '\0' || strcmp(section, "options") == 0 ||
 	       strcmp(section, "binds") == 0 || strcmp(section, "taps") == 0 ||
 	       strcmp(section, "scratchpads") == 0 || strcmp(section, "window_rules") == 0 ||
-	       strcmp(section, "cmds") == 0 || strcmp(section, "inputs") == 0 ||
-	       strcmp(section, "outputs") == 0;
+	       strcmp(section, "inputs") == 0 || strcmp(section, "outputs") == 0;
 }
 
 int stonefly_config_to_json(struct stonefly_server *server, const char *section, char *buf,
@@ -503,16 +409,6 @@ int stonefly_config_to_json(struct stonefly_server *server, const char *section,
 			json_key(&b, "window_rules");
 		}
 		emit_window_rules(&b, cfg);
-		need_comma = true;
-	}
-	if (all || strcmp(section, "cmds") == 0) {
-		if (all) {
-			if (need_comma) {
-				json_byte(&b, ',');
-			}
-			json_key(&b, "cmds");
-		}
-		emit_cmds(&b, cfg);
 		need_comma = true;
 	}
 	if (all || strcmp(section, "inputs") == 0) {

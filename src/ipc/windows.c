@@ -4,14 +4,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wlr/types/wlr_output.h>
+#include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/box.h>
 
 #include "output/output.h"
 #include "server/server.h"
+#include "toplevel/toplevel.h"
 #include "util/json.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
-#include "xdg/xdg.h"
 
 static const char *snap_dir_name(enum stonefly_snap snap) {
 	switch (snap) {

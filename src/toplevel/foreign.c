@@ -11,7 +11,6 @@
 #include "toplevel/foreign.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
-#include "xdg/xdg.h"
 
 #include "wlr-foreign-toplevel-management-unstable-v1-protocol.h"
 
@@ -50,7 +49,7 @@ static struct stonefly_foreign_toplevel_handle *
 foreign_handle_for_client(struct stonefly_server *server, struct stonefly_toplevel *toplevel,
 			  struct wl_client *client) {
 	struct stonefly_foreign_toplevel_handle *handle;
-	wl_list_for_each(handle, &server->foreign_handles, link) {
+	wl_list_for_each(handle, &server->foreign.handles, link) {
 		if (handle->toplevel == toplevel &&
 		    wl_resource_get_client(handle->resource) == client) {
 			return handle;
@@ -267,7 +266,7 @@ static void foreign_send_handle_props(struct stonefly_foreign_toplevel_handle *h
 static void foreign_close_handles_for(struct stonefly_toplevel *toplevel) {
 	struct stonefly_server *server = toplevel->server;
 	struct stonefly_foreign_toplevel_handle *handle, *tmp;
-	wl_list_for_each_safe(handle, tmp, &server->foreign_handles, link) {
+	wl_list_for_each_safe(handle, tmp, &server->foreign.handles, link) {
 		if (handle->toplevel != toplevel) {
 			continue;
 		}
@@ -429,7 +428,7 @@ foreign_create_handle(struct stonefly_server *server, struct wl_client *client, 
 
 	wl_resource_set_implementation(handle->resource, &foreign_handle_impl, handle,
 				       foreign_handle_destroy_cb);
-	wl_list_insert(&server->foreign_handles, &handle->link);
+	wl_list_insert(&server->foreign.handles, &handle->link);
 	return handle;
 }
 
@@ -464,7 +463,7 @@ static void foreign_manager_destroy_cb(struct wl_resource *resource) {
 	struct wl_client *client = wl_resource_get_client(resource);
 	struct stonefly_server *server = mgr->server;
 	struct stonefly_foreign_toplevel_handle *handle, *tmp;
-	wl_list_for_each_safe(handle, tmp, &server->foreign_handles, link) {
+	wl_list_for_each_safe(handle, tmp, &server->foreign.handles, link) {
 		if (wl_resource_get_client(handle->resource) != client) {
 			continue;
 		}
@@ -496,7 +495,7 @@ static void foreign_manager_bind(struct wl_client *client, void *data, uint32_t 
 	}
 	mgr->server = server;
 	mgr->resource = resource;
-	wl_list_insert(&server->foreign_managers, &mgr->link);
+	wl_list_insert(&server->foreign.managers, &mgr->link);
 
 	wl_resource_set_implementation(resource, &foreign_manager_impl, mgr,
 				       foreign_manager_destroy_cb);
@@ -509,14 +508,14 @@ static void foreign_manager_bind(struct wl_client *client, void *data, uint32_t 
 }
 
 void stonefly_foreign_toplevel_setup(struct stonefly_server *server) {
-	wl_list_init(&server->foreign_handles);
-	wl_list_init(&server->foreign_managers);
+	wl_list_init(&server->foreign.handles);
+	wl_list_init(&server->foreign.managers);
 
-	server->foreign_toplevel_global =
+	server->foreign.wlr_global =
 		wl_global_create(server->wl_display, &zwlr_foreign_toplevel_manager_v1_interface, 3,
 				 server, foreign_manager_bind);
 
-	if (server->foreign_toplevel_global == NULL) {
+	if (server->foreign.wlr_global == NULL) {
 		SF_LOGW("foreign toplevel", sf_str("err", "failed to create global"));
 		return;
 	}
@@ -525,20 +524,20 @@ void stonefly_foreign_toplevel_setup(struct stonefly_server *server) {
 }
 
 void stonefly_foreign_toplevel_finish(struct stonefly_server *server) {
-	if (server->foreign_toplevel_global != NULL) {
-		wl_global_destroy(server->foreign_toplevel_global);
-		server->foreign_toplevel_global = NULL;
+	if (server->foreign.wlr_global != NULL) {
+		wl_global_destroy(server->foreign.wlr_global);
+		server->foreign.wlr_global = NULL;
 	}
 
 	struct stonefly_foreign_toplevel_handle *handle, *handle_tmp;
-	wl_list_for_each_safe(handle, handle_tmp, &server->foreign_handles, link) {
+	wl_list_for_each_safe(handle, handle_tmp, &server->foreign.handles, link) {
 		handle->toplevel = NULL;
 		foreign_handle_clear_outputs(handle);
 		wl_resource_destroy(handle->resource);
 	}
 
 	struct stonefly_foreign_manager_resource *mgr, *mgr_tmp;
-	wl_list_for_each_safe(mgr, mgr_tmp, &server->foreign_managers, link) {
+	wl_list_for_each_safe(mgr, mgr_tmp, &server->foreign.managers, link) {
 		wl_resource_set_user_data(mgr->resource, NULL);
 		wl_list_remove(&mgr->link);
 		free(mgr);
@@ -547,14 +546,14 @@ void stonefly_foreign_toplevel_finish(struct stonefly_server *server) {
 
 void stonefly_foreign_toplevel_on_map(struct stonefly_toplevel *toplevel) {
 	struct stonefly_server *server = toplevel->server;
-	if (wl_list_empty(&server->foreign_managers)) {
+	if (wl_list_empty(&server->foreign.managers)) {
 		return;
 	}
 
 	SF_LOGI("foreign on_map", sf_i64("id", (int64_t)toplevel->id));
 
 	struct stonefly_foreign_manager_resource *mgr;
-	wl_list_for_each(mgr, &server->foreign_managers, link) {
+	wl_list_for_each(mgr, &server->foreign.managers, link) {
 		foreign_announce_toplevel(mgr, toplevel);
 	}
 
@@ -574,7 +573,7 @@ void stonefly_foreign_toplevel_on_unmap(struct stonefly_toplevel *toplevel) {
 
 void stonefly_foreign_toplevel_on_title_change(struct stonefly_toplevel *toplevel) {
 	struct stonefly_foreign_toplevel_handle *handle;
-	wl_list_for_each(handle, &toplevel->server->foreign_handles, link) {
+	wl_list_for_each(handle, &toplevel->server->foreign.handles, link) {
 		if (handle->toplevel != toplevel) {
 			continue;
 		}
@@ -587,7 +586,7 @@ void stonefly_foreign_toplevel_on_title_change(struct stonefly_toplevel *topleve
 
 void stonefly_foreign_toplevel_on_app_id_change(struct stonefly_toplevel *toplevel) {
 	struct stonefly_foreign_toplevel_handle *handle;
-	wl_list_for_each(handle, &toplevel->server->foreign_handles, link) {
+	wl_list_for_each(handle, &toplevel->server->foreign.handles, link) {
 		if (handle->toplevel != toplevel) {
 			continue;
 		}
@@ -600,7 +599,7 @@ void stonefly_foreign_toplevel_on_app_id_change(struct stonefly_toplevel *toplev
 
 void stonefly_foreign_toplevel_on_parent_change(struct stonefly_toplevel *toplevel) {
 	struct stonefly_foreign_toplevel_handle *handle;
-	wl_list_for_each(handle, &toplevel->server->foreign_handles, link) {
+	wl_list_for_each(handle, &toplevel->server->foreign.handles, link) {
 		if (handle->toplevel != toplevel) {
 			continue;
 		}
@@ -611,7 +610,7 @@ void stonefly_foreign_toplevel_on_parent_change(struct stonefly_toplevel *toplev
 
 void stonefly_foreign_toplevel_on_state_change(struct stonefly_toplevel *toplevel) {
 	struct stonefly_foreign_toplevel_handle *handle;
-	wl_list_for_each(handle, &toplevel->server->foreign_handles, link) {
+	wl_list_for_each(handle, &toplevel->server->foreign.handles, link) {
 		if (handle->toplevel != toplevel) {
 			continue;
 		}
@@ -622,7 +621,7 @@ void stonefly_foreign_toplevel_on_state_change(struct stonefly_toplevel *topleve
 
 void stonefly_foreign_toplevel_on_outputs_change(struct stonefly_toplevel *toplevel) {
 	struct stonefly_foreign_toplevel_handle *handle;
-	wl_list_for_each(handle, &toplevel->server->foreign_handles, link) {
+	wl_list_for_each(handle, &toplevel->server->foreign.handles, link) {
 		if (handle->toplevel != toplevel) {
 			continue;
 		}

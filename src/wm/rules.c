@@ -11,7 +11,7 @@
 #include "server/server.h"
 #include "wm/rules.h"
 #include "wm/wm.h"
-#include "xdg/xdg.h"
+#include "toplevel/toplevel.h"
 
 static bool rule_matches(const struct stonefly_config *cfg, const struct stonefly_window_rule *r,
 			 const char *title, const char *app_id) {

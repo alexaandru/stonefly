@@ -11,17 +11,7 @@
 #include "config/config_lua.h"
 #include "log/log.h"
 #include "server/server.h"
-
-static char *xstrdup(const char *s) {
-	if (s == NULL) {
-		return NULL;
-	}
-	char *d = strdup(s);
-	if (d == NULL) {
-		SF_LOGE("config strdup OOM");
-	}
-	return d;
-}
+#include "util/str.h"
 
 static void copy4(float dst[4], const float src[4]) {
 	dst[0] = src[0];
@@ -174,12 +164,6 @@ void stonefly_config_finish(struct stonefly_config *cfg) {
 	}
 	stonefly_config_lua_close(cfg);
 
-	free(cfg->cmd_foot);
-	free(cfg->cmd_nautilus);
-	free(cfg->cmd_ghostty);
-	free(cfg->cmd_ghostty_qt);
-	free(cfg->cmd_editor);
-	free(cfg->cmd_launcher);
 	free(cfg->capture_block_app_ids);
 	for (size_t i = 0; i < cfg->n_keybinds; i++) {
 		free(cfg->keybinds[i].cmd);
@@ -249,13 +233,7 @@ void stonefly_config_set_defaults(struct stonefly_config *cfg) {
 	cfg->resize_border_in = 3;
 	cfg->resize_border_out = 1;
 
-	cfg->cmd_foot = xstrdup("foot");
-	cfg->cmd_nautilus = xstrdup("nautilus");
-	cfg->cmd_ghostty = xstrdup("ghostty +new-window");
-	cfg->cmd_ghostty_qt = xstrdup("ghostty +toggle-quick-terminal");
-	cfg->cmd_editor = xstrdup("gtk-launch org.gnome.TextEditor");
-	cfg->cmd_launcher = xstrdup("noctalia msg panel-toggle launcher");
-	cfg->capture_block_app_ids = xstrdup("");
+	cfg->capture_block_app_ids = stonefly_xstrdup("");
 
 	static const struct {
 		uint32_t mods;
@@ -284,12 +262,14 @@ void stonefly_config_set_defaults(struct stonefly_config *cfg) {
 		{STONEFLY_SUPER, XKB_KEY_Up, 0, STONEFLY_ACTION_SNAP_TOP, NULL},
 		{STONEFLY_SUPER, XKB_KEY_Down, 0, STONEFLY_ACTION_SNAP_BOTTOM, NULL},
 		{STONEFLY_SUPER, XKB_KEY_u, 0, STONEFLY_ACTION_UNSNAP, NULL},
-		{STONEFLY_SUPER, XKB_KEY_space, 0, STONEFLY_ACTION_SPAWN_FOOT, NULL},
-		{STONEFLY_SUPER, XKB_KEY_z, 0, STONEFLY_ACTION_SPAWN_NAUTILUS, NULL},
-		{STONEFLY_SUPER, XKB_KEY_w, 0, STONEFLY_ACTION_SPAWN_GHOSTTY, NULL},
-		{STONEFLY_ALT, XKB_KEY_Return, 0, STONEFLY_ACTION_SPAWN_GHOSTTY_QT, NULL},
-		{STONEFLY_SUPER, XKB_KEY_e, 0, STONEFLY_ACTION_SPAWN_EDITOR, NULL},
-		{STONEFLY_SUPER, XKB_KEY_t, 0, STONEFLY_ACTION_SCRATCH_CLAIM_TERM, NULL},
+		{STONEFLY_SUPER, XKB_KEY_space, 0, STONEFLY_ACTION_EXEC, "foot"},
+		{STONEFLY_SUPER, XKB_KEY_z, 0, STONEFLY_ACTION_EXEC, "nautilus"},
+		{STONEFLY_SUPER, XKB_KEY_w, 0, STONEFLY_ACTION_EXEC, "ghostty +new-window"},
+		{STONEFLY_ALT, XKB_KEY_Return, 0, STONEFLY_ACTION_EXEC,
+		 "ghostty +toggle-quick-terminal"},
+		{STONEFLY_SUPER, XKB_KEY_e, 0, STONEFLY_ACTION_EXEC,
+		 "gtk-launch org.gnome.TextEditor"},
+		{STONEFLY_SUPER, XKB_KEY_t, 0, STONEFLY_ACTION_SCRATCH_CLAIM, "term"},
 		{0, XKB_KEY_Print, 0, STONEFLY_ACTION_EXEC, "noctalia msg screenshot-fullscreen"},
 		{STONEFLY_SHIFT, XKB_KEY_Print, 0, STONEFLY_ACTION_EXEC,
 		 "noctalia msg screenshot-region"},
@@ -330,7 +310,7 @@ void stonefly_config_set_defaults(struct stonefly_config *cfg) {
 		cfg->keybinds[i].sym = keys[i].sym;
 		cfg->keybinds[i].sym_alt = keys[i].sym_alt;
 		cfg->keybinds[i].action = keys[i].action;
-		cfg->keybinds[i].cmd = xstrdup(keys[i].cmd);
+		cfg->keybinds[i].cmd = stonefly_xstrdup(keys[i].cmd);
 	}
 
 	cfg->n_tapbinds = 1;
@@ -338,8 +318,11 @@ void stonefly_config_set_defaults(struct stonefly_config *cfg) {
 	if (cfg->tapbinds != NULL) {
 		cfg->tapbinds[0].sym = XKB_KEY_Super_L;
 		cfg->tapbinds[0].sym_alt = XKB_KEY_Super_R;
-		cfg->tapbinds[0].single = STONEFLY_ACTION_SPAWN_LAUNCHER;
-		cfg->tapbinds[0].double_tap = STONEFLY_ACTION_SCRATCH_TOGGLE_TERM;
+		cfg->tapbinds[0].single = STONEFLY_ACTION_EXEC;
+		cfg->tapbinds[0].single_cmd =
+			stonefly_xstrdup("noctalia msg panel-toggle launcher");
+		cfg->tapbinds[0].double_tap = STONEFLY_ACTION_SCRATCH_TOGGLE;
+		cfg->tapbinds[0].double_cmd = stonefly_xstrdup("term");
 	} else {
 		cfg->n_tapbinds = 0;
 	}
@@ -347,9 +330,9 @@ void stonefly_config_set_defaults(struct stonefly_config *cfg) {
 	cfg->n_scratchpads = 1;
 	cfg->scratchpads = calloc(1, sizeof *cfg->scratchpads);
 	if (cfg->scratchpads != NULL) {
-		cfg->scratchpads[0].name = xstrdup("term");
-		cfg->scratchpads[0].cmd = xstrdup("ghostty --class=stonefly.scratch.term");
-		cfg->scratchpads[0].app_id = xstrdup("stonefly.scratch.term");
+		cfg->scratchpads[0].name = stonefly_xstrdup("term");
+		cfg->scratchpads[0].cmd = stonefly_xstrdup("ghostty --class=stonefly.scratch.term");
+		cfg->scratchpads[0].app_id = stonefly_xstrdup("stonefly.scratch.term");
 		cfg->scratchpads[0].auto_hide = true;
 	} else {
 		cfg->n_scratchpads = 0;

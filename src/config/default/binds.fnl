@@ -49,13 +49,13 @@
   ["Super+Shift+7" {:action :move_to_workspace :cmd "7"}]
   ["Super+Shift+8" {:action :move_to_workspace :cmd "8"}]
   ["Super+Shift+9" {:action :move_to_workspace :cmd "9"}]
-  ;; spawn / scratch
-  ["Super+space" {:action :spawn_foot}]
-  ["Super+z" {:action :spawn_nautilus}]
-  ["Super+w" {:action :spawn_ghostty}]
-  ["Alt+Return" {:action :spawn_ghostty_qt}]
-  ["Super+e" {:action :spawn_editor}]
-  ["Super+t" {:action :scratch_claim_term}]
+  ;; spawn / scratch (exec cmd or named pad)
+  ["Super+space" {:action :exec :cmd "foot"}]
+  ["Super+z" {:action :exec :cmd "nautilus"}]
+  ["Super+w" {:action :exec :cmd "ghostty +new-window"}]
+  ["Alt+Return" {:action :exec :cmd "ghostty +toggle-quick-terminal"}]
+  ["Super+e" {:action :exec :cmd "gtk-launch org.gnome.TextEditor"}]
+  ["Super+t" {:action :scratch_claim :cmd "term"}]
   ;; screenshots → noctalia
   ["Print" {:action :exec :cmd (noctalia "screenshot-fullscreen")}]
   ["Shift+Print" {:action :exec :cmd (noctalia "screenshot-region")}]
@@ -81,5 +81,7 @@
   (bind (. b 1) (. b 2)))
 
 ;; Super tap → launcher; double-tap → scratchpad term.
-(stonefly.tap "Super" {:single :spawn_launcher
-                       :double :scratch_toggle_term})
+(stonefly.tap "Super" {:single :exec
+                       :single_cmd "noctalia msg panel-toggle launcher"
+                       :double :scratch_toggle
+                       :double_cmd "term"})

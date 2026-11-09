@@ -39,12 +39,12 @@ static void session_focus_lock_surface(struct stonefly_server *server,
 }
 
 static void session_focus_any_lock(struct stonefly_server *server) {
-	if (server->session_lock == NULL) {
+	if (server->lock.current == NULL) {
 		wlr_seat_keyboard_notify_clear_focus(server->seat);
 		return;
 	}
 	struct stonefly_lock_surface *ls;
-	wl_list_for_each(ls, &server->lock_surfaces, link) {
+	wl_list_for_each(ls, &server->lock.surfaces, link) {
 		if (ls->lock_surface->surface->mapped) {
 			session_focus_lock_surface(server, ls->lock_surface->surface);
 			return;
@@ -67,7 +67,7 @@ static void lock_surface_destroy(struct wl_listener *listener, void *data) {
 	}
 	free(ls);
 
-	if (server->locked && had_focus) {
+	if (server->lock.active && had_focus) {
 		session_focus_any_lock(server);
 	}
 }
@@ -79,8 +79,7 @@ static void lock_surface_map(struct wl_listener *listener, void *data) {
 }
 
 static void session_new_lock_surface(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server =
-		wl_container_of(listener, server, session_lock_new_surface);
+	struct stonefly_server *server = wl_container_of(listener, server, lock.on_new_surface);
 	struct wlr_session_lock_surface_v1 *lock_surface = data;
 	struct wlr_output *wlr_output = lock_surface->output;
 	struct stonefly_output *output = wlr_output != NULL ? wlr_output->data : NULL;
@@ -93,7 +92,7 @@ static void session_new_lock_surface(struct wl_listener *listener, void *data) {
 	ls->lock_surface = lock_surface;
 	ls->output = output;
 
-	struct wlr_scene_tree *parent = server->session_lock_tree;
+	struct wlr_scene_tree *parent = server->lock.tree;
 	if (parent == NULL) {
 		parent = server->layers.lock;
 	}
@@ -121,20 +120,20 @@ static void session_new_lock_surface(struct wl_listener *listener, void *data) {
 	ls->map.notify = lock_surface_map;
 	wl_signal_add(&lock_surface->surface->events.map, &ls->map);
 
-	wl_list_insert(&server->lock_surfaces, &ls->link);
+	wl_list_insert(&server->lock.surfaces, &ls->link);
 }
 
 static void session_destroy_lock(struct stonefly_server *server, bool unlocked) {
-	if (server->session_lock == NULL) {
+	if (server->lock.current == NULL) {
 		return;
 	}
 
-	wl_list_remove(&server->session_lock_new_surface.link);
-	wl_list_remove(&server->session_lock_unlock.link);
-	wl_list_remove(&server->session_lock_destroy.link);
+	wl_list_remove(&server->lock.on_new_surface.link);
+	wl_list_remove(&server->lock.on_unlock.link);
+	wl_list_remove(&server->lock.on_destroy.link);
 
 	struct stonefly_lock_surface *ls, *tmp;
-	wl_list_for_each_safe(ls, tmp, &server->lock_surfaces, link) {
+	wl_list_for_each_safe(ls, tmp, &server->lock.surfaces, link) {
 		wl_list_remove(&ls->destroy.link);
 		wl_list_remove(&ls->map.link);
 		wl_list_remove(&ls->link);
@@ -143,27 +142,27 @@ static void session_destroy_lock(struct stonefly_server *server, bool unlocked) 
 		}
 		free(ls);
 	}
-	wl_list_init(&server->lock_surfaces);
+	wl_list_init(&server->lock.surfaces);
 
-	if (server->session_lock_tree != NULL) {
-		wlr_scene_node_destroy(&server->session_lock_tree->node);
-		server->session_lock_tree = NULL;
+	if (server->lock.tree != NULL) {
+		wlr_scene_node_destroy(&server->lock.tree->node);
+		server->lock.tree = NULL;
 	}
-	server->session_lock = NULL;
+	server->lock.current = NULL;
 
 	if (unlocked) {
-		server->locked = false;
-		if (server->lock_blank != NULL) {
-			wlr_scene_node_set_enabled(&server->lock_blank->node, false);
+		server->lock.active = false;
+		if (server->lock.blank != NULL) {
+			wlr_scene_node_set_enabled(&server->lock.blank->node, false);
 		}
 		wlr_seat_keyboard_notify_clear_focus(server->seat);
 		stonefly_focus_top(server);
 		SF_LOGI("session unlocked");
 	} else {
 		/* Client died while locked: keep blank up, stay locked. */
-		server->locked = true;
-		if (server->lock_blank != NULL) {
-			wlr_scene_node_set_enabled(&server->lock_blank->node, true);
+		server->lock.active = true;
+		if (server->lock.blank != NULL) {
+			wlr_scene_node_set_enabled(&server->lock.blank->node, true);
 		}
 		wlr_seat_keyboard_notify_clear_focus(server->seat);
 		SF_LOGW("session lock client gone; blank retained");
@@ -172,43 +171,43 @@ static void session_destroy_lock(struct stonefly_server *server, bool unlocked) 
 
 static void session_lock_unlock(struct wl_listener *listener, void *data) {
 	(void)data;
-	struct stonefly_server *server = wl_container_of(listener, server, session_lock_unlock);
+	struct stonefly_server *server = wl_container_of(listener, server, lock.on_unlock);
 	session_destroy_lock(server, true);
 }
 
 static void session_lock_destroy(struct wl_listener *listener, void *data) {
 	(void)data;
-	struct stonefly_server *server = wl_container_of(listener, server, session_lock_destroy);
+	struct stonefly_server *server = wl_container_of(listener, server, lock.on_destroy);
 	/* destroy without unlock event → remain locked with blank. */
 	session_destroy_lock(server, false);
 }
 
 static void session_new_lock(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server = wl_container_of(listener, server, session_lock_new);
+	struct stonefly_server *server = wl_container_of(listener, server, lock.on_new);
 	struct wlr_session_lock_v1 *lock = data;
 
-	if (server->session_lock != NULL) {
+	if (server->lock.current != NULL) {
 		SF_LOGW("session lock rejected; already locked");
 		wlr_session_lock_v1_destroy(lock);
 		return;
 	}
 
-	server->session_lock = lock;
-	server->locked = true;
-	wl_list_init(&server->lock_surfaces);
+	server->lock.current = lock;
+	server->lock.active = true;
+	wl_list_init(&server->lock.surfaces);
 
-	if (server->lock_blank != NULL) {
+	if (server->lock.blank != NULL) {
 		/* Cover the whole layout while the locker maps surfaces. */
 		struct wlr_box layout = {0};
 		wlr_output_layout_get_box(server->output_layout, NULL, &layout);
 		if (layout.width > 0 && layout.height > 0) {
-			wlr_scene_rect_set_size(server->lock_blank, layout.width, layout.height);
-			wlr_scene_node_set_position(&server->lock_blank->node, layout.x, layout.y);
+			wlr_scene_rect_set_size(server->lock.blank, layout.width, layout.height);
+			wlr_scene_node_set_position(&server->lock.blank->node, layout.x, layout.y);
 		}
-		wlr_scene_node_set_enabled(&server->lock_blank->node, true);
+		wlr_scene_node_set_enabled(&server->lock.blank->node, true);
 	}
 
-	server->session_lock_tree = wlr_scene_tree_create(server->layers.lock);
+	server->lock.tree = wlr_scene_tree_create(server->layers.lock);
 
 	/* Drop interactive grab / normal client focus. */
 	server->exclusive_layer = NULL;
@@ -216,12 +215,12 @@ static void session_new_lock(struct wl_listener *listener, void *data) {
 	wlr_seat_keyboard_notify_clear_focus(server->seat);
 	wlr_seat_pointer_clear_focus(server->seat);
 
-	server->session_lock_new_surface.notify = session_new_lock_surface;
-	wl_signal_add(&lock->events.new_surface, &server->session_lock_new_surface);
-	server->session_lock_unlock.notify = session_lock_unlock;
-	wl_signal_add(&lock->events.unlock, &server->session_lock_unlock);
-	server->session_lock_destroy.notify = session_lock_destroy;
-	wl_signal_add(&lock->events.destroy, &server->session_lock_destroy);
+	server->lock.on_new_surface.notify = session_new_lock_surface;
+	wl_signal_add(&lock->events.new_surface, &server->lock.on_new_surface);
+	server->lock.on_unlock.notify = session_lock_unlock;
+	wl_signal_add(&lock->events.unlock, &server->lock.on_unlock);
+	server->lock.on_destroy.notify = session_lock_destroy;
+	wl_signal_add(&lock->events.destroy, &server->lock.on_destroy);
 
 	wlr_session_lock_v1_send_locked(lock);
 	SF_LOGI("session locked");
@@ -246,7 +245,7 @@ static void idle_inhibitor_destroy_cb(struct wl_listener *listener, void *data) 
 }
 
 static void session_new_idle_inhibitor(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server = wl_container_of(listener, server, idle_inhibitor_new);
+	struct stonefly_server *server = wl_container_of(listener, server, idle.on_inhibitor_new);
 	struct wlr_idle_inhibitor_v1 *inhibitor = data;
 
 	struct idle_inhibitor_listener *wrap = calloc(1, sizeof(*wrap));
@@ -263,7 +262,8 @@ static void session_new_idle_inhibitor(struct wl_listener *listener, void *data)
 }
 
 static void output_power_set_mode(struct wl_listener *listener, void *data) {
-	struct stonefly_server *server = wl_container_of(listener, server, output_power_set_mode);
+	struct stonefly_server *server =
+		wl_container_of(listener, server, output_power.on_set_mode);
 	struct wlr_output_power_v1_set_mode_event *event = data;
 	struct wlr_output *wlr_output = event->output;
 	(void)server;
@@ -292,12 +292,12 @@ static void output_power_set_mode(struct wl_listener *listener, void *data) {
 
 void stonefly_session_check_inhibitors(struct stonefly_server *server,
 				       struct wlr_surface *exclude) {
-	if (server->idle_notifier == NULL || server->idle_inhibit_mgr == NULL) {
+	if (server->idle.notifier == NULL || server->idle.inhibit_mgr == NULL) {
 		return;
 	}
 	bool inhibited = false;
 	struct wlr_idle_inhibitor_v1 *inhibitor;
-	wl_list_for_each(inhibitor, &server->idle_inhibit_mgr->inhibitors, link) {
+	wl_list_for_each(inhibitor, &server->idle.inhibit_mgr->inhibitors, link) {
 		struct wlr_surface *root = wlr_surface_get_root_surface(inhibitor->surface);
 		if (exclude != NULL && root == exclude) {
 			continue;
@@ -307,44 +307,46 @@ void stonefly_session_check_inhibitors(struct stonefly_server *server,
 		inhibited = true;
 		break;
 	}
-	wlr_idle_notifier_v1_set_inhibited(server->idle_notifier, inhibited);
+	wlr_idle_notifier_v1_set_inhibited(server->idle.notifier, inhibited);
 }
 
 void stonefly_session_notify_activity(struct stonefly_server *server) {
-	if (server->idle_notifier == NULL || server->seat == NULL) {
+	if (server->idle.notifier == NULL || server->seat == NULL) {
 		return;
 	}
-	wlr_idle_notifier_v1_notify_activity(server->idle_notifier, server->seat);
+	wlr_idle_notifier_v1_notify_activity(server->idle.notifier, server->seat);
 }
 
 bool stonefly_session_locked(const struct stonefly_server *server) {
-	return server != NULL && server->locked;
+	return server != NULL && server->lock.active;
 }
 
 void stonefly_session_setup(struct stonefly_server *server) {
-	wl_list_init(&server->lock_surfaces);
-	server->locked = false;
-	server->session_lock = NULL;
-	server->session_lock_tree = NULL;
+	wl_list_init(&server->lock.surfaces);
+	server->lock.active = false;
+	server->lock.current = NULL;
+	server->lock.tree = NULL;
 
 	/* Above overlay: lock blank + lock surfaces. */
 	server->layers.lock = wlr_scene_tree_create(&server->scene->tree);
 	float blank[4] = {0.05f, 0.05f, 0.07f, 1.0f};
-	server->lock_blank = wlr_scene_rect_create(server->layers.lock, 0, 0, blank);
-	wlr_scene_node_set_enabled(&server->lock_blank->node, false);
+	server->lock.blank = wlr_scene_rect_create(server->layers.lock, 0, 0, blank);
+	wlr_scene_node_set_enabled(&server->lock.blank->node, false);
 
-	server->session_lock_mgr = wlr_session_lock_manager_v1_create(server->wl_display);
-	server->session_lock_new.notify = session_new_lock;
-	wl_signal_add(&server->session_lock_mgr->events.new_lock, &server->session_lock_new);
+	server->lock.mgr = wlr_session_lock_manager_v1_create(server->wl_display);
+	server->lock.on_new.notify = session_new_lock;
+	wl_signal_add(&server->lock.mgr->events.new_lock, &server->lock.on_new);
 
-	server->idle_notifier = wlr_idle_notifier_v1_create(server->wl_display);
-	server->idle_inhibit_mgr = wlr_idle_inhibit_v1_create(server->wl_display);
-	server->idle_inhibitor_new.notify = session_new_idle_inhibitor;
-	wl_signal_add(&server->idle_inhibit_mgr->events.new_inhibitor, &server->idle_inhibitor_new);
+	server->idle.notifier = wlr_idle_notifier_v1_create(server->wl_display);
+	server->idle.inhibit_mgr = wlr_idle_inhibit_v1_create(server->wl_display);
+	server->idle.on_inhibitor_new.notify = session_new_idle_inhibitor;
+	wl_signal_add(&server->idle.inhibit_mgr->events.new_inhibitor,
+		      &server->idle.on_inhibitor_new);
 
-	server->output_power_mgr = wlr_output_power_manager_v1_create(server->wl_display);
-	server->output_power_set_mode.notify = output_power_set_mode;
-	wl_signal_add(&server->output_power_mgr->events.set_mode, &server->output_power_set_mode);
+	server->output_power.mgr = wlr_output_power_manager_v1_create(server->wl_display);
+	server->output_power.on_set_mode.notify = output_power_set_mode;
+	wl_signal_add(&server->output_power.mgr->events.set_mode,
+		      &server->output_power.on_set_mode);
 
 	SF_LOGI("session lock / idle / output-power", sf_str("session_lock", "v1"),
 		sf_str("idle_notify", "v1"), sf_str("idle_inhibit", "v1"),
@@ -352,22 +354,22 @@ void stonefly_session_setup(struct stonefly_server *server) {
 }
 
 void stonefly_session_finish(struct stonefly_server *server) {
-	if (server->session_lock != NULL) {
+	if (server->lock.current != NULL) {
 		session_destroy_lock(server, true);
 	}
-	if (server->session_lock_mgr != NULL) {
-		wl_list_remove(&server->session_lock_new.link);
-		server->session_lock_mgr = NULL;
+	if (server->lock.mgr != NULL) {
+		wl_list_remove(&server->lock.on_new.link);
+		server->lock.mgr = NULL;
 	}
-	if (server->idle_inhibit_mgr != NULL) {
-		wl_list_remove(&server->idle_inhibitor_new.link);
-		server->idle_inhibit_mgr = NULL;
+	if (server->idle.inhibit_mgr != NULL) {
+		wl_list_remove(&server->idle.on_inhibitor_new.link);
+		server->idle.inhibit_mgr = NULL;
 	}
-	if (server->output_power_mgr != NULL) {
-		wl_list_remove(&server->output_power_set_mode.link);
-		server->output_power_mgr = NULL;
+	if (server->output_power.mgr != NULL) {
+		wl_list_remove(&server->output_power.on_set_mode.link);
+		server->output_power.mgr = NULL;
 	}
-	server->idle_notifier = NULL;
-	server->lock_blank = NULL;
+	server->idle.notifier = NULL;
+	server->lock.blank = NULL;
 	server->layers.lock = NULL;
 }

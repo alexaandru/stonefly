@@ -17,6 +17,7 @@
 #include "ssd/ssd_layout.h"
 #include "ssd/ssd_paint.h"
 #include "ssd/ssd_policy.h"
+#include "util/time.h"
 #include "wm/wm.h"
 #include "xdg/xdg.h"
 
@@ -358,10 +359,6 @@ bool stonefly_ssd_node_is_titlebar(struct wlr_scene_node *node,
 	return true;
 }
 
-static int64_t timespec_ms(const struct timespec *ts) {
-	return (int64_t)ts->tv_sec * 1000LL + ts->tv_nsec / 1000000LL;
-}
-
 void stonefly_ssd_pointer_reset(void) {
 	ssd_ptr.toplevel = NULL;
 	ssd_ptr.pressed = STONEFLY_SSD_BTN_NONE;
@@ -398,7 +395,8 @@ bool stonefly_ssd_pointer_button(struct stonefly_server *server, struct stonefly
 			struct timespec now;
 			clock_gettime(CLOCK_MONOTONIC, &now);
 			if (ssd_ptr.last_bar == toplevel) {
-				int64_t dt = timespec_ms(&now) - timespec_ms(&ssd_ptr.last_click);
+				int64_t dt = stonefly_timespec_ms(&now) -
+					     stonefly_timespec_ms(&ssd_ptr.last_click);
 				if (dt >= 0 && dt < ssd_dblclick_ms) {
 					ssd_ptr.last_click = (struct timespec){0};
 					ssd_ptr.last_bar = NULL;

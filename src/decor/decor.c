@@ -12,8 +12,10 @@
 #include "log/log.h"
 #include "server/server.h"
 #include "ssd/ssd.h"
+#include "util/math.h"
+#include "util/time.h"
 #include "wm/wm.h"
-#include "xdg/xdg.h"
+#include "toplevel/toplevel.h"
 
 #include <wlr/types/wlr_buffer.h>
 
@@ -32,30 +34,6 @@ struct stonefly_ghost {
 	int anim_from_x, anim_from_y;
 	int anim_to_x, anim_to_y;
 };
-
-static double clamp01(double t) {
-	if (t < 0.0) {
-		return 0.0;
-	}
-	if (t > 1.0) {
-		return 1.0;
-	}
-	return t;
-}
-
-static double ease_out_cubic(double t) {
-	t = clamp01(t);
-	double u = 1.0 - t;
-	return 1.0 - u * u * u;
-}
-
-static int lerp_i(int a, int b, double t) {
-	return (int)((double)a + (double)(b - a) * clamp01(t) + (t >= 0 ? 0.5 : -0.5));
-}
-
-static int64_t timespec_ns(const struct timespec *ts) {
-	return (int64_t)ts->tv_sec * 1000000000LL + (int64_t)ts->tv_nsec;
-}
 
 void stonefly_decor_setup_scene(struct stonefly_server *server) {
 	/* Blur node is created in stonefly_layer_setup (z-order). */
@@ -743,14 +721,15 @@ void stonefly_ghost_tick(struct stonefly_server *server, const struct timespec *
 			continue;
 		}
 		wlr_scene_node_raise_to_top(&ghost->tree->node);
-		int64_t elapsed = timespec_ns(now) - timespec_ns(&ghost->anim_start);
+		int64_t elapsed =
+			stonefly_timespec_ns(now) - stonefly_timespec_ns(&ghost->anim_start);
 		double t = 1.0;
 		if (ghost->anim_dur_ns > 0) {
 			t = (double)elapsed / (double)ghost->anim_dur_ns;
 		}
-		double p = ease_out_cubic(t);
-		int x = lerp_i(ghost->anim_from_x, ghost->anim_to_x, p);
-		int y = lerp_i(ghost->anim_from_y, ghost->anim_to_y, p);
+		double p = stonefly_ease_out_cubic(t);
+		int x = stonefly_lerp_i(ghost->anim_from_x, ghost->anim_to_x, p);
+		int y = stonefly_lerp_i(ghost->anim_from_y, ghost->anim_to_y, p);
 		wlr_scene_node_set_position(&ghost->tree->node, x, y);
 		if (t >= 1.0) {
 			ghost->anim_active = false;

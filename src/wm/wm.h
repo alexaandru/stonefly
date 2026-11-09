@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 #include "config/config.h"
-#include "xdg/xdg.h"
+#include "toplevel/toplevel.h"
 
 struct stonefly_output;
 struct wlr_output;

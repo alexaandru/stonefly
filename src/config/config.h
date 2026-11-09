@@ -40,15 +40,7 @@ enum stonefly_action {
 	STONEFLY_ACTION_SNAP_TOP,
 	STONEFLY_ACTION_SNAP_BOTTOM,
 	STONEFLY_ACTION_UNSNAP,
-	STONEFLY_ACTION_SPAWN_FOOT,
-	STONEFLY_ACTION_SPAWN_NAUTILUS,
-	STONEFLY_ACTION_SPAWN_GHOSTTY,
-	STONEFLY_ACTION_SPAWN_GHOSTTY_QT,
-	STONEFLY_ACTION_SPAWN_EDITOR,
-	STONEFLY_ACTION_SPAWN_LAUNCHER,
-	STONEFLY_ACTION_SCRATCH_TOGGLE_TERM,
-	STONEFLY_ACTION_SCRATCH_CLAIM_TERM,
-	/* Run keybind.cmd via /bin/sh -c (noctalia msg, etc.). */
+	/* Run keybind.cmd via /bin/sh -c (spawn, noctalia msg, etc.). */
 	STONEFLY_ACTION_EXEC,
 	/* Named scratchpad; cmd holds pad name (default "term"). */
 	STONEFLY_ACTION_SCRATCH_TOGGLE,
@@ -162,13 +154,6 @@ struct stonefly_config {
 	 * the content/SSD edge; outer = past the drawn border. Both 0 disables. */
 	int resize_border_in;  /* default 3 */
 	int resize_border_out; /* default 1 */
-
-	char *cmd_foot;
-	char *cmd_nautilus;
-	char *cmd_ghostty;
-	char *cmd_ghostty_qt;
-	char *cmd_editor;
-	char *cmd_launcher;
 
 	/* Comma-separated app_id substrings that auto-set capture_blocked. */
 	char *capture_block_app_ids;

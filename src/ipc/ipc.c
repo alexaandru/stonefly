@@ -24,7 +24,7 @@
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
-#include "xdg/xdg.h"
+#include "toplevel/toplevel.h"
 
 #include <wlr/types/wlr_xdg_shell.h>
 
@@ -431,7 +431,7 @@ static void ipc_handle_config(struct stonefly_ipc_client *client, const char *ar
 		free(out);
 		if (section != NULL) {
 			ipc_write_err(client, "unknown config section "
-					      "(options|binds|taps|scratchpads|window_rules|cmds|"
+					      "(options|binds|taps|scratchpads|window_rules|"
 					      "inputs|outputs)");
 		} else {
 			ipc_write_line(client->fd, "{\"error\":\"config snapshot overflow\"}");
@@ -804,23 +804,27 @@ static int ipc_print_ok_reply(char *reply) {
 	return 0;
 }
 
-int stonefly_ipc_cmd_windows(int argc, char **argv) {
+/* Human-readable formatter for list replies; must not free reply. */
+typedef int (*ipc_list_format_fn)(const char *reply);
+
+static int ipc_cmd_list(int argc, char **argv, const char *cmd, const char *usage,
+			ipc_list_format_fn format) {
 	bool as_json = false;
 
 	for (int i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "--json") == 0) {
 			as_json = true;
 		} else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-			printf("Usage: stonefly windows [--json]\n");
+			printf("%s\n", usage);
 			return 0;
 		} else {
-			fprintf(stderr, "Usage: stonefly windows [--json]\n");
+			fprintf(stderr, "%s\n", usage);
 			return 1;
 		}
 	}
 
 	char *reply = NULL;
-	int rc = ipc_request("windows", &reply);
+	int rc = ipc_request(cmd, &reply);
 	if (rc != 0) {
 		return rc;
 	}
@@ -837,206 +841,12 @@ int stonefly_ipc_cmd_windows(int argc, char **argv) {
 		return 0;
 	}
 
-	struct stonefly_window_info infos[STONEFLY_IPC_MAX_WINDOWS];
-	size_t n = 0;
-	if (!stonefly_windows_from_json(reply, infos, STONEFLY_IPC_MAX_WINDOWS, &n)) {
-		fprintf(stderr, "stonefly: bad windows reply\n");
-		free(reply);
-		return 1;
-	}
+	rc = format(reply);
 	free(reply);
-	stonefly_windows_print(infos, n, stdout);
-	return 0;
+	return rc;
 }
 
-int stonefly_ipc_cmd_layers(int argc, char **argv) {
-	bool as_json = false;
-
-	for (int i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "--json") == 0) {
-			as_json = true;
-		} else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-			printf("Usage: stonefly layers [--json]\n");
-			return 0;
-		} else {
-			fprintf(stderr, "Usage: stonefly layers [--json]\n");
-			return 1;
-		}
-	}
-
-	char *reply = NULL;
-	int rc = ipc_request("layers", &reply);
-	if (rc != 0) {
-		return rc;
-	}
-
-	if (reply[0] == '{' && strncmp(reply, "{\"error\":", 9) == 0) {
-		fprintf(stderr, "stonefly: %s\n", reply);
-		free(reply);
-		return 1;
-	}
-
-	if (as_json) {
-		printf("%s\n", reply);
-		free(reply);
-		return 0;
-	}
-
-	struct stonefly_layer_info infos[STONEFLY_IPC_MAX_LAYERS];
-	size_t n = 0;
-	if (!stonefly_layers_from_json(reply, infos, STONEFLY_IPC_MAX_LAYERS, &n)) {
-		fprintf(stderr, "stonefly: bad layers reply\n");
-		free(reply);
-		return 1;
-	}
-	free(reply);
-	stonefly_layers_print(infos, n, stdout);
-	return 0;
-}
-
-int stonefly_ipc_cmd_outputs(int argc, char **argv) {
-	bool as_json = false;
-
-	for (int i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "--json") == 0) {
-			as_json = true;
-		} else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-			printf("Usage: stonefly outputs [--json]\n");
-			return 0;
-		} else {
-			fprintf(stderr, "Usage: stonefly outputs [--json]\n");
-			return 1;
-		}
-	}
-
-	char *reply = NULL;
-	int rc = ipc_request("outputs", &reply);
-	if (rc != 0) {
-		return rc;
-	}
-
-	if (reply[0] == '{' && strncmp(reply, "{\"error\":", 9) == 0) {
-		fprintf(stderr, "stonefly: %s\n", reply);
-		free(reply);
-		return 1;
-	}
-
-	if (as_json) {
-		printf("%s\n", reply);
-		free(reply);
-		return 0;
-	}
-
-	struct stonefly_output_info infos[STONEFLY_IPC_MAX_OUTPUTS];
-	size_t n = 0;
-	if (!stonefly_outputs_from_json(reply, infos, STONEFLY_IPC_MAX_OUTPUTS, &n)) {
-		fprintf(stderr, "stonefly: bad outputs reply\n");
-		free(reply);
-		return 1;
-	}
-	free(reply);
-	stonefly_outputs_print(infos, n, stdout);
-	return 0;
-}
-
-int stonefly_ipc_cmd_workspaces(int argc, char **argv) {
-	bool as_json = false;
-
-	for (int i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "--json") == 0) {
-			as_json = true;
-		} else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-			printf("Usage: stonefly workspaces [--json]\n");
-			return 0;
-		} else {
-			fprintf(stderr, "Usage: stonefly workspaces [--json]\n");
-			return 1;
-		}
-	}
-
-	char *reply = NULL;
-	int rc = ipc_request("workspaces", &reply);
-	if (rc != 0) {
-		return rc;
-	}
-
-	if (reply[0] == '{' && strncmp(reply, "{\"error\":", 9) == 0) {
-		fprintf(stderr, "stonefly: %s\n", reply);
-		free(reply);
-		return 1;
-	}
-
-	if (as_json) {
-		printf("%s\n", reply);
-		free(reply);
-		return 0;
-	}
-
-	struct stonefly_workspace_info infos[STONEFLY_IPC_MAX_WORKSPACES];
-	size_t n = 0;
-	if (!stonefly_workspaces_from_json(reply, infos, STONEFLY_IPC_MAX_WORKSPACES, &n)) {
-		fprintf(stderr, "stonefly: bad workspaces reply\n");
-		free(reply);
-		return 1;
-	}
-	free(reply);
-	stonefly_workspaces_print(infos, n, stdout);
-	return 0;
-}
-
-int stonefly_ipc_cmd_focus(int argc, char **argv) {
-	const char *id = NULL;
-	for (int i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-			printf("Usage: stonefly focus <id>\n");
-			return 0;
-		}
-		if (id != NULL) {
-			fprintf(stderr, "Usage: stonefly focus <id>\n");
-			return 1;
-		}
-		id = argv[i];
-	}
-	if (id == NULL) {
-		fprintf(stderr, "Usage: stonefly focus <id>\n");
-		return 1;
-	}
-
-	char *reply = NULL;
-	int rc = ipc_request_arg("focus", id, &reply);
-	if (rc != 0) {
-		return rc;
-	}
-	return ipc_print_ok_reply(reply);
-}
-
-int stonefly_ipc_cmd_close(int argc, char **argv) {
-	const char *id = NULL;
-	for (int i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-			printf("Usage: stonefly close <id>\n");
-			return 0;
-		}
-		if (id != NULL) {
-			fprintf(stderr, "Usage: stonefly close <id>\n");
-			return 1;
-		}
-		id = argv[i];
-	}
-	if (id == NULL) {
-		fprintf(stderr, "Usage: stonefly close <id>\n");
-		return 1;
-	}
-
-	char *reply = NULL;
-	int rc = ipc_request_arg("close", id, &reply);
-	if (rc != 0) {
-		return rc;
-	}
-	return ipc_print_ok_reply(reply);
-}
-
-static int ipc_cmd_capture_block(int argc, char **argv, const char *cmd, const char *usage) {
+static int ipc_cmd_with_id(int argc, char **argv, const char *cmd, const char *usage) {
 	const char *id = NULL;
 	for (int i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
@@ -1062,61 +872,126 @@ static int ipc_cmd_capture_block(int argc, char **argv, const char *cmd, const c
 	return ipc_print_ok_reply(reply);
 }
 
+/* help_detail is optional extra lines after usage (help only; not stderr). */
+static int ipc_cmd_ok_noarg(int argc, char **argv, const char *cmd, const char *usage,
+			    const char *help_detail) {
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+			printf("%s\n", usage);
+			if (help_detail != NULL) {
+				fputs(help_detail, stdout);
+			}
+			return 0;
+		}
+		fprintf(stderr, "%s\n", usage);
+		return 1;
+	}
+
+	char *reply = NULL;
+	int rc = ipc_request(cmd, &reply);
+	if (rc != 0) {
+		return rc;
+	}
+	return ipc_print_ok_reply(reply);
+}
+
+static int windows_format(const char *reply) {
+	struct stonefly_window_info infos[STONEFLY_IPC_MAX_WINDOWS];
+	size_t n = 0;
+	if (!stonefly_windows_from_json(reply, infos, STONEFLY_IPC_MAX_WINDOWS, &n)) {
+		fprintf(stderr, "stonefly: bad windows reply\n");
+		return 1;
+	}
+	stonefly_windows_print(infos, n, stdout);
+	return 0;
+}
+
+static int layers_format(const char *reply) {
+	struct stonefly_layer_info infos[STONEFLY_IPC_MAX_LAYERS];
+	size_t n = 0;
+	if (!stonefly_layers_from_json(reply, infos, STONEFLY_IPC_MAX_LAYERS, &n)) {
+		fprintf(stderr, "stonefly: bad layers reply\n");
+		return 1;
+	}
+	stonefly_layers_print(infos, n, stdout);
+	return 0;
+}
+
+static int outputs_format(const char *reply) {
+	struct stonefly_output_info infos[STONEFLY_IPC_MAX_OUTPUTS];
+	size_t n = 0;
+	if (!stonefly_outputs_from_json(reply, infos, STONEFLY_IPC_MAX_OUTPUTS, &n)) {
+		fprintf(stderr, "stonefly: bad outputs reply\n");
+		return 1;
+	}
+	stonefly_outputs_print(infos, n, stdout);
+	return 0;
+}
+
+static int workspaces_format(const char *reply) {
+	struct stonefly_workspace_info infos[STONEFLY_IPC_MAX_WORKSPACES];
+	size_t n = 0;
+	if (!stonefly_workspaces_from_json(reply, infos, STONEFLY_IPC_MAX_WORKSPACES, &n)) {
+		fprintf(stderr, "stonefly: bad workspaces reply\n");
+		return 1;
+	}
+	stonefly_workspaces_print(infos, n, stdout);
+	return 0;
+}
+
+int stonefly_ipc_cmd_windows(int argc, char **argv) {
+	return ipc_cmd_list(argc, argv, "windows", "Usage: stonefly windows [--json]",
+			    windows_format);
+}
+
+int stonefly_ipc_cmd_layers(int argc, char **argv) {
+	return ipc_cmd_list(argc, argv, "layers", "Usage: stonefly layers [--json]", layers_format);
+}
+
+int stonefly_ipc_cmd_outputs(int argc, char **argv) {
+	return ipc_cmd_list(argc, argv, "outputs", "Usage: stonefly outputs [--json]",
+			    outputs_format);
+}
+
+int stonefly_ipc_cmd_workspaces(int argc, char **argv) {
+	return ipc_cmd_list(argc, argv, "workspaces", "Usage: stonefly workspaces [--json]",
+			    workspaces_format);
+}
+
+int stonefly_ipc_cmd_focus(int argc, char **argv) {
+	return ipc_cmd_with_id(argc, argv, "focus", "Usage: stonefly focus <id>");
+}
+
+int stonefly_ipc_cmd_close(int argc, char **argv) {
+	return ipc_cmd_with_id(argc, argv, "close", "Usage: stonefly close <id>");
+}
+
 int stonefly_ipc_cmd_block_capture(int argc, char **argv) {
-	return ipc_cmd_capture_block(argc, argv, "block-capture",
-				     "Usage: stonefly block-capture <id>");
+	return ipc_cmd_with_id(argc, argv, "block-capture", "Usage: stonefly block-capture <id>");
 }
 
 int stonefly_ipc_cmd_unblock_capture(int argc, char **argv) {
-	return ipc_cmd_capture_block(argc, argv, "unblock-capture",
-				     "Usage: stonefly unblock-capture <id>");
+	return ipc_cmd_with_id(argc, argv, "unblock-capture",
+			       "Usage: stonefly unblock-capture <id>");
 }
 
 int stonefly_ipc_cmd_set_urgent(int argc, char **argv) {
-	return ipc_cmd_capture_block(argc, argv, "set-urgent", "Usage: stonefly set-urgent <id>");
+	return ipc_cmd_with_id(argc, argv, "set-urgent", "Usage: stonefly set-urgent <id>");
 }
 
 int stonefly_ipc_cmd_unset_urgent(int argc, char **argv) {
-	return ipc_cmd_capture_block(argc, argv, "unset-urgent",
-				     "Usage: stonefly unset-urgent <id>");
+	return ipc_cmd_with_id(argc, argv, "unset-urgent", "Usage: stonefly unset-urgent <id>");
 }
 
 int stonefly_ipc_cmd_toggle_quick_terminal(int argc, char **argv) {
-	for (int i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-			printf("Usage: stonefly toggle-quick-terminal\n");
-			return 0;
-		}
-		fprintf(stderr, "Usage: stonefly toggle-quick-terminal\n");
-		return 1;
-	}
-
-	char *reply = NULL;
-	int rc = ipc_request("toggle-quick-terminal", &reply);
-	if (rc != 0) {
-		return rc;
-	}
-	return ipc_print_ok_reply(reply);
+	return ipc_cmd_ok_noarg(argc, argv, "toggle-quick-terminal",
+				"Usage: stonefly toggle-quick-terminal", NULL);
 }
 
 int stonefly_ipc_cmd_exit(int argc, char **argv) {
-	for (int i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-			printf("Usage: stonefly exit\n");
-			printf("  Quit the compositor for WAYLAND_DISPLAY / STONEFLY_SOCKET.\n");
-			printf("  Nested: run with that session's WAYLAND_DISPLAY set.\n");
-			return 0;
-		}
-		fprintf(stderr, "Usage: stonefly exit\n");
-		return 1;
-	}
-
-	char *reply = NULL;
-	int rc = ipc_request("exit", &reply);
-	if (rc != 0) {
-		return rc;
-	}
-	return ipc_print_ok_reply(reply);
+	return ipc_cmd_ok_noarg(argc, argv, "exit", "Usage: stonefly exit",
+				"  Quit the compositor for WAYLAND_DISPLAY / STONEFLY_SOCKET.\n"
+				"  Nested: run with that session's WAYLAND_DISPLAY set.\n");
 }
 
 int stonefly_ipc_cmd_config(int argc, char **argv) {
@@ -1128,7 +1003,8 @@ int stonefly_ipc_cmd_config(int argc, char **argv) {
 			as_json = true;
 		} else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
 			printf("Usage: stonefly config [section] [--json]\n");
-			printf("Sections: options binds taps scratchpads cmds inputs outputs\n");
+			printf("Sections: options binds taps scratchpads window_rules inputs "
+			       "outputs\n");
 			printf("Omit section for the full live config.\n");
 			return 0;
 		} else if (section == NULL && argv[i][0] != '-') {

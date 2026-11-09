@@ -61,13 +61,6 @@
   ;; :capture_block_app_ids "keepass,bitwarden"
   ;; :capture_block_app_ids ["keepass" "bitwarden"]
   :capture_block_app_ids ""
-  ;; spawn commands (SPAWN_* actions)
-  :cmd_foot "foot"
-  :cmd_nautilus "nautilus"
-  :cmd_ghostty "ghostty +new-window"
-  :cmd_ghostty_qt "ghostty +toggle-quick-terminal"
-  :cmd_editor "gtk-launch org.gnome.TextEditor"
-  :cmd_launcher "noctalia msg panel-toggle launcher"
 })
 
 (each [k v (pairs opt)]

@@ -24,8 +24,8 @@ struct stonefly_server;
  *   {"cmd":"toggle-quick-terminal"}   → {"ok":true} (pad "term")
  *   {"cmd":"config"}                  → full live config JSON object
  *   {"cmd":"config","arg":"binds"}    → one section (options|binds|taps|
- *                                       scratchpads|window_rules|cmds|
- *                                       inputs|outputs)
+ *                                       scratchpads|window_rules|inputs|
+ *                                       outputs)
  *
  * Socket: $STONEFLY_SOCKET, else
  * $XDG_RUNTIME_DIR/stonefly-$WAYLAND_DISPLAY.sock.

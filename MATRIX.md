@@ -32,7 +32,7 @@ items that needed River protocol land *in-process* on stonefly instead.
 | Language | Go + Risor config | C23 (C11 fallback), Meson |
 | Scene / FX | River draws; peeble proposes geometry | SceneFX 0.5 scene graph |
 | Chrome | In-process bar / OSD / launcher / wallpaper | Layer-shell clients; day-zero → **Noctalia** |
-| Config | `config.risor` + live reload | LuaJIT + Fennel-first defaults (§10); `hardcoded.h` is a shim |
+| Config | `config.risor` + live reload | LuaJIT + Fennel-first defaults (§10) |
 | Packaging | Go binary `~/.local/share/go/bin/peeble` | Alpine APK via `make apk` |
 
 ---
@@ -126,7 +126,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Wallpaper engine | ✅ slideshow + transitions + cache | Video/shader Ideas 📋 | 🌙 / ❌ | Layer-shell wallpaper clients OK; no in-process engine |
 | Window snap preview (WM) | ✅ | — | ✅ | In compositor (not shell) |
 | SSD / winmenu chrome | ✅ | — | 🚧 | SSD titlebars ✅ (rounded top matches outer chrome); winmenu ❌ |
-| Idle ceremony / lock / DPMS | ✅ | Lock polish Ideas 📋 | ✅ | `ext-session-lock-v1` + `zwlr-output-power-management-v1` (`session/session.c`). Blank retained if lock client dies. Auto-lock / PrepareForSleep are Noctalia-side on top of idle-notify. |
+| Idle ceremony / lock / DPMS | ✅ | Lock polish Ideas 📋 | ✅ | `ext-session-lock-v1` + `zwlr-output-power-management-v1` (`session/session.c`). Fields nested under `server->lock` / `idle` / `output_power` (scene z-order stays `layers.lock`). Blank retained if lock client dies. Auto-lock / PrepareForSleep are Noctalia-side on top of idle-notify. |
 | Caffeine (idle-inhibit) | ✅ | — | ✅ | `zwp_idle_inhibit_v1` → `ext-idle-notify-v1` inhibit |
 | Night light (gamma) | ✅ | Schedule timer 📋 | ✅ | `zwlr_gamma_control_v1` + SceneFX `wlr_scene_set_gamma_control_manager_v1` (`server.c`). Schedule stays Noctalia-side. |
 | Power confirm / power menu | 🚧 `confirm_power` | Dedicated power menu 📋 | ❌ | |
@@ -165,16 +165,16 @@ notifier) on layer-shell. Peeble owns these in-process.
 | wp_fractional_scale + viewporter | ✅ all chrome (`surfscale`) | — | ✅ | DRM: scale 1.5 (`STONEFLY_OUTPUT_SCALE`). Nested/headless (`session == NULL`): scale 1.0 so Umbriel embed is not double-scaled. |
 | zxdg_output_v1 | ✅ | — | ✅ | `wlr_xdg_output_manager_v1` on output layout (`server.c`). Logical size for Noctalia floating-panel margins under fractional scale. |
 | wp_cursor_shape_v1 | ✅ | `all_resize` / `dnd_ask` 📋 | ✅ v2 | Named shapes for clients. WM interactive move/resize: `stonefly_seat_apply_grab_cursor` after clear-focus + each grab motion (fixes Super/titlebar staying on client default while border hover already owned the face); ignores client `set_cursor` / shape while grabbing; release rebases under pointer. |
-| XCURSOR_THEME / SIZE | ✅ | — | ✅ | `seat.c`: strdup theme before `setenv` (getenv ptr invalid after setenv). Nested/headless (`session == NULL`): use config `cursor_size` (not inherited HiDPI `XCURSOR_SIZE`) and strip `-NNpx` theme suffixes (`Hackneyed-36px` → `Hackneyed`) — same “parent already scaled” rule as `output_scale` 1.0. |
+| XCURSOR_THEME / SIZE | ✅ | — | ✅ | `seat/pointer.c` (+ setup in `seat.c`): strdup theme before `setenv` (getenv ptr invalid after setenv). Nested/headless (`session == NULL`): use config `cursor_size` (not inherited HiDPI `XCURSOR_SIZE`) and strip `-NNpx` theme suffixes (`Hackneyed-36px` → `Hackneyed`) — same “parent already scaled” rule as `output_scale` 1.0. |
 | wlr-output-management | ✅ `output()` | — | ✅ | `wlr_output_manager_v1` apply/test (`output.c`); `wlr_output_head_v1_state_apply` + layout pos; `set_configuration` on new/destroy/apply/request_state. |
 | ext-data-control clipboard | ✅ | Primary-selection history Ideas 📋 | ✅ | `ext-data-control-v1` + legacy `wlr-data-control-v1` + `wp_primary_selection` (`server.c` / seat). |
 | Screenshots (fullscreen/window/region) | ✅ ext-image-copy-capture | Include-cursor polish 📋 | 🌙 / ✅ | Print binds → noctalia. `ext-image-copy-capture` + toplevel capture (`ext_capture.c`) + `zwlr_screencopy_manager_v1` (`server.c`). Capture privacy (#1481) ✅ for toplevel image-capture. |
 | Screencast / capture_sessions | ✅ bar widget | — | ❌ | |
-| Foreign-toplevel management | 🚧 River read-only; bar uses Focus | Activate relay #1449/#1537 📋 | ✅ | `zwlr_foreign_toplevel_management_v1` v3 (`foreign.c`) + parallel `ext-foreign-toplevel-list-v1` (`ext_capture.c`) for capture handles |
+| Foreign-toplevel management | 🚧 River read-only; bar uses Focus | Activate relay #1449/#1537 📋 | ✅ | `zwlr_foreign_toplevel_management_v1` v3 (`foreign.c`) + parallel `ext-foreign-toplevel-list-v1` (`ext_capture.c`) for capture handles; state nested under `server->foreign` |
 | xdg-activation (urgency) | ❌ | #1281 📋 | ✅ | Amber until focus; never steals focus. IPC `urgent` / set-unset. |
 | xdg-system-bell | ❌ | #1389 📋 | ✅ | Visual flash only (`bell_flash_ms`). |
 | xdg_wm_dialog_v1 | ❌ | — | ✅ | `wlr_xdg_wm_dialog_v1_create` (wlroots 0.20.2); tracks `toplevel->modal` from `set_modal` / `unset_modal`. Placement still keys off parent; modal is the real modal bit (no size guessing). |
-| Idle-inhibit / idle-notify / session-lock | ✅ | — | ✅ | `session/session.c`: ext-session-lock-v1, ext-idle-notify-v1, zwp-idle-inhibit-v1, zwlr-output-power-management-v1 |
+| Idle-inhibit / idle-notify / session-lock | ✅ | — | ✅ | `session/session.c`: ext-session-lock-v1, ext-idle-notify-v1, zwp-idle-inhibit-v1, zwlr-output-power-management-v1; nested `server->{lock,idle,output_power}` |
 | Gamma control | ✅ | — | ✅ | `zwlr_gamma_control_v1` + SceneFX scene hook (`server.c`) |
 | Xwayland | ✅ (River host) | — | ❌ | Classic X11 apps fail |
 | ext-workspace-v1 | ❌ | #1402 📋 | ✅ | Per-output group + per-workspace handle; activate/create commit → switch/compact (`workspace.c`) |
@@ -182,7 +182,7 @@ notifier) on layer-shell. Peeble owns these in-process.
 | xdg-toplevel-icon-v1 | ❌ | — | ✅ | `wlr_xdg_toplevel_icon_manager_v1` (`xdg.c`); preferred sizes 16–64; ref icon + `icon_name` on toplevel; IPC `windows` field `icon_name`. Buffers unused by Noctalia yet (warn silence for Foot). |
 | ext-background-effect-v1 | ❌ | — | ✅ | Hand protocol (`protocol/ext-background-effect-v1.xml` + `src/effect/background_effect.c`); capability `blur`; non-empty region → `client_blur` → SceneFX full-window blur. xdg toplevels get SceneFX gate; layer clients may bind (Noctalia). **Fixed:** addon destroy must `wlr_addon_finish` (dangling addon aborted nested session on layer-surface teardown). |
 | text-input / IME | ❌ | — | ❌ | `zwp_text_input_v3` + `zwp_input_method_v2` — wlroots helpers exist; stonefly does not advertise. Foot disables IME (CJK/OSK/fcitx/ibus). Needs seat relay + popup placement + IM client — later project. |
-| Touch / gestures / virtual-keyboard | ❌ | River 0.5 items 📋 | ✅ | Touch seat caps + cursor→`wlr_seat_touch_notify_*` (`seat.c`). Gestures: `pointer_gestures_v1` + 3-finger workspace swipe (`swipe_workspace_natural`). `zwp_virtual_keyboard_v1` (attach like keyboard; compositor binds skipped). Also: `zwp_relative_pointer_manager_v1` + `zwp_pointer_constraints_v1` (lock/confine + cursor hint). |
+| Touch / gestures / virtual-keyboard | ❌ | River 0.5 items 📋 | ✅ | Split under `seat/`: touch caps + cursor→`wlr_seat_touch_notify_*` (`pointer.c`); gestures `pointer_gestures_v1` + 3-finger workspace swipe (`gestures.c`, `swipe_workspace_natural`); `zwp_virtual_keyboard_v1` (`keyboard.c`, compositor binds skipped); relative-pointer + constraints (`constraints.c` / `pointer.c`). Setup/teardown glue in `seat.c`. |
 | Presentation-time / fifo / tearing | ❌ | Shared frame clock Ideas 📋 | 🚧 | ✅ `wp_presentation` via `wlr_presentation_create(display, backend)` (`server.c`; SceneFX samples). ✅ `wp_tearing_control_v1` advertised (hint log only; no async page-flip). ❌ `wp_fifo_v1` still open (no simple wlroots helper). |
 
 ---
@@ -194,16 +194,16 @@ notifier) on layer-shell. Peeble owns these in-process.
 | Scriptable config | ✅ Risor + live reload | Multi-file include design 📋 | ✅ | LuaJIT in-process VM (§10): Neovim-ish rtp/packpath, builtin fennel-shim (Fennel 1.6.1), Fennel-first embedded default. Open gaps in §10. |
 | Validate / write-default | ✅ `--write-config` + embed | — | 🚧 | ✅ `stonefly --write-config` (C23 `#embed` tree, refuse overwrite); validate CLI still ❌ (§10). **Build:** meson `embed_defaults_stamp.h` so default `*.fnl` edits rebuild `config_embed.c` (clang often omits `#embed` from depfiles — shipped chord parser + stale old binds once). |
 | Nano syntax highlight | ✅ `peeble.nanorc` | — | ❌ | |
-| Keybind table | ✅ Risor `"Super+w"` chords + taps | — | ✅ | Peeble-style chords: `stonefly.bind("Super+w", {action=…})` / `tap("Super", …)`; `xkb_keysym_from_name` (no generated keysym table). Legacy `{mods=, key=}` still accepted. Shift+Tab auto `ISO_Left_Tab`. C defaults until first bind. |
+| Keybind table | ✅ Risor `"Super+w"` chords + taps | — | ✅ | Peeble-style chords: `stonefly.bind("Super+w", {action=…})` / `tap("Super", …)` via `parse_chord` / `parse_tap_mod` (libxkbcommon; no generated keysym table). Chord-in-key table form only (`{key="Super+w"}`); legacy `{mods=, key=}` and physical tap `Super_L`/`key_alt` dropped. Actions via shared `stonefly_action_parse` (`config/action.h`). Shift+Tab auto `ISO_Left_Tab`. C defaults until first bind. |
 | Ctrl+Alt+Fn VT switch | ✅ via session | — | ✅ | `wlr_session_change_vt` on `XF86Switch_VT_*`; was missing (unreliable switch + DRM yank / crash on half-leave). Nested backends: no-op. |
 | Super tap / double-tap | ✅ | Regression keep-green 📋 | ✅ | Launcher / term pad |
-| Spawn / exec / exec_once | ✅ | `spawn_one` panels QoL 📋 | 🚧 | Named SPAWN_* + `STONEFLY_ACTION_EXEC` (`sh -c`); no exec_once |
-| IPC `windows` [--json] | ✅ | — | ✅ | Peeble wire shape; reply cap is `size_t` (`ipc.c` tidy) |
-| IPC `layers` [--json] | ❌ | — | ✅ | Layer-shell debug snapshot (`src/ipc/layers.c`) |
-| IPC focus / close by id | ✅ | — | ✅ | `{"cmd":"focus\|close","arg":"<id>"}` + CLI (`ipc.c`) |
-| IPC toggle-quick-terminal | ✅ | — | ✅ | Toggles scratchpad pad `"term"` (same as Super+Return) |
-| IPC `exit` / `quit` | — | — | ✅ | `wl_display_terminate` on the compositor that owns `STONEFLY_SOCKET` / `WAYLAND_DISPLAY` (nested-safe) |
-| IPC `config` [section] | ❌ | — | ✅ | Live `server->config` dump (`ipc/config.c`); sections options/binds/taps/scratchpads/window_rules/cmds/inputs/outputs; argv parse de-cloned (`ipc.c`) |
+| Spawn / exec / exec_once | ✅ | `spawn_one` panels QoL 📋 | 🚧 | `STONEFLY_ACTION_EXEC` (`sh -c` + `cmd`); named SPAWN_* / `cmd_*` options removed — use `exec` + scratchpads. No exec_once |
+| IPC `windows` [--json] | ✅ | — | ✅ | Peeble wire shape; reply cap is `size_t`; CLI via shared `ipc_cmd_list` (`ipc.c`) |
+| IPC `layers` [--json] | ❌ | — | ✅ | Layer-shell debug snapshot (`src/ipc/layers.c`); CLI via `ipc_cmd_list` |
+| IPC focus / close by id | ✅ | — | ✅ | `{"cmd":"focus\|close","arg":"<id>"}` + CLI via `ipc_cmd_with_id` (`ipc.c`) |
+| IPC toggle-quick-terminal | ✅ | — | ✅ | Toggles scratchpad pad `"term"` (same as Super+Return); CLI via `ipc_cmd_ok_noarg` |
+| IPC `exit` / `quit` | — | — | ✅ | `wl_display_terminate` on the compositor that owns `STONEFLY_SOCKET` / `WAYLAND_DISPLAY` (nested-safe); CLI via `ipc_cmd_ok_noarg` |
+| IPC `config` [section] | ❌ | — | ✅ | Live `server->config` dump (`ipc/config.c`); sections options/binds/taps/scratchpads/window_rules/inputs/outputs; argv parse de-cloned (`ipc.c`) |
 | IPC `action <name>` allowlist | ❌ | 📋 | ❌ | |
 | IPC outputs / inputs | ❌ | Ideas 📋 | 🚧 | `outputs` ✅ (`ipc/outputs.c`); inputs ❌ |
 | Structured JSON logs | ✅ `~/.var/log/peeble/wm.log` | — | ✅ | `wm.log` + `wm.last.json` rotate |
@@ -224,7 +224,7 @@ River-fork brief items and where stonefly stands (no River needed).
 | P0 | #1449 / #1537 foreign-toplevel activate | Blocked on River | ✅ `zwlr_foreign_toplevel_management_v1` |
 | P0 | #1375 nodes vs layer-shell z-order | PlaceTop fights | ✅ scene layers |
 | P1 | #1373 WM opacity | Blocked | 🚧 global focused + inactive opacity |
-| P1 | Close-ghost last-frame | Blocked for client close | ✅ cached `close_snap` → ghost slide (shared closest/short-axis offscreen) |
+| P1 | Close-ghost last-frame | Blocked for client close | ✅ cached `close_snap` → ghost slide; easing via shared `util/math.h` (`stonefly_ease_out_cubic` / `lerp_i`) with live anim |
 | P1 | #1281 urgency / xdg-activation | Blocked | ✅ |
 | P1 | #1389 system bell | Blocked | ✅ |
 | P1 | #1481 capture privacy | Blocked | ✅ |
@@ -303,7 +303,8 @@ Done crumbs: focus/close by id, outputs, workspaces, toggle-quick-terminal, live
 4. Optional: always-on-top, multi-mon send/focus; tiling engines (`columns`/`tile`); geometry persist / window rules (tag protocol ✅); `wp_fifo_v1` still open
 
 Seat-side day-zero: ✅ touch, virtual-keyboard, relative-pointer, pointer-constraints
-(`seat.c`). Still open among input: tablet.
+(`seat/{seat,keyboard,pointer,gestures,constraints}.c`; constraints nested under
+`server->constraints`). Still open among input: tablet.
 
 Shell/OSD/media stay **🌙 Noctalia** unless product asks for in-process
 chrome again.
@@ -320,10 +321,11 @@ to `NameOwnerChanged` for `org.freedesktop.Notifications`, wait ≤20s (Noctalia
 usually via `-s`), else warn and skip the toast; `stonefly --write-config` (refuse overwrite); builtin pack
 `fennel-shim` (Fennel 1.6.1 + Fennel-side loader); `stonefly.*` API (`opt` /
 `bind` / `tap` / `scratchpad` / `packadd` / `stdpath`); bind/tap accept
-peeble-style chord strings (`"Super+Shift+Tab"`, `"Super"`) via `parse_chord` /
-`parse_tap_mod` in `config_lua.c` (libxkbcommon name lookup — no Go-style
-generated keysym map); IPC `stonefly config [section]`; consumers read
-`stonefly_cfg(server)`.
+peeble-style chord / modifier strings (`"Super+Shift+Tab"`, `"Super"`) via
+`parse_chord` / `parse_tap_mod` in `config_lua.c` (libxkbcommon name lookup —
+no Go-style generated keysym map); action names shared with IPC via
+`config/action.h`; `opt` setters table-driven (`offsetof` + clamp FNs);
+IPC `stonefly config [section]`; consumers read `stonefly_cfg(server)`.
 
 | Open | Status | Notes |
 |---|---|---|
@@ -333,7 +335,7 @@ generated keysym map); IPC `stonefly config [section]`; consumers read
 | `sf_*` / `sf.` rename | ❌ | Shorter C + Lua/Fennel identifiers; binary name stays `stonefly` |
 | `inputs.fnl` / `outputs.fnl` APIs | 🚧 | Files are no-op stubs; no input/output policy surface yet. Output `:layout` override planned (resolve workspace→output→global; global `opt.layout` already wired) |
 | IPC `config` inputs/outputs sections | 🚧 | Emit `{}` until those APIs exist |
-| `exec_once` / session spawn helpers | ❌ | Named SPAWN_* + `EXEC` only |
+| `exec_once` / session spawn helpers | ❌ | `EXEC` + scratchpads only (named SPAWN_* removed) |
 | Neovim API compat / fake `vim.*` | ❌ | Non-goal |
 | Fennel as C dependency | ❌ | Non-goal (Fennel is Lua in the pack) |
 | Remote plugin fetch | ❌ | Non-goal for v1 |
@@ -369,7 +371,7 @@ wrappers that print got/want and mark failure are encouraged.
 
 | Suite | Status | Scope | Gate |
 |---|---|---|---|
-| Unit | 📋 | Pure helpers first: `util/json`, IPC argv/section parse, layout/geometry math, config decode — no display server | Next `meson test` / abuild `check()` add-on beside `style-check` |
+| Unit | 📋 | Pure helpers first: `util/json`, `util/math`/`str`/`time` (shared; call sites switched: anim/decor/config/xdg/ssd/seat), IPC argv/section parse, layout/geometry math, config decode — no display server | Next `meson test` / abuild `check()` add-on beside `style-check` |
 | Integration | 📋 later | Headless / virtual WL (wlroots headless or stonefly flag) + client/IPC drivers | Separate Meson suite tag (e.g. `integration`); skip by default until stable |
 
 ### Peeble ↔ stonefly

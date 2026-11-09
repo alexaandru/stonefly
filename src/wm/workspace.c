@@ -16,7 +16,7 @@
 #include "server/server.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
-#include "xdg/xdg.h"
+#include "toplevel/toplevel.h"
 
 static uint32_t workspace_caps(void) {
 	return EXT_WORKSPACE_HANDLE_V1_WORKSPACE_CAPABILITIES_ACTIVATE;

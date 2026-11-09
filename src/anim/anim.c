@@ -1,4 +1,3 @@
-#include <math.h>
 #include <stdlib.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_output.h>
@@ -11,8 +10,10 @@
 #include "layer/layer.h"
 #include "output/output.h"
 #include "server/server.h"
+#include "util/math.h"
+#include "util/time.h"
 #include "wm/wm.h"
-#include "xdg/xdg.h"
+#include "toplevel/toplevel.h"
 
 enum stonefly_slide_dir {
 	STONEFLY_SLIDE_DOWN = 0,
@@ -20,32 +21,6 @@ enum stonefly_slide_dir {
 	STONEFLY_SLIDE_LEFT,
 	STONEFLY_SLIDE_RIGHT,
 };
-
-static double clamp01(double t) {
-	if (t < 0.0) {
-		return 0.0;
-	}
-	if (t > 1.0) {
-		return 1.0;
-	}
-	return t;
-}
-
-/* Peeble EaseOutCubic. */
-static double ease_out_cubic(double t) {
-	t = clamp01(t);
-	double u = 1.0 - t;
-	return 1.0 - u * u * u;
-}
-
-static int lerp_i(int a, int b, double t) {
-	t = clamp01(t);
-	return (int)lround((double)a + (double)(b - a) * t);
-}
-
-static int64_t timespec_ns(const struct timespec *ts) {
-	return (int64_t)ts->tv_sec * 1000000000LL + (int64_t)ts->tv_nsec;
-}
 
 /*
  * Enter from the nearest usable edge. When several edges sit near the
@@ -319,7 +294,8 @@ static void begin_slide(struct stonefly_toplevel *toplevel, int from_x, int from
 		if (toplevel->anim.morph) {
 			morph_finish(toplevel, true);
 		} else {
-			int64_t elapsed = timespec_ns(&now) - timespec_ns(&toplevel->anim.start);
+			int64_t elapsed = stonefly_timespec_ns(&now) -
+					  stonefly_timespec_ns(&toplevel->anim.start);
 			int64_t remain = dur_ns - elapsed;
 			if (remain > 0 && remain < dur_ns) {
 				dur_ns = remain;
@@ -445,7 +421,8 @@ bool stonefly_anim_start_morph(struct stonefly_toplevel *toplevel, const struct 
 	struct wlr_box start = *from;
 	if (toplevel->anim.active && toplevel->anim.morph) {
 		/* Retarget mid-flight: keep remaining time (peeble beginMorph). */
-		int64_t elapsed = timespec_ns(&now) - timespec_ns(&toplevel->anim.start);
+		int64_t elapsed =
+			stonefly_timespec_ns(&now) - stonefly_timespec_ns(&toplevel->anim.start);
 		int64_t remain = dur_ns - elapsed;
 		if (remain > 0 && remain < dur_ns) {
 			dur_ns = remain;
@@ -460,9 +437,11 @@ bool stonefly_anim_start_morph(struct stonefly_toplevel *toplevel, const struct 
 			if (toplevel->anim.dur_ns > 0) {
 				t = (double)elapsed / (double)toplevel->anim.dur_ns;
 			}
-			double p = ease_out_cubic(t);
-			start.width = lerp_i(toplevel->anim.from_w, toplevel->anim.to_w, p);
-			start.height = lerp_i(toplevel->anim.from_h, toplevel->anim.to_h, p);
+			double p = stonefly_ease_out_cubic(t);
+			start.width =
+				stonefly_lerp_i(toplevel->anim.from_w, toplevel->anim.to_w, p);
+			start.height =
+				stonefly_lerp_i(toplevel->anim.from_h, toplevel->anim.to_h, p);
 		}
 		if (start.width < 1) {
 			start.width = 1;
@@ -509,25 +488,26 @@ void stonefly_anim_tick(struct stonefly_server *server, const struct timespec *n
 			continue;
 		}
 
-		int64_t elapsed = timespec_ns(now) - timespec_ns(&toplevel->anim.start);
+		int64_t elapsed =
+			stonefly_timespec_ns(now) - stonefly_timespec_ns(&toplevel->anim.start);
 		double t = 1.0;
 		if (toplevel->anim.dur_ns > 0) {
 			t = (double)elapsed / (double)toplevel->anim.dur_ns;
 		}
-		double p = ease_out_cubic(t);
+		double p = stonefly_ease_out_cubic(t);
 
 		if (toplevel->anim.morph) {
-			int x = lerp_i(toplevel->anim.from_x, toplevel->anim.to_x, p);
-			int y = lerp_i(toplevel->anim.from_y, toplevel->anim.to_y, p);
-			int w = lerp_i(toplevel->anim.from_w, toplevel->anim.to_w, p);
-			int h = lerp_i(toplevel->anim.from_h, toplevel->anim.to_h, p);
+			int x = stonefly_lerp_i(toplevel->anim.from_x, toplevel->anim.to_x, p);
+			int y = stonefly_lerp_i(toplevel->anim.from_y, toplevel->anim.to_y, p);
+			int w = stonefly_lerp_i(toplevel->anim.from_w, toplevel->anim.to_w, p);
+			int h = stonefly_lerp_i(toplevel->anim.from_h, toplevel->anim.to_h, p);
 			morph_apply_live(toplevel, x, y, w, h);
 		} else {
 			if (toplevel->anim_hide) {
 				wlr_scene_node_raise_to_top(&toplevel->scene_tree->node);
 			}
-			int x = lerp_i(toplevel->anim.from_x, toplevel->anim.to_x, p);
-			int y = lerp_i(toplevel->anim.from_y, toplevel->anim.to_y, p);
+			int x = stonefly_lerp_i(toplevel->anim.from_x, toplevel->anim.to_x, p);
+			int y = stonefly_lerp_i(toplevel->anim.from_y, toplevel->anim.to_y, p);
 			set_visual_pos(toplevel, x, y);
 		}
 

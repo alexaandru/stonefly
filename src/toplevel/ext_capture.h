@@ -2,7 +2,7 @@
 #define STONEFLY_EXT_CAPTURE_H
 
 #include "server/server.h"
-#include "xdg/xdg.h"
+#include "toplevel/toplevel.h"
 
 /* ext-foreign-toplevel-list + image-capture-source + image-copy-capture.
  * Parallel to zwlr foreign (taskbar); Noctalia switcher snapshots use this. */

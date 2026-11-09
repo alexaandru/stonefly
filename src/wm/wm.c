@@ -1178,24 +1178,6 @@ void stonefly_run_action(struct stonefly_server *server, enum stonefly_action ac
 			stonefly_toplevel_unsnap(focused);
 		}
 		break;
-	case STONEFLY_ACTION_SPAWN_FOOT:
-		stonefly_spawn_cmd(stonefly_cfg(server)->cmd_foot);
-		break;
-	case STONEFLY_ACTION_SPAWN_NAUTILUS:
-		stonefly_spawn_cmd(stonefly_cfg(server)->cmd_nautilus);
-		break;
-	case STONEFLY_ACTION_SPAWN_GHOSTTY:
-		stonefly_spawn_cmd(stonefly_cfg(server)->cmd_ghostty);
-		break;
-	case STONEFLY_ACTION_SPAWN_GHOSTTY_QT:
-		stonefly_spawn_cmd(stonefly_cfg(server)->cmd_ghostty_qt);
-		break;
-	case STONEFLY_ACTION_SPAWN_EDITOR:
-		stonefly_spawn_cmd(stonefly_cfg(server)->cmd_editor);
-		break;
-	case STONEFLY_ACTION_SPAWN_LAUNCHER:
-		stonefly_spawn_cmd(stonefly_cfg(server)->cmd_launcher);
-		break;
 	case STONEFLY_ACTION_EXEC:
 		if (cmd != NULL && cmd[0] != '\0') {
 			SF_LOGD("exec", sf_str("cmd", cmd));
@@ -1203,12 +1185,6 @@ void stonefly_run_action(struct stonefly_server *server, enum stonefly_action ac
 		} else {
 			SF_LOGW("exec action with empty cmd");
 		}
-		break;
-	case STONEFLY_ACTION_SCRATCH_TOGGLE_TERM:
-		stonefly_scratchpad_toggle(server, "term");
-		break;
-	case STONEFLY_ACTION_SCRATCH_CLAIM_TERM:
-		stonefly_scratchpad_claim_focused(server, "term");
 		break;
 	case STONEFLY_ACTION_SCRATCH_TOGGLE:
 		stonefly_scratchpad_toggle(server, (cmd != NULL && cmd[0] != '\0') ? cmd : "term");

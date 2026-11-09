@@ -11,7 +11,6 @@
 #include "log/log.h"
 #include "server/server.h"
 #include "toplevel/ext_capture.h"
-#include "xdg/xdg.h"
 
 /* Match app_id against comma-separated substrings in capture_block_app_ids. */
 static bool capture_app_id_blocked(const struct stonefly_server *server, const char *app_id) {
@@ -90,7 +89,7 @@ static void ext_capture_destroy_scene(struct stonefly_toplevel *toplevel) {
 
 static void handle_capture_request(struct wl_listener *listener, void *data) {
 	struct stonefly_server *server =
-		wl_container_of(listener, server, ext_toplevel_capture_request);
+		wl_container_of(listener, server, foreign.on_capture_request);
 	struct wlr_ext_foreign_toplevel_image_capture_source_manager_v1_request *request = data;
 	struct stonefly_toplevel *toplevel = request->toplevel_handle->data;
 	if (toplevel == NULL || toplevel->image_capture_scene == NULL) {
@@ -125,41 +124,40 @@ void stonefly_ext_capture_setup(struct stonefly_server *server) {
 	/* Clients copy frames from sources created below. */
 	wlr_ext_image_copy_capture_manager_v1_create(server->wl_display, 1);
 
-	server->ext_foreign_toplevel_list =
-		wlr_ext_foreign_toplevel_list_v1_create(server->wl_display, 1);
-	if (server->ext_foreign_toplevel_list == NULL) {
+	server->foreign.ext_list = wlr_ext_foreign_toplevel_list_v1_create(server->wl_display, 1);
+	if (server->foreign.ext_list == NULL) {
 		SF_LOGW("ext foreign toplevel list", sf_str("err", "create failed"));
 		return;
 	}
 
-	server->ext_toplevel_capture_mgr =
+	server->foreign.capture_mgr =
 		wlr_ext_foreign_toplevel_image_capture_source_manager_v1_create(server->wl_display,
 										1);
-	if (server->ext_toplevel_capture_mgr == NULL) {
+	if (server->foreign.capture_mgr == NULL) {
 		SF_LOGW("ext toplevel image capture", sf_str("err", "create failed"));
 		return;
 	}
 
-	server->ext_toplevel_capture_request.notify = handle_capture_request;
-	wl_signal_add(&server->ext_toplevel_capture_mgr->events.new_request,
-		      &server->ext_toplevel_capture_request);
+	server->foreign.on_capture_request.notify = handle_capture_request;
+	wl_signal_add(&server->foreign.capture_mgr->events.new_request,
+		      &server->foreign.on_capture_request);
 
 	SF_LOGI("ext foreign toplevel capture", sf_str("list", "v1"), sf_str("image_capture", "v1"),
 		sf_str("image_copy", "v1"));
 }
 
 void stonefly_ext_capture_finish(struct stonefly_server *server) {
-	if (server->ext_toplevel_capture_mgr != NULL) {
-		wl_list_remove(&server->ext_toplevel_capture_request.link);
-		server->ext_toplevel_capture_mgr = NULL;
+	if (server->foreign.capture_mgr != NULL) {
+		wl_list_remove(&server->foreign.on_capture_request.link);
+		server->foreign.capture_mgr = NULL;
 	}
-	server->ext_foreign_toplevel_list = NULL;
+	server->foreign.ext_list = NULL;
 }
 
 void stonefly_ext_capture_on_map(struct stonefly_toplevel *toplevel) {
 	struct stonefly_server *server = toplevel->server;
 	stonefly_ext_capture_apply_block_rules(toplevel);
-	if (server->ext_foreign_toplevel_list == NULL) {
+	if (server->foreign.ext_list == NULL) {
 		return;
 	}
 
@@ -185,8 +183,8 @@ void stonefly_ext_capture_on_map(struct stonefly_toplevel *toplevel) {
 			.title = toplevel->xdg_toplevel->title,
 			.app_id = toplevel->xdg_toplevel->app_id,
 		};
-		toplevel->ext_handle = wlr_ext_foreign_toplevel_handle_v1_create(
-			server->ext_foreign_toplevel_list, &state);
+		toplevel->ext_handle =
+			wlr_ext_foreign_toplevel_handle_v1_create(server->foreign.ext_list, &state);
 		if (toplevel->ext_handle == NULL) {
 			SF_LOGW("ext foreign handle create failed",
 				sf_i64("id", (int64_t)toplevel->id));

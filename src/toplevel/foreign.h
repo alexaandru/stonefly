@@ -2,7 +2,7 @@
 #define STONEFLY_FOREIGN_H
 
 #include "server/server.h"
-#include "xdg/xdg.h"
+#include "toplevel/toplevel.h"
 
 void stonefly_foreign_toplevel_setup(struct stonefly_server *server);
 void stonefly_foreign_toplevel_finish(struct stonefly_server *server);

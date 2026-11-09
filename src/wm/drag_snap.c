@@ -9,7 +9,7 @@
 #include "wm/drag_snap.h"
 #include "wm/snap_preview.h"
 #include "wm/wm.h"
-#include "xdg/xdg.h"
+#include "toplevel/toplevel.h"
 
 static int iabs(int v) {
 	return v < 0 ? -v : v;
