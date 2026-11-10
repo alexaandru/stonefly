@@ -13,10 +13,12 @@
 
 #include "anim/anim.h"
 #include "config/config.h"
+#include "decor/decor.h"
 #include "log/log.h"
 #include "output/output.h"
 #include "seat/seat.h"
 #include "server/server.h"
+#include "ssd/ssd.h"
 #include "util/math.h"
 #include "util/time.h"
 #include "wm/scratchpad.h"
@@ -223,10 +225,46 @@ static struct sf_workspace *workspace_create(struct sf_output *output) {
 	return ws;
 }
 
+/* Drop scene chrome before the workspace tree is destroyed. Nested-session
+ * output teardown can free ws->tree (and its children) while sf_toplevel
+ * still lives; border hit-tests then UAF on scene_tree. */
+static void workspace_detach_toplevel_scene(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL) {
+		return;
+	}
+	if (toplevel->server != NULL && toplevel->server->grabbed_toplevel == toplevel) {
+		sf_reset_cursor_mode(toplevel->server);
+	}
+	sf_anim_cancel(toplevel, false);
+	sf_ssd_destroy(toplevel);
+	sf_decor_finish_toplevel(toplevel);
+}
+
+static void workspace_clear_members(struct sf_workspace *ws) {
+	if (ws == NULL || ws->output == NULL || ws->output->server == NULL) {
+		return;
+	}
+	struct sf_server *server = ws->output->server;
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &server->toplevels, link) {
+		if (t->workspace == ws) {
+			workspace_detach_toplevel_scene(t);
+			t->workspace = NULL;
+		}
+	}
+	wl_list_for_each(t, &server->minimized, minimize_link) {
+		if (t->workspace == ws) {
+			workspace_detach_toplevel_scene(t);
+			t->workspace = NULL;
+		}
+	}
+}
+
 static void workspace_destroy(struct sf_workspace *ws) {
 	if (ws == NULL) {
 		return;
 	}
+	workspace_clear_members(ws);
 	if (ws->ext != NULL) {
 		wlr_ext_workspace_handle_v1_destroy(ws->ext);
 		ws->ext = NULL;
@@ -621,19 +659,9 @@ void sf_workspace_output_init(struct sf_output *output) {
 void sf_workspace_output_finish(struct sf_output *output) {
 	workspace_anim_finish(output);
 	struct sf_workspace *ws, *tmp;
+	/* Detach member scene trees before destroying each strip node — clients
+	 * may still emit cursor-shape requests until their xdg objects die. */
 	wl_list_for_each_safe(ws, tmp, &output->workspaces, link) {
-		/* Toplevels should already be gone with the output; clear back-ptrs. */
-		struct sf_toplevel *t;
-		wl_list_for_each(t, &output->server->toplevels, link) {
-			if (t->workspace == ws) {
-				t->workspace = NULL;
-			}
-		}
-		wl_list_for_each(t, &output->server->minimized, minimize_link) {
-			if (t->workspace == ws) {
-				t->workspace = NULL;
-			}
-		}
 		workspace_destroy(ws);
 	}
 	output->active = NULL;

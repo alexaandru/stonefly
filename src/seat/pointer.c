@@ -660,7 +660,7 @@ static uint32_t border_resize_edges_at(struct sf_toplevel *toplevel, double lx, 
 	if (toplevel->fullscreen || toplevel->minimized) {
 		return 0;
 	}
-	if (!toplevel->scene_tree->node.enabled) {
+	if (toplevel->scene_tree == NULL || !toplevel->scene_tree->node.enabled) {
 		return 0;
 	}
 
@@ -753,7 +753,7 @@ static struct sf_toplevel *border_resize_toplevel_at(struct sf_server *server, d
 		if (toplevel->fullscreen || toplevel->minimized) {
 			continue;
 		}
-		if (!toplevel->scene_tree->node.enabled) {
+		if (toplevel->scene_tree == NULL || !toplevel->scene_tree->node.enabled) {
 			continue;
 		}
 		struct wlr_box frame;

@@ -16,6 +16,7 @@
       chrome (rule {:app_id "google%-chrome"} {})]
   (rule {:title "^Google Chrome$"} {:center true :borderless true :ssd "never"}
         chrome)
+  (rule {:title "dosbox"} {:center true :borderless true :ssd "never"})
   (rule {:app_id "gcr%-prompter"} {:center true :borderless true})
   (rule {:app_id "com.slack.Slack"}
         {:borderless true :action :maximize_to_edges}))

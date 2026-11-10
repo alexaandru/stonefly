@@ -41,7 +41,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 | `set_tiled` on snap/max | `wlr_xdg_toplevel_set_tiled` on snap / edge-max / restore / unsnap; gap-max stays untiled |
 | Cascade initial place | Gap + `(n%10)*25`, cursor output |
 | Nested client disconnect (parent UAF) | Clear `xdg_toplevel->base->data` before destroying scene tree |
-| Nested `ipc exit` teardown | `workspace_finish` destroys per-output ws scene trees before root scene destroy |
+| Nested `ipc exit` / output teardown | `workspace_finish` destroys per-output ws scene trees before root scene destroy. `workspace_destroy` detaches member scene chrome (`ssd` / decor) before freeing `ws->tree` so cursor-shape border hit-tests cannot UAF dangling `scene_tree` |
 | EnsureOnScreen / usable relayout | On exclusive-zone change |
 | Per-output usable area | `exclusive_zone != 0` (incl. −1) |
 | Named scratchpads | `scratchpads.fnl` + `sf.scratchpad` / `scratch_toggle`/`scratch_claim`. Default ships `term` only. Fake `app_id` (`stonefly.scratch.term`) for claim vs normal windows. `auto_hide` (default true) hides when focus moves to another window on the same output |
