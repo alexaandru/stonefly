@@ -278,6 +278,78 @@ static void process_cursor_move(struct sf_server *server) {
 
 #define SF_RESIZE_CENTER_MIN 50
 
+/*
+ * Chrome outside the xdg geometry box so the *outer* visible edge sits on the
+ * gap. SSD: titleband + compositor border. CSD: max(surface−geo, border) per
+ * side (border is drawn around geometry; CSD may extend further).
+ */
+static void resize_frame_insets(struct sf_toplevel *toplevel, int *left, int *top, int *right,
+				int *bottom) {
+	*left = 0;
+	*top = 0;
+	*right = 0;
+	*bottom = 0;
+	if (toplevel == NULL || toplevel->xdg_toplevel == NULL) {
+		return;
+	}
+	int border = sf_cfg(toplevel->server)->border_thickness;
+	if (border < 0) {
+		border = 0;
+	}
+	int ssd_h = sf_ssd_top_inset(toplevel);
+	if (ssd_h > 0) {
+		*left = border;
+		*right = border;
+		*bottom = border;
+		*top = ssd_h + border;
+		return;
+	}
+	struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
+	struct wlr_surface *surf = toplevel->xdg_toplevel->base->surface;
+	if (geo == NULL || surf == NULL || geo->width <= 0 || geo->height <= 0) {
+		*left = border;
+		*top = border;
+		*right = border;
+		*bottom = border;
+		return;
+	}
+	int sw = surf->current.width;
+	int sh = surf->current.height;
+	int csd_l = geo->x > 0 ? geo->x : 0;
+	int csd_t = geo->y > 0 ? geo->y : 0;
+	int csd_r = 0;
+	int csd_b = 0;
+	if (sw > 0 && sh > 0) {
+		csd_r = sw - geo->x - geo->width;
+		csd_b = sh - geo->y - geo->height;
+		if (csd_r < 0) {
+			csd_r = 0;
+		}
+		if (csd_b < 0) {
+			csd_b = 0;
+		}
+	}
+	*left = csd_l > border ? csd_l : border;
+	*top = csd_t > border ? csd_t : border;
+	*right = csd_r > border ? csd_r : border;
+	*bottom = csd_b > border ? csd_b : border;
+}
+
+/* Usable∩gaps box for the *geometry* edges so the visible frame stays inside. */
+static bool resize_usable_content_area(struct sf_toplevel *toplevel, struct wlr_box *area) {
+	if (toplevel == NULL || area == NULL || !sf_toplevel_output_box(toplevel, area)) {
+		return false;
+	}
+	sf_box_inset_gap(area, sf_cfg(toplevel->server)->gap_size);
+	int L, T, R, B;
+	resize_frame_insets(toplevel, &L, &T, &R, &B);
+	area->x += L;
+	area->y += T;
+	area->width -= L + R;
+	area->height -= T + B;
+	return area->width > 0 && area->height > 0;
+}
+
 static void process_cursor_resize(struct sf_server *server) {
 	/*
 	 * Resizing the grabbed toplevel can be a little bit complicated, because we
@@ -317,6 +389,43 @@ static void process_cursor_resize(struct sf_server *server) {
 		new_right = (int)border_x;
 		if (new_right <= new_left) {
 			new_right = new_left + 1;
+		}
+	}
+
+	/* Keep the dragged edge(s) inside usable∩gaps; anchored edges stay put. */
+	struct wlr_box area;
+	if (resize_usable_content_area(toplevel, &area)) {
+		int area_right = area.x + area.width;
+		int area_bottom = area.y + area.height;
+		if (server->resize_edges & (uint32_t)WLR_EDGE_TOP) {
+			if (new_top < area.y) {
+				new_top = area.y;
+			}
+			if (new_top >= new_bottom) {
+				new_top = new_bottom - 1;
+			}
+		} else if (server->resize_edges & (uint32_t)WLR_EDGE_BOTTOM) {
+			if (new_bottom > area_bottom) {
+				new_bottom = area_bottom;
+			}
+			if (new_bottom <= new_top) {
+				new_bottom = new_top + 1;
+			}
+		}
+		if (server->resize_edges & (uint32_t)WLR_EDGE_LEFT) {
+			if (new_left < area.x) {
+				new_left = area.x;
+			}
+			if (new_left >= new_right) {
+				new_left = new_right - 1;
+			}
+		} else if (server->resize_edges & (uint32_t)WLR_EDGE_RIGHT) {
+			if (new_right > area_right) {
+				new_right = area_right;
+			}
+			if (new_right <= new_left) {
+				new_right = new_left + 1;
+			}
 		}
 	}
 
@@ -374,17 +483,12 @@ static void resize_center_max_size(struct sf_toplevel *toplevel, double cx, doub
 	*max_w = INT_MAX;
 	*max_h = INT_MAX;
 	struct wlr_box area;
-	if (!sf_toplevel_output_box(toplevel, &area)) {
+	if (!resize_usable_content_area(toplevel, &area)) {
 		return;
 	}
-	sf_box_inset_gap(&area, sf_cfg(toplevel->server)->gap_size);
-	if (area.width <= 0 || area.height <= 0) {
-		return;
-	}
-	int top_inset = sf_ssd_top_inset(toplevel);
 	double left = cx - (double)area.x;
 	double right = (double)area.x + (double)area.width - cx;
-	double up = cy - ((double)area.y + (double)top_inset);
+	double up = cy - (double)area.y;
 	double down = (double)area.y + (double)area.height - cy;
 	if (left < 0.0) {
 		left = 0.0;
