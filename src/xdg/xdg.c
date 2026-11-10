@@ -254,6 +254,11 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 	}
 	sf_decor_update_geom(toplevel);
 	sf_foreign_toplevel_on_outputs_change(toplevel);
+	/* Center-lock grab: re-pin when the committed buffer size catches up. */
+	if (toplevel->server->cursor_mode == SF_CURSOR_RESIZE_CENTER &&
+	    toplevel->server->grabbed_toplevel == toplevel) {
+		sf_seat_resize_center_sync(toplevel->server);
+	}
 	/* Parent-centered windows re-center when size arrives (still auto_place). */
 	if (toplevel->auto_place) {
 		sf_toplevel_place_transient(toplevel);
@@ -365,6 +370,10 @@ void sf_begin_interactive(struct sf_toplevel *toplevel, enum sf_cursor_mode mode
 		server->grab_geobox = *geo_box;
 		server->grab_geobox.x += toplevel->scene_tree->node.x;
 		server->grab_geobox.y += toplevel->scene_tree->node.y;
+		server->resize_center_x =
+			(double)server->grab_geobox.x + (double)server->grab_geobox.width / 2.0;
+		server->resize_center_y =
+			(double)server->grab_geobox.y + (double)server->grab_geobox.height / 2.0;
 		server->resize_edges = 0;
 		(void)edges;
 	} else {

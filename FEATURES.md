@@ -35,7 +35,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 | Unsnap / restore PreSnap | Super+u |
 | Drag move (Super+LMB) | WM xcursor via `sf_seat_apply_grab_cursor`. Clear client pointer focus before set; re-assert each grab motion. SSD titlebar hover shows move face |
 | Drag resize (Super+RMB) | Edges nearest pointer. Does not clear edge-max / gap-max / snap — only the dragged edge moves |
-| Center-lock resize (Super+Alt+RMB) | Grow/shrink around a fixed center: Δw = 2·Δx, Δh = 2·Δy from press (min 50). Pure H/V only changes that axis; diagonal both. `SF_CURSOR_RESIZE_CENTER` |
+| Center-lock resize (Super+Shift+RMB) | Grow/shrink around a fixed layout center: propose Δw = 2·Δx, Δh = 2·Δy (min 50). Cap to usable∩gaps (SSD top inset) so the box cannot leave the view. Scene position follows the *committed* buffer; re-sync on xdg commit. `SF_CURSOR_RESIZE_CENTER` |
 | Border/corner mouse resize | Hover + LMB on hit band (`resize_border_in` 3 / `resize_border_out` 1); edge cursors. Keep enter/motion on surface in inner band; honor implicit grab until release |
 | Magnetic drag-snap + resistance | `drag_snap.c` — threshold 26, 4× push-through |
 | Snap preview overlay | SceneFX overlay rects — border 1, fill 40% active |
@@ -199,7 +199,7 @@ Former River-fork blockers that stonefly owns in-process:
 | Super+Page / Super+1–9 workspaces; Shift moves follow | ✅ |
 | 3-finger vertical swipe workspaces | ✅ |
 | Super+LMB/RMB move/resize + magnetic snap + preview | ✅ |
-| Super+Alt+RMB center-lock resize | ✅ |
+| Super+Shift+RMB center-lock resize | ✅ |
 | Border/corner LMB resize | ✅ |
 | Ctrl+Esc minimize LIFO | ✅ |
 | Super tap launcher / double-tap term / Super+t claim | ✅ |

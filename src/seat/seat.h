@@ -36,6 +36,10 @@ const char *sf_resize_xcursor_name(uint32_t edges);
  * each grab motion so a prior client set_cursor surface cannot stick. */
 void sf_seat_apply_grab_cursor(struct sf_server *server);
 
+/* Keep the locked content center under the committed buffer during a
+ * Super+Shift+RMB grab (call from motion and from xdg commit). */
+void sf_seat_resize_center_sync(struct sf_server *server);
+
 /* Warp the pointer to layout coords and refresh enter/motion.
  * No-op during MOVE/RESIZE grabs or a locked pointer constraint. */
 void sf_pointer_warp_to(struct sf_server *server, double lx, double ly);

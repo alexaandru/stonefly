@@ -64,7 +64,7 @@ enum sf_cursor_mode {
 	SF_CURSOR_PASSTHROUGH,
 	SF_CURSOR_MOVE,
 	SF_CURSOR_RESIZE,
-	/* Super+Alt+RMB: grow/shrink around a fixed center (both axes). */
+	/* Super+Shift+RMB: grow/shrink around a fixed center (both axes). */
 	SF_CURSOR_RESIZE_CENTER,
 };
 
@@ -167,6 +167,8 @@ struct sf_server {
 	double grab_x, grab_y;
 	struct wlr_box grab_geobox;
 	uint32_t resize_edges;
+	/* Layout-space content center locked for SF_CURSOR_RESIZE_CENTER. */
+	double resize_center_x, resize_center_y;
 	struct sf_drag_snap drag_snap;
 	struct sf_snap_preview *snap_preview;
 

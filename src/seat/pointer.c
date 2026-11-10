@@ -2,6 +2,7 @@
 #include "seat/internal.h"
 
 #include <errno.h>
+#include <limits.h>
 #include <linux/input-event-codes.h>
 #include <math.h>
 #include <stdint.h>
@@ -32,6 +33,7 @@
 #include "ssd/ssd.h"
 #include "util/time.h"
 #include "wm/drag_snap.h"
+#include "wm/geom.h"
 #include "wm/snap_preview.h"
 #include "wm/wm.h"
 #include "xdg/xdg.h"
@@ -331,7 +333,76 @@ static void process_cursor_resize(struct sf_server *server) {
 	sf_seat_apply_grab_cursor(server);
 }
 
-/* Super+Alt+RMB: Δw = 2·Δx, Δh = 2·Δy from press; center stays put. */
+/*
+ * Place the scene so the *committed* content box stays centered on the locked
+ * point. Positioning for the pending configure size before the client acks
+ * made the buffer translate (felt like move, not resize).
+ */
+void sf_seat_resize_center_sync(struct sf_server *server) {
+	if (server == NULL || server->cursor_mode != SF_CURSOR_RESIZE_CENTER) {
+		return;
+	}
+	struct sf_toplevel *toplevel = server->grabbed_toplevel;
+	if (toplevel == NULL || toplevel->scene_tree == NULL || toplevel->xdg_toplevel == NULL) {
+		return;
+	}
+
+	struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
+	int cur_w = geo->width;
+	int cur_h = geo->height;
+	if (cur_w <= 0 || cur_h <= 0) {
+		struct wlr_surface *surf = toplevel->xdg_toplevel->base->surface;
+		if (surf != NULL) {
+			cur_w = surf->current.width;
+			cur_h = surf->current.height;
+		}
+	}
+	if (cur_w <= 0 || cur_h <= 0) {
+		return;
+	}
+
+	int x = (int)lround(server->resize_center_x - (double)cur_w / 2.0) - geo->x;
+	int y = (int)lround(server->resize_center_y - (double)cur_h / 2.0) - geo->y;
+	wlr_scene_node_set_position(&toplevel->scene_tree->node, x, y);
+	toplevel->resting_x = x;
+	toplevel->resting_y = y;
+}
+
+/* Max content size that still fits usable∩gaps around a fixed center. */
+static void resize_center_max_size(struct sf_toplevel *toplevel, double cx, double cy, int *max_w,
+				   int *max_h) {
+	*max_w = INT_MAX;
+	*max_h = INT_MAX;
+	struct wlr_box area;
+	if (!sf_toplevel_output_box(toplevel, &area)) {
+		return;
+	}
+	sf_box_inset_gap(&area, sf_cfg(toplevel->server)->gap_size);
+	if (area.width <= 0 || area.height <= 0) {
+		return;
+	}
+	int top_inset = sf_ssd_top_inset(toplevel);
+	double left = cx - (double)area.x;
+	double right = (double)area.x + (double)area.width - cx;
+	double up = cy - ((double)area.y + (double)top_inset);
+	double down = (double)area.y + (double)area.height - cy;
+	if (left < 0.0) {
+		left = 0.0;
+	}
+	if (right < 0.0) {
+		right = 0.0;
+	}
+	if (up < 0.0) {
+		up = 0.0;
+	}
+	if (down < 0.0) {
+		down = 0.0;
+	}
+	*max_w = (int)(2.0 * (left < right ? left : right));
+	*max_h = (int)(2.0 * (up < down ? up : down));
+}
+
+/* Super+Shift+RMB: propose Δw = 2·Δx / Δh = 2·Δy; keep committed buffer centered. */
 static void process_cursor_resize_center(struct sf_server *server) {
 	struct sf_toplevel *toplevel = server->grabbed_toplevel;
 	if (toplevel == NULL || toplevel->scene_tree == NULL || toplevel->xdg_toplevel == NULL) {
@@ -349,18 +420,24 @@ static void process_cursor_resize_center(struct sf_server *server) {
 		new_height = SF_RESIZE_CENTER_MIN;
 	}
 
-	int cx = server->grab_geobox.x + server->grab_geobox.width / 2;
-	int cy = server->grab_geobox.y + server->grab_geobox.height / 2;
-	int new_left = cx - new_width / 2;
-	int new_top = cy - new_height / 2;
+	int max_w, max_h;
+	resize_center_max_size(toplevel, server->resize_center_x, server->resize_center_y, &max_w,
+			       &max_h);
+	if (max_w < SF_RESIZE_CENTER_MIN) {
+		max_w = SF_RESIZE_CENTER_MIN;
+	}
+	if (max_h < SF_RESIZE_CENTER_MIN) {
+		max_h = SF_RESIZE_CENTER_MIN;
+	}
+	if (new_width > max_w) {
+		new_width = max_w;
+	}
+	if (new_height > max_h) {
+		new_height = max_h;
+	}
 
-	struct wlr_box *geo_box = &toplevel->xdg_toplevel->base->geometry;
-	int x = new_left - geo_box->x;
-	int y = new_top - geo_box->y;
-	wlr_scene_node_set_position(&toplevel->scene_tree->node, x, y);
-	toplevel->resting_x = x;
-	toplevel->resting_y = y;
 	wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, new_width, new_height);
+	sf_seat_resize_center_sync(server);
 	sf_seat_apply_grab_cursor(server);
 }
 
@@ -859,10 +936,10 @@ void server_cursor_button(struct wl_listener *listener, void *data) {
 		return;
 	}
 
-	/* Super+LMB move, Super+RMB edge resize, Super+Alt+RMB center-lock resize. */
+	/* Super+LMB move, Super+RMB edge resize, Super+Shift+RMB center-lock. */
 	if (!sf_session_locked(server)) {
 		uint32_t mods = seat_keyboard_mods(server) & (uint32_t)SF_MOD_MASK;
-		if (event->button == BTN_RIGHT && mods == (SF_SUPER | SF_ALT)) {
+		if (event->button == BTN_RIGHT && mods == (SF_SUPER | SF_SHIFT)) {
 			sf_tap_disarm(server);
 			double sx, sy;
 			struct wlr_surface *surface = NULL;
