@@ -21,7 +21,7 @@ the detail rows. When an item ships, check it off here and move the row to
 | 3 | Keyboard nudge move / resize | ✅ | Shipped (`nudge` / `resize_edge` + `nudge_step`; Alt / Alt+Shift+arrows) |
 | 4 | Always-on-top / pin | ✅ | Shipped (`toggle_always_on_top` / rule / Super+Shift+p) |
 | 5 | Workspace switch animation | ✅ | Shipped (vertical strip slide; Super+Page / 1–9 + IPC + swipe share `sf_workspace_switch`) |
-| 6 | Real `inputs.fnl` API | 🚧 | Tap-to-click, natural scroll, accel — how the machine feels before windows |
+| 6 | Real `inputs.fnl` API | ✅ | Shipped (`sf.input` + libinput apply; tap/natural/accel + left_handed/dwt/repeat) |
 | 7 | Live config reload (binds + opts first) | ❌ | Tweak chords without logout; mango/Hypr baseline |
 | 8 | Dim-inactive / spotlight polish | 🚧 | Opacity knobs exist; stronger dim or overlay so focus reads at a glance |
 | 9 | Fade / scale appear | ❌ | Slide ships; short opacity/scale pop is the Hypr/mango open cue |
@@ -122,7 +122,7 @@ product asks for in-process chrome again.
 | Config validate CLI | ❌ | Check without applying |
 | Nano syntax highlight | ❌ | |
 | IPC `action <name>` allowlist | ❌ | |
-| IPC inputs | ❌ | `outputs` ✅ |
+| IPC inputs | ❌ | Live devices dump; `config inputs` rules ✅ |
 | APK release buildtype | 🚧 | **TEMP:** clang `debugoptimized` + ASan/UBSan (`!strip`); release `abuild-meson --buildtype=release` kept commented until crash hunting ends |
 | Exit CPU/heap profiles | ❌ | |
 
@@ -175,8 +175,8 @@ Shell/OSD/media stay **🌙 Noctalia**.
 | Live reload mid-session | ❌ | TODO NEXT #7. Loads once at init; start with binds + opts; `sf.exec` `reload true` waits on this |
 | Config validate CLI | ❌ | Check without applying |
 | `--write-config-lua` | ❌ | Offload compiled/plain Lua instead of `.fnl` |
-| `inputs.fnl` / `outputs.fnl` APIs | 🚧 | TODO NEXT #6 for inputs. Files are no-op stubs. Tap/natural-scroll/accel first; output `:layout` override planned (workspace→output→global; global `opt.layout` wired) |
-| IPC `config` inputs/outputs sections | 🚧 | Emit `{}` until those APIs exist |
+| `outputs.fnl` API | 🚧 | `inputs.fnl` / `sf.input` shipped (FEATURES). Output `:layout` override planned (workspace→output→global; global `opt.layout` wired) |
+| IPC `config` outputs section | 🚧 | Inputs emit rules array; outputs still `{}` until that API exists |
 | Neovim API compat / fake `vim.*` | ❌ | Non-goal |
 | Fennel as C dependency | ❌ | Non-goal (Fennel is Lua in the pack) |
 | Remote plugin fetch | ❌ | Non-goal for v1 |

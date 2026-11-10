@@ -321,6 +321,86 @@ static void emit_execs(struct json_buf *b, const struct sf_config *cfg) {
 	json_byte(b, ']');
 }
 
+static const char *input_accel_name(enum sf_input_accel p) {
+	switch (p) {
+	case SF_INPUT_ACCEL_NONE:
+		return "none";
+	case SF_INPUT_ACCEL_FLAT:
+		return "flat";
+	case SF_INPUT_ACCEL_ADAPTIVE:
+		return "adaptive";
+	case SF_INPUT_ACCEL_UNSET:
+		break;
+	}
+	return NULL;
+}
+
+static void emit_input_tri(struct json_buf *b, int v) {
+	if (v < 0) {
+		json_raw(b, "null");
+	} else {
+		json_bool(b, v != 0);
+	}
+}
+
+static void emit_inputs(struct json_buf *b, const struct sf_config *cfg) {
+	json_byte(b, '[');
+	for (size_t i = 0; i < cfg->n_input_rules; i++) {
+		const struct sf_input_rule *r = &cfg->input_rules[i];
+		if (i > 0) {
+			json_byte(b, ',');
+		}
+		json_byte(b, '{');
+		json_key(b, "match");
+		json_str(b, r->match ? r->match : "");
+		json_byte(b, ',');
+		json_key(b, "tap_to_click");
+		emit_input_tri(b, r->tap_to_click);
+		json_byte(b, ',');
+		json_key(b, "natural_scroll");
+		emit_input_tri(b, r->natural_scroll);
+		json_byte(b, ',');
+		json_key(b, "left_handed");
+		emit_input_tri(b, r->left_handed);
+		json_byte(b, ',');
+		json_key(b, "dwt");
+		emit_input_tri(b, r->dwt);
+		json_byte(b, ',');
+		json_key(b, "accel_speed");
+		if (r->accel_speed_set) {
+			json_f64(b, r->accel_speed);
+		} else {
+			json_raw(b, "null");
+		}
+		json_byte(b, ',');
+		json_key(b, "accel_profile");
+		{
+			const char *name = input_accel_name(r->accel_profile);
+			if (name != NULL) {
+				json_str(b, name);
+			} else {
+				json_raw(b, "null");
+			}
+		}
+		json_byte(b, ',');
+		json_key(b, "repeat_rate");
+		if (r->repeat_rate_set) {
+			json_i64(b, r->repeat_rate);
+		} else {
+			json_raw(b, "null");
+		}
+		json_byte(b, ',');
+		json_key(b, "repeat_delay");
+		if (r->repeat_delay_set) {
+			json_i64(b, r->repeat_delay);
+		} else {
+			json_raw(b, "null");
+		}
+		json_byte(b, '}');
+	}
+	json_byte(b, ']');
+}
+
 static void emit_window_rules(struct json_buf *b, const struct sf_config *cfg) {
 	json_byte(b, '[');
 	for (size_t i = 0; i < cfg->n_window_rules; i++) {
@@ -484,7 +564,7 @@ int sf_config_to_json(struct sf_server *server, const char *section, char *buf, 
 			}
 			json_key(&b, "inputs");
 		}
-		json_raw(&b, "{}");
+		emit_inputs(&b, cfg);
 		need_comma = true;
 	}
 	if (all || strcmp(section, "outputs") == 0) {

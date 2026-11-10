@@ -1,5 +1,6 @@
 #include "seat/seat.h"
 #include "seat/internal.h"
+#include "seat/input_config.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -165,6 +166,7 @@ void server_new_pointer(struct sf_server *server, struct wlr_input_device *devic
 	/* Pointer motion/button go through wlr_cursor; gestures are listened on
 	 * the raw wlr_pointer so we can consume 3-finger vertical swipes. */
 	wlr_cursor_attach_input_device(server->cursor, device);
+	sf_input_apply_device(server, device);
 
 	struct wlr_pointer *wlr_pointer = wlr_pointer_from_input_device(device);
 	if (wlr_pointer == NULL) {

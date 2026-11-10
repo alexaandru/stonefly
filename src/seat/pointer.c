@@ -1,5 +1,6 @@
 #include "seat/seat.h"
 #include "seat/internal.h"
+#include "seat/input_config.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -119,6 +120,7 @@ static void touch_handle_destroy(struct wl_listener *listener, void *data) {
 
 void server_new_touch(struct sf_server *server, struct wlr_input_device *device) {
 	wlr_cursor_attach_input_device(server->cursor, device);
+	sf_input_apply_device(server, device);
 
 	struct sf_touch *touch = calloc(1, sizeof(*touch));
 	if (touch == NULL) {

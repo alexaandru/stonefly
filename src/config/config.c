@@ -182,6 +182,10 @@ void sf_config_finish(struct sf_config *cfg) {
 		free(cfg->execs[i].cmd);
 	}
 	free(cfg->execs);
+	for (size_t i = 0; i < cfg->n_input_rules; i++) {
+		free(cfg->input_rules[i].match);
+	}
+	free(cfg->input_rules);
 	memset(cfg, 0, sizeof *cfg);
 }
 

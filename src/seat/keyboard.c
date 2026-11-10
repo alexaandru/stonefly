@@ -1,5 +1,6 @@
 #include "seat/seat.h"
 #include "seat/internal.h"
+#include "seat/input_config.h"
 
 #include <stdlib.h>
 #include <time.h>
@@ -254,6 +255,8 @@ void server_new_keyboard(struct sf_server *server, struct wlr_input_device *devi
 		xkb_context_unref(context);
 	}
 	wlr_keyboard_set_repeat_info(wlr_keyboard, 25, 600);
+	/* After default repeat so sf.input repeat_rate/delay can override. */
+	sf_input_apply_device(server, device);
 
 	keyboard->modifiers.notify = keyboard_handle_modifiers;
 	wl_signal_add(&wlr_keyboard->events.modifiers, &keyboard->modifiers);

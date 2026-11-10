@@ -364,6 +364,14 @@ return {
         ["fnl/docstring"] = "Session spawn after WAYLAND_DISPLAY is up (Hyprland exec-once / sway exec).\n  (sf.exec \"flatpak run com.slack.Slack\")\n  (sf.exec \"flatpak\" \"run\" \"com.slack.Slack\")\n  (sf.exec \"helper\" {:reload true})\nOne string → sh -c as-is (pipes ok). Several strings → shell-quoted argv join.\nTrailing opts table: :reload bool (default false = once per compositor start; true also on future config reload). Distinct from bind action :exec.",
       },
     },
+    ["input"] = {
+      binding = "sf.input",
+      metadata = {
+        ["fls/itemKind"] = "Function",
+        ["fnl/arglist"] = {"match", "opts"},
+        ["fnl/docstring"] = "Libinput / key-repeat rule for devices matching match.\n  (sf.input \"touchpad\" {:tap_to_click true :natural_scroll true :dwt true})\n  (sf.input \"keyboard\" {:repeat_rate 40 :repeat_delay 250})\nmatch: \"keyboard\"|\"pointer\"|\"mouse\"|\"touchpad\"|\"touch\" or a case-insensitive device-name substring.\nopts bools: :tap_to_click :natural_scroll :left_handed :dwt\nopts accel: :accel_speed (-1..1) :accel_profile (\"none\"|\"flat\"|\"adaptive\")\nopts keyboard: :repeat_rate (keys/sec) :repeat_delay (ms)\nLater rules override earlier ones for the same key. Applied on device add (reload is separate).",
+      },
+    },
     ["stdpath"] = {
       binding = "sf.stdpath",
       metadata = {

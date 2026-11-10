@@ -28,6 +28,15 @@ struct sf_server;
 #define SF_SCRATCHPAD_MAX 8
 #define SF_WINDOW_RULE_MAX 64
 #define SF_EXEC_MAX 64
+#define SF_INPUT_RULE_MAX 64
+
+/* libinput accel profile for sf.input; UNSET = leave device default. */
+enum sf_input_accel {
+	SF_INPUT_ACCEL_UNSET = 0,
+	SF_INPUT_ACCEL_NONE,
+	SF_INPUT_ACCEL_FLAT,
+	SF_INPUT_ACCEL_ADAPTIVE,
+};
 
 enum sf_action {
 	SF_ACTION_NONE = 0,
@@ -120,6 +129,24 @@ struct sf_scratchpad_spec {
 struct sf_exec {
 	char *cmd;
 	bool reload;
+};
+
+/* sf.input(match, opts). match is a type keyword (keyboard|pointer|mouse|
+ * touchpad|touch) or a case-insensitive device-name substring. Bool/int
+ * fields use -1 as unset so later rules can override. Applied on device add. */
+struct sf_input_rule {
+	char *match;
+	int tap_to_click;   /* -1 unset, 0/1 */
+	int natural_scroll; /* -1 unset, 0/1 */
+	int left_handed;    /* -1 unset, 0/1 */
+	int dwt;	    /* disable-while-typing; -1 unset, 0/1 */
+	bool accel_speed_set;
+	double accel_speed; /* [-1, 1] */
+	enum sf_input_accel accel_profile;
+	bool repeat_rate_set;
+	int repeat_rate; /* keys/sec */
+	bool repeat_delay_set;
+	int repeat_delay; /* ms before first repeat */
 };
 
 /* Fennel window_rule(match, actions [, parent]). Parent merge baked in.
@@ -222,6 +249,8 @@ struct sf_config {
 	size_t n_window_rules;
 	struct sf_exec *execs;
 	size_t n_execs;
+	struct sf_input_rule *input_rules;
+	size_t n_input_rules;
 
 	/* LuaJIT state; NULL when SF_NOCONFIG or before load. */
 	void *lua; /* lua_State * — opaque here to avoid forcing luajit.h on all TUs */

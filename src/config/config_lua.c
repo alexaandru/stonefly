@@ -40,6 +40,7 @@ struct lua_runtime {
 	bool scratches_replaced;
 	bool rules_replaced;
 	bool execs_replaced;
+	bool inputs_replaced;
 	unsigned rule_seq;
 };
 
@@ -228,6 +229,140 @@ static void clear_execs(struct sf_config *cfg) {
 	free(cfg->execs);
 	cfg->execs = NULL;
 	cfg->n_execs = 0;
+}
+
+static void clear_input_rules(struct sf_config *cfg) {
+	for (size_t i = 0; i < cfg->n_input_rules; i++) {
+		free(cfg->input_rules[i].match);
+	}
+	free(cfg->input_rules);
+	cfg->input_rules = NULL;
+	cfg->n_input_rules = 0;
+}
+
+static void parse_input_bool(lua_State *L, const char *key, int *dst) {
+	if (!lua_isboolean(L, -1)) {
+		luaL_error(L, "input: %s must be a boolean", key);
+	}
+	*dst = lua_toboolean(L, -1) ? 1 : 0;
+}
+
+/*
+ * sf.input(match, opts)
+ * match: "keyboard"|"pointer"|"mouse"|"touchpad"|"touch" or name substring.
+ * opts: tap_to_click, natural_scroll, left_handed, dwt (bool);
+ *       accel_speed (-1..1), accel_profile ("none"|"flat"|"adaptive");
+ *       repeat_rate / repeat_delay (non-negative int, keyboards).
+ * Later rules override earlier ones for the same key. Applied on device add.
+ */
+static int l_input(lua_State *L) {
+	if (lua_gettop(L) != 2) {
+		return luaL_error(L, "input expects (match, opts)");
+	}
+	if (G == NULL) {
+		return luaL_error(L, "input: no runtime");
+	}
+	struct sf_config *cfg = &G->server->config;
+	if (!G->inputs_replaced) {
+		clear_input_rules(cfg);
+		G->inputs_replaced = true;
+	}
+	if (cfg->n_input_rules >= SF_INPUT_RULE_MAX) {
+		return luaL_error(L, "input: max %d", SF_INPUT_RULE_MAX);
+	}
+
+	const char *match = luaL_checkstring(L, 1);
+	if (match[0] == '\0') {
+		return luaL_error(L, "input: match must be non-empty");
+	}
+	luaL_checktype(L, 2, LUA_TTABLE);
+
+	struct sf_input_rule rule = {
+		.tap_to_click = -1,
+		.natural_scroll = -1,
+		.left_handed = -1,
+		.dwt = -1,
+		.accel_profile = SF_INPUT_ACCEL_UNSET,
+	};
+
+	lua_pushnil(L);
+	while (lua_next(L, 2) != 0) {
+		if (!lua_isstring(L, -2)) {
+			return luaL_error(L, "input: opts keys must be strings");
+		}
+		const char *k = lua_tostring(L, -2);
+		if (strcmp(k, "tap_to_click") == 0) {
+			parse_input_bool(L, k, &rule.tap_to_click);
+		} else if (strcmp(k, "natural_scroll") == 0) {
+			parse_input_bool(L, k, &rule.natural_scroll);
+		} else if (strcmp(k, "left_handed") == 0) {
+			parse_input_bool(L, k, &rule.left_handed);
+		} else if (strcmp(k, "dwt") == 0) {
+			parse_input_bool(L, k, &rule.dwt);
+		} else if (strcmp(k, "accel_speed") == 0) {
+			if (!lua_isnumber(L, -1)) {
+				return luaL_error(L, "input: accel_speed must be a number");
+			}
+			double v = lua_tonumber(L, -1);
+			if (v < -1.0 || v > 1.0) {
+				return luaL_error(L, "input: accel_speed must be in [-1, 1]");
+			}
+			rule.accel_speed_set = true;
+			rule.accel_speed = v;
+		} else if (strcmp(k, "accel_profile") == 0) {
+			const char *p = lua_tostring(L, -1);
+			if (p == NULL) {
+				return luaL_error(L, "input: accel_profile must be a string");
+			}
+			if (strcasecmp(p, "none") == 0) {
+				rule.accel_profile = SF_INPUT_ACCEL_NONE;
+			} else if (strcasecmp(p, "flat") == 0) {
+				rule.accel_profile = SF_INPUT_ACCEL_FLAT;
+			} else if (strcasecmp(p, "adaptive") == 0) {
+				rule.accel_profile = SF_INPUT_ACCEL_ADAPTIVE;
+			} else {
+				return luaL_error(
+					L, "input: accel_profile must be none|flat|adaptive");
+			}
+		} else if (strcmp(k, "repeat_rate") == 0) {
+			if (!lua_isnumber(L, -1)) {
+				return luaL_error(L, "input: repeat_rate must be an integer");
+			}
+			int n = (int)lua_tonumber(L, -1);
+			if (n < 0) {
+				return luaL_error(L, "input: repeat_rate must not be negative");
+			}
+			rule.repeat_rate_set = true;
+			rule.repeat_rate = n;
+		} else if (strcmp(k, "repeat_delay") == 0) {
+			if (!lua_isnumber(L, -1)) {
+				return luaL_error(L, "input: repeat_delay must be an integer");
+			}
+			int n = (int)lua_tonumber(L, -1);
+			if (n < 0) {
+				return luaL_error(L, "input: repeat_delay must not be negative");
+			}
+			rule.repeat_delay_set = true;
+			rule.repeat_delay = n;
+		} else {
+			return luaL_error(L, "input: unknown setting %s", k);
+		}
+		lua_pop(L, 1);
+	}
+
+	rule.match = sf_xstrdup(match);
+	if (rule.match == NULL) {
+		return luaL_error(L, "input: OOM");
+	}
+
+	struct sf_input_rule *nb = realloc(cfg->input_rules, (cfg->n_input_rules + 1) * sizeof *nb);
+	if (nb == NULL) {
+		free(rule.match);
+		return luaL_error(L, "input: OOM");
+	}
+	cfg->input_rules = nb;
+	cfg->input_rules[cfg->n_input_rules++] = rule;
+	return 0;
 }
 
 /*
@@ -1226,6 +1361,8 @@ static void push_sf_table(struct lua_runtime *rt) {
 	lua_setfield(L, -2, "window_rule");
 	lua_pushcfunction(L, l_exec);
 	lua_setfield(L, -2, "exec");
+	lua_pushcfunction(L, l_input);
+	lua_setfield(L, -2, "input");
 
 	/* sf.opt with __newindex */
 	lua_newtable(L); /* opt */

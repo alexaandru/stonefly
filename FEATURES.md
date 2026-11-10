@@ -59,6 +59,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 | Multi-monitor focus / send | Actions `focus_monitor` / `send_to_monitor` with `:cmd` target: `left`\|`right`\|`up`\|`down`, `next`\|`prev`, or connector name (`eDP-1`). Focus warps to head center then top window (+ cursor_follows_focus). Send assigns to the target's active workspace, re-fits max/fullscreen, centers floaters, focuses + `pointer_center`. Defaults: Super+Ctrl+arrows focus, Super+Shift+arrows send |
 | Keyboard nudge move / resize | Actions `nudge` / `resize_edge` with `:cmd` `left`\|`right`\|`up`\|`down`. Step from `sf.opt.nudge_step` (default 25). Resize: right/down grow, left/up shrink (top-left anchored, min 50px). No-op when max/snap/fullscreen. Defaults: Alt+arrows move, Alt+Shift+arrows resize |
 | Always-on-top / pin | Flag + restack: pinned windows stay above normal ones after focus/raise; hide slides stay above pins. Actions `toggle_always_on_top` / `always_on_top` (`:cmd` true\|false). Window rule `always_on_top`. IPC `windows[].always_on_top`. Default Super+Shift+p |
+| Input device rules | `sf.input(match, opts)` in `inputs.fnl`. Match type keywords (`keyboard`/`pointer`/`mouse`/`touchpad`/`touch`) or case-insensitive name substring; later rules override. Libinput: `tap_to_click`, `natural_scroll`, `left_handed`, `dwt`, `accel_speed` (−1..1), `accel_profile` (`none`\|`flat`\|`adaptive`). Keyboard: `repeat_rate` / `repeat_delay`. Applied on device add via `seat/input_config.c`. Default: touchpad tap + natural scroll + dwt. IPC `stonefly config inputs` |
 
 ---
 
@@ -144,7 +145,7 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 | xdg-toplevel-tag | Stored on toplevel; IPC `windows` (`tag` / `description`) |
 | xdg-toplevel-icon-v1 | Preferred sizes 16–64; IPC `icon_name` |
 | ext-background-effect-v1 | Hand protocol + `src/effect/background_effect.c`; capability `blur` |
-| Touch / gestures / virtual-keyboard | `seat/`: touch, `pointer_gestures_v1` + workspace swipe, `zwp_virtual_keyboard_v1`, relative-pointer + constraints |
+| Touch / gestures / virtual-keyboard | `seat/`: touch, `pointer_gestures_v1` + workspace swipe, `zwp_virtual_keyboard_v1`, relative-pointer + constraints; `sf.input` libinput apply on new keyboard/pointer/touch |
 | Presentation-time | `wp_presentation` via `wlr_presentation_create`. Tearing control advertised (hint log only) |
 
 ---
@@ -164,7 +165,7 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 | IPC focus / close by id | JSON + CLI |
 | IPC toggle-quick-terminal | Toggles scratchpad `"term"` |
 | IPC `exit` / `quit` | `wl_display_terminate` on owning display |
-| IPC `config` [section] | Live dump: options/binds/taps/scratchpads/window_rules/execs/inputs/outputs |
+| IPC `config` [section] | Live dump: options/binds/taps/scratchpads/window_rules/execs/inputs (rules array)/outputs (`{}` until API) |
 | IPC `outputs` | `ipc/outputs.c` |
 | Structured JSON logs | `wm.log` + `wm.last.json` rotate |
 | APK / meson `check` | `check()`: `make style-check` then `OPTS= ./tests/drive.py` (same listing as host `make test`, no coverage). Dist tarball packs `tests/` |
@@ -249,8 +250,8 @@ C23 `#embed` of Fennel-first default tree (`src/config/default/`); missing user
 `init.lua` → embedded default; broken user init → log + fall back + FDO
 `Notify` after display up; `stonefly --write-config`; builtin pack
 `fennel-shim` (Fennel 1.6.1); `sf.*` API (`opt` / `bind` / `tap` /
-`scratchpad` / `window_rule` / `packadd` / `stdpath` / `exec` / `chain`);
-chord/tap strings via libxkbcommon; action names shared with IPC via
+`scratchpad` / `window_rule` / `packadd` / `stdpath` / `exec` / `input` /
+`chain`); chord/tap strings via libxkbcommon; action names shared with IPC via
 `config/action.h`; `opt` setters table-driven; IPC `stonefly config [section]`;
 consumers read `sf_cfg(server)`. fennel-ls docset
 `dist/fennel-ls/docsets/sf.lua` + default `flsproject.fnl`.

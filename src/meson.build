@@ -28,6 +28,7 @@ sf_src = files(
   'seat/pointer.c',
   'seat/gestures.c',
   'seat/constraints.c',
+  'seat/input_config.c',
   'session/session.c',
   'xdg/xdg.c',
   'wm/wm.c',
@@ -61,6 +62,7 @@ sf_inc = include_directories('.')
 luajit = dependency('luajit')
 fcft = dependency('fcft')
 pixman = dependency('pixman-1')
+libinput = dependency('libinput')
 
 # Alpine: elogind provides libsystemd.pc → sd-bus. Prefer libsystemd name.
 libsystemd = dependency('libsystemd', required: false)
@@ -113,6 +115,7 @@ executable(
     libsystemd,
     fcft,
     pixman,
+    libinput,
     meson.get_compiler('c').find_library('m'),
     sf_protocols_dep,
   ],
