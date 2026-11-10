@@ -28,7 +28,7 @@ bool sf_test_true(const char *file, int line, bool cond, const char *expr);
 
 #define SF_TEST_EQ_INT(got, want) sf_test_eq_int(__FILE__, __LINE__, (got), (want))
 #define SF_TEST_EQ_I64(got, want) sf_test_eq_i64(__FILE__, __LINE__, (got), (want))
-#define SF_TEST_EQ_DOUBLE(got, want, eps) \
+#define SF_TEST_EQ_DOUBLE(got, want, eps)                                                          \
 	sf_test_eq_double(__FILE__, __LINE__, (got), (want), (eps))
 #define SF_TEST_STREQ(got, want) sf_test_streq(__FILE__, __LINE__, (got), (want))
 #define SF_TEST_TRUE(cond) sf_test_true(__FILE__, __LINE__, !!(cond), #cond)

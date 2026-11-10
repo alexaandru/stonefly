@@ -143,12 +143,12 @@ static void test_scan_errors(void) {
 }
 
 static const struct sf_test tests[] = {
-	{ "json_writer_basics", test_writer_basics },
-	{ "json_writer_escape", test_writer_escape },
-	{ "json_writer_overflow", test_writer_overflow },
-	{ "json_scan_string_bool_i64", test_scan_string_bool_i64 },
-	{ "json_scan_object", test_scan_object },
-	{ "json_scan_errors", test_scan_errors },
+	{"json_writer_basics", test_writer_basics},
+	{"json_writer_escape", test_writer_escape},
+	{"json_writer_overflow", test_writer_overflow},
+	{"json_scan_string_bool_i64", test_scan_string_bool_i64},
+	{"json_scan_object", test_scan_object},
+	{"json_scan_errors", test_scan_errors},
 };
 
 int main(void) {

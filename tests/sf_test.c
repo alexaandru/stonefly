@@ -62,7 +62,7 @@ bool sf_test_streq(const char *file, int line, const char *got, const char *want
 		return true;
 	}
 	sf_test_failf(file, line, "got %s, want %s", got != NULL ? got : "(null)",
-			want != NULL ? want : "(null)");
+		      want != NULL ? want : "(null)");
 	return false;
 }
 
@@ -94,8 +94,8 @@ int sf_test_run(const struct sf_test *tests, size_t n) {
 	sf_test_case = NULL;
 
 	/* Machine line for tests/run.sh (stdout). Human chatter stays on stderr. */
-	fprintf(stdout, "sf_test_result cases=%zu pass=%d fail=%d\n", n,
-			(int)n - failed_cases, failed_cases);
+	fprintf(stdout, "sf_test_result cases=%zu pass=%d fail=%d\n", n, (int)n - failed_cases,
+		failed_cases);
 	fflush(stdout);
 	return failed_cases;
 }

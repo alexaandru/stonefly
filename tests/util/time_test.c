@@ -2,7 +2,7 @@
 #include "util/time.h"
 
 static void test_timespec_ns(void) {
-	struct timespec ts = { .tv_sec = 2, .tv_nsec = 5 };
+	struct timespec ts = {.tv_sec = 2, .tv_nsec = 5};
 
 	SF_TEST_EQ_I64(sf_timespec_ns(&ts), 2000000005LL);
 
@@ -12,7 +12,7 @@ static void test_timespec_ns(void) {
 }
 
 static void test_timespec_ms(void) {
-	struct timespec ts = { .tv_sec = 3, .tv_nsec = 2500000 };
+	struct timespec ts = {.tv_sec = 3, .tv_nsec = 2500000};
 
 	SF_TEST_EQ_I64(sf_timespec_ms(&ts), 3002LL);
 
@@ -40,9 +40,9 @@ static void test_timespec_ms_since(void) {
 }
 
 static const struct sf_test tests[] = {
-	{ "sf_timespec_ns", test_timespec_ns },
-	{ "sf_timespec_ms", test_timespec_ms },
-	{ "sf_timespec_ms_since", test_timespec_ms_since },
+	{"sf_timespec_ns", test_timespec_ns},
+	{"sf_timespec_ms", test_timespec_ms},
+	{"sf_timespec_ms_since", test_timespec_ms_since},
 };
 
 int main(void) {

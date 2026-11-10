@@ -38,8 +38,8 @@ static void test_replace_str(void) {
 }
 
 static const struct sf_test tests[] = {
-	{ "sf_xstrdup", test_xstrdup },
-	{ "sf_replace_str", test_replace_str },
+	{"sf_xstrdup", test_xstrdup},
+	{"sf_replace_str", test_replace_str},
 };
 
 int main(void) {

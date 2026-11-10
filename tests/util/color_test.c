@@ -44,8 +44,8 @@ static void test_rgba_premul(void) {
 }
 
 static const struct sf_test tests[] = {
-	{ "sf_rgba_set_copy", test_rgba_set_copy },
-	{ "sf_rgba_premul", test_rgba_premul },
+	{"sf_rgba_set_copy", test_rgba_set_copy},
+	{"sf_rgba_premul", test_rgba_premul},
 };
 
 int main(void) {
