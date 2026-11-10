@@ -63,7 +63,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 
 | Feature | Notes |
 |---|---|
-| Appear / map slide | Closest usable edge, 200ms ease_out; short-axis preference when several edges tie. SoftPlace `appear_pending` hold; mid-slide retarget; morph if SoftPlace centers after slide |
+| Appear / map slide | Closest usable edge, 200ms ease_out; short-axis preference when several edges tie. SoftPlace `appear_pending` hold (not for `set_parent` transients — Meld save dialog stayed scene-disabled with empty title); mid-slide retarget; morph if SoftPlace centers after slide |
 | Close slide (WM-initiated) | Shared `slide_offscreen` / `closest_dir` with appear, scratch, close-ghost |
 | Close slide (client Ctrl+W / CSD) | Cached last-frame ghost (`close_snap`); unmap slides via `sf_anim_offscreen_for_box`. Skipped when WM hide already ran |
 | Snap / unsnap / max morph | Live peeble-style morph (`morph_duration_ms`); mid-flight retarget. Fullscreen stays instant |

@@ -287,6 +287,8 @@ static void xdg_toplevel_set_parent(struct wl_listener *listener, void *data) {
 	(void)data;
 	struct sf_toplevel *toplevel = wl_container_of(listener, toplevel, set_parent);
 	sf_foreign_toplevel_on_parent_change(toplevel);
+	/* Parent arriving after map ends SoftPlace appear-hold for dialogs. */
+	sf_toplevel_try_appear(toplevel);
 	if (toplevel->auto_place) {
 		sf_toplevel_place_transient(toplevel);
 	}

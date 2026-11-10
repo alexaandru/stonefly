@@ -609,6 +609,12 @@ static bool appear_should_hold(const struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || !toplevel->soft_place) {
 		return false;
 	}
+	/* Parented dialogs/modals must show immediately — an empty title plus
+	 * unrelated title-center rules (e.g. Chrome) used to leave Meld's save
+	 * dialog mapped but scene-disabled forever. */
+	if (toplevel->xdg_toplevel != NULL && toplevel->xdg_toplevel->parent != NULL) {
+		return false;
+	}
 	if (sf_rules_wants_center(toplevel)) {
 		return false;
 	}
