@@ -39,6 +39,7 @@ static const struct sf_action_entry sf_actions[] = {
 	{"move_to_workspace_next", SF_ACTION_MOVE_TO_WORKSPACE_NEXT},
 	{"move_to_workspace_prev", SF_ACTION_MOVE_TO_WORKSPACE_PREV},
 	{"move_to_workspace", SF_ACTION_MOVE_TO_WORKSPACE},
+	{"pointer_center", SF_ACTION_POINTER_CENTER},
 };
 
 const char *sf_action_name(enum sf_action action) {

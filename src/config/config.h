@@ -62,6 +62,8 @@ enum sf_action {
 	SF_ACTION_MOVE_TO_WORKSPACE_NEXT,
 	SF_ACTION_MOVE_TO_WORKSPACE_PREV,
 	SF_ACTION_MOVE_TO_WORKSPACE,
+	/* Warp pointer to center of focused window (ignores cursor_follows_focus). */
+	SF_ACTION_POINTER_CENTER,
 };
 
 /* One step in a bind/tap/rule action (or sf.chain). cmd for EXEC / scratch / ws. */
@@ -171,6 +173,10 @@ struct sf_config {
 	/* Natural: finger up moves content up → next; finger down → prev.
 	 * Classic (false): finger points at the destination (down → next). */
 	bool swipe_workspace_natural;
+
+	/* Warp pointer into the newly focused window on keyboard focus cycle
+	 * and workspace switch (click-to-focus does not warp). */
+	bool cursor_follows_focus;
 
 	/* SSD titlebars: never|auto|prefer_ssd|always. */
 	enum sf_ssd_mode ssd_mode;

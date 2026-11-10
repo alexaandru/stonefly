@@ -1069,6 +1069,7 @@ static const struct {
 	{"window_blur", offsetof(struct sf_config, window_blur)},
 	{"blur_xray", offsetof(struct sf_config, blur_xray)},
 	{"swipe_workspace_natural", offsetof(struct sf_config, swipe_workspace_natural)},
+	{"cursor_follows_focus", offsetof(struct sf_config, cursor_follows_focus)},
 };
 
 static const struct {

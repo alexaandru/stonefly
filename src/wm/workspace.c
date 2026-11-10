@@ -13,6 +13,7 @@
 #include "config/config.h"
 #include "log/log.h"
 #include "output/output.h"
+#include "seat/seat.h"
 #include "server/server.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
@@ -341,6 +342,7 @@ void sf_workspace_switch(struct sf_output *output, struct sf_workspace *ws) {
 	workspace_update_visibility(output);
 	sf_workspace_apply_layout(ws);
 	sf_focus_top(output->server);
+	sf_pointer_follow_focus(output->server);
 }
 
 void sf_workspace_switch_offset(struct sf_output *output, int delta) {
@@ -403,6 +405,8 @@ void sf_workspace_move_toplevel(struct sf_toplevel *toplevel, struct sf_workspac
 	if (follow) {
 		sf_workspace_switch(output, ws);
 		sf_focus_toplevel(toplevel);
+		/* Switch already followed focus_top; re-center on the moved window. */
+		sf_pointer_follow_focus(output->server);
 	}
 }
 

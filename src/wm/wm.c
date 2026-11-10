@@ -16,6 +16,7 @@
 #include "layer/layer.h"
 #include "log/log.h"
 #include "output/output.h"
+#include "seat/seat.h"
 #include "session/session.h"
 #include "ssd/ssd.h"
 #include "toplevel/foreign.h"
@@ -1106,6 +1107,7 @@ static void sf_focus_cycle(struct sf_server *server, bool backward, bool include
 		wl_list_for_each(candidate, &server->toplevels, link) {
 			if (focus_cycle_eligible(candidate, include_minimized)) {
 				sf_focus_toplevel(candidate);
+				sf_pointer_follow_focus(server);
 				return;
 			}
 		}
@@ -1128,6 +1130,7 @@ static void sf_focus_cycle(struct sf_server *server, bool backward, bool include
 		}
 		if (focus_cycle_eligible(t, include_minimized)) {
 			sf_focus_toplevel(t);
+			sf_pointer_follow_focus(server);
 			return;
 		}
 	} while (t != current);
@@ -1267,6 +1270,9 @@ void sf_run_action(struct sf_server *server, struct sf_toplevel *target, enum sf
 		}
 		break;
 	}
+	case SF_ACTION_POINTER_CENTER:
+		sf_pointer_center(server, win);
+		break;
 	}
 }
 

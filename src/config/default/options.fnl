@@ -45,6 +45,9 @@
             ;; true = natural (finger up → next / content moves with finger);
             ;; false = classic (finger down → next).
             :swipe_workspace_natural true
+            ;; Warp pointer to the newly focused window on Super+Tab / workspace
+            ;; switch (and move-follow). Click-to-focus does not warp.
+            :cursor_follows_focus true
             ;; SSD titlebars — never | auto | prefer_ssd | always
             ;; auto: SSD when client prefers server-side or has no preference.
             :ssd_mode "auto"

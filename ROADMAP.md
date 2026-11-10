@@ -16,7 +16,7 @@ the detail rows. When an item ships, check it off here and move the row to
 
 | # | Item | Status | Why |
 |---|---|---|---|
-| 1 | Cursor follows focus + warp on workspace / monitor change | ❌ | Keyboard focus moves; pointer must follow (niri/Hypr muscle memory) |
+| 1 | Cursor follows focus + warp on workspace / monitor change | ✅ | Shipped (`cursor_follows_focus` + `pointer_center`); monitor focus waits on #2 |
 | 2 | Multi-monitor focus + send-to-monitor | ❌ | Dual-head daily friction; peeble `focus_monitor` / `send_to_monitor` |
 | 3 | Keyboard nudge move / resize | ❌ | Pixel-step placement; snap covers coarse, nudge covers fine |
 | 4 | Always-on-top / pin | ❌ | Floating video, docs, calculators |
@@ -53,8 +53,7 @@ the detail rows. When an item ships, check it off here and move the row to
 | Workspace switch animation | ❌ | TODO NEXT #5. Animate Super+Page / 1–9 (and IPC) with the same path as 3-finger swipe |
 | Layout engine (tile/columns/…) | 🚧 | Resolve `workspace → output → global` (`sf_layout`); only `stacking` implemented. `columns`/`tile` enum + `apply_layout` hook reserved. Global `sf.opt.layout` |
 | Focus cycle policy (MRU vs stack) | 🚧 | Stacking / MRU list front |
-| Multi-monitor focus / send | ❌ | TODO NEXT #2. Actions `focus_monitor` / `send_to_monitor` (+ optional directional focus across outputs) |
-| Pointer center / cursor-follows-focus | ❌ | TODO NEXT #1. Warp pointer into focused window; also on workspace switch and monitor focus change (Hypr `warp_on_*` / niri `warp-mouse-to-focus`) |
+| Multi-monitor focus / send | ❌ | TODO NEXT #2. Actions `focus_monitor` / `send_to_monitor` (+ optional directional focus across outputs). Warp on monitor focus change rides #1 helper |
 | Picture-in-picture float | ❌ | Related to always-on-top; dedicated PiP policy still open |
 | Dim inactive / spotlight | 🚧 | TODO NEXT #8. Global `client_opacity` / `inactive_opacity` shipped; no black dim-overlay / spotlight; consider stronger default inactive |
 | Scratchpad click-outside catcher | ❌ | `auto_hide` on focus change ships; catcher does not |
@@ -141,7 +140,7 @@ product asks for in-process chrome again.
 | P2 | Workspaces polish | ❌ rules / geometry persist; switch anim is TODO NEXT #5 |
 | P2 | `wp_fifo_v1` | ❌ |
 | — | Xwayland / IME | ❌ TODO NEXT #10 |
-| — | Always-on-top / multi-mon / cursor warp / nudge / ws anim | ❌ TODO NEXT #1–#5 |
+| — | Always-on-top / multi-mon / nudge / ws anim | ❌ TODO NEXT #2–#5 (#1 cursor follow shipped) |
 | — | Tiling engines (`columns`/`tile`) | 🚧 reserved |
 
 ---
@@ -151,7 +150,7 @@ product asks for in-process chrome again.
 | Habit | Status |
 |---|---|
 | Always-on-top / winmenu | ❌ AOT is TODO NEXT #4; winmenu still open |
-| Multi-mon send/focus, pointer warp / follows-focus | ❌ TODO NEXT #1–#2 |
+| Multi-mon send/focus | ❌ TODO NEXT #2 (cursor follow shipped) |
 | Keyboard nudge / workspace switch anim | ❌ TODO NEXT #3 / #5 |
 | Geometry persist | ❌ |
 | Xwayland / IME | ❌ TODO NEXT #10 |

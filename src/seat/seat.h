@@ -36,4 +36,11 @@ const char *sf_resize_xcursor_name(uint32_t edges);
  * each grab motion so a prior client set_cursor surface cannot stick. */
 void sf_seat_apply_grab_cursor(struct sf_server *server);
 
+/* Warp the pointer to the center of toplevel and refresh enter/motion.
+ * No-op for nil/zero-sized windows, MOVE/RESIZE grabs, or a locked constraint. */
+void sf_pointer_center(struct sf_server *server, struct sf_toplevel *toplevel);
+
+/* If sf.opt.cursor_follows_focus, center on the keyboard-focused toplevel. */
+void sf_pointer_follow_focus(struct sf_server *server);
+
 #endif

@@ -233,6 +233,39 @@ void sf_reset_cursor_mode(struct sf_server *server) {
 	process_cursor_motion(server, msec);
 }
 
+static void pointer_warp_to(struct sf_server *server, double lx, double ly) {
+	if (server->cursor_mode != SF_CURSOR_PASSTHROUGH) {
+		return;
+	}
+	if (server->constraints.current != NULL &&
+	    server->constraints.current->type == WLR_POINTER_CONSTRAINT_V1_LOCKED) {
+		return;
+	}
+	wlr_cursor_warp(server->cursor, NULL, lx, ly);
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	process_cursor_motion(server, (uint32_t)sf_timespec_ms(&now));
+}
+
+void sf_pointer_center(struct sf_server *server, struct sf_toplevel *toplevel) {
+	if (server == NULL || toplevel == NULL || toplevel->scene_tree == NULL) {
+		return;
+	}
+	struct wlr_box geom;
+	sf_toplevel_layout_geom(toplevel, &geom);
+	if (geom.width <= 0 || geom.height <= 0) {
+		return;
+	}
+	pointer_warp_to(server, geom.x + geom.width / 2.0, geom.y + geom.height / 2.0);
+}
+
+void sf_pointer_follow_focus(struct sf_server *server) {
+	if (server == NULL || !sf_cfg(server)->cursor_follows_focus) {
+		return;
+	}
+	sf_pointer_center(server, sf_focused_toplevel(server));
+}
+
 static void process_cursor_move(struct sf_server *server) {
 	/* Keep WM face over any lingering client set_cursor surface. */
 	sf_seat_apply_grab_cursor(server);

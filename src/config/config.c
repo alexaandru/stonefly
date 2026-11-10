@@ -224,6 +224,7 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 	cfg->layout = SF_LAYOUT_STACKING;
 	cfg->swipe_workspace_threshold = 80;
 	cfg->swipe_workspace_natural = true;
+	cfg->cursor_follows_focus = true;
 	cfg->ssd_mode = SF_SSD_AUTO;
 	cfg->ssd_height = 28;
 	cfg->ssd_font_size = 17;
