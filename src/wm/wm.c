@@ -1,7 +1,5 @@
-#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <unistd.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
@@ -23,6 +21,7 @@
 #include "ssd/ssd.h"
 #include "toplevel/foreign.h"
 #include "wm/geom.h"
+#include "wm/internal.h"
 #include "wm/layout_sm.h"
 #include "wm/place_sm.h"
 #include "wm/rules.h"
@@ -1124,7 +1123,7 @@ void sf_toplevel_minimize(struct sf_toplevel *toplevel) {
 	minimize_now(toplevel);
 }
 
-static void sf_unminimize_most_recent(struct sf_server *server) {
+void sf_unminimize_most_recent(struct sf_server *server) {
 	if (wl_list_empty(&server->minimized)) {
 		return;
 	}
@@ -1137,7 +1136,7 @@ static void close_after_hide(struct sf_toplevel *toplevel) {
 	wlr_xdg_toplevel_send_close(toplevel->xdg_toplevel);
 }
 
-static void sf_close_toplevel(struct sf_toplevel *toplevel) {
+void sf_close_toplevel(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL) {
 		return;
 	}
@@ -1147,7 +1146,7 @@ static void sf_close_toplevel(struct sf_toplevel *toplevel) {
 	wlr_xdg_toplevel_send_close(toplevel->xdg_toplevel);
 }
 
-static void sf_spawn_cmd(const char *cmd) {
+void sf_spawn_cmd(const char *cmd) {
 	if (fork() == 0) {
 		execl("/bin/sh", "/bin/sh", "-c", cmd, (void *)NULL);
 		_exit(1);
@@ -1164,7 +1163,7 @@ static bool focus_cycle_eligible(struct sf_toplevel *t, bool include_minimized) 
 	return include_minimized || !t->minimized;
 }
 
-static void sf_focus_cycle(struct sf_server *server, bool backward, bool include_minimized) {
+void sf_focus_cycle(struct sf_server *server, bool backward, bool include_minimized) {
 	if (wl_list_empty(&server->toplevels)) {
 		return;
 	}
@@ -1202,217 +1201,4 @@ static void sf_focus_cycle(struct sf_server *server, bool backward, bool include
 			return;
 		}
 	} while (t != current);
-}
-
-void sf_run_action(struct sf_server *server, struct sf_toplevel *target, enum sf_action action,
-		   const char *cmd) {
-	struct sf_toplevel *win = target != NULL ? target : sf_focused_toplevel(server);
-	switch (action) {
-	case SF_ACTION_NONE:
-		break;
-	case SF_ACTION_QUIT:
-		wl_display_terminate(server->wl_display);
-		break;
-	case SF_ACTION_CLOSE:
-		sf_close_toplevel(win);
-		break;
-	case SF_ACTION_FOCUS_NEXT:
-		sf_focus_cycle(server, false, false);
-		break;
-	case SF_ACTION_FOCUS_PREV:
-		sf_focus_cycle(server, true, false);
-		break;
-	case SF_ACTION_FOCUS_NEXT_ALL:
-		sf_focus_cycle(server, false, true);
-		break;
-	case SF_ACTION_FOCUS_PREV_ALL:
-		sf_focus_cycle(server, true, true);
-		break;
-	case SF_ACTION_MAXIMIZE:
-		if (win != NULL) {
-			sf_toplevel_set_max_gaps(win, true);
-		}
-		break;
-	case SF_ACTION_MAXIMIZE_TO_EDGES:
-		if (win != NULL) {
-			sf_toplevel_set_max_edges(win, true);
-		}
-		break;
-	case SF_ACTION_UNMAXIMIZE:
-		if (win == NULL) {
-			break;
-		}
-		if (sf_layout_sm_is_max_edges(&win->layout)) {
-			sf_toplevel_set_max_edges(win, false);
-		} else if (sf_layout_sm_is_max_gaps(&win->layout)) {
-			sf_toplevel_set_max_gaps(win, false);
-		}
-		break;
-	case SF_ACTION_TOGGLE_MAXIMIZE_TO_EDGES:
-		if (win != NULL) {
-			sf_toplevel_toggle_max_edges(win);
-		}
-		break;
-	case SF_ACTION_TOGGLE_MAXIMIZE:
-		if (win != NULL) {
-			sf_toplevel_toggle_max_gaps(win);
-		}
-		break;
-	case SF_ACTION_MINIMIZE:
-		if (win != NULL) {
-			sf_toplevel_minimize(win);
-		}
-		break;
-	case SF_ACTION_UNMINIMIZE:
-		sf_unminimize_most_recent(server);
-		break;
-	case SF_ACTION_SNAP_LEFT:
-		if (win != NULL) {
-			sf_toplevel_snap(win, SF_SNAP_LEFT);
-		}
-		break;
-	case SF_ACTION_SNAP_RIGHT:
-		if (win != NULL) {
-			sf_toplevel_snap(win, SF_SNAP_RIGHT);
-		}
-		break;
-	case SF_ACTION_SNAP_TOP:
-		if (win != NULL) {
-			sf_toplevel_snap(win, SF_SNAP_TOP);
-		}
-		break;
-	case SF_ACTION_SNAP_BOTTOM:
-		if (win != NULL) {
-			sf_toplevel_snap(win, SF_SNAP_BOTTOM);
-		}
-		break;
-	case SF_ACTION_UNSNAP:
-		if (win != NULL) {
-			sf_toplevel_unsnap(win);
-		}
-		break;
-	case SF_ACTION_EXEC:
-		if (cmd != NULL && cmd[0] != '\0') {
-			SF_LOGD("exec", sf_str("cmd", cmd));
-			sf_spawn_cmd(cmd);
-		} else {
-			SF_LOGW("exec action with empty cmd");
-		}
-		break;
-	case SF_ACTION_SCRATCH_TOGGLE:
-		sf_scratchpad_toggle(server, (cmd != NULL && cmd[0] != '\0') ? cmd : "term");
-		break;
-	case SF_ACTION_SCRATCH_CLAIM:
-		sf_scratchpad_claim_focused(server, (cmd != NULL && cmd[0] != '\0') ? cmd : "term");
-		break;
-	case SF_ACTION_WORKSPACE_NEXT:
-	case SF_ACTION_WORKSPACE_PREV: {
-		struct sf_output *output = sf_output_at_cursor(server);
-		if (output != NULL) {
-			sf_workspace_switch_offset(output,
-						   action == SF_ACTION_WORKSPACE_NEXT ? 1 : -1);
-		}
-		break;
-	}
-	case SF_ACTION_WORKSPACE_SWITCH: {
-		struct sf_output *output = sf_output_at_cursor(server);
-		long v = (cmd != NULL) ? strtol(cmd, NULL, 10) : 0;
-		int idx = (v > 0 && v <= (long)INT_MAX) ? (int)v : 0;
-		if (output != NULL && idx > 0) {
-			sf_workspace_switch_index(output, idx);
-		}
-		break;
-	}
-	case SF_ACTION_MOVE_TO_WORKSPACE_NEXT:
-	case SF_ACTION_MOVE_TO_WORKSPACE_PREV:
-		if (win != NULL) {
-			sf_workspace_move_offset(
-				win, action == SF_ACTION_MOVE_TO_WORKSPACE_NEXT ? 1 : -1, true);
-		}
-		break;
-	case SF_ACTION_MOVE_TO_WORKSPACE: {
-		long v = (cmd != NULL) ? strtol(cmd, NULL, 10) : 0;
-		int idx = (v > 0 && v <= (long)INT_MAX) ? (int)v : 0;
-		if (win != NULL && idx > 0) {
-			sf_workspace_move_index(win, idx, true);
-		}
-		break;
-	}
-	case SF_ACTION_POINTER_CENTER:
-		sf_pointer_center(server, win);
-		break;
-	case SF_ACTION_FOCUS_MONITOR:
-		if (cmd != NULL && cmd[0] != '\0') {
-			sf_focus_monitor(server, cmd);
-		} else {
-			SF_LOGW("focus_monitor action with empty target");
-		}
-		break;
-	case SF_ACTION_SEND_TO_MONITOR:
-		if (win == NULL) {
-			break;
-		}
-		if (cmd != NULL && cmd[0] != '\0') {
-			sf_send_to_monitor(server, win, cmd);
-		} else {
-			SF_LOGW("send_to_monitor action with empty target");
-		}
-		break;
-	case SF_ACTION_NUDGE:
-		if (win == NULL) {
-			break;
-		}
-		if (cmd != NULL && cmd[0] != '\0') {
-			sf_toplevel_nudge(win, cmd);
-		} else {
-			SF_LOGW("nudge action with empty direction");
-		}
-		break;
-	case SF_ACTION_RESIZE_EDGE:
-		if (win == NULL) {
-			break;
-		}
-		if (cmd != NULL && cmd[0] != '\0') {
-			sf_toplevel_resize_edge(win, cmd);
-		} else {
-			SF_LOGW("resize_edge action with empty direction");
-		}
-		break;
-	case SF_ACTION_TOGGLE_ALWAYS_ON_TOP:
-		if (win != NULL) {
-			sf_toplevel_toggle_always_on_top(win);
-		}
-		break;
-	case SF_ACTION_ALWAYS_ON_TOP: {
-		if (win == NULL || cmd == NULL || cmd[0] == '\0') {
-			if (win != NULL) {
-				SF_LOGW("always_on_top action with empty value");
-			}
-			break;
-		}
-		bool on = false;
-		if (strcmp(cmd, "1") == 0 || strcasecmp(cmd, "true") == 0 ||
-		    strcasecmp(cmd, "on") == 0 || strcasecmp(cmd, "yes") == 0) {
-			on = true;
-		} else if (strcmp(cmd, "0") == 0 || strcasecmp(cmd, "false") == 0 ||
-			   strcasecmp(cmd, "off") == 0 || strcasecmp(cmd, "no") == 0) {
-			on = false;
-		} else {
-			SF_LOGW("always_on_top bad value", sf_str("cmd", cmd));
-			break;
-		}
-		sf_toplevel_set_always_on_top(win, on);
-		break;
-	}
-	}
-}
-
-void sf_run_actions(struct sf_server *server, struct sf_toplevel *target,
-		    const struct sf_action_step *steps, size_t n) {
-	if (steps == NULL) {
-		return;
-	}
-	for (size_t i = 0; i < n; i++) {
-		sf_run_action(server, target, steps[i].action, steps[i].cmd);
-	}
 }

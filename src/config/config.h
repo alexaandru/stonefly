@@ -73,6 +73,9 @@ enum sf_action {
 	SF_ACTION_TOGGLE_ALWAYS_ON_TOP,
 	/* cmd = true|false|1|0|on|off. */
 	SF_ACTION_ALWAYS_ON_TOP,
+
+	/* One past the last real action — table sizes / completeness checks. */
+	SF_ACTION_COUNT,
 };
 
 /* One step in a bind/tap/rule action (or sf.chain). cmd for EXEC / scratch / ws. */

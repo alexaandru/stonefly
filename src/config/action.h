@@ -9,6 +9,8 @@
 
 const char *sf_action_name(enum sf_action action);
 enum sf_action sf_action_parse(const char *name);
+/* Length of the name↔enum table (should equal SF_ACTION_COUNT). */
+size_t sf_action_name_table_len(void);
 
 /* true if name is a known action (including "none"). */
 bool sf_action_parse_ok(const char *name, enum sf_action *out);

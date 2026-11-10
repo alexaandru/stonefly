@@ -5,6 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void test_count_matches_name_table(void) {
+	SF_TEST_EQ_INT((int)sf_action_name_table_len(), (int)SF_ACTION_COUNT);
+	SF_TEST_EQ_INT((int)SF_ACTION_ALWAYS_ON_TOP, (int)SF_ACTION_COUNT - 1);
+	SF_TEST_EQ_INT((int)SF_ACTION_NONE, 0);
+}
+
 static void test_parse_name_roundtrip(void) {
 	enum sf_action a = SF_ACTION_NONE;
 
@@ -96,6 +102,7 @@ static void test_steps_one_dup_free(void) {
 }
 
 static const struct sf_test tests[] = {
+	{"sf_action_count_matches_name_table", test_count_matches_name_table},
 	{"sf_action_parse_name", test_parse_name_roundtrip},
 	{"sf_action_steps", test_steps_one_dup_free},
 };

@@ -48,8 +48,12 @@ static const struct sf_action_entry sf_actions[] = {
 	{"always_on_top", SF_ACTION_ALWAYS_ON_TOP},
 };
 
+size_t sf_action_name_table_len(void) {
+	return sizeof sf_actions / sizeof sf_actions[0];
+}
+
 const char *sf_action_name(enum sf_action action) {
-	for (size_t i = 0; i < sizeof sf_actions / sizeof sf_actions[0]; i++) {
+	for (size_t i = 0; i < sf_action_name_table_len(); i++) {
 		if (sf_actions[i].action == action) {
 			return sf_actions[i].name;
 		}
@@ -67,7 +71,7 @@ bool sf_action_parse_ok(const char *name, enum sf_action *out) {
 	if (name == NULL || out == NULL) {
 		return false;
 	}
-	for (size_t i = 0; i < sizeof sf_actions / sizeof sf_actions[0]; i++) {
+	for (size_t i = 0; i < sf_action_name_table_len(); i++) {
 		if (strcmp(name, sf_actions[i].name) == 0) {
 			*out = sf_actions[i].action;
 			return true;
