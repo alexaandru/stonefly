@@ -747,7 +747,7 @@ void sf_xdg_setup(struct sf_server *server) {
 		wl_signal_add(&server->xdg_dialog_mgr->events.new_dialog, &server->new_xdg_dialog);
 	}
 
-	/* MATRIX §9 P3 — advertise decoration; mode from ssd_mode + client request. */
+	/* FEATURES §9 P3 — advertise decoration; mode from ssd_mode + client request. */
 	/* wlroots 0.20: create(display) only (no version arg). */
 	server->xdg_decoration_mgr = wlr_xdg_decoration_manager_v1_create(server->wl_display);
 	if (server->xdg_decoration_mgr != NULL) {
@@ -756,7 +756,7 @@ void sf_xdg_setup(struct sf_server *server) {
 			      &server->new_xdg_decoration);
 	}
 
-	/* river#1390 / MATRIX — client tags for rules / persist / IPC windows. */
+	/* river#1390 / FEATURES — client tags for rules / persist / IPC windows. */
 	server->xdg_toplevel_tag_mgr =
 		wlr_xdg_toplevel_tag_manager_v1_create(server->wl_display, 1);
 	if (server->xdg_toplevel_tag_mgr != NULL) {

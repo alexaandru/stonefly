@@ -1,4 +1,4 @@
-/* Runtime config: C defaults + LuaJIT/Fennel overlays (MATRIX §10). */
+/* Runtime config: C defaults + LuaJIT/Fennel overlays (FEATURES/ROADMAP §10). */
 #ifndef SF_CONFIG_H
 #define SF_CONFIG_H
 
