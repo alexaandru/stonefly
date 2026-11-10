@@ -15,6 +15,7 @@
 #include "layer/layer.h"
 #include "log/log.h"
 #include "output/output.h"
+#include "seat/seat.h"
 #include "server/server.h"
 #include "ssd/ssd.h"
 #include "toplevel/toplevel.h"
@@ -137,6 +138,31 @@ static void demote_edged_for_join(struct sf_toplevel *t) {
 	sf_toplevel_layout_float(t, false);
 }
 
+void sf_arrange_join_toplevel(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->workspace == NULL || toplevel->minimized ||
+	    sf_toplevel_is_scratchpad(toplevel)) {
+		return;
+	}
+	if (sf_layout_sm_is_fullscreen(&toplevel->layout)) {
+		return;
+	}
+	if (toplevel->xdg_toplevel != NULL && toplevel->xdg_toplevel->parent != NULL) {
+		return;
+	}
+	demote_edged_for_join(toplevel);
+	if (sf_layout_sm_is_fixed(&toplevel->layout)) {
+		return;
+	}
+	struct sf_workspace *ws = toplevel->workspace;
+	save_float_if_needed(toplevel);
+	toplevel->arrange_managed = true;
+	toplevel->geom_regain_hold = false;
+	arrange_tiles_link(ws, toplevel);
+	if (toplevel->scene_tree != NULL && !toplevel->scene_tree->node.enabled) {
+		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
+	}
+}
+
 void sf_arrange_join_workspace(struct sf_workspace *ws) {
 	if (ws == NULL || ws->output == NULL || ws->output->server == NULL) {
 		return;
@@ -144,26 +170,10 @@ void sf_arrange_join_workspace(struct sf_workspace *ws) {
 	struct sf_server *server = ws->output->server;
 	struct sf_toplevel *t;
 	wl_list_for_each(t, &server->toplevels, link) {
-		if (t->workspace != ws || t->minimized || sf_toplevel_is_scratchpad(t)) {
+		if (t->workspace != ws) {
 			continue;
 		}
-		if (sf_layout_sm_is_fullscreen(&t->layout)) {
-			continue;
-		}
-		if (t->xdg_toplevel != NULL && t->xdg_toplevel->parent != NULL) {
-			continue;
-		}
-		demote_edged_for_join(t);
-		if (sf_layout_sm_is_fixed(&t->layout)) {
-			continue;
-		}
-		save_float_if_needed(t);
-		t->arrange_managed = true;
-		t->geom_regain_hold = false;
-		arrange_tiles_link(ws, t);
-		if (t->scene_tree != NULL && !t->scene_tree->node.enabled) {
-			wlr_scene_node_set_enabled(&t->scene_tree->node, true);
-		}
+		sf_arrange_join_toplevel(t);
 	}
 }
 
@@ -182,17 +192,7 @@ void sf_arrange_toggle_float(struct sf_toplevel *toplevel) {
 	if (ws == NULL || !sf_arrange_is_tiling(sf_workspace_arrange(ws))) {
 		return;
 	}
-	if (toplevel->xdg_toplevel != NULL && toplevel->xdg_toplevel->parent != NULL) {
-		return;
-	}
-	demote_edged_for_join(toplevel);
-	if (sf_layout_sm_is_fixed(&toplevel->layout)) {
-		return;
-	}
-	save_float_if_needed(toplevel);
-	toplevel->arrange_managed = true;
-	toplevel->geom_regain_hold = false;
-	arrange_tiles_link(ws, toplevel);
+	sf_arrange_join_toplevel(toplevel);
 	sf_arrange_schedule(ws);
 }
 
@@ -634,6 +634,49 @@ void sf_arrange_focus_dir(struct sf_server *server, const char *dir) {
 	if (best != NULL) {
 		sf_focus_toplevel(best);
 	}
+}
+
+bool sf_arrange_focus_cycle(struct sf_server *server, bool backward) {
+	if (server == NULL) {
+		return false;
+	}
+	struct sf_toplevel *focus = sf_focused_toplevel(server);
+	struct sf_workspace *ws = NULL;
+	if (focus != NULL) {
+		ws = focus->workspace;
+	} else {
+		struct sf_output *output = sf_output_at_cursor(server);
+		if (output != NULL) {
+			ws = output->active;
+		}
+	}
+	if (ws == NULL || !sf_arrange_is_tiling(sf_workspace_arrange(ws))) {
+		return false;
+	}
+
+	struct sf_toplevel *wins[SF_ARRANGE_MAX];
+	size_t n = collect_managed(ws, wins, SF_ARRANGE_MAX);
+	if (n > SF_ARRANGE_MAX) {
+		n = SF_ARRANGE_MAX;
+	}
+	if (n < 2) {
+		return false;
+	}
+
+	size_t next;
+	size_t fi = focus_index(wins, n, focus);
+	if (focus == NULL || wins[fi] != focus) {
+		/* Floater / no focus: land on first (forward) or last (backward). */
+		next = backward ? n - 1 : 0;
+	} else if (backward) {
+		next = (fi + n - 1) % n;
+	} else {
+		/* Clockwise = next in arrange_tiles (same ring as arrange_rotate). */
+		next = (fi + 1) % n;
+	}
+	sf_focus_toplevel(wins[next]);
+	sf_pointer_follow_focus(server);
+	return true;
 }
 
 static struct sf_toplevel *swap_peer_at(struct sf_workspace *ws, struct sf_toplevel *grab,

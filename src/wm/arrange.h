@@ -33,6 +33,10 @@ void sf_arrange_set(struct sf_server *server, const char *name);
 /* Join eligible windows into the tile set when entering a tiling arrange. */
 void sf_arrange_join_workspace(struct sf_workspace *ws);
 
+/* Enroll one window into its workspace tile set (map / send / toggle rejoin).
+ * Does not touch peers — Super+v float must survive a new client mapping. */
+void sf_arrange_join_toplevel(struct sf_toplevel *toplevel);
+
 /* Leave the tile set (explicit float / rule). Arms geom-regain hold. */
 void sf_arrange_break_out(struct sf_toplevel *toplevel);
 
@@ -50,6 +54,10 @@ bool sf_arrange_bind_matches(enum sf_arrange filter, enum sf_arrange current);
 
 /* Focus nearest managed peer in direction (monocle: cycle). cmd=left|right|up|down. */
 void sf_arrange_focus_dir(struct sf_server *server, const char *dir);
+
+/* Tab cycle along arrange_tiles (cw = next in order, same ring as arrange_rotate).
+ * Returns false when not tiling / fewer than 2 tiles — caller falls back to MRU. */
+bool sf_arrange_focus_cycle(struct sf_server *server, bool backward);
 
 /* Super+LMB tile swap: drag follows pointer; drop on a peer swaps order. */
 void sf_arrange_swap_begin(struct sf_server *server, struct sf_toplevel *toplevel);

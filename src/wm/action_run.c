@@ -40,11 +40,16 @@ static void action_close(struct sf_action_ctx *ctx) {
 }
 
 static void action_focus_next(struct sf_action_ctx *ctx) {
-	sf_focus_cycle(ctx->server, false, false);
+	/* Tiling: walk arrange_tiles (layout order). Stacking: MRU list. */
+	if (!sf_arrange_focus_cycle(ctx->server, false)) {
+		sf_focus_cycle(ctx->server, false, false);
+	}
 }
 
 static void action_focus_prev(struct sf_action_ctx *ctx) {
-	sf_focus_cycle(ctx->server, true, false);
+	if (!sf_arrange_focus_cycle(ctx->server, true)) {
+		sf_focus_cycle(ctx->server, true, false);
+	}
 }
 
 static void action_focus_next_all(struct sf_action_ctx *ctx) {

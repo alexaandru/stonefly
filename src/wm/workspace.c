@@ -361,10 +361,9 @@ void sf_workspace_assign(struct sf_toplevel *toplevel, struct sf_workspace *ws) 
 	if (sf_arrange_is_tiling(sf_workspace_arrange(ws)) &&
 	    !sf_layout_sm_is_fixed(&toplevel->layout) &&
 	    (toplevel->xdg_toplevel == NULL || toplevel->xdg_toplevel->parent == NULL)) {
-		toplevel->arrange_managed = true;
-		toplevel->geom_regain_hold = false;
-		/* Re-join so new members append to this workspace's tile order. */
-		sf_arrange_join_workspace(ws);
+		/* Enroll this window only — join_workspace would re-tile Super+v
+		 * floaters when a new client maps. */
+		sf_arrange_join_toplevel(toplevel);
 		sf_arrange_schedule(ws);
 	} else if (old_ws != ws) {
 		toplevel->arrange_managed = false;
