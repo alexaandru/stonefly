@@ -174,12 +174,12 @@ thin C API over an optional static C++ helper). Keep the compositor C-first.
 - **Do not bump `pkgrel` / `pkgver`** unless the user explicitly asks.
   Build/source fixes are fine; revision numbering is the user’s call.
 
-## MATRIX.md
+## FEATURES.md / ROADMAP.md
 
-Always keep [`MATRIX.md`](MATRIX.md) up to date after a change, fix, feature,
-or notable diagnosis. Update the matching rows (status, notes, peeble /
-stonefly columns) **in the same turn** — do not leave MATRIX stale for a
-later cleanup pass.
+Shipped work lives in [`FEATURES.md`](FEATURES.md); open and partial work in
+[`ROADMAP.md`](ROADMAP.md). After a change, fix, feature, or notable diagnosis,
+update the matching rows **in the same turn**. When something ships, move it
+from the roadmap into features (and drop or shrink the open row).
 
 ## Done checklist
 
@@ -189,7 +189,8 @@ Before calling work finished:
    including module layout and `util/` reuse above.
 2. No host library/pkg-config probing; verify via abuild (`make apk`).
 3. No new internal shell-outs.
-4. `MATRIX.md` rows for the touched feature are current.
+4. `FEATURES.md` / `ROADMAP.md` rows for the touched feature are current
+   (shipped items moved to features).
 5. `pkgrel` / `pkgver` untouched unless requested.
 6. Do not run `make fmt` unless the user asks — formatting is their call.
 7. New sources are listed in `src/meson.build` when applicable.
