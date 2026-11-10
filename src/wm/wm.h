@@ -99,20 +99,24 @@ void sf_toplevel_set_fullscreen(struct sf_toplevel *toplevel, bool want, struct 
 void sf_toplevel_place_cascade(struct sf_toplevel *toplevel);
 
 /* Map placement: center on visible parent when set_parent, else cascade.
- * No size-based "dialog" guessing. Keeps auto_place for late parent/size. */
+ * No size-based "dialog" guessing. Keeps place managed for late parent/size. */
 void sf_toplevel_place_new(struct sf_toplevel *toplevel);
 
-/* Re-run parent centering while auto_place (late set_parent / size commit). */
+/* Re-run parent centering while place is managed (late set_parent / size). */
 void sf_toplevel_place_transient(struct sf_toplevel *toplevel);
 
 /* Stop WM auto-placement (user move/resize/max/snap owns geometry). */
 void sf_toplevel_clear_auto_place(struct sf_toplevel *toplevel);
 
-/* SoftPlace appear-hold: park hidden while a center rule may still match on
- * late title/app_id; otherwise slide in (or enable instantly if slides off). */
+/* SoftPlace: center no longer possible — drop soft; release hold if needed. */
+void sf_toplevel_place_drop_soft(struct sf_toplevel *toplevel);
+/* SoftPlace: center rule matched — reassert managed + soft. */
+void sf_toplevel_place_soft_center(struct sf_toplevel *toplevel);
+
+/* SoftPlace appear-hold via place_sm, or slide/show immediately. */
 void sf_toplevel_arm_appear(struct sf_toplevel *toplevel);
 
-/* Release appear_pending once SoftPlace settled; no-op when not holding. */
+/* Release appear-hold once SoftPlace settled; no-op when not holding. */
 void sf_toplevel_try_appear(struct sf_toplevel *toplevel);
 
 /* cmd: EXEC string, or scratchpad name for SCRATCH_TOGGLE/CLAIM; else NULL.

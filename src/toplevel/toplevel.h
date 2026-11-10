@@ -10,6 +10,7 @@
 #include "server/server.h"
 #include "ssd/ssd_policy.h"
 #include "wm/layout_sm.h"
+#include "wm/place_sm.h"
 
 struct wlr_buffer;
 struct wlr_scene_blur;
@@ -62,15 +63,9 @@ struct sf_toplevel {
 
 	/* Exclusive float/max/snap/fullscreen + PreMax geom (wm/layout_sm). */
 	struct sf_layout_sm layout;
+	/* Map / SoftPlace / appear-hold (wm/place_sm). */
+	struct sf_place_sm place;
 	bool minimized;
-	/* WM auto-placement still owns position (parent center / cascade). Cleared
-	 * on user move/resize/max/snap. Parent set or size commit may re-place. */
-	bool auto_place;
-	/* Late title/app_id may still match a center window_rule (peeble SoftPlace). */
-	bool soft_place;
-	/* SoftPlace hold: stay unmapped-visible until a pending center rule settles
-	 * (Chrome profile title often arrives seconds after map). */
-	bool appear_pending;
 	/* xdg_dialog_v1.set_modal (requires parent). */
 	bool modal;
 	/* window_rule borderless: no WM border/shadow. */

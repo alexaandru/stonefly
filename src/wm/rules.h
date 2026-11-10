@@ -20,7 +20,7 @@ bool sf_rules_wants_center(const struct sf_toplevel *toplevel);
  * (missing fields could still make it match). SoftPlace appear-hold uses this. */
 bool sf_rules_center_still_possible(const struct sf_toplevel *toplevel);
 
-/* Late title/app_id: re-engage auto_place when a center rule now matches. */
+/* Late title/app_id: re-engage managed place when a center rule now matches. */
 void sf_rules_consider_place(struct sf_toplevel *toplevel);
 
 /* Re-apply rules to every mapped toplevel (config reload). */

@@ -30,6 +30,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 | Maximize with gaps (WM-only) | Super+m — `maximize` / `toggle_maximize`. No client maximized → rounder CSD. Gap-max/snap content box insets by `sf_ssd_top_inset` so SSD stays below exclusive zones. Live morph |
 | Unmaximize / restore | `unmaximize` clears either mode; toggles morph-restore. `float_for_resize` / `layout_float` for window_rule / drag break |
 | Layout mode state machine | Pure `wm/layout_sm` owns float/max/snap/fullscreen + PreMax on `toplevel->layout` (no mirror bools). Commands + geometry observe → state + effects; WM applies effects only. Resize/nudge/commit reconcile both ways. Unit suite `tests/wm/layout_sm_test.c` |
+| Place / SoftPlace / appear SM | Pure `wm/place_sm` owns managed vs settled, SoftPlace soft bit, and appear-hold on `toplevel->place` (replaces `auto_place` / `soft_place` / `appear_pending`). Map begin, user/layout own, drop-soft, soft-center, arm/try appear. Unit suite `tests/wm/place_sm_test.c` |
 | Fullscreen (client + WM) | Saved geom + full output box; client `request_fullscreen` + foreign set/unset (no WM keybind; Super+f is edge-max) |
 | Minimize / unminimize LIFO | Ctrl+Esc — unnamed scratchpad. Shared `apply_hidden`/`apply_shown` (LIFO vs scratch). `xdg request_minimize` → CSD/SSD buttons |
 | Keyboard half-snap (arrows) | Super+arrows — gap math ports `snapBorderBox` |
@@ -50,7 +51,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 | Scratchpad claim focused | Super+t |
 | Scratchpad omit from Alt-Tab | Super+Tab too |
 | SSD titlebars | `ssd_mode` (`auto`/`prefer_ssd`/`always`/`never`) + `ssd_height` (28) + `ssd_font_size` (17, fcft). Honors client `request_mode` within policy; hide on fullscreen/edge-max; TopInset in ensure-on-screen / cascade / gap-max / snap. Defer `set_mode` until `xdg_surface` initialized. Outer `corner_radii_top` on SSD; border hole punches content+SSD |
-| Transient / dialog placement | Center on visible `set_parent` (+ stack above); late parent/size re-place while `auto_place`. No size-based dialog heuristic. Cleared on move/resize/max/snap |
+| Transient / dialog placement | Center on visible `set_parent` (+ stack above); late parent/size re-place while `place` is managed. No size-based dialog heuristic. Cleared on move/resize/max/snap |
 | Window rules (app-id/title) | `sf.window_rule(match, actions [, parent])`. Match patterns via Lua `string.find`. Declarative `center`/`float`/`width`/`height`/`ssd`/`borderless`; WM `:action` shared with binds. SoftPlace appear-hold for late title. IPC `stonefly config window_rules` |
 | Workspaces | Dynamic per-output strip (`workspace.c`): trailing empty, compact on empty, Super+Page/1–9 + Shift move-follow, IPC `workspaces`/`workspace`/`move-to-workspace`, windows `{output,workspace}`. `ext-workspace-v1` sync. 3-finger vertical swipe (`swipe_workspace_threshold`, `swipe_workspace_natural`). Vertical switch slide (shared by keybind / IPC / swipe; `slide_duration_ms`, 0 = instant). `xdg-toplevel-tag` stored + IPC |
 | Cursor follows focus / pointer center | `sf.opt.cursor_follows_focus` (default true): warp pointer to window center on Super+Tab / workspace switch / move-follow. Click-to-focus does not warp. Action `pointer_center` warps on demand (ignores the opt). Skips MOVE/RESIZE grabs and locked pointer constraints |
@@ -64,7 +65,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 
 | Feature | Notes |
 |---|---|
-| Appear / map slide | Closest usable edge, 200ms ease_out; short-axis preference when several edges tie. SoftPlace `appear_pending` hold (not for `set_parent` transients — Meld save dialog stayed scene-disabled with empty title); mid-slide retarget; morph if SoftPlace centers after slide |
+| Appear / map slide | Closest usable edge, 200ms ease_out; short-axis preference when several edges tie. SoftPlace appear-hold via `place_sm` (not for `set_parent` transients — Meld save dialog stayed scene-disabled with empty title); mid-slide retarget; morph if SoftPlace centers after slide |
 | Close slide (WM-initiated) | Shared `slide_offscreen` / `closest_dir` with appear, scratch, close-ghost |
 | Close slide (client Ctrl+W / CSD) | Cached last-frame ghost (`close_snap`); unmap slides via `sf_anim_offscreen_for_box`. Skipped when WM hide already ran |
 | Snap / unsnap / max morph | Live peeble-style morph (`morph_duration_ms`); mid-flight retarget. Fullscreen stays instant |
@@ -273,9 +274,9 @@ Owns a small harness under `tests/` (no Criterion/Check/cmocka/fluent DSL).
 | Unit stubs | `tests/stubs/include` ahead of system headers (host + APK check); compositor Meson uses real deps |
 | Coverage | `OPTS=cover` default on `make test` (host gcov; not gated in APK) |
 
-Shipped pure suites include `wm/layout_sm` (window layout mode machine),
-geom/snap/layout name parse, IPC JSON/parse, util/*, ssd policy/layout,
-config action/chord.
+Shipped pure suites include `wm/layout_sm` / `wm/place_sm` (layout + SoftPlace
+appear machines), geom/snap/layout name parse, IPC JSON/parse, util/*, ssd
+policy/layout, config action/chord.
 
 **Add a suite:** create `tests/…/foo_test.c` with one pragma — no Makefile /
 meson edits:

@@ -36,6 +36,7 @@ sf_src = files(
   'wm/geom.c',
   'wm/layout.c',
   'wm/layout_sm.c',
+  'wm/place_sm.c',
   'wm/workspace.c',
   'wm/scratchpad.c',
   'wm/drag_snap.c',

@@ -24,6 +24,7 @@
 #include "toplevel/foreign.h"
 #include "wm/geom.h"
 #include "wm/layout_sm.h"
+#include "wm/place_sm.h"
 #include "wm/rules.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
@@ -450,18 +451,18 @@ static void toplevel_set_resting(struct sf_toplevel *toplevel, int x, int y) {
 		return;
 	}
 	/* SoftPlace hold: logical resting only until try_appear slides in. */
-	if (toplevel->appear_pending) {
+	if (sf_place_sm_is_holding(&toplevel->place)) {
 		return;
 	}
 	if (toplevel->scene_tree == NULL) {
 		return;
 	}
-	/* Late SoftPlace / auto_place recenter after appear finished: morph
+	/* Late SoftPlace / managed recenter after appear finished: morph
 	 * instead of snapping (Chrome profile title can arrive after the slide).
 	 * Skip while still disabled on the map path — morphing from the default
 	 * (0,0) left ensure_on_screen clamping every new client to usable
 	 * top-left and erased cascade offsets. */
-	if ((toplevel->soft_place || toplevel->auto_place) && toplevel->scene_tree->node.enabled &&
+	if (sf_place_sm_may_morph(&toplevel->place) && toplevel->scene_tree->node.enabled &&
 	    (toplevel->scene_tree->node.x != x || toplevel->scene_tree->node.y != y)) {
 		struct wlr_box from, to;
 		sf_toplevel_layout_geom(toplevel, &from);
@@ -580,73 +581,90 @@ void sf_toplevel_unsnap(struct sf_toplevel *toplevel) {
 	layout_dispatch(toplevel, &ev, NULL);
 }
 
+static void place_fill_ctx(const struct sf_toplevel *toplevel, struct sf_place_ctx *ctx) {
+	*ctx = (struct sf_place_ctx){0};
+	if (toplevel == NULL) {
+		return;
+	}
+	ctx->layout_fixed = sf_layout_sm_is_fixed(&toplevel->layout);
+	if (toplevel->xdg_toplevel != NULL) {
+		ctx->has_parent = toplevel->xdg_toplevel->parent != NULL;
+		const char *title = toplevel->xdg_toplevel->title;
+		const char *app = toplevel->xdg_toplevel->app_id;
+		ctx->partial_identity =
+			(title != NULL && title[0] != '\0') || (app != NULL && app[0] != '\0');
+	}
+	ctx->wants_center = sf_rules_wants_center(toplevel);
+	ctx->center_still_possible = sf_rules_center_still_possible(toplevel);
+}
+
+static void place_apply_result(struct sf_toplevel *toplevel, const struct sf_place_result *r) {
+	toplevel->place = r->state;
+	for (size_t i = 0; i < r->nfx; i++) {
+		switch (r->fx[i].kind) {
+		case SF_PLACE_FX_SCENE_DISABLE:
+			if (toplevel->scene_tree != NULL) {
+				wlr_scene_node_set_enabled(&toplevel->scene_tree->node, false);
+			}
+			break;
+		case SF_PLACE_FX_SCENE_ENABLE:
+			if (toplevel->scene_tree != NULL) {
+				wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
+			}
+			break;
+		case SF_PLACE_FX_START_SHOW:
+			if (!sf_anim_start_show(toplevel) && toplevel->scene_tree != NULL) {
+				wlr_scene_node_set_position(&toplevel->scene_tree->node,
+							    toplevel->resting_x,
+							    toplevel->resting_y);
+			}
+			break;
+		}
+	}
+}
+
+static void place_dispatch(struct sf_toplevel *toplevel, enum sf_place_ev_kind kind) {
+	struct sf_place_ctx ctx;
+	place_fill_ctx(toplevel, &ctx);
+	struct sf_place_ev ev = {.kind = kind};
+	struct sf_place_result out;
+	sf_place_sm_step(&toplevel->place, &ev, &ctx, &out);
+	place_apply_result(toplevel, &out);
+}
+
 void sf_toplevel_clear_auto_place(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL) {
 		return;
 	}
-	toplevel->auto_place = false;
-	toplevel->soft_place = false;
-	/* User/geometry owner took over — do not leave SoftPlace hold stuck. */
-	sf_toplevel_try_appear(toplevel);
+	place_dispatch(toplevel, SF_PLACE_EV_USER_OWN);
 }
 
-static bool appear_should_hold(const struct sf_toplevel *toplevel) {
-	if (toplevel == NULL || !toplevel->soft_place) {
-		return false;
+void sf_toplevel_place_drop_soft(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL) {
+		return;
 	}
-	/* Parented dialogs/modals must show immediately — an empty title plus
-	 * unrelated title-center rules (e.g. Chrome) used to leave Meld's save
-	 * dialog mapped but scene-disabled forever. */
-	if (toplevel->xdg_toplevel != NULL && toplevel->xdg_toplevel->parent != NULL) {
-		return false;
+	place_dispatch(toplevel, SF_PLACE_EV_DROP_SOFT);
+}
+
+void sf_toplevel_place_soft_center(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL) {
+		return;
 	}
-	if (sf_rules_wants_center(toplevel)) {
-		return false;
-	}
-	if (!sf_rules_center_still_possible(toplevel)) {
-		return false;
-	}
-	/* Hold only with partial identity (e.g. Chrome app_id before title).
-	 * Blank identity still appears to cascade; SoftPlace may morph later. */
-	const char *title = toplevel->xdg_toplevel != NULL ? toplevel->xdg_toplevel->title : NULL;
-	const char *app = toplevel->xdg_toplevel != NULL ? toplevel->xdg_toplevel->app_id : NULL;
-	bool title_known = title != NULL && title[0] != '\0';
-	bool app_known = app != NULL && app[0] != '\0';
-	return title_known || app_known;
+	place_dispatch(toplevel, SF_PLACE_EV_SOFT_CENTER);
 }
 
 void sf_toplevel_try_appear(struct sf_toplevel *toplevel) {
-	if (toplevel == NULL || !toplevel->appear_pending) {
+	if (toplevel == NULL) {
 		return;
 	}
-	if (appear_should_hold(toplevel)) {
-		return;
-	}
-	toplevel->appear_pending = false;
-	if (toplevel->scene_tree != NULL) {
-		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
-	}
-	if (!sf_anim_start_show(toplevel) && toplevel->scene_tree != NULL) {
-		wlr_scene_node_set_position(&toplevel->scene_tree->node, toplevel->resting_x,
-					    toplevel->resting_y);
-	}
+	place_dispatch(toplevel, SF_PLACE_EV_TRY_APPEAR);
 }
 
 void sf_toplevel_arm_appear(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->scene_tree == NULL) {
 		return;
 	}
-	if (appear_should_hold(toplevel)) {
-		toplevel->appear_pending = true;
-		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, false);
-		return;
-	}
-	toplevel->appear_pending = false;
-	wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
-	if (!sf_anim_start_show(toplevel)) {
-		wlr_scene_node_set_position(&toplevel->scene_tree->node, toplevel->resting_x,
-					    toplevel->resting_y);
-	}
+	place_dispatch(toplevel, SF_PLACE_EV_ARM_APPEAR);
 }
 
 void sf_toplevel_place_cascade(struct sf_toplevel *toplevel) {
@@ -820,7 +838,8 @@ static bool place_on_usable_center(struct sf_toplevel *toplevel) {
 }
 
 void sf_toplevel_place_transient(struct sf_toplevel *toplevel) {
-	if (toplevel == NULL || !toplevel->auto_place || toplevel->scene_tree == NULL) {
+	if (toplevel == NULL || !sf_place_sm_is_managed(&toplevel->place) ||
+	    toplevel->scene_tree == NULL) {
 		return;
 	}
 	if (sf_layout_sm_is_fixed(&toplevel->layout)) {
@@ -839,14 +858,12 @@ void sf_toplevel_place_new(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->scene_tree == NULL) {
 		return;
 	}
-	toplevel->auto_place = true;
-	toplevel->soft_place = true;
+	place_dispatch(toplevel, SF_PLACE_EV_BEGIN);
 	sf_rules_apply(toplevel);
 	/* Rule :action may have maximized/snapped — do not center/cascade over it
 	 * (would gap-inset + retarget morph → offset full-size window). */
 	if (sf_layout_sm_is_fixed(&toplevel->layout)) {
-		toplevel->soft_place = false;
-		toplevel->auto_place = false;
+		place_dispatch(toplevel, SF_PLACE_EV_LAYOUT_OWNED);
 		return;
 	}
 	if (place_on_parent(toplevel)) {

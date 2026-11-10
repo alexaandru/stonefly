@@ -201,7 +201,12 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	/* Client Ctrl+W / CSD close: slide cached last frame (FORK.md close-ghost). */
 	sf_ghost_try_spawn(toplevel);
 	sf_anim_cancel(toplevel, false);
-	toplevel->appear_pending = false;
+	{
+		struct sf_place_ev ev = {.kind = SF_PLACE_EV_RESET};
+		struct sf_place_result out;
+		sf_place_sm_step(&toplevel->place, &ev, NULL, &out);
+		toplevel->place = out.state;
+	}
 	sf_scratchpad_on_destroy(toplevel);
 
 	/* Hide wrapper immediately so blur/border/shadow cannot outlive the
@@ -263,8 +268,8 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 	if (toplevel->server->grabbed_toplevel != toplevel) {
 		sf_toplevel_layout_observe(toplevel);
 	}
-	/* Parent-centered windows re-center when size arrives (still auto_place). */
-	if (toplevel->auto_place) {
+	/* Parent-centered windows re-center when size arrives (still managed). */
+	if (sf_place_sm_is_managed(&toplevel->place)) {
 		sf_toplevel_place_transient(toplevel);
 	}
 }
@@ -293,7 +298,7 @@ static void xdg_toplevel_set_parent(struct wl_listener *listener, void *data) {
 	sf_foreign_toplevel_on_parent_change(toplevel);
 	/* Parent arriving after map ends SoftPlace appear-hold for dialogs. */
 	sf_toplevel_try_appear(toplevel);
-	if (toplevel->auto_place) {
+	if (sf_place_sm_is_managed(&toplevel->place)) {
 		sf_toplevel_place_transient(toplevel);
 	}
 }
@@ -705,8 +710,8 @@ static void xdg_dialog_apply_modal(struct sf_xdg_dialog *wrap) {
 		return;
 	}
 	toplevel->modal = want;
-	/* Modal only applies with a parent (protocol); re-place while auto. */
-	if (toplevel->auto_place) {
+	/* Modal only applies with a parent (protocol); re-place while managed. */
+	if (sf_place_sm_is_managed(&toplevel->place)) {
 		sf_toplevel_place_transient(toplevel);
 	}
 	SF_LOGI("xdg dialog modal", sf_i64("id", (int64_t)toplevel->id),

@@ -198,7 +198,7 @@ void sf_rules_consider_place(struct sf_toplevel *toplevel) {
 	if (toplevel->minimized || toplevel->anim_hide) {
 		return;
 	}
-	if (!toplevel->soft_place) {
+	if (!sf_place_sm_is_soft(&toplevel->place)) {
 		sf_toplevel_try_appear(toplevel);
 		return;
 	}
@@ -207,20 +207,19 @@ void sf_rules_consider_place(struct sf_toplevel *toplevel) {
 
 	/* Maximize/snap from :action owns geometry — skip SoftPlace center. */
 	if (sf_layout_sm_is_fixed(&toplevel->layout)) {
-		toplevel->soft_place = false;
-		sf_toplevel_try_appear(toplevel);
+		sf_toplevel_clear_auto_place(toplevel);
 		return;
 	}
 
 	if (!sf_rules_wants_center(toplevel)) {
 		if (!sf_rules_center_still_possible(toplevel)) {
-			toplevel->soft_place = false;
+			sf_toplevel_place_drop_soft(toplevel);
 		}
 		sf_toplevel_try_appear(toplevel);
 		return;
 	}
 
-	toplevel->auto_place = true;
+	sf_toplevel_place_soft_center(toplevel);
 	sf_toplevel_place_transient(toplevel);
 	sf_toplevel_try_appear(toplevel);
 }
@@ -232,7 +231,7 @@ void sf_rules_reapply_all(struct sf_server *server) {
 	struct sf_toplevel *t;
 	wl_list_for_each(t, &server->toplevels, link) {
 		sf_rules_apply(t);
-		if (t->soft_place || t->auto_place) {
+		if (sf_place_sm_is_soft(&t->place) || sf_place_sm_is_managed(&t->place)) {
 			sf_rules_consider_place(t);
 		}
 	}
