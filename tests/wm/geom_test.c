@@ -1,3 +1,4 @@
+/* sf-suite cover=wm/geom.c src=wm/geom.c */
 #include "sf_test.h"
 #include "wm/geom.h"
 

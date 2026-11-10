@@ -178,7 +178,6 @@ static int l_packadd(lua_State *L) {
 	return luaL_error(L, "packadd: pack '%s' not found", name);
 }
 
-
 static void clear_keybinds(struct sf_config *cfg) {
 	for (size_t i = 0; i < cfg->n_keybinds; i++) {
 		sf_action_steps_free(cfg->keybinds[i].steps, cfg->keybinds[i].n_steps);

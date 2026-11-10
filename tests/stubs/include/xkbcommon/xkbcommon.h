@@ -36,12 +36,9 @@ static inline xkb_keysym_t xkb_keysym_from_name(const char *name, int flags) {
 		const char *n;
 		xkb_keysym_t sym;
 	} table[] = {
-		{"Escape", XKB_KEY_Escape},
-		{"Return", XKB_KEY_Return},
-		{"Tab", XKB_KEY_Tab},
-		{"space", XKB_KEY_space},
-		{"Print", XKB_KEY_Print},
-		{"ISO_Left_Tab", XKB_KEY_ISO_Left_Tab},
+		{"Escape", XKB_KEY_Escape}, {"Return", XKB_KEY_Return},
+		{"Tab", XKB_KEY_Tab},	    {"space", XKB_KEY_space},
+		{"Print", XKB_KEY_Print},   {"ISO_Left_Tab", XKB_KEY_ISO_Left_Tab},
 	};
 	for (size_t i = 0; i < sizeof table / sizeof table[0]; i++) {
 		if (strcasecmp(name, table[i].n) == 0) {

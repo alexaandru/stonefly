@@ -1,3 +1,4 @@
+/* sf-suite cover=wm/layout.c src=wm/layout.c */
 #include "sf_test.h"
 #include "wm/workspace.h"
 

@@ -1,3 +1,4 @@
+/* sf-suite cover=util/shell_quote.c src=util/shell_quote.c */
 #include "sf_test.h"
 #include "util/shell_quote.h"
 

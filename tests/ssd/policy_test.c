@@ -1,3 +1,4 @@
+/* sf-suite cover=ssd/ssd_policy.c src=ssd/ssd_policy.c */
 #include "sf_test.h"
 #include "ssd/ssd_policy.h"
 
@@ -37,8 +38,8 @@ static void test_ssd_want(void) {
 }
 
 static const struct sf_test tests[] = {
-	{ "sf_ssd_mode_parse_name", test_mode_parse_name },
-	{ "sf_ssd_want", test_ssd_want },
+	{"sf_ssd_mode_parse_name", test_mode_parse_name},
+	{"sf_ssd_want", test_ssd_want},
 };
 
 int main(void) {

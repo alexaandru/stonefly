@@ -1,3 +1,4 @@
+/* sf-suite cover=util/time.h */
 #include "sf_test.h"
 #include "util/time.h"
 

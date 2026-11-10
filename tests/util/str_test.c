@@ -1,3 +1,4 @@
+/* sf-suite cover=util/str.c src=util/str.c stub=log */
 #include "sf_test.h"
 #include "util/str.h"
 

@@ -258,21 +258,31 @@ Owns a small harness under `tests/` (no Criterion/Check/cmocka/fluent DSL).
 
 | Piece | Path |
 |---|---|
-| Runner + wrappers | `tests/sf_test.c` / `tests/sf_test.h` / `tests/run.sh` |
-| Meson | `subdir('tests')` → `tests/meson.build` |
+| Assertions | `tests/sf_test.c` / `tests/sf_test.h` |
+| Driver | `tests/drive.py` (discover / build / run / cover) |
+| Entry | `tests/drive.py`; `make test` / meson `test('unit')` |
 | Layout | Mirror `src/`: `tests/<module>/<name>_test.c` |
-| Host stubs | `tests/stubs/include` (wlroots / xkb / wayland) for `make test` |
-| Suites | `util/` (math, color, time, str, json, shell_quote, path); `ssd/` (layout, policy); `config/` (action, chord); `wm/` (geom, layout, snap); `ipc/` (parse + windows/outputs/workspaces/layers JSON) |
-| Coverage | `OPTS=cover` default on `make test` / `make coverage` (host gcov; not gated in APK) |
+| Host stubs | `tests/stubs/include` ahead of system headers |
+| Coverage | `OPTS=cover` default on `make test` (host gcov; not gated in APK) |
+
+**Add a suite:** create `tests/…/foo_test.c` with one pragma — no Makefile /
+meson edits:
+
+```c
+/* sf-suite cover=util/foo.c src=util/foo.c stub=log libs=m */
+```
+
+`cover=` is the `src/` path in the report; `src=` links extra `.c` files;
+`stub=log` pulls `tests/stubs/log_stub.c`; `libs=m` adds `-lm`.
 
 | Rule | Choice |
 |---|---|
-| Framework | Project-owned runner |
+| Framework | Project-owned runner + discovery driver |
 | Checks | Thin owned wrappers (`sf_test_eq_int`, …) |
 | Dependencies | No new Alpine `checkdepends` for a test framework |
 | Style | Same house C as `./src` |
-| Build | Meson `test()` binaries linking selected `.c` units |
+| Build | Driver compiles selected TUs into `build/unit*` |
 
-Host: `make test` → `build/unit/` (or `build/unit-cover`). Abuild `check()` runs
-`make style-check` then `meson test --no-rebuild -C output`. Integration and
-coverage floors stay on the roadmap.
+Host: `make test`. Abuild `check()`: `make style-check` then `meson test`
+(one `unit` test that runs the same driver). Integration / coverage floors stay
+on the roadmap.

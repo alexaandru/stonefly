@@ -1,3 +1,4 @@
+/* sf-suite cover=ipc/outputs_json.c src=ipc/outputs_json.c,util/json.c libs=m */
 #include "sf_test.h"
 #include "ipc/outputs.h"
 
@@ -51,8 +52,8 @@ static void test_empty(void) {
 }
 
 static const struct sf_test tests[] = {
-	{ "sf_outputs_json_roundtrip", test_roundtrip },
-	{ "sf_outputs_json_empty", test_empty },
+	{"sf_outputs_json_roundtrip", test_roundtrip},
+	{"sf_outputs_json_empty", test_empty},
 };
 
 int main(void) {

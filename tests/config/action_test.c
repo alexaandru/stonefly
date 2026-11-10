@@ -1,3 +1,4 @@
+/* sf-suite cover=config/action.c src=config/action.c,util/str.c stub=log */
 #include "sf_test.h"
 #include "config/action.h"
 
@@ -75,8 +76,8 @@ static void test_steps_one_dup_free(void) {
 }
 
 static const struct sf_test tests[] = {
-	{ "sf_action_parse_name", test_parse_name_roundtrip },
-	{ "sf_action_steps", test_steps_one_dup_free },
+	{"sf_action_parse_name", test_parse_name_roundtrip},
+	{"sf_action_steps", test_steps_one_dup_free},
 };
 
 int main(void) {

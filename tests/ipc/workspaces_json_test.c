@@ -1,3 +1,4 @@
+/* sf-suite cover=ipc/workspaces_json.c src=ipc/workspaces_json.c,util/json.c */
 #include "sf_test.h"
 #include "ipc/workspaces.h"
 
@@ -43,8 +44,8 @@ static void test_empty_errors(void) {
 }
 
 static const struct sf_test tests[] = {
-	{ "sf_workspaces_json_roundtrip", test_roundtrip },
-	{ "sf_workspaces_json_empty_errors", test_empty_errors },
+	{"sf_workspaces_json_roundtrip", test_roundtrip},
+	{"sf_workspaces_json_empty_errors", test_empty_errors},
 };
 
 int main(void) {

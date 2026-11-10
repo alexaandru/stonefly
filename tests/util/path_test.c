@@ -1,3 +1,4 @@
+/* sf-suite cover=util/path.c src=util/path.c */
 #include "sf_test.h"
 #include "util/path.h"
 

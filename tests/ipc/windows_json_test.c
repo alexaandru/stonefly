@@ -1,3 +1,4 @@
+/* sf-suite cover=ipc/windows_json.c src=ipc/windows_json.c,util/json.c */
 #include "sf_test.h"
 #include "ipc/windows.h"
 
@@ -75,8 +76,8 @@ static void test_empty_and_errors(void) {
 }
 
 static const struct sf_test tests[] = {
-	{ "sf_windows_json_roundtrip", test_roundtrip },
-	{ "sf_windows_json_empty_errors", test_empty_and_errors },
+	{"sf_windows_json_roundtrip", test_roundtrip},
+	{"sf_windows_json_empty_errors", test_empty_and_errors},
 };
 
 int main(void) {

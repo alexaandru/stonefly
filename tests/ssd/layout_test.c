@@ -1,3 +1,4 @@
+/* sf-suite cover=ssd/ssd_layout.c src=ssd/ssd_layout.c */
 #include "sf_test.h"
 #include "ssd/ssd_layout.h"
 
@@ -41,9 +42,9 @@ static void test_layout_hit(void) {
 }
 
 static const struct sf_test tests[] = {
-	{ "sf_ssd_layout_title_basic", test_layout_title_basic },
-	{ "sf_ssd_layout_title_clamps", test_layout_title_clamps },
-	{ "sf_ssd_layout_hit", test_layout_hit },
+	{"sf_ssd_layout_title_basic", test_layout_title_basic},
+	{"sf_ssd_layout_title_clamps", test_layout_title_clamps},
+	{"sf_ssd_layout_hit", test_layout_hit},
 };
 
 int main(void) {

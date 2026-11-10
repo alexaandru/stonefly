@@ -1,3 +1,4 @@
+/* sf-suite cover=util/json.c src=util/json.c */
 #include "sf_test.h"
 #include "util/json.h"
 

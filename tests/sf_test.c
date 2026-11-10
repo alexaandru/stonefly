@@ -93,7 +93,7 @@ int sf_test_run(const struct sf_test *tests, size_t n) {
 	}
 	sf_test_case = NULL;
 
-	/* Machine line for tests/run.sh (stdout). Human chatter stays on stderr. */
+	/* Machine line for tests/drive.py (stdout). Human chatter stays on stderr. */
 	fprintf(stdout, "sf_test_result cases=%zu pass=%d fail=%d\n", n, (int)n - failed_cases,
 		failed_cases);
 	fflush(stdout);

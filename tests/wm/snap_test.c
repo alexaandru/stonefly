@@ -1,3 +1,4 @@
+/* sf-suite cover=wm/snap.h */
 #include "sf_test.h"
 #include "wm/snap.h"
 

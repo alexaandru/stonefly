@@ -1,3 +1,4 @@
+/* sf-suite cover=ipc/parse.c src=ipc/parse.c,util/json.c */
 #include "sf_test.h"
 #include "ipc/parse.h"
 
@@ -7,7 +8,8 @@ static void test_parse_cmd_arg(void) {
 	char cmd[64];
 	char arg[64];
 
-	SF_TEST_TRUE(sf_ipc_parse_cmd_arg("{\"cmd\":\"ping\"}", cmd, sizeof(cmd), arg, sizeof(arg)));
+	SF_TEST_TRUE(
+		sf_ipc_parse_cmd_arg("{\"cmd\":\"ping\"}", cmd, sizeof(cmd), arg, sizeof(arg)));
 	SF_TEST_STREQ(cmd, "ping");
 	SF_TEST_STREQ(arg, "");
 

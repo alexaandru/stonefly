@@ -1,3 +1,4 @@
+/* sf-suite cover=config/chord.c src=config/chord.c */
 #include "sf_test.h"
 #include "config/chord.h"
 

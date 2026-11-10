@@ -1,3 +1,4 @@
+/* sf-suite cover=util/color.h libs=m */
 #include "sf_test.h"
 #include "util/color.h"
 

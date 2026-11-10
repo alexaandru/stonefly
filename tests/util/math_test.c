@@ -1,3 +1,4 @@
+/* sf-suite cover=util/math.h libs=m */
 #include "sf_test.h"
 #include "util/math.h"
 

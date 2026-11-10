@@ -259,7 +259,8 @@ static void ipc_handle_move_to_workspace(struct sf_ipc_client *client, const cha
 		return;
 	}
 	int idx;
-	if (!sf_ipc_parse_workspace_index(arg, &idx) || !sf_workspace_move_index(focused, idx, true)) {
+	if (!sf_ipc_parse_workspace_index(arg, &idx) ||
+	    !sf_workspace_move_index(focused, idx, true)) {
 		ipc_write_err(client, "unknown workspace");
 		return;
 	}

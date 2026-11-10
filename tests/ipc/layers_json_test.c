@@ -1,3 +1,4 @@
+/* sf-suite cover=ipc/layers_json.c src=ipc/layers_json.c,util/json.c */
 #include "sf_test.h"
 #include "ipc/layers.h"
 
@@ -41,8 +42,8 @@ static void test_empty_errors(void) {
 }
 
 static const struct sf_test tests[] = {
-	{ "sf_layers_json_roundtrip", test_roundtrip },
-	{ "sf_layers_json_empty_errors", test_empty_errors },
+	{"sf_layers_json_roundtrip", test_roundtrip},
+	{"sf_layers_json_empty_errors", test_empty_errors},
 };
 
 int main(void) {
