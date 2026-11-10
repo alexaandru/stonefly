@@ -1055,6 +1055,7 @@ static const struct opt_num opt_numbers[] = {
 	{"double_tap_gap_ms", OPT_NUM_INT, offsetof(struct sf_config, double_tap_gap_ms), NULL},
 	{"swipe_workspace_threshold", OPT_NUM_INT,
 	 offsetof(struct sf_config, swipe_workspace_threshold), NULL},
+	{"nudge_step", OPT_NUM_INT, offsetof(struct sf_config, nudge_step), NULL},
 	{"ssd_height", OPT_NUM_FN, 0, opt_set_ssd_height},
 	{"ssd_font_size", OPT_NUM_FN, 0, opt_set_ssd_font_size},
 	{"resize_border_in", OPT_NUM_FN, 0, opt_set_resize_border_in},

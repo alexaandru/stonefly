@@ -18,7 +18,7 @@ the detail rows. When an item ships, check it off here and move the row to
 |---|---|---|---|
 | 1 | Cursor follows focus + warp on workspace / monitor change | ✅ | Shipped (`cursor_follows_focus` + `pointer_center`); monitor focus via #2 |
 | 2 | Multi-monitor focus + send-to-monitor | ✅ | Shipped (`focus_monitor` / `send_to_monitor` + Super+Ctrl/Shift+arrows) |
-| 3 | Keyboard nudge move / resize | ❌ | Pixel-step placement; snap covers coarse, nudge covers fine |
+| 3 | Keyboard nudge move / resize | ✅ | Shipped (`nudge` / `resize_edge` + `nudge_step`; Alt / Alt+Shift+arrows) |
 | 4 | Always-on-top / pin | ❌ | Floating video, docs, calculators |
 | 5 | Workspace switch animation | ❌ | Reuse swipe path for Super+Page / 1–9 so keybind ≈ gesture |
 | 6 | Real `inputs.fnl` API | 🚧 | Tap-to-click, natural scroll, accel — how the machine feels before windows |
@@ -48,7 +48,6 @@ the detail rows. When an item ships, check it off here and move the row to
 | Always-on-top / pin | ❌ | TODO NEXT #4. Window flag + raise/restack; optional rule / action / IPC |
 | Window menu | ❌ | |
 | Geometry persist across restart | ❌ | Tag protocol shipped; no persist consumer yet |
-| Keyboard nudge move/resize | ❌ | TODO NEXT #3. Step nudge by N px (move + resize edges); snap stays coarse |
 | Workspaces polish | 🚧 | ❌ geometry persist / named window rules. Switch anim → own row. Layout engines separate |
 | Workspace switch animation | ❌ | TODO NEXT #5. Animate Super+Page / 1–9 (and IPC) with the same path as 3-finger swipe |
 | Layout engine (tile/columns/…) | 🚧 | Resolve `workspace → output → global` (`sf_layout`); only `stacking` implemented. `columns`/`tile` enum + `apply_layout` hook reserved. Global `sf.opt.layout` |
@@ -139,7 +138,7 @@ product asks for in-process chrome again.
 | P2 | Workspaces polish | ❌ rules / geometry persist; switch anim is TODO NEXT #5 |
 | P2 | `wp_fifo_v1` | ❌ |
 | — | Xwayland / IME | ❌ TODO NEXT #10 |
-| — | Always-on-top / nudge / ws anim | ❌ TODO NEXT #3–#5 (#1–#2 shipped) |
+| — | Always-on-top / ws anim | ❌ TODO NEXT #4–#5 (#1–#3 shipped) |
 | — | Tiling engines (`columns`/`tile`) | 🚧 reserved |
 
 ---
@@ -149,7 +148,7 @@ product asks for in-process chrome again.
 | Habit | Status |
 |---|---|
 | Always-on-top / winmenu | ❌ AOT is TODO NEXT #4; winmenu still open |
-| Keyboard nudge / workspace switch anim | ❌ TODO NEXT #3 / #5 |
+| Workspace switch anim | ❌ TODO NEXT #5 |
 | Geometry persist | ❌ |
 | Xwayland / IME | ❌ TODO NEXT #10 |
 | Tiling layouts | ❌ (`columns`/`tile` reserved) |

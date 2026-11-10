@@ -265,6 +265,13 @@ return {
           ["fnl/docstring"] = "bool — warp pointer into newly focused window on keyboard focus cycle / workspace switch (default true). Click-to-focus does not warp.",
         },
       },
+      ["nudge_step"] = {
+        binding = "sf.opt.nudge_step",
+        metadata = {
+          ["fls/itemKind"] = "Variable",
+          ["fnl/docstring"] = "Pixel step for nudge / resize_edge actions (int, default 25).",
+        },
+      },
       ["ssd_mode"] = {
         binding = "sf.opt.ssd_mode",
         metadata = {
@@ -322,7 +329,7 @@ return {
       metadata = {
         ["fls/itemKind"] = "Function",
         ["fnl/arglist"] = {"chord-or-opts", "?opts"},
-        ["fnl/docstring"] = "Register a keybind.\n  (sf.bind \"Super+w\" {:action \"exec\" :cmd \"…\"})\n  (sf.bind {:key \"Super+Shift+Tab\" :action \"focus_prev\"})\nOptional :key_alt. Shift+Tab auto-adds ISO_Left_Tab.\nAction names: none quit close focus_next focus_prev focus_next_all focus_prev_all maximize maximize_to_edges unmaximize toggle_maximize toggle_maximize_to_edges minimize unminimize snap_left snap_right snap_top snap_bottom unsnap exec (needs :cmd) scratch_toggle scratch_claim (cmd = pad name) workspace_next workspace_prev workspace_switch (cmd = N) move_to_workspace_next move_to_workspace_prev move_to_workspace (cmd = N) pointer_center focus_monitor send_to_monitor (cmd = left|right|up|down|next|prev|connector).\n:action may be a string, {:action :cmd} table, or (sf.chain …).",
+        ["fnl/docstring"] = "Register a keybind.\n  (sf.bind \"Super+w\" {:action \"exec\" :cmd \"…\"})\n  (sf.bind {:key \"Super+Shift+Tab\" :action \"focus_prev\"})\nOptional :key_alt. Shift+Tab auto-adds ISO_Left_Tab.\nAction names: none quit close focus_next focus_prev focus_next_all focus_prev_all maximize maximize_to_edges unmaximize toggle_maximize toggle_maximize_to_edges minimize unminimize snap_left snap_right snap_top snap_bottom unsnap exec (needs :cmd) scratch_toggle scratch_claim (cmd = pad name) workspace_next workspace_prev workspace_switch (cmd = N) move_to_workspace_next move_to_workspace_prev move_to_workspace (cmd = N) pointer_center focus_monitor send_to_monitor (cmd = left|right|up|down|next|prev|connector) nudge resize_edge (cmd = left|right|up|down).\n:action may be a string, {:action :cmd} table, or (sf.chain …).",
       },
     },
     ["tap"] = {
@@ -330,7 +337,7 @@ return {
       metadata = {
         ["fls/itemKind"] = "Function",
         ["fnl/arglist"] = {"mod-or-opts", "?opts"},
-        ["fnl/docstring"] = "Register a modifier tap (L+R expanded).\n  (sf.tap \"Super\" {:single \"exec\" :single_cmd \"…\" :double \"scratch_toggle\" :double_cmd \"term\"})\n  (sf.tap {:key \"Super\" :single (sf.chain …)})\nAction names: none quit close focus_next focus_prev focus_next_all focus_prev_all maximize maximize_to_edges unmaximize toggle_maximize toggle_maximize_to_edges minimize unminimize snap_left snap_right snap_top snap_bottom unsnap exec (needs :cmd) scratch_toggle scratch_claim (cmd = pad name) workspace_next workspace_prev workspace_switch (cmd = N) move_to_workspace_next move_to_workspace_prev move_to_workspace (cmd = N) pointer_center focus_monitor send_to_monitor (cmd = left|right|up|down|next|prev|connector).\n:action may be a string, {:action :cmd} table, or (sf.chain …).",
+        ["fnl/docstring"] = "Register a modifier tap (L+R expanded).\n  (sf.tap \"Super\" {:single \"exec\" :single_cmd \"…\" :double \"scratch_toggle\" :double_cmd \"term\"})\n  (sf.tap {:key \"Super\" :single (sf.chain …)})\nAction names: none quit close focus_next focus_prev focus_next_all focus_prev_all maximize maximize_to_edges unmaximize toggle_maximize toggle_maximize_to_edges minimize unminimize snap_left snap_right snap_top snap_bottom unsnap exec (needs :cmd) scratch_toggle scratch_claim (cmd = pad name) workspace_next workspace_prev workspace_switch (cmd = N) move_to_workspace_next move_to_workspace_prev move_to_workspace (cmd = N) pointer_center focus_monitor send_to_monitor (cmd = left|right|up|down|next|prev|connector) nudge resize_edge (cmd = left|right|up|down).\n:action may be a string, {:action :cmd} table, or (sf.chain …).",
       },
     },
     ["scratchpad"] = {

@@ -225,6 +225,7 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 	cfg->swipe_workspace_threshold = 80;
 	cfg->swipe_workspace_natural = true;
 	cfg->cursor_follows_focus = true;
+	cfg->nudge_step = 25;
 	cfg->ssd_mode = SF_SSD_AUTO;
 	cfg->ssd_height = 28;
 	cfg->ssd_font_size = 17;
@@ -266,6 +267,14 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 		{SF_SUPER | SF_SHIFT, XKB_KEY_Right, 0, SF_ACTION_SEND_TO_MONITOR, "right"},
 		{SF_SUPER | SF_SHIFT, XKB_KEY_Up, 0, SF_ACTION_SEND_TO_MONITOR, "up"},
 		{SF_SUPER | SF_SHIFT, XKB_KEY_Down, 0, SF_ACTION_SEND_TO_MONITOR, "down"},
+		{SF_ALT, XKB_KEY_Left, 0, SF_ACTION_NUDGE, "left"},
+		{SF_ALT, XKB_KEY_Right, 0, SF_ACTION_NUDGE, "right"},
+		{SF_ALT, XKB_KEY_Up, 0, SF_ACTION_NUDGE, "up"},
+		{SF_ALT, XKB_KEY_Down, 0, SF_ACTION_NUDGE, "down"},
+		{SF_ALT | SF_SHIFT, XKB_KEY_Left, 0, SF_ACTION_RESIZE_EDGE, "left"},
+		{SF_ALT | SF_SHIFT, XKB_KEY_Right, 0, SF_ACTION_RESIZE_EDGE, "right"},
+		{SF_ALT | SF_SHIFT, XKB_KEY_Up, 0, SF_ACTION_RESIZE_EDGE, "up"},
+		{SF_ALT | SF_SHIFT, XKB_KEY_Down, 0, SF_ACTION_RESIZE_EDGE, "down"},
 		{SF_SUPER, XKB_KEY_space, 0, SF_ACTION_EXEC, "foot"},
 		{SF_SUPER, XKB_KEY_z, 0, SF_ACTION_EXEC, "nautilus"},
 		{SF_SUPER, XKB_KEY_w, 0, SF_ACTION_EXEC, "ghostty +new-window"},

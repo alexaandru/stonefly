@@ -166,6 +166,9 @@ static void emit_options(struct json_buf *b, const struct sf_config *cfg) {
 	json_key(b, "cursor_follows_focus");
 	json_bool(b, cfg->cursor_follows_focus);
 	json_byte(b, ',');
+	json_key(b, "nudge_step");
+	json_i64(b, cfg->nudge_step);
+	json_byte(b, ',');
 	json_key(b, "ssd_mode");
 	json_str(b, sf_ssd_mode_name(cfg->ssd_mode));
 	json_byte(b, ',');

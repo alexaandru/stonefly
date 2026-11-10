@@ -42,6 +42,8 @@ static const struct sf_action_entry sf_actions[] = {
 	{"pointer_center", SF_ACTION_POINTER_CENTER},
 	{"focus_monitor", SF_ACTION_FOCUS_MONITOR},
 	{"send_to_monitor", SF_ACTION_SEND_TO_MONITOR},
+	{"nudge", SF_ACTION_NUDGE},
+	{"resize_edge", SF_ACTION_RESIZE_EDGE},
 };
 
 const char *sf_action_name(enum sf_action action) {

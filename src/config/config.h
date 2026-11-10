@@ -67,6 +67,9 @@ enum sf_action {
 	/* cmd = target: connector name, left|right|up|down, next|prev. */
 	SF_ACTION_FOCUS_MONITOR,
 	SF_ACTION_SEND_TO_MONITOR,
+	/* cmd = left|right|up|down. Resize: right/down grow, left/up shrink. */
+	SF_ACTION_NUDGE,
+	SF_ACTION_RESIZE_EDGE,
 };
 
 /* One step in a bind/tap/rule action (or sf.chain). cmd for EXEC / scratch / ws. */
@@ -180,6 +183,9 @@ struct sf_config {
 	/* Warp pointer into the newly focused window on keyboard focus cycle
 	 * and workspace switch (click-to-focus does not warp). */
 	bool cursor_follows_focus;
+
+	/* Pixel step for nudge / resize_edge actions (default 25). */
+	int nudge_step;
 
 	/* SSD titlebars: never|auto|prefer_ssd|always. */
 	enum sf_ssd_mode ssd_mode;

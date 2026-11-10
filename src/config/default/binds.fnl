@@ -35,6 +35,16 @@
   ["Super+Shift+Right" {:action :send_to_monitor :cmd "right"}]
   ["Super+Shift+Up" {:action :send_to_monitor :cmd "up"}]
   ["Super+Shift+Down" {:action :send_to_monitor :cmd "down"}]
+  ;; keyboard nudge (sf.opt.nudge_step px; no-op when max/snap/fullscreen)
+  ["Alt+Left" {:action :nudge :cmd "left"}]
+  ["Alt+Right" {:action :nudge :cmd "right"}]
+  ["Alt+Up" {:action :nudge :cmd "up"}]
+  ["Alt+Down" {:action :nudge :cmd "down"}]
+  ;; resize: right/down grow, left/up shrink (top-left anchored)
+  ["Alt+Shift+Left" {:action :resize_edge :cmd "left"}]
+  ["Alt+Shift+Right" {:action :resize_edge :cmd "right"}]
+  ["Alt+Shift+Up" {:action :resize_edge :cmd "up"}]
+  ["Alt+Shift+Down" {:action :resize_edge :cmd "down"}]
   ;; workspaces (per-output strip; move follows focus)
   ["Super+Prior" {:action :workspace_prev}]
   ["Super+Next" {:action :workspace_next}]

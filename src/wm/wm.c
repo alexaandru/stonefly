@@ -1290,6 +1290,26 @@ void sf_run_action(struct sf_server *server, struct sf_toplevel *target, enum sf
 			SF_LOGW("send_to_monitor action with empty target");
 		}
 		break;
+	case SF_ACTION_NUDGE:
+		if (win == NULL) {
+			break;
+		}
+		if (cmd != NULL && cmd[0] != '\0') {
+			sf_toplevel_nudge(win, cmd);
+		} else {
+			SF_LOGW("nudge action with empty direction");
+		}
+		break;
+	case SF_ACTION_RESIZE_EDGE:
+		if (win == NULL) {
+			break;
+		}
+		if (cmd != NULL && cmd[0] != '\0') {
+			sf_toplevel_resize_edge(win, cmd);
+		} else {
+			SF_LOGW("resize_edge action with empty direction");
+		}
+		break;
 	}
 }
 

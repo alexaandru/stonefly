@@ -27,6 +27,10 @@ void sf_focus_monitor(struct sf_server *server, const char *target);
 void sf_send_to_monitor(struct sf_server *server, struct sf_toplevel *toplevel, const char *target);
 void sf_toplevel_place_on_output(struct sf_toplevel *toplevel, struct sf_output *output);
 
+/* Pixel-step move / resize (dir: left|right|up|down). No-op when max/snap/fs. */
+void sf_toplevel_nudge(struct sf_toplevel *toplevel, const char *dir);
+void sf_toplevel_resize_edge(struct sf_toplevel *toplevel, const char *dir);
+
 /* Layout-box in output-layout coordinates (scene position + surface size). */
 void sf_toplevel_layout_geom(struct sf_toplevel *toplevel, struct wlr_box *box);
 

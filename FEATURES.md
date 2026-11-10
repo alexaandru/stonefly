@@ -53,6 +53,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 | Workspaces | Dynamic per-output strip (`workspace.c`): trailing empty, compact on empty, Super+Page/1–9 + Shift move-follow, IPC `workspaces`/`workspace`/`move-to-workspace`, windows `{output,workspace}`. `ext-workspace-v1` sync. 3-finger vertical swipe (`swipe_workspace_threshold`, `swipe_workspace_natural`). `xdg-toplevel-tag` stored + IPC |
 | Cursor follows focus / pointer center | `sf.opt.cursor_follows_focus` (default true): warp pointer to window center on Super+Tab / workspace switch / move-follow. Click-to-focus does not warp. Action `pointer_center` warps on demand (ignores the opt). Skips MOVE/RESIZE grabs and locked pointer constraints |
 | Multi-monitor focus / send | Actions `focus_monitor` / `send_to_monitor` with `:cmd` target: `left`\|`right`\|`up`\|`down`, `next`\|`prev`, or connector name (`eDP-1`). Focus warps to head center then top window (+ cursor_follows_focus). Send assigns to the target's active workspace, re-fits max/fullscreen, centers floaters, focuses + `pointer_center`. Defaults: Super+Ctrl+arrows focus, Super+Shift+arrows send |
+| Keyboard nudge move / resize | Actions `nudge` / `resize_edge` with `:cmd` `left`\|`right`\|`up`\|`down`. Step from `sf.opt.nudge_step` (default 25). Resize: right/down grow, left/up shrink (top-left anchored, min 50px). No-op when max/snap/fullscreen. Defaults: Alt+arrows move, Alt+Shift+arrows resize |
 
 ---
 

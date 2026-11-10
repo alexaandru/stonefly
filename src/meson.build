@@ -32,6 +32,7 @@ sf_src = files(
   'xdg/xdg.c',
   'wm/wm.c',
   'wm/monitor.c',
+  'wm/nudge.c',
   'wm/geom.c',
   'wm/layout.c',
   'wm/workspace.c',
