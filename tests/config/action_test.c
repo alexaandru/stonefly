@@ -7,7 +7,7 @@
 
 static void test_count_matches_name_table(void) {
 	SF_TEST_EQ_INT((int)sf_action_name_table_len(), (int)SF_ACTION_COUNT);
-	SF_TEST_EQ_INT((int)SF_ACTION_ALWAYS_ON_TOP, (int)SF_ACTION_COUNT - 1);
+	SF_TEST_EQ_INT((int)SF_ACTION_TOGGLE_FULLSCREEN, (int)SF_ACTION_COUNT - 1);
 	SF_TEST_EQ_INT((int)SF_ACTION_NONE, 0);
 }
 
@@ -51,6 +51,12 @@ static void test_parse_name_roundtrip(void) {
 	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_TOGGLE_ALWAYS_ON_TOP);
 	SF_TEST_TRUE(sf_action_parse_ok("always_on_top", &a));
 	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_ALWAYS_ON_TOP);
+	SF_TEST_TRUE(sf_action_parse_ok("set_fullscreen", &a));
+	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_SET_FULLSCREEN);
+	SF_TEST_TRUE(sf_action_parse_ok("unset_fullscreen", &a));
+	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_UNSET_FULLSCREEN);
+	SF_TEST_TRUE(sf_action_parse_ok("toggle_fullscreen", &a));
+	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_TOGGLE_FULLSCREEN);
 
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_QUIT), "quit");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_SCRATCH_TOGGLE), "scratch_toggle");
@@ -62,6 +68,9 @@ static void test_parse_name_roundtrip(void) {
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_RESIZE_EDGE), "resize_edge");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_TOGGLE_ALWAYS_ON_TOP), "toggle_always_on_top");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_ALWAYS_ON_TOP), "always_on_top");
+	SF_TEST_STREQ(sf_action_name(SF_ACTION_SET_FULLSCREEN), "set_fullscreen");
+	SF_TEST_STREQ(sf_action_name(SF_ACTION_UNSET_FULLSCREEN), "unset_fullscreen");
+	SF_TEST_STREQ(sf_action_name(SF_ACTION_TOGGLE_FULLSCREEN), "toggle_fullscreen");
 	SF_TEST_STREQ(sf_action_name((enum sf_action)9999), "unknown");
 }
 

@@ -199,6 +199,18 @@ static void action_always_on_top(struct sf_action_ctx *ctx) {
 	sf_toplevel_set_always_on_top(ctx->win, on);
 }
 
+static void action_set_fullscreen(struct sf_action_ctx *ctx) {
+	sf_toplevel_set_fullscreen(ctx->win, true, NULL);
+}
+
+static void action_unset_fullscreen(struct sf_action_ctx *ctx) {
+	sf_toplevel_set_fullscreen(ctx->win, false, NULL);
+}
+
+static void action_toggle_fullscreen(struct sf_action_ctx *ctx) {
+	sf_toplevel_toggle_fullscreen(ctx->win);
+}
+
 /*
  * Verb catalog: one slot per enum value. Flags encode the shared protocol
  * (need window / need cmd) so arms stay free of duplicated guards.
@@ -239,6 +251,9 @@ static const struct sf_action_slot sf_action_slots[SF_ACTION_COUNT] = {
 	[SF_ACTION_RESIZE_EDGE] = {SF_ACTION_F_WIN | SF_ACTION_F_CMD, action_resize_edge},
 	[SF_ACTION_TOGGLE_ALWAYS_ON_TOP] = {SF_ACTION_F_WIN, action_toggle_always_on_top},
 	[SF_ACTION_ALWAYS_ON_TOP] = {SF_ACTION_F_WIN | SF_ACTION_F_CMD, action_always_on_top},
+	[SF_ACTION_SET_FULLSCREEN] = {SF_ACTION_F_WIN, action_set_fullscreen},
+	[SF_ACTION_UNSET_FULLSCREEN] = {SF_ACTION_F_WIN, action_unset_fullscreen},
+	[SF_ACTION_TOGGLE_FULLSCREEN] = {SF_ACTION_F_WIN, action_toggle_fullscreen},
 };
 
 _Static_assert(sizeof(sf_action_slots) / sizeof(sf_action_slots[0]) == (size_t)SF_ACTION_COUNT,

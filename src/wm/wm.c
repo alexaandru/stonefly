@@ -183,6 +183,30 @@ static uint32_t layout_tiled_edges(unsigned tiled) {
 	return tiled_edges_for((enum sf_snap)tiled);
 }
 
+void sf_toplevel_sync_scene_layer(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->scene_tree == NULL || toplevel->server == NULL) {
+		return;
+	}
+	struct wlr_scene_tree *want;
+	bool fs = sf_layout_sm_is_fullscreen(&toplevel->layout);
+	if (fs) {
+		want = toplevel->server->layers.fullscreen;
+	} else if (toplevel->workspace != NULL && toplevel->workspace->tree != NULL) {
+		want = toplevel->workspace->tree;
+	} else {
+		want = toplevel->server->layers.toplevel;
+	}
+	if (want == NULL) {
+		return;
+	}
+	if (toplevel->scene_tree->node.parent != want) {
+		wlr_scene_node_reparent(&toplevel->scene_tree->node, want);
+	}
+	if (fs) {
+		wlr_scene_node_raise_to_top(&toplevel->scene_tree->node);
+	}
+}
+
 static void layout_apply_result(struct sf_toplevel *toplevel, const struct sf_layout_result *r) {
 	toplevel->layout = r->state;
 	for (size_t i = 0; i < r->nfx; i++) {
@@ -227,6 +251,7 @@ static void layout_apply_result(struct sf_toplevel *toplevel, const struct sf_la
 			break;
 		}
 	}
+	sf_toplevel_sync_scene_layer(toplevel);
 }
 
 static void layout_dispatch(struct sf_toplevel *toplevel, const struct sf_layout_ev *ev,
@@ -371,6 +396,14 @@ void sf_toplevel_set_fullscreen(struct sf_toplevel *toplevel, bool want, struct 
 	layout_dispatch(toplevel, &ev, hint);
 }
 
+void sf_toplevel_toggle_fullscreen(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || !xdg_surface_ready(toplevel)) {
+		return;
+	}
+	struct sf_layout_ev ev = {.kind = SF_LAYOUT_EV_TOGGLE_FULLSCREEN};
+	layout_dispatch(toplevel, &ev, NULL);
+}
+
 void sf_toplevel_set_max_gaps(struct sf_toplevel *toplevel, bool want) {
 	if (toplevel == NULL || !xdg_surface_ready(toplevel)) {
 		return;
@@ -424,6 +457,25 @@ void sf_toplevel_layout_observe(struct sf_toplevel *toplevel) {
 	}
 	struct wlr_box cur;
 	sf_toplevel_layout_geom(toplevel, &cur);
+	/*
+	 * Show/hide slides park the scene node off-screen; morph lerps through
+	 * intermediate boxes. GEOM reconcile must use the logical target, or
+	 * mid-slide commits demote edge-max → float (borders/SSD flash) and
+	 * regain on settle (the ~1cm bounce when the titlebar drops).
+	 */
+	if (toplevel->anim.active) {
+		if (toplevel->anim.morph) {
+			cur.x = toplevel->anim.to_x;
+			cur.y = toplevel->anim.to_y;
+			if (toplevel->anim.to_w > 0 && toplevel->anim.to_h > 0) {
+				cur.width = toplevel->anim.to_w;
+				cur.height = toplevel->anim.to_h;
+			}
+		} else {
+			cur.x = toplevel->resting_x;
+			cur.y = toplevel->resting_y;
+		}
+	}
 	sf_toplevel_layout_observe_box(toplevel, &cur);
 }
 

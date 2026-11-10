@@ -198,6 +198,46 @@ static void test_fullscreen_instant_and_restore(void) {
 	SF_TEST_TRUE(has_apply_near(&out, &restored));
 }
 
+static void test_fullscreen_toggle(void) {
+	struct sf_layout_sm s;
+	sf_layout_sm_init(&s);
+	struct sf_layout_ctx ctx = make_ctx(box(30, 30, 500, 400));
+	struct sf_layout_result out;
+
+	struct sf_layout_ev tog = {.kind = SF_LAYOUT_EV_TOGGLE_FULLSCREEN};
+	sf_layout_sm_step(&s, &tog, &ctx, &out);
+	SF_TEST_EQ_INT((int)out.state.mode, (int)SF_LAYOUT_MODE_FULLSCREEN);
+	SF_TEST_TRUE(has_fx(&out, SF_LAYOUT_FX_XDG_FULLSCREEN));
+	s = out.state;
+
+	ctx.current = ctx.fullscreen;
+	sf_layout_sm_step(&s, &tog, &ctx, &out);
+	SF_TEST_EQ_INT((int)out.state.mode, (int)SF_LAYOUT_MODE_FLOAT);
+	struct wlr_box restored = box(30, 30, 500, 400);
+	SF_TEST_TRUE(has_apply_near(&out, &restored));
+}
+
+/* GEOM must not demote fullscreen (sticky until explicit leave). */
+static void test_fullscreen_geom_sticky(void) {
+	struct sf_layout_sm s;
+	sf_layout_sm_init(&s);
+	struct sf_layout_ctx ctx = make_ctx(box(30, 30, 500, 400));
+	struct sf_layout_result out;
+
+	struct sf_layout_ev on = {.kind = SF_LAYOUT_EV_SET_FULLSCREEN, .want = true};
+	sf_layout_sm_step(&s, &on, &ctx, &out);
+	s = out.state;
+	SF_TEST_EQ_INT((int)out.state.mode, (int)SF_LAYOUT_MODE_FULLSCREEN);
+
+	/* Mid-transition buffer smaller than the output — stay fullscreen. */
+	ctx.current = box(100, 100, 800, 600);
+	struct sf_layout_ev geom = {.kind = SF_LAYOUT_EV_GEOM};
+	sf_layout_sm_step(&s, &geom, &ctx, &out);
+	SF_TEST_EQ_INT((int)out.state.mode, (int)SF_LAYOUT_MODE_FULLSCREEN);
+	SF_TEST_TRUE(!has_fx(&out, SF_LAYOUT_FX_XDG_FULLSCREEN));
+	SF_TEST_TRUE(!has_fx(&out, SF_LAYOUT_FX_APPLY_BOX));
+}
+
 static void test_reapply_arranged(void) {
 	struct sf_layout_sm s = {
 		.mode = SF_LAYOUT_MODE_MAX_EDGES,
@@ -248,6 +288,8 @@ static const struct sf_test tests[] = {
 	{"snap_geom_leave_and_regain", test_snap_geom_leave_and_regain},
 	{"float_clears_saved", test_float_clears_saved},
 	{"fullscreen_instant_and_restore", test_fullscreen_instant_and_restore},
+	{"fullscreen_toggle", test_fullscreen_toggle},
+	{"fullscreen_geom_sticky", test_fullscreen_geom_sticky},
 	{"reapply_arranged", test_reapply_arranged},
 	{"match_priority", test_match_priority},
 	{"queries", test_queries},

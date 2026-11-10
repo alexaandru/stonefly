@@ -46,6 +46,9 @@ static const struct sf_action_entry sf_actions[] = {
 	{"resize_edge", SF_ACTION_RESIZE_EDGE},
 	{"toggle_always_on_top", SF_ACTION_TOGGLE_ALWAYS_ON_TOP},
 	{"always_on_top", SF_ACTION_ALWAYS_ON_TOP},
+	{"set_fullscreen", SF_ACTION_SET_FULLSCREEN},
+	{"unset_fullscreen", SF_ACTION_UNSET_FULLSCREEN},
+	{"toggle_fullscreen", SF_ACTION_TOGGLE_FULLSCREEN},
 };
 
 size_t sf_action_name_table_len(void) {

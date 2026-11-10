@@ -94,6 +94,11 @@ void sf_toplevel_unminimize(struct sf_toplevel *toplevel);
 
 /* Fullscreen on hint output, or the output under the window when hint is NULL. */
 void sf_toplevel_set_fullscreen(struct sf_toplevel *toplevel, bool want, struct wlr_output *hint);
+void sf_toplevel_toggle_fullscreen(struct sf_toplevel *toplevel);
+
+/* Parent scene_tree under layers.fullscreen while fullscreen, else the
+ * workspace tree (or layers.toplevel for scratchpads). */
+void sf_toplevel_sync_scene_layer(struct sf_toplevel *toplevel);
 
 /* Peeble-style cascade origin for a newly mapped floating toplevel. */
 void sf_toplevel_place_cascade(struct sf_toplevel *toplevel);

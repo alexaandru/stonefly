@@ -15,9 +15,10 @@
   ["Super+Shift+Tab" {:action :focus_prev}]
   ["Alt+Tab" {:action :exec :cmd (noctalia "window-switcher")}]
   ["Alt+Shift+Tab" {:action :focus_prev_all}]
-  ;; maximize / minimize
+  ;; maximize / fullscreen / minimize
   ["Super+f" {:action :toggle_maximize_to_edges}]
   ["Super+m" {:action :toggle_maximize}]
+  ["F11" {:action :toggle_fullscreen}]
   ["Ctrl+Esc" {:action :minimize}]
   ["Ctrl+Shift+Esc" {:action :unminimize}]
   ;; snap (Super+arrows stay snap; workspaces use Page / digits)

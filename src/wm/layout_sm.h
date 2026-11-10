@@ -33,10 +33,12 @@ enum sf_layout_ev_kind {
 	SF_LAYOUT_EV_SNAP, /* .snap */
 	SF_LAYOUT_EV_UNSNAP,
 	SF_LAYOUT_EV_SET_FULLSCREEN, /* .want */
+	SF_LAYOUT_EV_TOGGLE_FULLSCREEN,
 	/* Drop max/snap/fs; keep current geom. .clear_saved drops PreMax. */
 	SF_LAYOUT_EV_FLOAT,
 	/* Observations */
-	SF_LAYOUT_EV_GEOM, /* reconcile mode vs ctx->current */
+	/* Reconcile mode vs ctx->current. Fullscreen is sticky (no demote). */
+	SF_LAYOUT_EV_GEOM,
 	/* Usable/output changed: re-emit apply for the current mode. */
 	SF_LAYOUT_EV_REAPPLY,
 };

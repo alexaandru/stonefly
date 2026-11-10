@@ -32,7 +32,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 | Layout mode state machine | Pure `wm/layout_sm` owns float/max/snap/fullscreen + PreMax on `toplevel->layout` (no mirror bools). Commands + geometry observe → state + effects; WM applies effects only. Resize/nudge/commit reconcile both ways. Unit suite `tests/wm/layout_sm_test.c` |
 | Place / SoftPlace / appear SM | Pure `wm/place_sm` owns managed vs settled, SoftPlace soft bit, and appear-hold on `toplevel->place` (replaces `auto_place` / `soft_place` / `appear_pending`). Map begin, user/layout own, drop-soft, soft-center, arm/try appear. Unit suite `tests/wm/place_sm_test.c` |
 | Action verb catalog | `wm/action_run.c` — table of handlers + `SF_ACTION_F_WIN` / `SF_ACTION_F_CMD` protocol. Binds/taps/rules/IPC share `sf_run_action`. `SF_ACTION_COUNT` keeps name table and slot table aligned (unit-checked) |
-| Fullscreen (client + WM) | Saved geom + full output box; client `request_fullscreen` + foreign set/unset (no WM keybind; Super+f is edge-max) |
+| Fullscreen (client + WM) | Saved geom + full output box; client `request_fullscreen` + foreign set/unset stay SET. WM actions `toggle_fullscreen` / `set_fullscreen` / `unset_fullscreen`; default **F11** → toggle (Super+f remains edge-max). Scene parent `layers.fullscreen` (above top/bar, below overlay). GEOM observe is sticky for fullscreen (exit only via explicit unset / FLOAT / toggle) so Chromium mid-transition buffers do not demote |
 | Minimize / unminimize LIFO | Ctrl+Esc — unnamed scratchpad. Shared `apply_hidden`/`apply_shown` (LIFO vs scratch). `xdg request_minimize` → CSD/SSD buttons |
 | Keyboard half-snap (arrows) | Super+arrows — gap math ports `snapBorderBox` |
 | Unsnap / restore PreSnap | Super+u |
@@ -66,7 +66,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 
 | Feature | Notes |
 |---|---|
-| Appear / map slide | Closest usable edge, 200ms ease_out; short-axis preference when several edges tie. SoftPlace appear-hold via `place_sm` (not for `set_parent` transients — Meld save dialog stayed scene-disabled with empty title); mid-slide retarget; morph if SoftPlace centers after slide |
+| Appear / map slide | Closest usable edge, 200ms ease_out; short-axis preference when several edges tie. SoftPlace appear-hold via `place_sm` (not for `set_parent` transients — Meld save dialog stayed scene-disabled with empty title); mid-slide retarget; morph if SoftPlace centers after slide. Layout GEOM observe uses resting / morph target while a slide or morph is active so edge-max scratchpad show does not demote to float (border/SSD flash + settle bounce) |
 | Close slide (WM-initiated) | Shared `slide_offscreen` / `closest_dir` with appear, scratch, close-ghost |
 | Close slide (client Ctrl+W / CSD) | Cached last-frame ghost (`close_snap`); unmap slides via `sf_anim_offscreen_for_box`. Skipped when WM hide already ran |
 | Snap / unsnap / max morph | Live peeble-style morph (`morph_duration_ms`); mid-flight retarget. Fullscreen stays instant |
@@ -77,7 +77,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 | Soft rounded corners (opaque) | `corner_radius` 12 = CSD/hole/buffer; outer rim = `corner_radius + border_thickness` |
 | Drop shadows | SceneFX |
 | Compositor border (focus/idle/urgent) | Neon / charcoal inactive / amber. Static `SF_BORDER_*` float arrays (not compound literals). Hole+buffer use `corner_radius`; outer = radius+border |
-| Layer z-order vs windows | Scene trees background→overlay; xdg under `layers.toplevel` |
+| Layer z-order vs windows | Scene trees background→bottom→blur→toplevel→top→fullscreen→overlay→lock; normal xdg under workspace trees in `layers.toplevel`; fullscreen xdg reparented to `layers.fullscreen` |
 | Window previews / destination size | Noctalia switcher via `ext-foreign-toplevel-list` + image-capture-source + image-copy-capture (`ext_capture.c`) |
 | Urgency / xdg-activation | Amber until focus; never steals focus. IPC `windows.urgent` + `set-urgent` / `unset-urgent` |
 | System bell | 200ms amber flash (`bell_flash_ms`); does not stick urgency |

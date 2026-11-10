@@ -361,9 +361,9 @@ void sf_workspace_assign(struct sf_toplevel *toplevel, struct sf_workspace *ws) 
 	struct sf_output *old_output =
 		toplevel->workspace != NULL ? toplevel->workspace->output : NULL;
 	toplevel->workspace = ws;
-	if (toplevel->scene_tree != NULL && ws->tree != NULL) {
-		wlr_scene_node_reparent(&toplevel->scene_tree->node, ws->tree);
-	}
+	/* Fullscreen stays on layers.fullscreen above the bar; sync picks
+	 * ws->tree only when not fullscreen. */
+	sf_toplevel_sync_scene_layer(toplevel);
 	if (old_output != NULL && old_output != ws->output) {
 		sf_workspace_compact(old_output);
 	}
@@ -376,10 +376,7 @@ void sf_workspace_detach_scratchpad(struct sf_toplevel *toplevel) {
 	}
 	struct sf_output *output = toplevel->workspace != NULL ? toplevel->workspace->output : NULL;
 	toplevel->workspace = NULL;
-	if (toplevel->scene_tree != NULL) {
-		wlr_scene_node_reparent(&toplevel->scene_tree->node,
-					toplevel->server->layers.toplevel);
-	}
+	sf_toplevel_sync_scene_layer(toplevel);
 	if (output != NULL) {
 		sf_workspace_compact(output);
 	}

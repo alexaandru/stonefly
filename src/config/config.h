@@ -73,6 +73,10 @@ enum sf_action {
 	SF_ACTION_TOGGLE_ALWAYS_ON_TOP,
 	/* cmd = true|false|1|0|on|off. */
 	SF_ACTION_ALWAYS_ON_TOP,
+	/* Fullscreen: set / unset / toggle (default F11 → toggle). */
+	SF_ACTION_SET_FULLSCREEN,
+	SF_ACTION_UNSET_FULLSCREEN,
+	SF_ACTION_TOGGLE_FULLSCREEN,
 
 	/* One past the last real action — table sizes / completeness checks. */
 	SF_ACTION_COUNT,

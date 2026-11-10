@@ -85,12 +85,14 @@ struct sf_server {
 	struct wlr_scene *scene;
 	struct wlr_scene_output_layout *scene_layout;
 
-	/* Z-order: background < bottom < blur < toplevel < top < overlay < lock. */
+	/* Z-order: background < bottom < blur < toplevel < top <
+	 * fullscreen < overlay < lock. Fullscreen xdg sits above the bar. */
 	struct {
 		struct wlr_scene_tree *background;
 		struct wlr_scene_tree *bottom;
 		struct wlr_scene_tree *toplevel;
 		struct wlr_scene_tree *top;
+		struct wlr_scene_tree *fullscreen;
 		struct wlr_scene_tree *overlay;
 		struct wlr_scene_tree *lock;
 	} layers;

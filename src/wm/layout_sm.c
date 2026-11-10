@@ -278,7 +278,14 @@ static void reconcile_geom(struct sf_layout_result *out, struct sf_layout_sm *s,
 		    sf_layout_sm_box_near(&ctx->current, target, tol)) {
 			return;
 		}
-		/* Geometry left the arranged/fullscreen box → float. */
+		/* Fullscreen stays until an explicit leave (client unset /
+		 * SET_FULLSCREEN false / FLOAT). Chromium/Netflix often
+		 * commits a mid-transition buffer that is not the full
+		 * output box; demoting would drop the raise-above-bar layer. */
+		if (s->mode == SF_LAYOUT_MODE_FULLSCREEN) {
+			return;
+		}
+		/* Geometry left the arranged box → float. */
 		to_float_keep_geom(out, s, false);
 		return;
 	}
@@ -367,6 +374,13 @@ void sf_layout_sm_step(const struct sf_layout_sm *in, const struct sf_layout_ev 
 			enter_mode(out, s, ctx, SF_LAYOUT_MODE_FULLSCREEN, SF_SNAP_NONE, false);
 		} else if (s->mode == SF_LAYOUT_MODE_FULLSCREEN) {
 			restore_saved(out, s, SF_LAYOUT_MODE_FULLSCREEN);
+		}
+		break;
+	case SF_LAYOUT_EV_TOGGLE_FULLSCREEN:
+		if (s->mode == SF_LAYOUT_MODE_FULLSCREEN) {
+			restore_saved(out, s, SF_LAYOUT_MODE_FULLSCREEN);
+		} else {
+			enter_mode(out, s, ctx, SF_LAYOUT_MODE_FULLSCREEN, SF_SNAP_NONE, false);
 		}
 		break;
 	case SF_LAYOUT_EV_FLOAT:

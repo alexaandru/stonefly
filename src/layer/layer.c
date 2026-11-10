@@ -383,6 +383,8 @@ void sf_layer_setup(struct sf_server *server) {
 	server->blur_layer = wlr_scene_optimized_blur_create(&server->scene->tree, 0, 0);
 	server->layers.toplevel = wlr_scene_tree_create(&server->scene->tree);
 	server->layers.top = wlr_scene_tree_create(&server->scene->tree);
+	/* Above top (Noctalia bar) so F11 / xdg fullscreen covers shell chrome. */
+	server->layers.fullscreen = wlr_scene_tree_create(&server->scene->tree);
 	server->layers.overlay = wlr_scene_tree_create(&server->scene->tree);
 
 	server->layer_shell = wlr_layer_shell_v1_create(server->wl_display, SF_LAYER_SHELL_VERSION);
