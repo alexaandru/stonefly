@@ -109,3 +109,49 @@ void sf_snap_preview_show(struct sf_server *server, enum sf_snap edge,
 	p->visible = true;
 	p->edge = edge;
 }
+
+void sf_snap_preview_show_box(struct sf_server *server, const struct wlr_box *box) {
+	if (server->snap_preview == NULL) {
+		sf_snap_preview_init(server);
+	}
+	struct sf_snap_preview *p = server->snap_preview;
+	if (p == NULL || box == NULL || box->width <= 0 || box->height <= 0) {
+		sf_snap_preview_hide(server);
+		return;
+	}
+
+	const struct sf_config *cfg = sf_cfg(server);
+	const int bw = cfg->snap_preview_border;
+	wlr_scene_rect_set_size(p->fill, box->width, box->height);
+	wlr_scene_rect_set_size(p->rim, box->width, box->height);
+	wlr_scene_node_set_position(&p->fill->node, 0, 0);
+	wlr_scene_node_set_position(&p->rim->node, 0, 0);
+
+	if (bw > 0 && box->width > 2 * bw && box->height > 2 * bw) {
+		wlr_scene_rect_set_clipped_region(
+			p->rim, (struct clipped_region){
+					.area =
+						{
+							.x = bw,
+							.y = bw,
+							.width = box->width - 2 * bw,
+							.height = box->height - 2 * bw,
+						},
+					.corners = corner_radii_all(0),
+				});
+		wlr_scene_node_set_enabled(&p->rim->node, true);
+	} else {
+		wlr_scene_node_set_enabled(&p->rim->node, false);
+	}
+
+	float fill[4], rim[4];
+	preview_colors(server, fill, rim);
+	wlr_scene_rect_set_color(p->fill, fill);
+	wlr_scene_rect_set_color(p->rim, rim);
+
+	wlr_scene_node_set_position(&p->tree->node, box->x, box->y);
+	wlr_scene_node_set_enabled(&p->tree->node, true);
+	wlr_scene_node_raise_to_top(&p->tree->node);
+	p->visible = true;
+	p->edge = SF_SNAP_NONE;
+}

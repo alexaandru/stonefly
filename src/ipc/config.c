@@ -160,6 +160,8 @@ static void emit_options(struct json_buf *b, const struct sf_config *cfg) {
 	json_str(b, sf_master_pos_name(cfg->master_pos));
 	json_key(b, "master_factor");
 	json_f64(b, (double)cfg->master_factor);
+	json_key(b, "dwindle_factor");
+	json_f64(b, (double)cfg->dwindle_factor);
 	json_key(b, "master_count");
 	json_i64(b, cfg->master_count);
 	json_key(b, "column_ratio");

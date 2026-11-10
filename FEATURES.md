@@ -23,7 +23,8 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 
 | Feature | Notes |
 |---|---|
-| Workspace arrange engines | `stacking` (default) · `columns` (niri scroll strip) · `master`/`tile` (Lua `master_pos` left\|right\|top\|bottom\|center) · `dwindle` · `monocle`. Resolve workspace→output→global (`sf.opt.arrange`). Super+] / Super+[ cycle. Drag / float rule breaks out of the tile set. Distinct from per-window `layout_sm` |
+| Workspace arrange engines | `stacking` (default) · `columns` (niri scroll strip) · `master`/`tile` (Lua `master_pos` left\|right\|top\|bottom\|center) · `dwindle` · `monocle`. Resolve workspace→output→global (`sf.opt.arrange`). Super+] / Super+[ cycle. Inter-pane `gap` in columns/master/dwindle. Monocle hides peers and re-enables on leave; stacking restores saved float geom. Tile packing uses a stable `arrange_tiles` order — focus/MRU (click, Tab, `focus_dir`) activates in place. Super+LMB swaps tile order; Super+RMB adjusts `column_ratio` / `master_factor` / `dwindle_factor` while staying tiled; Super+v `toggle_float` leaves/rejoins. Half-snap is stacking-only. Distinct from per-window `layout_sm` |
+| Arrange-aware keybinds | `sf.bind` `:arrange` filter (`stacking` / `tiling` / exact engine). Defaults: Super+arrows snap while stacking only, `focus_dir` while tiling, Super+v `toggle_float` while tiling, Super+c / Super+Shift+c `arrange_rotate` (cw/ccw tile order; cw = last→first). Snap actions no-op when tiled. Arrange-specific binds preferred over unset |
 | Focus next / prev (visible) | Super+Tab |
 | Close focused | Super+q |
 | Maximize to edges | Super+f — `maximize_to_edges` / `toggle_maximize_to_edges` (client maximized hint). Live morph (`morph_duration_ms`) |
@@ -34,12 +35,13 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 | Action verb catalog | `wm/action_run.c` — table of handlers + `SF_ACTION_F_WIN` / `SF_ACTION_F_CMD` protocol. Binds/taps/rules/IPC share `sf_run_action`. `SF_ACTION_COUNT` keeps name table and slot table aligned (unit-checked) |
 | Fullscreen (client + WM) | Saved geom + full output box; client `request_fullscreen` + foreign set/unset stay SET. WM actions `toggle_fullscreen` / `set_fullscreen` / `unset_fullscreen`; default **F11** → toggle (Super+f remains edge-max). Scene parent `layers.fullscreen` (above top/bar, below overlay). GEOM: sticky while fullscreen (no demote on mid-transition buffers) and **no regain** from a full-output floater (Chromium Esc/F11 exit trap). Foreign output pin while fullscreen so taskbars do not drop the handle on a 0×0/stale buffer |
 | Minimize / unminimize LIFO | Ctrl+Esc — unnamed scratchpad. Shared `apply_hidden`/`apply_shown` (LIFO vs scratch). `xdg request_minimize` → CSD/SSD buttons |
-| Keyboard half-snap (arrows) | Super+arrows — gap math ports `snapBorderBox` |
+| Keyboard half-snap (arrows) | Super+arrows while stacking — gap math ports `snapBorderBox`. Tiling uses `focus_dir` (monocle cycles) |
 | Unsnap / restore PreSnap | Super+u |
-| Drag move (Super+LMB) | WM xcursor via `sf_seat_apply_grab_cursor`. Clear client pointer focus before set; re-assert each grab motion. SSD titlebar hover shows move face |
+| Drag move (Super+LMB) | Stacking: free move + magnetic edge-snap. Tiling: `SF_CURSOR_ARRANGE_SWAP` — follow pointer, highlight drop peer, release swaps `arrange_tiles` order (no float, no half-snap). WM xcursor via `sf_seat_apply_grab_cursor`. SSD titlebar / client request_move same split |
+| Tile factor resize (Super+RMB) | Tiling: `SF_CURSOR_ARRANGE_RESIZE` — drag adjusts primary factor (`column_ratio`, `master_factor` by `master_pos` axis, or `dwindle_factor`); live reflow, windows stay tiled. Stacking: free edge resize unchanged |
 | Drag resize (Super+RMB) | Edges nearest pointer; undragged edges stay put. Layout SM observes the proposed box so max/snap/fs status tracks the live geometry. Moving edge(s) clamped so geometry + SSD titleband + compositor border stay in usable∩gaps. Grab/apply use scene origin as geometry TL (no ±geo.x/y) |
 | Center-lock resize (Super+Shift+RMB) | Grow/shrink around a fixed layout center: propose Δw = 2·Δx, Δh = 2·Δy (min 50). Cap with the same usable box. Scene position follows the *committed* buffer; re-sync on xdg commit. `SF_CURSOR_RESIZE_CENTER` |
-| Border/corner mouse resize | Hover + LMB on hit band (`resize_border_in` 3 / `resize_border_out` 1); edge cursors. Same usable clamp as Super+RMB. Keep enter/motion on surface in inner band; honor implicit grab until release |
+| Border/corner mouse resize | Hover + LMB on hit band (`resize_border_in` 3 / `resize_border_out` 1); edge cursors. Same usable clamp as Super+RMB. Keep enter/motion on surface in inner band; honor implicit grab until release. Disabled while `arrange_managed`. Leaving the band / titleband clears the WM face (`pointer_wm_cursor`) so the resize glyph cannot stick |
 | Magnetic drag-snap + resistance | `drag_snap.c` — threshold 26, 4× push-through |
 | Snap preview overlay | SceneFX overlay rects — border 1, fill 40% active |
 | `set_tiled` on snap/max | `wlr_xdg_toplevel_set_tiled` on snap / edge-max / restore / unsnap; gap-max stays untiled |

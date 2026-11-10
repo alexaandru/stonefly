@@ -7,6 +7,8 @@
 
 /* Workspace packing engines (distinct from per-window layout_sm). */
 enum sf_arrange {
+	/* Bind filter only: match any tiling engine (not a real workspace mode). */
+	SF_ARRANGE_TILING = -2,
 	SF_ARRANGE_UNSET = -1,
 	SF_ARRANGE_STACKING = 0,
 	SF_ARRANGE_COLUMNS = 1, /* niri-style scrollable strip */
@@ -31,7 +33,7 @@ bool sf_arrange_is_tiling(enum sf_arrange arrange);
  * n==0 is no-op. Returns false if usable invalid. */
 
 bool sf_arrange_math_master(const struct wlr_box *usable, size_t n, enum sf_master_pos pos,
-			    double factor, int master_count, struct wlr_box *out);
+			    double factor, int master_count, int gap, struct wlr_box *out);
 
 /* Niri-style columns: each window is one column of width ~usable.w * col_ratio
  * (clamped). view_offset is subtracted from x (scroll). focused_idx used only
@@ -45,10 +47,11 @@ bool sf_arrange_math_columns(const struct wlr_box *usable, size_t n, double col_
 			     int view_offset, struct wlr_box *out);
 
 /* Binary dwindle: alternate vertical/horizontal splits starting with vertical
- * (left/right). Split ratio 0.5. Window 0 gets first half, rest recurse into
- * other half. */
+ * (left/right). factor is first/rest split (clamped). Window 0 gets first
+ * portion of (span-gap), rest recurse into the other half. gap >= 0. */
 
-bool sf_arrange_math_dwindle(const struct wlr_box *usable, size_t n, struct wlr_box *out);
+bool sf_arrange_math_dwindle(const struct wlr_box *usable, size_t n, double factor, int gap,
+			     struct wlr_box *out);
 
 /* Monocle: out[focus_idx] = usable; other out[i] = {0,0,0,0} (caller may hide
  * or stack). If focus_idx >= n, use 0. */

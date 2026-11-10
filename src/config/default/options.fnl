@@ -6,6 +6,8 @@
             :master_pos "left"
             :master_factor 0.55
             :master_count 1
+            ;; dwindle first/rest split (Super+RMB while dwindle)
+            :dwindle_factor 0.5
             ;; niri columns: fraction of usable width per column
             :column_ratio 0.5
             :scale 1.5

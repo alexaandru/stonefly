@@ -24,6 +24,8 @@ void sf_snap_preview_finish(struct sf_server *server);
 
 void sf_snap_preview_show(struct sf_server *server, enum sf_snap edge,
 			  const struct wlr_box *usable);
+/* Highlight an arbitrary layout box (tile-swap drop target). */
+void sf_snap_preview_show_box(struct sf_server *server, const struct wlr_box *box);
 void sf_snap_preview_hide(struct sf_server *server);
 
 #endif

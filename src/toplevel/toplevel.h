@@ -29,6 +29,8 @@ struct sf_toplevel {
 	enum sf_node_kind kind; /* SF_NODE_TOPLEVEL */
 	struct wl_list link;
 	struct wl_list minimize_link;
+	/* Stable tile-set order on workspace->arrange_tiles (not MRU). */
+	struct wl_list arrange_link;
 	struct sf_server *server;
 	struct wlr_xdg_toplevel *xdg_toplevel;
 	/* Wrapper: blur + shadow + border + xdg_scene_tree. */
@@ -70,6 +72,10 @@ struct sf_toplevel {
 	/* After break-out: suppress GEOM regain until box leaves hold. */
 	bool geom_regain_hold;
 	struct wlr_box geom_regain_box;
+	/* Float geom captured when first joining a tiling arrange; restored
+	 * when returning to stacking. */
+	bool arrange_float_saved;
+	struct wlr_box arrange_float_box;
 	bool minimized;
 	/* xdg_dialog_v1.set_modal (requires parent). */
 	bool modal;

@@ -13,17 +13,28 @@ static void test_master_left_two(void) {
 	const struct wlr_box usable = {.x = 10, .y = 20, .width = 1000, .height = 800};
 	struct wlr_box out[2];
 
-	SF_TEST_TRUE(sf_arrange_math_master(&usable, 2, SF_MASTER_LEFT, 0.55, 1, out));
+	SF_TEST_TRUE(sf_arrange_math_master(&usable, 2, SF_MASTER_LEFT, 0.55, 1, 0, out));
 	/* master_w = (int)(1000 * 0.55) = 550; stack = 450 */
 	expect_box(&out[0], 10, 20, 550, 800);
 	expect_box(&out[1], 560, 20, 450, 800);
+}
+
+static void test_master_left_two_gap(void) {
+	const struct wlr_box usable = {.x = 10, .y = 20, .width = 1000, .height = 800};
+	struct wlr_box out[2];
+
+	SF_TEST_TRUE(sf_arrange_math_master(&usable, 2, SF_MASTER_LEFT, 0.55, 1, 10, out));
+	/* content = 1000 - 10 = 990; master = (int)(990 * 0.55) = 544; stack = 446
+	 * stack x = 10 + 544 + 10 = 564 */
+	expect_box(&out[0], 10, 20, 544, 800);
+	expect_box(&out[1], 564, 20, 446, 800);
 }
 
 static void test_master_center_three(void) {
 	const struct wlr_box usable = {.x = 0, .y = 0, .width = 1000, .height = 600};
 	struct wlr_box out[3];
 
-	SF_TEST_TRUE(sf_arrange_math_master(&usable, 3, SF_MASTER_CENTER, 0.5, 1, out));
+	SF_TEST_TRUE(sf_arrange_math_master(&usable, 3, SF_MASTER_CENTER, 0.5, 1, 0, out));
 	/* center_w = 500; side_total = 500; left_w = 250; right_w = 250
 	 * stack_n = 2 → left_n = 1, right_n = 1 */
 	expect_box(&out[0], 250, 0, 500, 600);
@@ -48,7 +59,7 @@ static void test_dwindle_four(void) {
 	const struct wlr_box usable = {.x = 0, .y = 0, .width = 800, .height = 600};
 	struct wlr_box out[4];
 
-	SF_TEST_TRUE(sf_arrange_math_dwindle(&usable, 4, out));
+	SF_TEST_TRUE(sf_arrange_math_dwindle(&usable, 4, 0.5, 0, out));
 	/* 0: left half vertical → 400×600
 	 * rest 400×600 horizontal:
 	 *   1: top half → 400×300 at (400,0)
@@ -59,6 +70,16 @@ static void test_dwindle_four(void) {
 	expect_box(&out[1], 400, 0, 400, 300);
 	expect_box(&out[2], 400, 300, 200, 300);
 	expect_box(&out[3], 600, 300, 200, 300);
+}
+
+static void test_dwindle_two_gap(void) {
+	const struct wlr_box usable = {.x = 0, .y = 0, .width = 800, .height = 600};
+	struct wlr_box out[2];
+
+	SF_TEST_TRUE(sf_arrange_math_dwindle(&usable, 2, 0.5, 10, out));
+	/* first width = span_factor(790, 0.5) = 395; rest x = 395 + 10 = 405, width 395 */
+	expect_box(&out[0], 0, 0, 395, 600);
+	expect_box(&out[1], 405, 0, 395, 600);
 }
 
 static void test_monocle_focus(void) {
@@ -99,18 +120,20 @@ static void test_invalid_usable(void) {
 	struct wlr_box bad = {.x = 0, .y = 0, .width = 0, .height = 100};
 	struct wlr_box ok = {.x = 0, .y = 0, .width = 10, .height = 10};
 
-	SF_TEST_TRUE(!sf_arrange_math_master(&bad, 1, SF_MASTER_LEFT, 0.5, 1, out));
+	SF_TEST_TRUE(!sf_arrange_math_master(&bad, 1, SF_MASTER_LEFT, 0.5, 1, 0, out));
 	SF_TEST_TRUE(!sf_arrange_math_columns(&bad, 1, 0.5, 0, 0, out));
-	SF_TEST_TRUE(!sf_arrange_math_dwindle(&bad, 1, out));
+	SF_TEST_TRUE(!sf_arrange_math_dwindle(&bad, 1, 0.5, 0, out));
 	SF_TEST_TRUE(!sf_arrange_math_monocle(&bad, 1, 0, out));
-	SF_TEST_TRUE(sf_arrange_math_master(&ok, 0, SF_MASTER_LEFT, 0.5, 1, out));
+	SF_TEST_TRUE(sf_arrange_math_master(&ok, 0, SF_MASTER_LEFT, 0.5, 1, 0, out));
 }
 
 static const struct sf_test tests[] = {
 	{"master_left_two", test_master_left_two},
+	{"master_left_two_gap", test_master_left_two_gap},
 	{"master_center_three", test_master_center_three},
 	{"columns_three_offset", test_columns_three_offset},
 	{"dwindle_four", test_dwindle_four},
+	{"dwindle_two_gap", test_dwindle_two_gap},
 	{"monocle_focus", test_monocle_focus},
 	{"master_pos_parse", test_master_pos_parse},
 	{"invalid_usable", test_invalid_usable},

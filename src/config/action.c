@@ -51,6 +51,9 @@ static const struct sf_action_entry sf_actions[] = {
 	{"toggle_fullscreen", SF_ACTION_TOGGLE_FULLSCREEN},
 	{"arrange_cycle", SF_ACTION_ARRANGE_CYCLE},
 	{"arrange_set", SF_ACTION_ARRANGE_SET},
+	{"focus_dir", SF_ACTION_FOCUS_DIR},
+	{"toggle_float", SF_ACTION_TOGGLE_FLOAT},
+	{"arrange_rotate", SF_ACTION_ARRANGE_ROTATE},
 };
 
 size_t sf_action_name_table_len(void) {

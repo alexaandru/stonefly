@@ -14,9 +14,12 @@
 
 #include "config/config.h"
 #include "log/log.h"
+#include "output/output.h"
 #include "session/session.h"
 #include "util/time.h"
+#include "wm/arrange.h"
 #include "wm/wm.h"
+#include "wm/workspace.h"
 
 static const struct sf_tapbind *tapbind_for_sym(struct sf_server *server, xkb_keysym_t sym) {
 	const struct sf_config *cfg = sf_cfg(server);
@@ -141,6 +144,14 @@ static bool handle_keybinding(struct sf_server *server, uint32_t modifiers, xkb_
 	}
 	uint32_t mods = modifiers & (uint32_t)SF_MOD_MASK;
 	const struct sf_config *cfg = sf_cfg(server);
+	enum sf_arrange cur = SF_ARRANGE_STACKING;
+	struct sf_output *out = sf_output_at_cursor(server);
+	if (out != NULL && out->active != NULL) {
+		cur = sf_workspace_arrange(out->active);
+	}
+
+	/* Prefer arrange-specific binds over :arrange unset (any). */
+	const struct sf_keybind *fallback = NULL;
 	for (size_t i = 0; i < cfg->n_keybinds; i++) {
 		const struct sf_keybind *bind = &cfg->keybinds[i];
 		if (bind->mods != mods) {
@@ -149,8 +160,21 @@ static bool handle_keybinding(struct sf_server *server, uint32_t modifiers, xkb_
 		if (sym != bind->sym && (bind->sym_alt == 0 || sym != bind->sym_alt)) {
 			continue;
 		}
+		if (!sf_arrange_bind_matches(bind->arrange, cur)) {
+			continue;
+		}
+		if (bind->arrange != SF_ARRANGE_UNSET) {
+			sf_tap_disarm(server);
+			sf_run_actions(server, NULL, bind->steps, bind->n_steps);
+			return true;
+		}
+		if (fallback == NULL) {
+			fallback = bind;
+		}
+	}
+	if (fallback != NULL) {
 		sf_tap_disarm(server);
-		sf_run_actions(server, NULL, bind->steps, bind->n_steps);
+		sf_run_actions(server, NULL, fallback->steps, fallback->n_steps);
 		return true;
 	}
 	return false;

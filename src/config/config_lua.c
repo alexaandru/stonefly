@@ -1016,6 +1016,12 @@ static int l_bind(lua_State *L) {
 	b->mods = mods;
 	b->sym = sym;
 	b->sym_alt = sym_alt;
+	b->arrange = SF_ARRANGE_UNSET;
+	lua_getfield(L, opts, "arrange");
+	if (lua_isstring(L, -1)) {
+		b->arrange = sf_arrange_parse(lua_tostring(L, -1));
+	}
+	lua_pop(L, 1);
 	b->steps = steps;
 	b->n_steps = n_steps;
 	return 0;
@@ -1209,6 +1215,7 @@ static const struct opt_num opt_numbers[] = {
 	{"resize_border_in", OPT_NUM_FN, 0, opt_set_resize_border_in},
 	{"resize_border_out", OPT_NUM_FN, 0, opt_set_resize_border_out},
 	{"master_factor", OPT_NUM_FLOAT, offsetof(struct sf_config, master_factor), NULL},
+	{"dwindle_factor", OPT_NUM_FLOAT, offsetof(struct sf_config, dwindle_factor), NULL},
 	{"master_count", OPT_NUM_INT, offsetof(struct sf_config, master_count), NULL},
 	{"column_ratio", OPT_NUM_FLOAT, offsetof(struct sf_config, column_ratio), NULL},
 };

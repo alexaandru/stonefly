@@ -33,6 +33,7 @@
 #include "session/session.h"
 #include "ssd/ssd.h"
 #include "util/time.h"
+#include "wm/arrange.h"
 #include "wm/drag_snap.h"
 #include "wm/geom.h"
 #include "wm/snap_preview.h"
@@ -149,8 +150,8 @@ void seat_request_cursor(struct wl_listener *listener, void *data) {
 	if (server->cursor_mode != SF_CURSOR_PASSTHROUGH) {
 		return;
 	}
-	/* Border hit band shows a resize face while still forwarding enter/motion. */
-	if (seat_pointer_in_border_resize(server)) {
+	/* Border/titleband WM face — clients often set_cursor while we still own it. */
+	if (server->pointer_wm_cursor || seat_pointer_in_border_resize(server)) {
 		return;
 	}
 	/* This can be sent by any client, so we check to make sure this one is
@@ -174,7 +175,7 @@ void seat_request_set_cursor_shape(struct wl_listener *listener, void *data) {
 	if (server->cursor_mode != SF_CURSOR_PASSTHROUGH) {
 		return;
 	}
-	if (seat_pointer_in_border_resize(server)) {
+	if (server->pointer_wm_cursor || seat_pointer_in_border_resize(server)) {
 		return;
 	}
 	if (event->seat_client != server->seat->pointer_state.focused_client) {
@@ -230,11 +231,24 @@ void sf_reset_cursor_mode(struct sf_server *server) {
 		sf_snap_preview_hide(server);
 		sf_drag_snap_reset(&server->drag_snap);
 	}
+	if (server->arrange_swap.active) {
+		sf_snap_preview_hide(server);
+		server->arrange_swap.active = false;
+		server->arrange_swap.hover = NULL;
+	}
+	if (server->arrange_resize.active) {
+		server->arrange_resize.active = false;
+	}
 	server->cursor_mode = SF_CURSOR_PASSTHROUGH;
 	server->grabbed_toplevel = NULL;
 	if (was_grab != NULL &&
 	    (was_mode == SF_CURSOR_RESIZE || was_mode == SF_CURSOR_RESIZE_CENTER)) {
 		sf_toplevel_layout_observe(was_grab);
+	}
+	if ((was_mode == SF_CURSOR_ARRANGE_SWAP || was_mode == SF_CURSOR_ARRANGE_RESIZE) &&
+	    was_grab != NULL && was_grab->workspace != NULL) {
+		/* Cancel path (no finish): reflow the tile set. */
+		sf_arrange_schedule(was_grab->workspace);
 	}
 	/* Re-enter under the pointer so the client (or empty-desktop default) face
 	 * replaces the WM grabbing/resize xcursor without waiting for motion. */
@@ -581,6 +595,16 @@ static void process_cursor_motion(struct sf_server *server, uint32_t time) {
 		process_cursor_move(server);
 		return;
 	}
+	if (server->cursor_mode == SF_CURSOR_ARRANGE_SWAP) {
+		sf_seat_apply_grab_cursor(server);
+		sf_arrange_swap_motion(server);
+		return;
+	}
+	if (server->cursor_mode == SF_CURSOR_ARRANGE_RESIZE) {
+		sf_seat_apply_grab_cursor(server);
+		sf_arrange_resize_motion(server);
+		return;
+	}
 	if (server->cursor_mode == SF_CURSOR_RESIZE) {
 		process_cursor_resize(server);
 		return;
@@ -623,6 +647,8 @@ static void process_cursor_motion(struct sf_server *server, uint32_t time) {
 	 * Border/corner hit band: WM owns the resize cursor. Keep client pointer
 	 * focus when a surface is still under the cursor (inner band) so leave
 	 * does not cancel selection; ignore client set_cursor while in-band.
+	 * Leaving the band must clear the WM face — clients often skip
+	 * set_cursor on motion-only, which left a sticky resize glyph.
 	 */
 	if (!sf_session_locked(server)) {
 		uint32_t bedges = 0;
@@ -632,6 +658,7 @@ static void process_cursor_motion(struct sf_server *server, uint32_t time) {
 			(void)toplevel;
 			wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr,
 					       sf_resize_xcursor_name(bedges));
+			server->pointer_wm_cursor = true;
 			if (surface != NULL) {
 				wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
 				wlr_seat_pointer_notify_motion(seat, time, sx, sy);
@@ -652,12 +679,16 @@ static void process_cursor_motion(struct sf_server *server, uint32_t time) {
 			static const char *const move_names[] = {"grabbing", "closedhand", "move",
 								 "fleur", NULL};
 			seat_set_xcursor_fallback(server, move_names);
+			server->pointer_wm_cursor = true;
 			wlr_seat_pointer_clear_focus(seat);
 			return;
 		}
 	}
 
-	if (surface == NULL) {
+	if (server->pointer_wm_cursor) {
+		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "default");
+		server->pointer_wm_cursor = false;
+	} else if (surface == NULL) {
 		/* Empty desktop (or non-surface node): show the theme default.
 		 * Layer-shell surfaces still set surface and may set_cursor. */
 		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "default");
@@ -816,10 +847,23 @@ void sf_seat_apply_grab_cursor(struct sf_server *server) {
 	if (server == NULL || server->cursor == NULL || server->cursor_mgr == NULL) {
 		return;
 	}
-	if (server->cursor_mode == SF_CURSOR_MOVE) {
+	if (server->cursor_mode == SF_CURSOR_MOVE ||
+	    server->cursor_mode == SF_CURSOR_ARRANGE_SWAP) {
 		static const char *const move_names[] = {
 			"grabbing", "closedhand", "move", "fleur", "all-scroll", "size_all", NULL};
 		seat_set_xcursor_fallback(server, move_names);
+		return;
+	}
+	if (server->cursor_mode == SF_CURSOR_ARRANGE_RESIZE) {
+		if (server->arrange_resize.vertical) {
+			static const char *const row_names[] = {"sb_v_double_arrow", "row-resize",
+								"ns-resize", "size_ver", NULL};
+			seat_set_xcursor_fallback(server, row_names);
+		} else {
+			static const char *const col_names[] = {"sb_h_double_arrow", "col-resize",
+								"ew-resize", "size_hor", NULL};
+			seat_set_xcursor_fallback(server, col_names);
+		}
 		return;
 	}
 	if (server->cursor_mode == SF_CURSOR_RESIZE) {
@@ -866,6 +910,10 @@ static uint32_t border_resize_edges_at(struct sf_toplevel *toplevel, double lx, 
 		return 0;
 	}
 	if (sf_layout_sm_is_fullscreen(&toplevel->layout) || toplevel->minimized) {
+		return 0;
+	}
+	/* Tiled windows: no border-band resize (face must match function). */
+	if (toplevel->arrange_managed) {
 		return 0;
 	}
 	if (toplevel->scene_tree == NULL || !toplevel->scene_tree->node.enabled) {
@@ -996,6 +1044,10 @@ void server_cursor_button(struct wl_listener *listener, void *data) {
 		bool grabbing = server->cursor_mode != SF_CURSOR_PASSTHROUGH;
 		if (server->cursor_mode == SF_CURSOR_MOVE) {
 			sf_drag_snap_finish(server);
+		} else if (server->cursor_mode == SF_CURSOR_ARRANGE_SWAP) {
+			sf_arrange_swap_finish(server);
+		} else if (server->cursor_mode == SF_CURSOR_ARRANGE_RESIZE) {
+			sf_arrange_resize_finish(server);
 		}
 		sf_reset_cursor_mode(server);
 		/* Titlebar-initiated move: drop pending button state. */

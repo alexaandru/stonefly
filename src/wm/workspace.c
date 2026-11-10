@@ -204,6 +204,7 @@ static struct sf_workspace *workspace_create(struct sf_output *output) {
 	}
 	ws->output = output;
 	ws->arrange = SF_ARRANGE_UNSET;
+	wl_list_init(&ws->arrange_tiles);
 	ws->tree = wlr_scene_tree_create(server->layers.toplevel);
 	if (ws->tree == NULL) {
 		free(ws);
@@ -251,12 +252,16 @@ static void workspace_clear_members(struct sf_workspace *ws) {
 	struct sf_toplevel *t;
 	wl_list_for_each(t, &server->toplevels, link) {
 		if (t->workspace == ws) {
+			sf_arrange_unlink(t);
+			t->arrange_managed = false;
 			workspace_detach_toplevel_scene(t);
 			t->workspace = NULL;
 		}
 	}
 	wl_list_for_each(t, &server->minimized, minimize_link) {
 		if (t->workspace == ws) {
+			sf_arrange_unlink(t);
+			t->arrange_managed = false;
 			workspace_detach_toplevel_scene(t);
 			t->workspace = NULL;
 		}
@@ -342,6 +347,9 @@ void sf_workspace_assign(struct sf_toplevel *toplevel, struct sf_workspace *ws) 
 	}
 	struct sf_workspace *old_ws = toplevel->workspace;
 	struct sf_output *old_output = old_ws != NULL ? old_ws->output : NULL;
+	if (old_ws != ws) {
+		sf_arrange_unlink(toplevel);
+	}
 	toplevel->workspace = ws;
 	/* Fullscreen stays on layers.fullscreen above the bar; sync picks
 	 * ws->tree only when not fullscreen. */
@@ -355,7 +363,11 @@ void sf_workspace_assign(struct sf_toplevel *toplevel, struct sf_workspace *ws) 
 	    (toplevel->xdg_toplevel == NULL || toplevel->xdg_toplevel->parent == NULL)) {
 		toplevel->arrange_managed = true;
 		toplevel->geom_regain_hold = false;
+		/* Re-join so new members append to this workspace's tile order. */
+		sf_arrange_join_workspace(ws);
 		sf_arrange_schedule(ws);
+	} else if (old_ws != ws) {
+		toplevel->arrange_managed = false;
 	}
 	if (old_ws != NULL && old_ws != ws) {
 		sf_arrange_schedule(old_ws);

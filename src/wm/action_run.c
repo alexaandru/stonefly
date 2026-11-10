@@ -224,6 +224,35 @@ static void action_arrange_set(struct sf_action_ctx *ctx) {
 	sf_arrange_set(ctx->server, ctx->cmd);
 }
 
+static void action_focus_dir(struct sf_action_ctx *ctx) {
+	sf_arrange_focus_dir(ctx->server, ctx->cmd);
+}
+
+static void action_toggle_float(struct sf_action_ctx *ctx) {
+	if (ctx->win == NULL) {
+		return;
+	}
+	if (ctx->win->arrange_managed ||
+	    (ctx->win->workspace != NULL &&
+	     sf_arrange_is_tiling(sf_workspace_arrange(ctx->win->workspace)))) {
+		sf_arrange_toggle_float(ctx->win);
+		return;
+	}
+	/* Stacking: drop snap/max to a free float. */
+	if (sf_layout_sm_is_edged(&ctx->win->layout)) {
+		sf_toplevel_layout_float(ctx->win, false);
+	}
+}
+
+static void action_arrange_rotate(struct sf_action_ctx *ctx) {
+	int delta = 1;
+	if (ctx->cmd != NULL && (strcmp(ctx->cmd, "prev") == 0 || strcmp(ctx->cmd, "ccw") == 0 ||
+				 strcmp(ctx->cmd, "-1") == 0)) {
+		delta = -1;
+	}
+	sf_arrange_rotate(ctx->server, delta);
+}
+
 /*
  * Verb catalog: one slot per enum value. Flags encode the shared protocol
  * (need window / need cmd) so arms stay free of duplicated guards.
@@ -269,6 +298,9 @@ static const struct sf_action_slot sf_action_slots[SF_ACTION_COUNT] = {
 	[SF_ACTION_TOGGLE_FULLSCREEN] = {SF_ACTION_F_WIN, action_toggle_fullscreen},
 	[SF_ACTION_ARRANGE_CYCLE] = {0, action_arrange_cycle},
 	[SF_ACTION_ARRANGE_SET] = {SF_ACTION_F_CMD, action_arrange_set},
+	[SF_ACTION_FOCUS_DIR] = {SF_ACTION_F_CMD, action_focus_dir},
+	[SF_ACTION_TOGGLE_FLOAT] = {SF_ACTION_F_WIN, action_toggle_float},
+	[SF_ACTION_ARRANGE_ROTATE] = {0, action_arrange_rotate},
 };
 
 _Static_assert(sizeof(sf_action_slots) / sizeof(sf_action_slots[0]) == (size_t)SF_ACTION_COUNT,

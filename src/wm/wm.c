@@ -455,6 +455,17 @@ void sf_toplevel_snap_in(struct sf_toplevel *toplevel, enum sf_snap edge,
 }
 
 void sf_toplevel_snap(struct sf_toplevel *toplevel, enum sf_snap edge) {
+	if (toplevel == NULL) {
+		return;
+	}
+	/* Half-snap is a stacking action; tiling uses focus_dir / swap. */
+	if (toplevel->arrange_managed) {
+		return;
+	}
+	if (toplevel->workspace != NULL &&
+	    sf_arrange_is_tiling(sf_workspace_arrange(toplevel->workspace))) {
+		return;
+	}
 	struct wlr_box out;
 	if (!sf_toplevel_output_box(toplevel, &out)) {
 		return;

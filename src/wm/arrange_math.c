@@ -46,8 +46,9 @@ static int span_factor(int total, double factor) {
 	return a;
 }
 
-/* Split box into n panes stacked vertically; remainder px → last pane. */
-static void split_stack_y(const struct wlr_box *box, size_t n, struct wlr_box *out) {
+/* Split box into n panes stacked vertically with gap between; rem → last. */
+static void split_stack_y(const struct wlr_box *box, size_t n, int gap, struct wlr_box *out) {
+	int content;
 	int base;
 	int rem;
 	int y;
@@ -56,8 +57,16 @@ static void split_stack_y(const struct wlr_box *box, size_t n, struct wlr_box *o
 	if (n == 0) {
 		return;
 	}
-	base = box->height / (int)n;
-	rem = box->height % (int)n;
+	if (n == 1) {
+		out[0] = *box;
+		return;
+	}
+	content = box->height - (int)(n - 1) * gap;
+	if (content < (int)n) {
+		content = (int)n;
+	}
+	base = content / (int)n;
+	rem = content % (int)n;
 	y = box->y;
 	for (i = 0; i < n; i++) {
 		int h = base + (i + 1 == n ? rem : 0);
@@ -68,12 +77,13 @@ static void split_stack_y(const struct wlr_box *box, size_t n, struct wlr_box *o
 			.width = box->width,
 			.height = h,
 		};
-		y += h;
+		y += h + gap;
 	}
 }
 
-/* Split box into n panes side-by-side; remainder px → last pane. */
-static void split_stack_x(const struct wlr_box *box, size_t n, struct wlr_box *out) {
+/* Split box into n panes side-by-side with gap between; rem → last. */
+static void split_stack_x(const struct wlr_box *box, size_t n, int gap, struct wlr_box *out) {
+	int content;
 	int base;
 	int rem;
 	int x;
@@ -82,8 +92,16 @@ static void split_stack_x(const struct wlr_box *box, size_t n, struct wlr_box *o
 	if (n == 0) {
 		return;
 	}
-	base = box->width / (int)n;
-	rem = box->width % (int)n;
+	if (n == 1) {
+		out[0] = *box;
+		return;
+	}
+	content = box->width - (int)(n - 1) * gap;
+	if (content < (int)n) {
+		content = (int)n;
+	}
+	base = content / (int)n;
+	rem = content % (int)n;
 	x = box->x;
 	for (i = 0; i < n; i++) {
 		int w = base + (i + 1 == n ? rem : 0);
@@ -94,88 +112,97 @@ static void split_stack_x(const struct wlr_box *box, size_t n, struct wlr_box *o
 			.width = w,
 			.height = box->height,
 		};
-		x += w;
+		x += w + gap;
 	}
 }
 
-static void master_lr(const struct wlr_box *usable, size_t n, size_t mc, double factor,
+static void master_lr(const struct wlr_box *usable, size_t n, size_t mc, double factor, int gap,
 		      bool master_on_left, struct wlr_box *out) {
 	size_t stack_n = n - mc;
 	struct wlr_box master_area;
 	struct wlr_box stack_area;
+	int content;
 
 	if (stack_n == 0) {
-		split_stack_y(usable, mc, out);
+		split_stack_y(usable, mc, gap, out);
 		return;
 	}
 
+	content = usable->width - gap;
 	master_area = *usable;
 	stack_area = *usable;
-	master_area.width = span_factor(usable->width, factor);
-	stack_area.width = usable->width - master_area.width;
+	master_area.width = span_factor(content, factor);
+	stack_area.width = content - master_area.width;
 	if (master_on_left) {
 		master_area.x = usable->x;
-		stack_area.x = usable->x + master_area.width;
+		stack_area.x = usable->x + master_area.width + gap;
 	} else {
 		stack_area.x = usable->x;
-		master_area.x = usable->x + stack_area.width;
+		master_area.x = usable->x + stack_area.width + gap;
 	}
-	split_stack_y(&master_area, mc, out);
-	split_stack_y(&stack_area, stack_n, out + mc);
+	split_stack_y(&master_area, mc, gap, out);
+	split_stack_y(&stack_area, stack_n, gap, out + mc);
 }
 
-static void master_tb(const struct wlr_box *usable, size_t n, size_t mc, double factor,
+static void master_tb(const struct wlr_box *usable, size_t n, size_t mc, double factor, int gap,
 		      bool master_on_top, struct wlr_box *out) {
 	size_t stack_n = n - mc;
 	struct wlr_box master_area;
 	struct wlr_box stack_area;
+	int content;
 
 	if (stack_n == 0) {
-		split_stack_x(usable, mc, out);
+		split_stack_x(usable, mc, gap, out);
 		return;
 	}
 
+	content = usable->height - gap;
 	master_area = *usable;
 	stack_area = *usable;
-	master_area.height = span_factor(usable->height, factor);
-	stack_area.height = usable->height - master_area.height;
+	master_area.height = span_factor(content, factor);
+	stack_area.height = content - master_area.height;
 	if (master_on_top) {
 		master_area.y = usable->y;
-		stack_area.y = usable->y + master_area.height;
+		stack_area.y = usable->y + master_area.height + gap;
 	} else {
 		stack_area.y = usable->y;
-		master_area.y = usable->y + stack_area.height;
+		master_area.y = usable->y + stack_area.height + gap;
 	}
-	split_stack_x(&master_area, mc, out);
-	split_stack_x(&stack_area, stack_n, out + mc);
+	split_stack_x(&master_area, mc, gap, out);
+	split_stack_x(&stack_area, stack_n, gap, out + mc);
 }
 
-static void master_center(const struct wlr_box *usable, size_t n, size_t mc, double factor,
+static void master_center(const struct wlr_box *usable, size_t n, size_t mc, double factor, int gap,
 			  struct wlr_box *out) {
 	size_t stack_n = n - mc;
 	struct wlr_box center;
 	size_t left_n;
 	size_t right_n;
+	int seams;
+	int content;
 	int side_total;
 	int left_w;
 	int right_w;
 
 	if (stack_n == 0) {
-		split_stack_y(usable, mc, out);
+		split_stack_y(usable, mc, gap, out);
 		return;
 	}
 
-	center = *usable;
-	center.width = span_factor(usable->width, factor);
-	side_total = usable->width - center.width;
-	left_w = side_total / 2;
-	right_w = side_total - left_w;
-	center.x = usable->x + left_w;
-
 	left_n = stack_n / 2;
 	right_n = stack_n - left_n;
+	seams = (left_n > 0 ? 1 : 0) + (right_n > 0 ? 1 : 0);
+	content = usable->width - seams * gap;
 
-	split_stack_y(&center, mc, out);
+	center = *usable;
+	center.width = span_factor(content, factor);
+	side_total = content - center.width;
+	left_w = side_total / 2;
+	right_w = side_total - left_w;
+	/* Empty left half of side_total stays when left_n==0 (no seam there). */
+	center.x = usable->x + left_w + (left_n > 0 ? gap : 0);
+
+	split_stack_y(&center, mc, gap, out);
 
 	if (left_n > 0) {
 		struct wlr_box left = {
@@ -185,22 +212,22 @@ static void master_center(const struct wlr_box *usable, size_t n, size_t mc, dou
 			.height = usable->height,
 		};
 
-		split_stack_y(&left, left_n, out + mc);
+		split_stack_y(&left, left_n, gap, out + mc);
 	}
 	if (right_n > 0) {
 		struct wlr_box right = {
-			.x = usable->x + left_w + center.width,
+			.x = center.x + center.width + gap,
 			.y = usable->y,
 			.width = right_w,
 			.height = usable->height,
 		};
 
-		split_stack_y(&right, right_n, out + mc + left_n);
+		split_stack_y(&right, right_n, gap, out + mc + left_n);
 	}
 }
 
 bool sf_arrange_math_master(const struct wlr_box *usable, size_t n, enum sf_master_pos pos,
-			    double factor, int master_count, struct wlr_box *out) {
+			    double factor, int master_count, int gap, struct wlr_box *out) {
 	size_t mc;
 
 	if (!usable_ok(usable)) {
@@ -214,6 +241,9 @@ bool sf_arrange_math_master(const struct wlr_box *usable, size_t n, enum sf_mast
 	}
 
 	factor = clamp_factor(factor);
+	if (gap < 0) {
+		gap = 0;
+	}
 	if (master_count < 1) {
 		master_count = 1;
 	}
@@ -224,19 +254,19 @@ bool sf_arrange_math_master(const struct wlr_box *usable, size_t n, enum sf_mast
 
 	switch (pos) {
 	case SF_MASTER_LEFT:
-		master_lr(usable, n, mc, factor, true, out);
+		master_lr(usable, n, mc, factor, gap, true, out);
 		break;
 	case SF_MASTER_RIGHT:
-		master_lr(usable, n, mc, factor, false, out);
+		master_lr(usable, n, mc, factor, gap, false, out);
 		break;
 	case SF_MASTER_TOP:
-		master_tb(usable, n, mc, factor, true, out);
+		master_tb(usable, n, mc, factor, gap, true, out);
 		break;
 	case SF_MASTER_BOTTOM:
-		master_tb(usable, n, mc, factor, false, out);
+		master_tb(usable, n, mc, factor, gap, false, out);
 		break;
 	case SF_MASTER_CENTER:
-		master_center(usable, n, mc, factor, out);
+		master_center(usable, n, mc, factor, gap, out);
 		break;
 	}
 	return true;
@@ -278,9 +308,10 @@ bool sf_arrange_math_columns(const struct wlr_box *usable, size_t n, double col_
 }
 
 static void dwindle_into(struct wlr_box box, size_t start, size_t count, bool vertical,
-			 struct wlr_box *out) {
+			 double factor, int gap, struct wlr_box *out) {
 	struct wlr_box first;
 	struct wlr_box rest;
+	int content;
 
 	if (count == 0) {
 		return;
@@ -293,19 +324,22 @@ static void dwindle_into(struct wlr_box box, size_t start, size_t count, bool ve
 	first = box;
 	rest = box;
 	if (vertical) {
-		first.width = box.width / 2;
-		rest.width = box.width - first.width;
-		rest.x = box.x + first.width;
+		content = box.width - gap;
+		first.width = span_factor(content, factor);
+		rest.width = content - first.width;
+		rest.x = box.x + first.width + gap;
 	} else {
-		first.height = box.height / 2;
-		rest.height = box.height - first.height;
-		rest.y = box.y + first.height;
+		content = box.height - gap;
+		first.height = span_factor(content, factor);
+		rest.height = content - first.height;
+		rest.y = box.y + first.height + gap;
 	}
 	out[start] = first;
-	dwindle_into(rest, start + 1, count - 1, !vertical, out);
+	dwindle_into(rest, start + 1, count - 1, !vertical, factor, gap, out);
 }
 
-bool sf_arrange_math_dwindle(const struct wlr_box *usable, size_t n, struct wlr_box *out) {
+bool sf_arrange_math_dwindle(const struct wlr_box *usable, size_t n, double factor, int gap,
+			     struct wlr_box *out) {
 	if (!usable_ok(usable)) {
 		return false;
 	}
@@ -315,7 +349,11 @@ bool sf_arrange_math_dwindle(const struct wlr_box *usable, size_t n, struct wlr_
 	if (out == NULL) {
 		return false;
 	}
-	dwindle_into(*usable, 0, n, true, out);
+	if (gap < 0) {
+		gap = 0;
+	}
+	factor = clamp_factor(factor);
+	dwindle_into(*usable, 0, n, true, factor, gap, out);
 	return true;
 }
 
@@ -364,11 +402,16 @@ enum sf_arrange sf_arrange_parse(const char *s) {
 	if (strcmp(s, "unset") == 0 || strcmp(s, "inherit") == 0) {
 		return SF_ARRANGE_UNSET;
 	}
+	if (strcmp(s, "tiling") == 0) {
+		return SF_ARRANGE_TILING;
+	}
 	return SF_ARRANGE_STACKING;
 }
 
 const char *sf_arrange_name(enum sf_arrange arrange) {
 	switch (arrange) {
+	case SF_ARRANGE_TILING:
+		return "tiling";
 	case SF_ARRANGE_UNSET:
 		return "inherit";
 	case SF_ARRANGE_STACKING:

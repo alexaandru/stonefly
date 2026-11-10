@@ -90,6 +90,13 @@ enum sf_action {
 	SF_ACTION_ARRANGE_CYCLE,
 	/* cmd = stacking|columns|master|tile|dwindle|monocle. */
 	SF_ACTION_ARRANGE_SET,
+	/* cmd = left|right|up|down — focus nearest tiled peer (or cycle in monocle). */
+	SF_ACTION_FOCUS_DIR,
+	/* Tiling: leave/rejoin the tile set. Stacking: no-op unless edged→float. */
+	SF_ACTION_TOGGLE_FLOAT,
+	/* cmd = next|cw|prev|ccw (default next). Rotate tile order; focus stays put.
+	 * next/cw: last→first (columns: last becomes 1st, others shift right). */
+	SF_ACTION_ARRANGE_ROTATE,
 
 	/* One past the last real action — table sizes / completeness checks. */
 	SF_ACTION_COUNT,
@@ -105,6 +112,8 @@ struct sf_keybind {
 	uint32_t mods; /* compared against (modifiers & SF_MOD_MASK) */
 	xkb_keysym_t sym;
 	xkb_keysym_t sym_alt; /* optional second sym (e.g. ISO_Left_Tab); 0 = none */
+	/* SF_ARRANGE_UNSET = any; SF_ARRANGE_TILING = any tiling engine; else exact. */
+	enum sf_arrange arrange;
 	struct sf_action_step *steps;
 	size_t n_steps;
 };
@@ -219,8 +228,9 @@ struct sf_config {
 	enum sf_arrange arrange;
 	/* Master engine: side + factor + count (Lua-configurable). */
 	enum sf_master_pos master_pos;
-	float master_factor; /* 0.05..0.95; default 0.55 */
-	int master_count;    /* ≥1; default 1 */
+	float master_factor;  /* 0.05..0.95; default 0.55 */
+	float dwindle_factor; /* 0.05..0.95; default 0.5 — first/rest split */
+	int master_count;     /* ≥1; default 1 */
 	/* Niri columns: column width as fraction of usable (default 0.5). */
 	float column_ratio;
 	/* 3-finger vertical swipe distance (logical px) to change workspace. */

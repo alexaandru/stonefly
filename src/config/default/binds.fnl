@@ -21,12 +21,21 @@
   ["F11" {:action :toggle_fullscreen}]
   ["Ctrl+Esc" {:action :minimize}]
   ["Ctrl+Shift+Esc" {:action :unminimize}]
-  ;; snap (Super+arrows stay snap; workspaces use Page / digits)
-  ["Super+Left" {:action :snap_left}]
-  ["Super+Right" {:action :snap_right}]
-  ["Super+Up" {:action :snap_top}]
-  ["Super+Down" {:action :snap_bottom}]
-  ["Super+u" {:action :unsnap}]
+  ;; snap only while stacking; tiling uses focus_dir instead
+  ["Super+Left" {:action :snap_left :arrange "stacking"}]
+  ["Super+Right" {:action :snap_right :arrange "stacking"}]
+  ["Super+Up" {:action :snap_top :arrange "stacking"}]
+  ["Super+Down" {:action :snap_bottom :arrange "stacking"}]
+  ["Super+Left" {:action :focus_dir :cmd "left" :arrange "tiling"}]
+  ["Super+Right" {:action :focus_dir :cmd "right" :arrange "tiling"}]
+  ["Super+Up" {:action :focus_dir :cmd "up" :arrange "tiling"}]
+  ["Super+Down" {:action :focus_dir :cmd "down" :arrange "tiling"}]
+  ["Super+u" {:action :unsnap :arrange "stacking"}]
+  ;; tiling: leave/rejoin the tile set (Super+LMB drag swaps tiles instead)
+  ["Super+v" {:action :toggle_float :arrange "tiling"}]
+  ;; tiling: rotate tile order (cw = last→first; columns push others right)
+  ["Super+c" {:action :arrange_rotate :cmd "cw" :arrange "tiling"}]
+  ["Super+Shift+c" {:action :arrange_rotate :cmd "ccw" :arrange "tiling"}]
   ["Super+Shift+p" {:action :toggle_always_on_top}]
   ;; arrange engines: stacking → columns → master → dwindle → monocle
   ["Super+bracketright" {:action :arrange_cycle :cmd "next"}]

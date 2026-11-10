@@ -14,11 +14,13 @@ static void test_arrange_parse(void) {
 	SF_TEST_EQ_INT((int)sf_arrange_parse("monocle"), (int)SF_ARRANGE_MONOCLE);
 	SF_TEST_EQ_INT((int)sf_arrange_parse("unset"), (int)SF_ARRANGE_UNSET);
 	SF_TEST_EQ_INT((int)sf_arrange_parse("inherit"), (int)SF_ARRANGE_UNSET);
+	SF_TEST_EQ_INT((int)sf_arrange_parse("tiling"), (int)SF_ARRANGE_TILING);
 	SF_TEST_EQ_INT((int)sf_arrange_parse("bogus"), (int)SF_ARRANGE_STACKING);
 }
 
 static void test_arrange_name(void) {
 	SF_TEST_STREQ(sf_arrange_name(SF_ARRANGE_UNSET), "inherit");
+	SF_TEST_STREQ(sf_arrange_name(SF_ARRANGE_TILING), "tiling");
 	SF_TEST_STREQ(sf_arrange_name(SF_ARRANGE_STACKING), "stacking");
 	SF_TEST_STREQ(sf_arrange_name(SF_ARRANGE_COLUMNS), "columns");
 	SF_TEST_STREQ(sf_arrange_name(SF_ARRANGE_MASTER), "master");
@@ -29,6 +31,7 @@ static void test_arrange_name(void) {
 
 static void test_arrange_is_tiling(void) {
 	SF_TEST_TRUE(!sf_arrange_is_tiling(SF_ARRANGE_STACKING));
+	SF_TEST_TRUE(!sf_arrange_is_tiling(SF_ARRANGE_TILING));
 	SF_TEST_TRUE(sf_arrange_is_tiling(SF_ARRANGE_COLUMNS));
 	SF_TEST_TRUE(sf_arrange_is_tiling(SF_ARRANGE_MASTER));
 	SF_TEST_TRUE(sf_arrange_is_tiling(SF_ARRANGE_DWINDLE));

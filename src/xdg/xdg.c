@@ -215,8 +215,10 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, false);
 	}
 
-	struct sf_output *ws_output =
-		toplevel->workspace != NULL ? toplevel->workspace->output : NULL;
+	struct sf_workspace *old_ws = toplevel->workspace;
+	struct sf_output *ws_output = old_ws != NULL ? old_ws->output : NULL;
+	sf_arrange_unlink(toplevel);
+	toplevel->arrange_managed = false;
 	toplevel->workspace = NULL;
 
 	if (toplevel->minimized) {
@@ -227,6 +229,9 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 
 	wl_list_remove(&toplevel->link);
 
+	if (old_ws != NULL) {
+		sf_arrange_schedule(old_ws);
+	}
 	if (ws_output != NULL) {
 		sf_workspace_compact(ws_output);
 	}
@@ -310,6 +315,7 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 
 	sf_foreign_toplevel_on_close(toplevel);
 	sf_ext_capture_on_close(toplevel);
+	sf_arrange_unlink(toplevel);
 	/* Drop snapshot overlay before the live scene tree is destroyed. */
 	sf_anim_cancel(toplevel, false);
 	sf_scratchpad_on_destroy(toplevel);
@@ -356,6 +362,40 @@ void sf_begin_interactive(struct sf_toplevel *toplevel, enum sf_cursor_mode mode
 	struct sf_server *server = toplevel->server;
 
 	sf_anim_cancel(toplevel, true);
+
+	/* Tiled Super+LMB / titlebar drag swaps tiles — never float or edge-snap. */
+	if (mode == SF_CURSOR_MOVE && toplevel->arrange_managed) {
+		server->grabbed_toplevel = toplevel;
+		server->cursor_mode = SF_CURSOR_ARRANGE_SWAP;
+		sf_arrange_swap_begin(server, toplevel);
+		wlr_seat_pointer_notify_clear_focus(server->seat);
+		sf_seat_apply_grab_cursor(server);
+		return;
+	}
+	/* Tiled Super+RMB adjusts arrange factors while staying tiled. */
+	if ((mode == SF_CURSOR_RESIZE || mode == SF_CURSOR_RESIZE_CENTER) &&
+	    toplevel->arrange_managed) {
+		enum sf_arrange kind = SF_ARRANGE_STACKING;
+		if (toplevel->workspace != NULL) {
+			kind = sf_workspace_arrange(toplevel->workspace);
+		}
+		if (kind != SF_ARRANGE_MONOCLE && sf_arrange_is_tiling(kind)) {
+			server->grabbed_toplevel = toplevel;
+			server->cursor_mode = SF_CURSOR_ARRANGE_RESIZE;
+			server->resize_edges = edges;
+			sf_arrange_resize_begin(server, toplevel);
+			if (!server->arrange_resize.active) {
+				server->cursor_mode = SF_CURSOR_PASSTHROUGH;
+				server->grabbed_toplevel = NULL;
+				return;
+			}
+			wlr_seat_pointer_notify_clear_focus(server->seat);
+			sf_seat_apply_grab_cursor(server);
+			return;
+		}
+		/* Monocle: ignore free resize. */
+		return;
+	}
 
 	if (mode == SF_CURSOR_MOVE) {
 		/* Peeble PrepareDrag: float snap/max, keep PreSnap, record origin. */
@@ -482,6 +522,7 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	toplevel->xdg_toplevel = xdg_toplevel;
 	toplevel->id = ++server->next_toplevel_id;
 	wl_list_init(&toplevel->minimize_link);
+	wl_list_init(&toplevel->arrange_link);
 	/* Wrapper holds blur/shadow/border; xdg content is a child. */
 	toplevel->scene_tree = wlr_scene_tree_create(server->layers.toplevel);
 	toplevel->xdg_scene_tree =

@@ -7,7 +7,7 @@
 
 static void test_count_matches_name_table(void) {
 	SF_TEST_EQ_INT((int)sf_action_name_table_len(), (int)SF_ACTION_COUNT);
-	SF_TEST_EQ_INT((int)SF_ACTION_ARRANGE_SET, (int)SF_ACTION_COUNT - 1);
+	SF_TEST_EQ_INT((int)SF_ACTION_ARRANGE_ROTATE, (int)SF_ACTION_COUNT - 1);
 	SF_TEST_EQ_INT((int)SF_ACTION_NONE, 0);
 }
 
@@ -61,6 +61,12 @@ static void test_parse_name_roundtrip(void) {
 	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_ARRANGE_CYCLE);
 	SF_TEST_TRUE(sf_action_parse_ok("arrange_set", &a));
 	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_ARRANGE_SET);
+	SF_TEST_TRUE(sf_action_parse_ok("focus_dir", &a));
+	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_FOCUS_DIR);
+	SF_TEST_TRUE(sf_action_parse_ok("toggle_float", &a));
+	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_TOGGLE_FLOAT);
+	SF_TEST_TRUE(sf_action_parse_ok("arrange_rotate", &a));
+	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_ARRANGE_ROTATE);
 
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_QUIT), "quit");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_SCRATCH_TOGGLE), "scratch_toggle");
@@ -77,6 +83,9 @@ static void test_parse_name_roundtrip(void) {
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_TOGGLE_FULLSCREEN), "toggle_fullscreen");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_ARRANGE_CYCLE), "arrange_cycle");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_ARRANGE_SET), "arrange_set");
+	SF_TEST_STREQ(sf_action_name(SF_ACTION_FOCUS_DIR), "focus_dir");
+	SF_TEST_STREQ(sf_action_name(SF_ACTION_TOGGLE_FLOAT), "toggle_float");
+	SF_TEST_STREQ(sf_action_name(SF_ACTION_ARRANGE_ROTATE), "arrange_rotate");
 	SF_TEST_STREQ(sf_action_name((enum sf_action)9999), "unknown");
 }
 

@@ -137,8 +137,10 @@ void sf_drag_snap_prepare(struct sf_toplevel *toplevel) {
 		return;
 	}
 
+	/* Tiled moves use SF_CURSOR_ARRANGE_SWAP (tile reorder). Never break out
+	 * or magnetic-snap from a stacking drag path. */
 	if (toplevel->arrange_managed) {
-		sf_arrange_break_out(toplevel);
+		return;
 	}
 
 	/* Floating: remember drag origin for capturePreSnap on release snap. */

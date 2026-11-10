@@ -66,6 +66,10 @@ enum sf_cursor_mode {
 	SF_CURSOR_RESIZE,
 	/* Super+Shift+RMB: grow/shrink around a fixed center (both axes). */
 	SF_CURSOR_RESIZE_CENTER,
+	/* Super+LMB on a tiled window: drag to swap tile order (not float/snap). */
+	SF_CURSOR_ARRANGE_SWAP,
+	/* Super+RMB on a tiled window: adjust master/column/dwindle factor. */
+	SF_CURSOR_ARRANGE_RESIZE,
 };
 
 /* Discriminator for scene node->data (toplevel vs layer vs SSD). First field. */
@@ -165,6 +169,9 @@ struct sf_server {
 	struct wl_list keyboards;
 	struct wl_list touch;
 	enum sf_cursor_mode cursor_mode;
+	/* True while process_cursor_motion set a WM resize/move xcursor face.
+	 * Cleared when leaving the hit band so the face cannot stick. */
+	bool pointer_wm_cursor;
 	struct sf_toplevel *grabbed_toplevel;
 	double grab_x, grab_y;
 	struct wlr_box grab_geobox;
@@ -172,6 +179,20 @@ struct sf_server {
 	/* Layout-space content center locked for SF_CURSOR_RESIZE_CENTER. */
 	double resize_center_x, resize_center_y;
 	struct sf_drag_snap drag_snap;
+	/* Tile-swap drag (SF_CURSOR_ARRANGE_SWAP). */
+	struct {
+		bool active;
+		struct sf_toplevel *hover;
+	} arrange_swap;
+	/* Tile-factor resize (SF_CURSOR_ARRANGE_RESIZE). */
+	struct {
+		bool active;
+		bool vertical; /* dy → factor (master top/bottom); else dx */
+		double start_cx;
+		double start_cy;
+		float start_factor;
+		int span; /* usable width or height for delta→factor */
+	} arrange_resize;
 	struct sf_snap_preview *snap_preview;
 
 	struct wlr_output_layout *output_layout;
