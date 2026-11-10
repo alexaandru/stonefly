@@ -10,6 +10,7 @@
 
 #include "ssd/ssd_policy.h"
 #include "util/color.h"
+#include "util/path.h"
 #include "wm/workspace.h"
 
 struct sf_server;
@@ -209,8 +210,6 @@ int sf_cache_dir(char *buf, size_t n);
 int sf_config_init_path(char *buf, size_t n);
 
 /* Recursive mkdir (mkdir -p); 0 = ok. */
-int sf_mkdir_p(const char *path);
-
 /* Write embedded default tree; refuse if init.lua exists. 0 = ok. */
 int sf_config_write_default(void);
 

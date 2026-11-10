@@ -5,6 +5,7 @@
 
 #include "config/config.h"
 #include "toplevel/toplevel.h"
+#include "wm/geom.h"
 
 struct sf_output;
 struct wlr_output;
@@ -31,9 +32,6 @@ void sf_wm_relayout_output(struct sf_output *output);
 /* Pull a floating toplevel into the gap-inset usable area (gap-max if oversized). */
 void sf_toplevel_ensure_on_screen(struct sf_toplevel *toplevel);
 
-/* Inset box by gap on every side (clamped). */
-void sf_box_inset_gap(struct wlr_box *box, int gap);
-
 void sf_toplevel_set_max_edges(struct sf_toplevel *toplevel, bool want);
 void sf_toplevel_toggle_max_edges(struct sf_toplevel *toplevel);
 void sf_toplevel_set_max_gaps(struct sf_toplevel *toplevel, bool want);
@@ -42,8 +40,6 @@ void sf_toplevel_snap(struct sf_toplevel *toplevel, enum sf_snap edge);
 /* Half-snap into an explicit usable box (drag release uses pointer head). */
 void sf_toplevel_snap_in(struct sf_toplevel *toplevel, enum sf_snap edge,
 			 const struct wlr_box *usable);
-/* Peeble snapBorderBox geometry (layout coords). */
-struct wlr_box sf_wm_snap_box(enum sf_snap edge, const struct wlr_box *usable, int gap);
 /* Remember floating geom as PreSnap if none is stored yet. */
 void sf_toplevel_capture_geom(struct sf_toplevel *toplevel, const struct wlr_box *box);
 /* Apply saved size at (x,y) without clearing has_saved_geom (PrepareDrag). */

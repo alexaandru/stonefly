@@ -7,6 +7,28 @@ open row here.
 `peeble/` remains reference-only for behavior/port ideas — not a checklist to
 match line-for-line.
 
+## TODO NEXT
+
+QoL stack — little things that make the WM feel finished (tiling excluded).
+Knock these out in order when picking “what next”; chapter tables below hold
+the detail rows. When an item ships, check it off here and move the row to
+[`FEATURES.md`](FEATURES.md).
+
+| # | Item | Status | Why |
+|---|---|---|---|
+| 1 | Cursor follows focus + warp on workspace / monitor change | ❌ | Keyboard focus moves; pointer must follow (niri/Hypr muscle memory) |
+| 2 | Multi-monitor focus + send-to-monitor | ❌ | Dual-head daily friction; peeble `focus_monitor` / `send_to_monitor` |
+| 3 | Keyboard nudge move / resize | ❌ | Pixel-step placement; snap covers coarse, nudge covers fine |
+| 4 | Always-on-top / pin | ❌ | Floating video, docs, calculators |
+| 5 | Workspace switch animation | ❌ | Reuse swipe path for Super+Page / 1–9 so keybind ≈ gesture |
+| 6 | Real `inputs.fnl` API | 🚧 | Tap-to-click, natural scroll, accel — how the machine feels before windows |
+| 7 | Live config reload (binds + opts first) | ❌ | Tweak chords without logout; mango/Hypr baseline |
+| 8 | Dim-inactive / spotlight polish | 🚧 | Opacity knobs exist; stronger dim or overlay so focus reads at a glance |
+| 9 | Fade / scale appear | ❌ | Slide ships; short opacity/scale pop is the Hypr/mango open cue |
+| 10 | IME **or** Xwayland (pick by apps) | ❌ | fcitx/CJK/OSK → IME; Steam/legacy → Xwayland — real projects, not afternoon bites |
+
+---
+
 ## How to read
 
 | Symbol | Meaning |
@@ -23,17 +45,18 @@ match line-for-line.
 | Feature | Status | Notes |
 |---|---|---|
 | Focus next / prev including minimized | 🚧 | Alt+Tab → `noctalia msg window-switcher`; Alt+Shift+Tab still `FOCUS_PREV_ALL` (unhides). Super+Tab visible-only |
-| Always-on-top | ❌ | |
+| Always-on-top / pin | ❌ | TODO NEXT #4. Window flag + raise/restack; optional rule / action / IPC |
 | Window menu | ❌ | |
 | Geometry persist across restart | ❌ | Tag protocol shipped; no persist consumer yet |
-| Keyboard nudge move/resize | ❌ | Snap exists; step nudge does not |
-| Workspaces polish | 🚧 | ❌ geometry persist / named window rules / switch anim. Layout engines separate row |
+| Keyboard nudge move/resize | ❌ | TODO NEXT #3. Step nudge by N px (move + resize edges); snap stays coarse |
+| Workspaces polish | 🚧 | ❌ geometry persist / named window rules. Switch anim → own row. Layout engines separate |
+| Workspace switch animation | ❌ | TODO NEXT #5. Animate Super+Page / 1–9 (and IPC) with the same path as 3-finger swipe |
 | Layout engine (tile/columns/…) | 🚧 | Resolve `workspace → output → global` (`sf_layout`); only `stacking` implemented. `columns`/`tile` enum + `apply_layout` hook reserved. Global `sf.opt.layout` |
 | Focus cycle policy (MRU vs stack) | 🚧 | Stacking / MRU list front |
-| Multi-monitor focus / send | ❌ | |
-| Pointer center / cursor-follows-focus | ❌ | |
-| Picture-in-picture float | ❌ | |
-| Dim inactive / spotlight | 🚧 | Global `client_opacity` / `inactive_opacity` shipped; no black dim-overlay / spotlight |
+| Multi-monitor focus / send | ❌ | TODO NEXT #2. Actions `focus_monitor` / `send_to_monitor` (+ optional directional focus across outputs) |
+| Pointer center / cursor-follows-focus | ❌ | TODO NEXT #1. Warp pointer into focused window; also on workspace switch and monitor focus change (Hypr `warp_on_*` / niri `warp-mouse-to-focus`) |
+| Picture-in-picture float | ❌ | Related to always-on-top; dedicated PiP policy still open |
+| Dim inactive / spotlight | 🚧 | TODO NEXT #8. Global `client_opacity` / `inactive_opacity` shipped; no black dim-overlay / spotlight; consider stronger default inactive |
 | Scratchpad click-outside catcher | ❌ | `auto_hide` on focus change ships; catcher does not |
 | Scratchpad claim vs icons | 🚧 | Fake `app_id` avoids stealing normal windows (breaks taskbar icons). Proper fix later: xdg-activation / startup token |
 | SSD per-app overrides / winmenu | 🚧 | SSD titlebars ✅; per-app overrides / winmenu open |
@@ -44,7 +67,7 @@ match line-for-line.
 
 | Feature | Status | Notes |
 |---|---|---|
-| Fade / scale appear | ❌ | Opacity static; not animated fade |
+| Fade / scale appear | ❌ | TODO NEXT #9. Opacity/scale pop on map; slide already ships |
 | WM-settable per-window opacity | 🚧 | Global focused/inactive knobs; no per-window / rules API yet |
 | Blur region mask | 🚧 | Non-empty blur region → full-window SceneFX (no region mask yet) |
 
@@ -86,8 +109,8 @@ product asks for in-process chrome again.
 |---|---|---|
 | Screencast / capture_sessions | ❌ | Screencopy + ext-image-copy-capture shipped; session UI/widget open |
 | Full-output screencopy blanking | ❌ | Per-window capture privacy shipped |
-| Xwayland | ❌ | Classic X11 apps fail |
-| text-input / IME | ❌ | `zwp_text_input_v3` + `zwp_input_method_v2` — wlroots helpers exist; stonefly does not advertise. Needs seat relay + popup placement + IM client |
+| Xwayland | ❌ | TODO NEXT #10 (pick vs IME by apps). Classic X11 apps fail |
+| text-input / IME | ❌ | TODO NEXT #10 (pick vs Xwayland by apps). `zwp_text_input_v3` + `zwp_input_method_v2` — wlroots helpers exist; stonefly does not advertise. Needs seat relay + popup placement + IM client |
 | `wp_fifo_v1` | ❌ | Presentation-time ✅; tearing control advertised (hint only); no fifo helper yet |
 | `wp_tearing_control_v1` async flip | 🚧 | Advertised; hint log only |
 | Tablet | ❌ | Touch / gestures / virtual-keyboard / constraints shipped |
@@ -114,11 +137,11 @@ product asks for in-process chrome again.
 
 | Pri | Item | Status |
 |---|---|---|
-| P1 | WM opacity | 🚧 global focused + inactive; no per-window API |
-| P2 | Workspaces polish | ❌ rules / geometry persist / switch anim |
+| P1 | WM opacity | 🚧 global focused + inactive; no per-window API (TODO NEXT #8) |
+| P2 | Workspaces polish | ❌ rules / geometry persist; switch anim is TODO NEXT #5 |
 | P2 | `wp_fifo_v1` | ❌ |
-| — | Xwayland | ❌ |
-| — | Always-on-top / multi-mon send/focus | ❌ |
+| — | Xwayland / IME | ❌ TODO NEXT #10 |
+| — | Always-on-top / multi-mon / cursor warp / nudge / ws anim | ❌ TODO NEXT #1–#5 |
 | — | Tiling engines (`columns`/`tile`) | 🚧 reserved |
 
 ---
@@ -127,10 +150,11 @@ product asks for in-process chrome again.
 
 | Habit | Status |
 |---|---|
-| Always-on-top / winmenu | ❌ |
-| Multi-mon send/focus, pointer center | ❌ |
+| Always-on-top / winmenu | ❌ AOT is TODO NEXT #4; winmenu still open |
+| Multi-mon send/focus, pointer warp / follows-focus | ❌ TODO NEXT #1–#2 |
+| Keyboard nudge / workspace switch anim | ❌ TODO NEXT #3 / #5 |
 | Geometry persist | ❌ |
-| Xwayland | ❌ |
+| Xwayland / IME | ❌ TODO NEXT #10 |
 | Tiling layouts | ❌ (`columns`/`tile` reserved) |
 | Alt+Tab cycle policy polish | 🚧 noctalia switcher + `FOCUS_PREV_ALL` |
 
@@ -138,13 +162,15 @@ product asks for in-process chrome again.
 
 ## 9. Suggested attack order
 
-1. **Xwayland** (classic apps)
-2. Config open items (§10) — live reload, validate CLI, inputs/outputs APIs
-3. Optional WM: always-on-top, multi-mon send/focus, tiling engines, geometry persist / tag-based rules, `wp_fifo_v1`
-4. Capture: full-output screencopy blanking; shell UI for privacy optional
-5. Input: tablet; IME / text-input project
-6. IPC: action allowlist / inputs
-7. Packaging: flip APK back to release buildtype when ASan hunting ends
+Primary queue is **TODO NEXT** at the top (QoL #1–#10). After that stack:
+
+1. Config leftovers (§10) — validate CLI, outputs API, `--write-config-lua`
+2. Optional WM: tiling engines, geometry persist / tag-based rules, overview (niri/mango-scale — large)
+3. Capture: full-output screencopy blanking; shell UI for privacy optional
+4. Input: tablet (IME is TODO NEXT #10)
+5. IPC: action allowlist
+6. Packaging: flip APK back to release buildtype when ASan hunting ends
+7. Protocol polish: `wp_fifo_v1`, full color-mgmt
 
 Shell/OSD/media stay **🌙 Noctalia**.
 
@@ -154,10 +180,10 @@ Shell/OSD/media stay **🌙 Noctalia**.
 
 | Open | Status | Notes |
 |---|---|---|
-| Live reload mid-session | ❌ | Loads once at init; `sf.exec` `reload true` waits on this |
+| Live reload mid-session | ❌ | TODO NEXT #7. Loads once at init; start with binds + opts; `sf.exec` `reload true` waits on this |
 | Config validate CLI | ❌ | Check without applying |
 | `--write-config-lua` | ❌ | Offload compiled/plain Lua instead of `.fnl` |
-| `inputs.fnl` / `outputs.fnl` APIs | 🚧 | Files are no-op stubs. Output `:layout` override planned (workspace→output→global; global `opt.layout` wired) |
+| `inputs.fnl` / `outputs.fnl` APIs | 🚧 | TODO NEXT #6 for inputs. Files are no-op stubs. Tap/natural-scroll/accel first; output `:layout` override planned (workspace→output→global; global `opt.layout` wired) |
 | IPC `config` inputs/outputs sections | 🚧 | Emit `{}` until those APIs exist |
 | Neovim API compat / fake `vim.*` | ❌ | Non-goal |
 | Fennel as C dependency | ❌ | Non-goal (Fennel is Lua in the pack) |
@@ -172,9 +198,11 @@ Shipped surface: [`FEATURES.md`](FEATURES.md) §10.
 
 | Suite | Status | Scope | Gate |
 |---|---|---|---|
-| Unit (next) | 📋 | IPC argv/section parse, layout/geometry, config decode — no display server | Extend `make test` / `meson test` |
+| Unit (more pure) | 📋 | Remaining config decode / rules match without Lua VM; deeper JSON field paths | Extend `make test` / `meson test` |
 | Integration | 📋 later | Headless / virtual WL + client/IPC drivers | Separate Meson suite tag; skip by default until stable |
 | Coverage floors / HTML | 📋 optional | gcovr/`llvm-cov` report; fail under a floor | Dev/CI only — not APK `check()` |
+
+Shipped unit surface (geom/layout/snap/IPC parse/shell_quote/path/chord + earlier util/ssd/action/JSON): see [`FEATURES.md`](FEATURES.md) §11.
 
 ### Non-goals (for now)
 
@@ -188,7 +216,7 @@ Shipped surface: [`FEATURES.md`](FEATURES.md) §10.
 
 ## Legend for future edits
 
-When a row ships, update **FEATURES.md** and remove or shrink the matching
-roadmap row (and §7/§8/§9 if it is a FORK or day-zero item). Prefer stonefly
+When a row ships, update **FEATURES.md**, remove or shrink the matching
+roadmap row (and TODO NEXT / §7/§8/§9 if listed there). Prefer stonefly
 source paths (`src/wm/…`) in notes; river issue numbers only when they still
 explain historical context.

@@ -258,11 +258,12 @@ Owns a small harness under `tests/` (no Criterion/Check/cmocka/fluent DSL).
 
 | Piece | Path |
 |---|---|
-| Runner + wrappers | `tests/sf_test.c` / `tests/sf_test.h` |
+| Runner + wrappers | `tests/sf_test.c` / `tests/sf_test.h` / `tests/run.sh` |
 | Meson | `subdir('tests')` → `tests/meson.build` |
-| Layout | Mirror `src/`: `tests/util/<name>_test.c` |
-| Util suite | `math` / `color` / `time` / `str` / `json` |
-| Coverage | `make coverage` → host gcov for `src/util/*` (optional; not in APK `check()`) |
+| Layout | Mirror `src/`: `tests/<module>/<name>_test.c` |
+| Host stubs | `tests/stubs/include` (wlroots / xkb / wayland) for `make test` |
+| Suites | `util/` (math, color, time, str, json, shell_quote, path); `ssd/` (layout, policy); `config/` (action, chord); `wm/` (geom, layout, snap); `ipc/` (parse + windows/outputs/workspaces/layers JSON) |
+| Coverage | `OPTS=cover` default on `make test` / `make coverage` (host gcov; not gated in APK) |
 
 | Rule | Choice |
 |---|---|
@@ -272,6 +273,6 @@ Owns a small harness under `tests/` (no Criterion/Check/cmocka/fluent DSL).
 | Style | Same house C as `./src` |
 | Build | Meson `test()` binaries linking selected `.c` units |
 
-Unit suite: full `util/` — `make test` → `build/unit/`; abuild `check()` runs
-`meson test` after `style-check`. Integration / coverage floors / further unit
-targets stay on the roadmap.
+Host: `make test` → `build/unit/` (or `build/unit-cover`). Abuild `check()` runs
+`make style-check` then `meson test --no-rebuild -C output`. Integration and
+coverage floors stay on the roadmap.

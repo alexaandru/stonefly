@@ -84,6 +84,10 @@ static void test_scan_string_bool_i64(void) {
 	SF_TEST_TRUE(json_scan_string(&s, out, sizeof(out)));
 	SF_TEST_STREQ(out, "a?b");
 
+	json_scan_init(&s, "\"\\\\\\\"\\/\\b\\f\\r\\t\"");
+	SF_TEST_TRUE(json_scan_string(&s, out, sizeof(out)));
+	SF_TEST_STREQ(out, "\\\"/\b\f\r\t");
+
 	json_scan_init(&s, " true ");
 	SF_TEST_TRUE(json_scan_bool(&s, &flag));
 	SF_TEST_TRUE(flag);
@@ -94,6 +98,10 @@ static void test_scan_string_bool_i64(void) {
 	json_scan_init(&s, " -42 ");
 	SF_TEST_TRUE(json_scan_i64(&s, &n));
 	SF_TEST_EQ_I64(n, -42);
+
+	json_scan_init(&s, "0");
+	SF_TEST_TRUE(json_scan_i64(&s, &n));
+	SF_TEST_EQ_I64(n, 0);
 }
 
 static void test_scan_object(void) {
@@ -136,6 +144,15 @@ static void test_scan_errors(void) {
 
 	json_scan_init(&s, "x");
 	SF_TEST_TRUE(!json_scan_i64(&s, &n));
+
+	json_scan_init(&s, "\"\\u12\"");
+	SF_TEST_TRUE(!json_scan_string(&s, out, sizeof(out)));
+
+	json_scan_init(&s, "\"\\q\"");
+	SF_TEST_TRUE(!json_scan_string(&s, out, sizeof(out)));
+
+	json_scan_init(&s, "\"unterminated");
+	SF_TEST_TRUE(!json_scan_string(&s, out, sizeof(out)));
 
 	json_scan_init(&s, NULL);
 	SF_TEST_TRUE(json_scan_ok(&s));

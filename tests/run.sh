@@ -3,6 +3,7 @@
 # Makefile defaults OPTS to cover (OPTS ?= cover). Explicit OPTS= or
 # OPTS=verbose disables cover unless cover is listed again.
 # Layout uses fixed-width columns (spaces).
+# File rows are grouped by src/ folder; each folder rollup follows its files.
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
@@ -54,19 +55,35 @@ SUITES='util/math.h|util_math_test|math_test.o|util/math.h
 util/color.h|util_color_test|color_test.o|util/color.h
 util/time.h|util_time_test|time_test.o|util/time.h
 util/str.c|util_str_test|str.o|util/str.c
-util/json.c|util_json_test|json.o|util/json.c'
+util/json.c|util_json_test|json.o|util/json.c
+util/shell_quote.c|util_shell_quote_test|shell_quote.o|util/shell_quote.c
+util/path.c|util_path_test|path.o|util/path.c
+ssd/ssd_layout.c|ssd_layout_test|ssd_layout.o|ssd/ssd_layout.c
+ssd/ssd_policy.c|ssd_policy_test|ssd_policy.o|ssd/ssd_policy.c
+config/action.c|config_action_test|action.o|config/action.c
+config/chord.c|config_chord_test|chord.o|config/chord.c
+wm/geom.c|wm_geom_test|geom.o|wm/geom.c
+wm/layout.c|wm_layout_test|layout.o|wm/layout.c
+wm/snap.h|wm_snap_test|snap_test.o|wm/snap.h
+ipc/parse.c|ipc_parse_test|parse.o|ipc/parse.c
+ipc/windows_json.c|ipc_windows_json_test|windows_json.o|ipc/windows_json.c
+ipc/outputs_json.c|ipc_outputs_json_test|outputs_json.o|ipc/outputs_json.c
+ipc/workspaces_json.c|ipc_workspaces_json_test|workspaces_json.o|ipc/workspaces_json.c
+ipc/layers_json.c|ipc_layers_json_test|layers_json.o|ipc/layers_json.c'
 
 # Fixed columns: STATUS(4)  PATH(20)  TIME(8)  EXTRA
 # ANSI on FAIL does not affect PATH column (color only wraps the 4-char label).
 print_row() {
-	to_err=$1
-	status=$2
-	path=$3
-	elapsed=$4
-	extra=${5:-}
-	line=$(
+	# Use _pr_* names: POSIX sh functions share the caller's globals.
+	_pr_to_err=$1
+	_pr_status=$2
+	_pr_path=$3
+	_pr_elapsed=$4
+	_pr_extra=${5:-}
+	_pr_line=$(
 		COL_RED="$RED" COL_RESET="$RESET" \
-			STATUS="$status" ROW_PATH="$path" ELAPSED="$elapsed" EXTRA="$extra" \
+			STATUS="$_pr_status" ROW_PATH="$_pr_path" ELAPSED="$_pr_elapsed" \
+			EXTRA="$_pr_extra" \
 			python3 <<'PY'
 import os
 
@@ -82,16 +99,16 @@ if status == "FAIL" and red:
 else:
     label = f"{status:<4}"
 
-row = f"{label}  {path:<20}{elapsed:>8}"
+row = f"{label}  {path:<24}{elapsed:>8}"
 if extra:
     row += f"  {extra}"
 print(row)
 PY
 	)
-	if [ "$to_err" -eq 1 ]; then
-		printf '%s\n' "$line" >&2
+	if [ "$_pr_to_err" -eq 1 ]; then
+		printf '%s\n' "$_pr_line" >&2
 	else
-		printf '%s\n' "$line"
+		printf '%s\n' "$_pr_line"
 	fi
 }
 
@@ -132,6 +149,58 @@ raise SystemExit(1)
 PY
 }
 
+# Folder rollup after that folder's file rows (cover mode only).
+# Uses covmap + folder_fail (one folder name per line on any suite fail).
+print_folder_row() {
+	# _pf_* names: POSIX sh functions share the caller's globals.
+	_pf_folder=$1
+	if [ "$cover" -ne 1 ]; then
+		return 0
+	fi
+	_pf_failed=0
+	if grep -qx "$_pf_folder" "$folder_fail" 2>/dev/null; then
+		_pf_failed=1
+	fi
+	_pf_row=$(
+		COVMAP="$covmap" FOLDER="$_pf_folder" FAILED="$_pf_failed" python3 <<'PY'
+import os
+from pathlib import Path
+
+folder = os.environ["FOLDER"]
+failed = os.environ["FAILED"] == "1"
+measured = {}
+for line in open(os.environ["COVMAP"]):
+    parts = line.split()
+    if len(parts) >= 2:
+        measured[parts[0]] = float(parts[1])
+
+vals = []
+for p in Path("src").rglob("*"):
+    if not p.is_file() or p.suffix not in {".c", ".h"}:
+        continue
+    rel = str(p.relative_to("src"))
+    if rel.split("/", 1)[0] + "/" != folder:
+        continue
+    vals.append(measured.get(rel, 0.0))
+
+avg = sum(vals) / len(vals) if vals else 0.0
+hit = sum(1 for v in vals if v > 0.0)
+print(f"{avg:.1f} {hit} {len(vals)} {1 if failed else 0}")
+PY
+	)
+	_pf_avg=$(printf '%s' "$_pf_row" | cut -d' ' -f1)
+	_pf_hit=$(printf '%s' "$_pf_row" | cut -d' ' -f2)
+	_pf_n=$(printf '%s' "$_pf_row" | cut -d' ' -f3)
+	_pf_failed=$(printf '%s' "$_pf_row" | cut -d' ' -f4)
+	_pf_note=$(printf 'coverage: %s%% of lines / %s out of %s files' \
+		"$_pf_avg" "$_pf_hit" "$_pf_n")
+	if [ "$_pf_failed" -eq 1 ]; then
+		print_row 1 "FAIL" "$_pf_folder" "" "$_pf_note"
+	else
+		print_row 0 "ok" "$_pf_folder" "" "$_pf_note"
+	fi
+}
+
 make_flags="--no-print-directory"
 if [ "$verbose" -eq 0 ]; then
 	make_flags="$make_flags -s"
@@ -142,30 +211,58 @@ MAKEFLAGS= make $make_flags UNITDIR="$UNITDIR" CFLAGS_TEST="$CFLAGS_TEST" CC="$C
 	"$UNITDIR/util_color_test" \
 	"$UNITDIR/util_time_test" \
 	"$UNITDIR/util_str_test" \
-	"$UNITDIR/util_json_test"
+	"$UNITDIR/util_json_test" \
+	"$UNITDIR/util_shell_quote_test" \
+	"$UNITDIR/util_path_test" \
+	"$UNITDIR/ssd_layout_test" \
+	"$UNITDIR/ssd_policy_test" \
+	"$UNITDIR/config_action_test" \
+	"$UNITDIR/config_chord_test" \
+	"$UNITDIR/wm_geom_test" \
+	"$UNITDIR/wm_layout_test" \
+	"$UNITDIR/wm_snap_test" \
+	"$UNITDIR/ipc_parse_test" \
+	"$UNITDIR/ipc_windows_json_test" \
+	"$UNITDIR/ipc_outputs_json_test" \
+	"$UNITDIR/ipc_workspaces_json_test" \
+	"$UNITDIR/ipc_layers_json_test"
 
 if [ "$cover" -eq 1 ]; then
 	rm -f "$UNITDIR"/*.gcda
 fi
 
-stats=$(mktemp)
 covmap=$(mktemp)
 err=$(mktemp)
-trap 'rm -f "$stats" "$covmap" "$err"' EXIT
-: >"$stats"
+folder_fail=$(mktemp)
+suite_list=$(mktemp)
+trap 'rm -f "$covmap" "$err" "$folder_fail" "$suite_list"' EXIT
 : >"$covmap"
+: >"$folder_fail"
+printf '%s\n' "$SUITES" >"$suite_list"
 
-printf '%s\n' "$SUITES" | while IFS= read -r line; do
+prev_folder=
+ok_files=0
+fail_files=0
+ok_funcs=0
+fail_funcs=0
+
+while IFS= read -r line; do
 	[ -n "$line" ] || continue
 	id=$(printf '%s' "$line" | cut -d'|' -f1)
 	bin=$(printf '%s' "$line" | cut -d'|' -f2)
 	obj=$(printf '%s' "$line" | cut -d'|' -f3)
 	src=$(printf '%s' "$line" | cut -d'|' -f4)
-	path=$UNITDIR/$bin
+	folder=$(printf '%s' "$id" | cut -d'/' -f1)/
+	binpath=$UNITDIR/$bin
+
+	if [ -n "$prev_folder" ] && [ "$folder" != "$prev_folder" ]; then
+		print_folder_row "$prev_folder"
+	fi
+	prev_folder=$folder
 
 	t0=$(now)
 	set +e
-	result=$("$path" 2>"$err")
+	result=$("$binpath" 2>"$err")
 	ec=$?
 	set -e
 	t1=$(now)
@@ -192,7 +289,9 @@ printf '%s\n' "$SUITES" | while IFS= read -r line; do
 			cov_note=$(printf 'coverage: %s%% of lines' "$pct")
 		fi
 		print_row 0 "ok" "$id" "$elapsed" "$cov_note"
-		printf 'ok %s %s %s\n' "$src" "$pass" "$fail" >>"$stats"
+		ok_files=$((ok_files + 1))
+		ok_funcs=$((ok_funcs + pass))
+		fail_funcs=$((fail_funcs + fail))
 	else
 		cov_note=
 		if [ "$cover" -eq 1 ]; then
@@ -201,92 +300,56 @@ printf '%s\n' "$SUITES" | while IFS= read -r line; do
 		fi
 		print_row 1 "FAIL" "$id" "$elapsed" "$cov_note"
 		cat "$err" >&2
-		printf 'fail %s %s %s\n' "$src" "$pass" "$fail" >>"$stats"
+		fail_files=$((fail_files + 1))
+		ok_funcs=$((ok_funcs + pass))
+		fail_funcs=$((fail_funcs + fail))
+		printf '%s\n' "$folder" >>"$folder_fail"
 	fi
-done
+done <"$suite_list"
 
-footer=$(python3 - "$stats" "$covmap" "$cover" <<'PY'
-import sys
-from pathlib import Path
-
-stats_path, covmap_path, cover = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
-ok_files = fail_files = 0
-ok_funcs = fail_funcs = 0
-util_fail = 0
-for line in open(stats_path):
-    kind, path, p, f = line.split()
-    p, f = int(p), int(f)
-    if kind == "ok":
-        ok_files += 1
-        ok_funcs += p
-        fail_funcs += f
-    else:
-        fail_files += 1
-        ok_funcs += p
-        fail_funcs += f
-        if path.startswith("util/"):
-            util_fail = 1
-
-print(f"{ok_files} {fail_files} {ok_funcs} {fail_funcs}")
-if not cover:
-    raise SystemExit(0)
-
-measured = {}
-for line in open(covmap_path):
-    path, pct = line.split()
-    measured[path] = float(pct)
-
-root = Path(".")
-src_files = sorted(
-    p for p in root.joinpath("src").rglob("*")
-    if p.is_file() and p.suffix in {".c", ".h"}
-)
-pcts = []
-util_pcts = []
-for p in src_files:
-    rel = str(p.relative_to("src"))
-    pct = measured.get(rel, 0.0)
-    pcts.append(pct)
-    if rel.startswith("util/"):
-        util_pcts.append(pct)
-util_avg = sum(util_pcts) / len(util_pcts) if util_pcts else 0.0
-util_hit = sum(1 for p in util_pcts if p > 0.0)
-print(f"util {util_fail} {util_avg:.1f} {util_hit} {len(util_pcts)}")
-overall = sum(pcts) / len(pcts) if pcts else 0.0
-covered_n = sum(1 for p in pcts if p > 0.0)
-print(f"overall {overall:.1f} {covered_n} {len(pcts)}")
-PY
-)
-
-ok_files=$(printf '%s' "$footer" | sed -n '1p' | cut -d' ' -f1)
-fail_files=$(printf '%s' "$footer" | sed -n '1p' | cut -d' ' -f2)
-ok_funcs=$(printf '%s' "$footer" | sed -n '1p' | cut -d' ' -f3)
-fail_funcs=$(printf '%s' "$footer" | sed -n '1p' | cut -d' ' -f4)
-
-if [ "$cover" -eq 1 ]; then
-	util_fail=$(printf '%s' "$footer" | sed -n '2p' | cut -d' ' -f2)
-	util_avg=$(printf '%s' "$footer" | sed -n '2p' | cut -d' ' -f3)
-	util_hit=$(printf '%s' "$footer" | sed -n '2p' | cut -d' ' -f4)
-	util_n=$(printf '%s' "$footer" | sed -n '2p' | cut -d' ' -f5)
-	overall=$(printf '%s' "$footer" | sed -n '3p' | cut -d' ' -f2)
-	covered_n=$(printf '%s' "$footer" | sed -n '3p' | cut -d' ' -f3)
-	src_n=$(printf '%s' "$footer" | sed -n '3p' | cut -d' ' -f4)
-	cov_note=$(printf 'coverage: %s%% of lines / %s out of %s files' \
-		"$util_avg" "$util_hit" "$util_n")
-	if [ "$util_fail" -eq 1 ]; then
-		print_row 1 "FAIL" "util/" "" "$cov_note"
-	else
-		print_row 0 "ok" "util/" "" "$cov_note"
-	fi
+if [ -n "$prev_folder" ]; then
+	print_folder_row "$prev_folder"
 fi
 
-printf '--------------------------------------------------------------------------------\n'
-print_row 0 "OK" "$ok_files files / $ok_funcs functions" ""
-print_row 1 "FAIL" "$fail_files files / $fail_funcs functions" ""
-
+overall=
+covered_n=
+src_n=
 if [ "$cover" -eq 1 ]; then
-	printf 'coverage: %s%% of lines / %s out of %s files\n' \
-		"$overall" "$covered_n" "$src_n"
+	overall_line=$(
+		COVMAP="$covmap" python3 <<'PY'
+from pathlib import Path
+import os
+
+measured = {}
+for line in open(os.environ["COVMAP"]):
+    parts = line.split()
+    if len(parts) >= 2:
+        measured[parts[0]] = float(parts[1])
+
+pcts = []
+for p in Path("src").rglob("*"):
+    if p.is_file() and p.suffix in {".c", ".h"}:
+        rel = str(p.relative_to("src"))
+        pcts.append(measured.get(rel, 0.0))
+overall = sum(pcts) / len(pcts) if pcts else 0.0
+covered_n = sum(1 for v in pcts if v > 0.0)
+print(f"{overall:.1f} {covered_n} {len(pcts)}")
+PY
+	)
+	overall=$(printf '%s' "$overall_line" | cut -d' ' -f1)
+	covered_n=$(printf '%s' "$overall_line" | cut -d' ' -f2)
+	src_n=$(printf '%s' "$overall_line" | cut -d' ' -f3)
+fi
+
+printf '------------------------------------------------------------------------------------\n'
+ok_extra=
+if [ "$cover" -eq 1 ]; then
+	ok_extra=$(printf 'coverage: %s%% of lines / %s out of %s files' \
+		"$overall" "$covered_n" "$src_n")
+fi
+print_row 0 "OK" "$ok_files files / $ok_funcs functions" "" "$ok_extra"
+if [ "$fail_files" -gt 0 ]; then
+	print_row 1 "FAIL" "$fail_files files / $fail_funcs functions" ""
 fi
 
 if [ "$fail_files" -gt 0 ]; then

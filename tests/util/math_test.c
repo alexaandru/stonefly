@@ -4,7 +4,7 @@
 static void test_clamp01(void) {
 	SF_TEST_EQ_DOUBLE(sf_clamp01(0.0), 0.0, 0.0);
 	SF_TEST_EQ_DOUBLE(sf_clamp01(1.0), 1.0, 0.0);
-	SF_TEST_EQ_DOUBLE(sf_clamp01(0.6), 0.6, 0.0); /* DEMO: deliberate fail — restore to 0.5 */
+	SF_TEST_EQ_DOUBLE(sf_clamp01(0.5), 0.5, 0.0);
 	SF_TEST_EQ_DOUBLE(sf_clamp01(-0.1), 0.0, 0.0);
 	SF_TEST_EQ_DOUBLE(sf_clamp01(1.1), 1.0, 0.0);
 	SF_TEST_EQ_DOUBLE(sf_clamp01(-100.0), 0.0, 0.0);

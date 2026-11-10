@@ -16,6 +16,7 @@
 #include "ipc/config.h"
 #include "ipc/layers.h"
 #include "ipc/outputs.h"
+#include "ipc/parse.h"
 #include "ipc/windows.h"
 #include "ipc/workspaces.h"
 #include "log/log.h"
@@ -81,52 +82,6 @@ static char *socket_path(void) {
 }
 
 /* Parse {"cmd":"<name>","arg":"..."} (arg optional; string values only). */
-static bool parse_cmd_arg(const char *line, char *cmd, size_t cmd_cap, char *arg, size_t arg_cap) {
-	if (arg != NULL && arg_cap > 0) {
-		arg[0] = '\0';
-	}
-
-	struct json_scan s;
-	json_scan_init(&s, line);
-	if (!json_scan_expect(&s, '{')) {
-		return false;
-	}
-
-	json_scan_skip_ws(&s);
-	if (s.p < s.end && *s.p == '}') {
-		return false;
-	}
-
-	bool found = false;
-	for (;;) {
-		char key[64];
-		if (!json_scan_string(&s, key, sizeof(key)) || !json_scan_expect(&s, ':')) {
-			return false;
-		}
-
-		char value[128];
-		if (!json_scan_string(&s, value, sizeof(value))) {
-			return false;
-		}
-		if (strcmp(key, "cmd") == 0) {
-			snprintf(cmd, cmd_cap, "%s", value);
-			found = true;
-		} else if (strcmp(key, "arg") == 0 && arg != NULL && arg_cap > 0) {
-			snprintf(arg, arg_cap, "%s", value);
-		}
-
-		json_scan_skip_ws(&s);
-		if (s.p < s.end && *s.p == ',') {
-			s.p++;
-			continue;
-		}
-		if (!json_scan_expect(&s, '}')) {
-			return false;
-		}
-		return found && cmd[0] != '\0';
-	}
-}
-
 static struct sf_toplevel *toplevel_by_id(struct sf_server *server, uint64_t id) {
 	struct sf_toplevel *toplevel;
 	wl_list_for_each(toplevel, &server->toplevels, link) {
@@ -140,33 +95,6 @@ static struct sf_toplevel *toplevel_by_id(struct sf_server *server, uint64_t id)
 		}
 	}
 	return NULL;
-}
-
-static bool parse_id_arg(const char *arg, uint64_t *out) {
-	if (arg == NULL || arg[0] == '\0' || out == NULL) {
-		return false;
-	}
-	char *end = NULL;
-	unsigned long long v = strtoull(arg, &end, 10);
-	if (end == arg || (end != NULL && *end != '\0')) {
-		return false;
-	}
-	*out = (uint64_t)v;
-	return true;
-}
-
-static bool parse_workspace_index(const char *arg, int *out) {
-	if (arg == NULL || arg[0] == '\0' || out == NULL) {
-		return false;
-	}
-	char *end = NULL;
-	errno = 0;
-	long v = strtol(arg, &end, 10);
-	if (errno != 0 || end == arg || *end != '\0' || v <= 0 || v > (long)INT_MAX) {
-		return false;
-	}
-	*out = (int)v;
-	return true;
 }
 
 static void ipc_client_destroy(struct sf_ipc_client *client) {
@@ -302,7 +230,7 @@ static void ipc_handle_workspace(struct sf_ipc_client *client, const char *arg) 
 		return;
 	}
 	int idx;
-	if (!parse_workspace_index(arg, &idx) || !sf_workspace_switch_index(output, idx)) {
+	if (!sf_ipc_parse_workspace_index(arg, &idx) || !sf_workspace_switch_index(output, idx)) {
 		ipc_write_err(client, "unknown workspace");
 		return;
 	}
@@ -331,7 +259,7 @@ static void ipc_handle_move_to_workspace(struct sf_ipc_client *client, const cha
 		return;
 	}
 	int idx;
-	if (!parse_workspace_index(arg, &idx) || !sf_workspace_move_index(focused, idx, true)) {
+	if (!sf_ipc_parse_workspace_index(arg, &idx) || !sf_workspace_move_index(focused, idx, true)) {
 		ipc_write_err(client, "unknown workspace");
 		return;
 	}
@@ -340,7 +268,7 @@ static void ipc_handle_move_to_workspace(struct sf_ipc_client *client, const cha
 
 static void ipc_handle_focus(struct sf_ipc_client *client, const char *arg) {
 	uint64_t id;
-	if (!parse_id_arg(arg, &id)) {
+	if (!sf_ipc_parse_id_arg(arg, &id)) {
 		ipc_write_err(client, "focus requires numeric id arg");
 		return;
 	}
@@ -358,7 +286,7 @@ static void ipc_handle_focus(struct sf_ipc_client *client, const char *arg) {
 
 static void ipc_handle_close(struct sf_ipc_client *client, const char *arg) {
 	uint64_t id;
-	if (!parse_id_arg(arg, &id)) {
+	if (!sf_ipc_parse_id_arg(arg, &id)) {
 		ipc_write_err(client, "close requires numeric id arg");
 		return;
 	}
@@ -373,7 +301,7 @@ static void ipc_handle_close(struct sf_ipc_client *client, const char *arg) {
 
 static void ipc_handle_block_capture(struct sf_ipc_client *client, const char *arg, bool block) {
 	uint64_t id;
-	if (!parse_id_arg(arg, &id)) {
+	if (!sf_ipc_parse_id_arg(arg, &id)) {
 		ipc_write_err(client, block ? "block-capture requires numeric id arg"
 					    : "unblock-capture requires numeric id arg");
 		return;
@@ -389,7 +317,7 @@ static void ipc_handle_block_capture(struct sf_ipc_client *client, const char *a
 
 static void ipc_handle_urgent(struct sf_ipc_client *client, const char *arg, bool urgent) {
 	uint64_t id;
-	if (!parse_id_arg(arg, &id)) {
+	if (!sf_ipc_parse_id_arg(arg, &id)) {
 		ipc_write_err(client, urgent ? "set-urgent requires numeric id arg"
 					     : "unset-urgent requires numeric id arg");
 		return;
@@ -442,7 +370,7 @@ static void ipc_handle_config(struct sf_ipc_client *client, const char *arg) {
 static void ipc_handle_request(struct sf_ipc_client *client, const char *line) {
 	char cmd[64];
 	char arg[128];
-	if (!parse_cmd_arg(line, cmd, sizeof(cmd), arg, sizeof(arg))) {
+	if (!sf_ipc_parse_cmd_arg(line, cmd, sizeof(cmd), arg, sizeof(arg))) {
 		ipc_write_err(client, "bad request");
 		return;
 	}
