@@ -190,11 +190,11 @@ Shipped surface: [`FEATURES.md`](FEATURES.md) §10.
 
 | Suite | Status | Scope | Gate |
 |---|---|---|---|
-| Unit (more pure) | 📋 | Remaining config decode / rules match without Lua VM; deeper JSON field paths | Extend `make test` / `meson test` |
+| Unit (more pure) | 📋 | Remaining config decode / rules match without Lua VM; deeper JSON field paths. Layout SM shipped (`wm/layout_sm` + suite) | Extend `make test` / `meson test` |
 | Integration | 📋 later | Headless / virtual WL + client/IPC drivers | Separate Meson suite tag; skip by default until stable |
 | Coverage floors / HTML | 📋 optional | gcovr/`llvm-cov` report; fail under a floor | Dev/CI only — not APK `check()` |
 
-Shipped unit surface (geom/layout/snap/IPC parse/shell_quote/path/chord + earlier util/ssd/action/JSON): see [`FEATURES.md`](FEATURES.md) §11.
+Shipped unit surface (layout_sm/geom/layout/snap/IPC parse/shell_quote/path/chord + earlier util/ssd/action/JSON): see [`FEATURES.md`](FEATURES.md) §11.
 
 ### Non-goals (for now)
 

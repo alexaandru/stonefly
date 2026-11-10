@@ -222,12 +222,18 @@ struct sf_toplevel *sf_desktop_toplevel_at(struct sf_server *server, double lx, 
 
 void sf_reset_cursor_mode(struct sf_server *server) {
 	/* Reset the cursor mode to passthrough. */
+	struct sf_toplevel *was_grab = server->grabbed_toplevel;
+	enum sf_cursor_mode was_mode = server->cursor_mode;
 	if (server->drag_snap.active) {
 		sf_snap_preview_hide(server);
 		sf_drag_snap_reset(&server->drag_snap);
 	}
 	server->cursor_mode = SF_CURSOR_PASSTHROUGH;
 	server->grabbed_toplevel = NULL;
+	if (was_grab != NULL &&
+	    (was_mode == SF_CURSOR_RESIZE || was_mode == SF_CURSOR_RESIZE_CENTER)) {
+		sf_toplevel_layout_observe(was_grab);
+	}
 	/* Re-enter under the pointer so the client (or empty-desktop default) face
 	 * replaces the WM grabbing/resize xcursor without waiting for motion. */
 	struct timespec now;
@@ -406,6 +412,9 @@ static void process_cursor_resize(struct sf_server *server) {
 	int new_width = new_right - new_left;
 	int new_height = new_bottom - new_top;
 	wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, new_width, new_height);
+	struct wlr_box proposed = {
+		.x = new_left, .y = new_top, .width = new_width, .height = new_height};
+	sf_toplevel_layout_observe_box(toplevel, &proposed);
 	sf_seat_apply_grab_cursor(server);
 }
 
@@ -503,6 +512,13 @@ static void process_cursor_resize_center(struct sf_server *server) {
 
 	wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, new_width, new_height);
 	sf_seat_resize_center_sync(server);
+	{
+		int x = (int)lround(server->resize_center_x - (double)new_width / 2.0);
+		int y = (int)lround(server->resize_center_y - (double)new_height / 2.0);
+		struct wlr_box proposed = {
+			.x = x, .y = y, .width = new_width, .height = new_height};
+		sf_toplevel_layout_observe_box(toplevel, &proposed);
+	}
 	sf_seat_apply_grab_cursor(server);
 }
 

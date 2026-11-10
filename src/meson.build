@@ -35,6 +35,7 @@ sf_src = files(
   'wm/nudge.c',
   'wm/geom.c',
   'wm/layout.c',
+  'wm/layout_sm.c',
   'wm/workspace.c',
   'wm/scratchpad.c',
   'wm/drag_snap.c',

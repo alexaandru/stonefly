@@ -66,9 +66,15 @@ void sf_toplevel_capture_geom(struct sf_toplevel *toplevel, const struct wlr_box
 void sf_toplevel_apply_saved_at(struct sf_toplevel *toplevel, int x, int y);
 void sf_toplevel_unsnap(struct sf_toplevel *toplevel);
 
-/* Drop gap-max / edge-max / snap without restoring PreMax (window_rule float).
- * Interactive resize does not call this — undragged edges stay put. */
+/* Leave max/snap/fs without restoring. clear_saved drops PreMax (window_rule). */
+void sf_toplevel_layout_float(struct sf_toplevel *toplevel, bool clear_saved);
+/* window_rule float: layout_float(true). */
 void sf_toplevel_float_for_resize(struct sf_toplevel *toplevel);
+
+/* Reconcile layout mode with current geometry (resize / client configure). */
+void sf_toplevel_layout_observe(struct sf_toplevel *toplevel);
+/* Same, with an explicit box (interactive resize proposes size before commit). */
+void sf_toplevel_layout_observe_box(struct sf_toplevel *toplevel, const struct wlr_box *current);
 
 /* How a window is hidden: LIFO unnamed stack (Ctrl+Esc / CSD / foreign) vs
  * named scratchpad (off that stack). Both set minimized + foreign state. */

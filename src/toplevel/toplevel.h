@@ -9,6 +9,7 @@
 
 #include "server/server.h"
 #include "ssd/ssd_policy.h"
+#include "wm/layout_sm.h"
 #include "wm/snap.h"
 
 struct wlr_buffer;
@@ -60,6 +61,10 @@ struct sf_toplevel {
 	/* Stable for the life of this toplevel; used by IPC `windows`. */
 	uint64_t id;
 
+	/* Source of truth for float/max/snap/fullscreen + PreMax geom.
+	 * Mirror fields below are synced after every layout_sm step for
+	 * existing readers; do not write them ad-hoc. */
+	struct sf_layout_sm layout;
 	struct wlr_box saved_geom;
 	bool has_saved_geom;
 	bool maximized_edges;

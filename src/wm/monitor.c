@@ -282,12 +282,12 @@ void sf_toplevel_place_on_output(struct sf_toplevel *toplevel, struct sf_output 
 	bool snapped = toplevel->snapped != SF_SNAP_NONE;
 
 	if (snapped && !max_edges && !max_gaps && !fullscreen) {
-		sf_toplevel_float_for_resize(toplevel);
+		sf_toplevel_layout_float(toplevel, false);
 	}
 
 	if (fullscreen) {
 		park_on_usable(toplevel, &usable);
-		/* set_fullscreen no-ops when already true — drop then re-apply. */
+		/* Drop then re-apply so the SM retargets onto the new output. */
 		if (toplevel->fullscreen) {
 			sf_toplevel_set_fullscreen(toplevel, false, NULL);
 		}
@@ -297,14 +297,14 @@ void sf_toplevel_place_on_output(struct sf_toplevel *toplevel, struct sf_output 
 	}
 	if (max_edges) {
 		park_on_usable(toplevel, &usable);
-		toplevel->maximized_edges = false;
+		sf_toplevel_layout_float(toplevel, false);
 		sf_toplevel_set_max_edges(toplevel, true);
 		sf_foreign_toplevel_on_outputs_change(toplevel);
 		return;
 	}
 	if (max_gaps) {
 		park_on_usable(toplevel, &usable);
-		toplevel->maximized_gaps = false;
+		sf_toplevel_layout_float(toplevel, false);
 		sf_toplevel_set_max_gaps(toplevel, true);
 		sf_foreign_toplevel_on_outputs_change(toplevel);
 		return;

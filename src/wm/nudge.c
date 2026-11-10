@@ -134,5 +134,6 @@ void sf_toplevel_resize_edge(struct sf_toplevel *toplevel, const char *dir) {
 	}
 	sf_toplevel_clear_auto_place(toplevel);
 	apply_box_instant(toplevel, &geom);
+	sf_toplevel_layout_observe_box(toplevel, &geom);
 	sf_toplevel_ensure_on_screen(toplevel);
 }

@@ -259,6 +259,10 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 	    toplevel->server->grabbed_toplevel == toplevel) {
 		sf_seat_resize_center_sync(toplevel->server);
 	}
+	/* Keep layout mode honest after client size settles (resize / configure). */
+	if (toplevel->server->grabbed_toplevel != toplevel) {
+		sf_toplevel_layout_observe(toplevel);
+	}
 	/* Parent-centered windows re-center when size arrives (still auto_place). */
 	if (toplevel->auto_place) {
 		sf_toplevel_place_transient(toplevel);

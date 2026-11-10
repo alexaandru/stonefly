@@ -28,13 +28,14 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 | Close focused | Super+q |
 | Maximize to edges | Super+f — `maximize_to_edges` / `toggle_maximize_to_edges` (client maximized hint). Live morph (`morph_duration_ms`) |
 | Maximize with gaps (WM-only) | Super+m — `maximize` / `toggle_maximize`. No client maximized → rounder CSD. Gap-max/snap content box insets by `sf_ssd_top_inset` so SSD stays below exclusive zones. Live morph |
-| Unmaximize / restore | `unmaximize` clears either mode; toggles morph-restore. Interactive resize leaves max/snap flags; `float_for_resize` is for window_rule float only |
+| Unmaximize / restore | `unmaximize` clears either mode; toggles morph-restore. `float_for_resize` / `layout_float` for window_rule / drag break |
+| Layout mode state machine | Pure `wm/layout_sm` (commands + geometry observe → state + effects). WM applies effects only. Resize/nudge/commit reconcile mode both ways: leave max/snap/fs when the box diverges; regain when it matches again; toggle after a broken max re-enters (does not unmaximize). Unit suite `tests/wm/layout_sm_test.c` |
 | Fullscreen (client + WM) | Saved geom + full output box; client `request_fullscreen` + foreign set/unset (no WM keybind; Super+f is edge-max) |
 | Minimize / unminimize LIFO | Ctrl+Esc — unnamed scratchpad. Shared `apply_hidden`/`apply_shown` (LIFO vs scratch). `xdg request_minimize` → CSD/SSD buttons |
 | Keyboard half-snap (arrows) | Super+arrows — gap math ports `snapBorderBox` |
 | Unsnap / restore PreSnap | Super+u |
 | Drag move (Super+LMB) | WM xcursor via `sf_seat_apply_grab_cursor`. Clear client pointer focus before set; re-assert each grab motion. SSD titlebar hover shows move face |
-| Drag resize (Super+RMB) | Edges nearest pointer. Does not clear edge-max / gap-max / snap — only the dragged edge moves. Moving edge(s) clamped so geometry + SSD titleband + compositor border stay in usable∩gaps. Grab/apply use scene origin as geometry TL (no ±geo.x/y) — the old add/subtract shifted CSD by the geometry inset (zero gap L/T, double R/B) |
+| Drag resize (Super+RMB) | Edges nearest pointer; undragged edges stay put. Layout SM observes the proposed box so max/snap/fs status tracks the live geometry. Moving edge(s) clamped so geometry + SSD titleband + compositor border stay in usable∩gaps. Grab/apply use scene origin as geometry TL (no ±geo.x/y) |
 | Center-lock resize (Super+Shift+RMB) | Grow/shrink around a fixed layout center: propose Δw = 2·Δx, Δh = 2·Δy (min 50). Cap with the same usable box. Scene position follows the *committed* buffer; re-sync on xdg commit. `SF_CURSOR_RESIZE_CENTER` |
 | Border/corner mouse resize | Hover + LMB on hit band (`resize_border_in` 3 / `resize_border_out` 1); edge cursors. Same usable clamp as Super+RMB. Keep enter/motion on surface in inner band; honor implicit grab until release |
 | Magnetic drag-snap + resistance | `drag_snap.c` — threshold 26, 4× push-through |
@@ -271,6 +272,10 @@ Owns a small harness under `tests/` (no Criterion/Check/cmocka/fluent DSL).
 | Layout | Mirror `src/`: `tests/<module>/<name>_test.c` |
 | Unit stubs | `tests/stubs/include` ahead of system headers (host + APK check); compositor Meson uses real deps |
 | Coverage | `OPTS=cover` default on `make test` (host gcov; not gated in APK) |
+
+Shipped pure suites include `wm/layout_sm` (window layout mode machine),
+geom/snap/layout name parse, IPC JSON/parse, util/*, ssd policy/layout,
+config action/chord.
 
 **Add a suite:** create `tests/…/foo_test.c` with one pragma — no Makefile /
 meson edits:

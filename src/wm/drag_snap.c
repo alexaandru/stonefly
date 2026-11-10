@@ -117,7 +117,7 @@ void sf_drag_snap_prepare(struct sf_toplevel *toplevel) {
 			sf_toplevel_apply_saved_at(toplevel, x, y);
 			sf_toplevel_ensure_on_screen(toplevel);
 		} else {
-			toplevel->snapped = SF_SNAP_NONE;
+			sf_toplevel_layout_float(toplevel, false);
 		}
 		return;
 	}
@@ -129,12 +129,8 @@ void sf_drag_snap_prepare(struct sf_toplevel *toplevel) {
 			int y = (int)server->cursor->y - 16;
 			sf_toplevel_apply_saved_at(toplevel, x, y);
 			sf_toplevel_ensure_on_screen(toplevel);
-		} else if (toplevel->maximized_edges) {
-			wlr_xdg_toplevel_set_maximized(toplevel->xdg_toplevel, false);
-			toplevel->maximized_edges = false;
-			toplevel->maximized_gaps = false;
 		} else {
-			toplevel->maximized_gaps = false;
+			sf_toplevel_layout_float(toplevel, false);
 		}
 		return;
 	}
@@ -283,7 +279,7 @@ void sf_drag_snap_finish(struct sf_server *server) {
 		if (toplevel->has_saved_geom) {
 			sf_toplevel_restore_saved(toplevel);
 		} else {
-			toplevel->snapped = SF_SNAP_NONE;
+			sf_toplevel_layout_float(toplevel, false);
 			sf_toplevel_ensure_on_screen(toplevel);
 		}
 		sf_drag_snap_reset(drag);
