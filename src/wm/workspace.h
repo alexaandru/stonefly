@@ -2,6 +2,7 @@
 #define SF_WORKSPACE_H
 
 #include <stdbool.h>
+#include <time.h>
 #include <wayland-server-core.h>
 
 struct sf_server;
@@ -69,5 +70,9 @@ bool sf_workspace_move_index(struct sf_toplevel *toplevel, int one_based, bool f
 
 /* Focus helper: switch to the window's workspace first when needed. */
 void sf_workspace_reveal_toplevel(struct sf_toplevel *toplevel);
+
+/* Advance in-flight workspace strip slides (from sf_anim_tick). */
+void sf_workspace_anim_tick(struct sf_server *server, const struct timespec *now);
+bool sf_workspace_anim_busy(struct sf_server *server);
 
 #endif

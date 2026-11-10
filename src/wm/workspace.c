@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_ext_workspace_v1.h>
 #include <wlr/types/wlr_output.h>
@@ -10,11 +11,14 @@
 #include <scenefx/types/wlr_scene.h>
 #include <wayland-protocols/ext-workspace-v1-enum.h>
 
+#include "anim/anim.h"
 #include "config/config.h"
 #include "log/log.h"
 #include "output/output.h"
 #include "seat/seat.h"
 #include "server/server.h"
+#include "util/math.h"
+#include "util/time.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
 #include "toplevel/toplevel.h"
@@ -71,17 +75,120 @@ static void workspace_renumber(struct sf_output *output) {
 	}
 }
 
+static void workspace_tree_reset_pos(struct sf_workspace *ws) {
+	if (ws != NULL && ws->tree != NULL) {
+		wlr_scene_node_set_position(&ws->tree->node, 0, 0);
+	}
+}
+
 static void workspace_update_visibility(struct sf_output *output) {
 	struct sf_workspace *ws;
 	wl_list_for_each(ws, &output->workspaces, link) {
 		bool on = (ws == output->active);
+		if (output->ws_anim.active &&
+		    (ws == output->ws_anim.from || ws == output->ws_anim.to)) {
+			on = true;
+		}
 		if (ws->tree != NULL) {
 			wlr_scene_node_set_enabled(&ws->tree->node, on);
+			if (!on) {
+				wlr_scene_node_set_position(&ws->tree->node, 0, 0);
+			}
 		}
 		if (ws->ext != NULL) {
-			wlr_ext_workspace_handle_v1_set_active(ws->ext, on);
+			wlr_ext_workspace_handle_v1_set_active(ws->ext, ws == output->active);
 		}
 	}
+}
+
+static void workspace_anim_finish(struct sf_output *output) {
+	if (output == NULL || !output->ws_anim.active) {
+		return;
+	}
+	struct sf_workspace *from = output->ws_anim.from;
+	struct sf_workspace *to = output->ws_anim.to;
+	output->ws_anim.active = false;
+	output->ws_anim.from = NULL;
+	output->ws_anim.to = NULL;
+	workspace_tree_reset_pos(from);
+	workspace_tree_reset_pos(to);
+	workspace_update_visibility(output);
+}
+
+static void workspace_anim_apply(struct sf_output *output, double p) {
+	int from_y = sf_lerp_i(output->ws_anim.from_y0,
+			       output->ws_anim.from_y0 + output->ws_anim.travel, p);
+	int to_y =
+		sf_lerp_i(output->ws_anim.to_y0, output->ws_anim.to_y0 + output->ws_anim.travel, p);
+	if (output->ws_anim.from != NULL && output->ws_anim.from->tree != NULL) {
+		wlr_scene_node_set_position(&output->ws_anim.from->tree->node, 0, from_y);
+	}
+	if (output->ws_anim.to != NULL && output->ws_anim.to->tree != NULL) {
+		wlr_scene_node_set_position(&output->ws_anim.to->tree->node, 0, to_y);
+	}
+}
+
+static void workspace_switch_instant(struct sf_output *output, struct sf_workspace *ws) {
+	workspace_anim_finish(output);
+	output->active = ws;
+	workspace_update_visibility(output);
+	sf_workspace_apply_layout(ws);
+	sf_focus_top(output->server);
+	sf_pointer_follow_focus(output->server);
+}
+
+static void workspace_anim_start(struct sf_output *output, struct sf_workspace *to) {
+	if (to == NULL) {
+		return;
+	}
+	struct sf_workspace *from = output->active;
+	if (from == NULL || from == to) {
+		workspace_switch_instant(output, to);
+		return;
+	}
+
+	/* Interrupt in-flight slide: land on the current target, then leave it. */
+	if (output->ws_anim.active) {
+		workspace_anim_finish(output);
+		from = output->active;
+		if (from == to) {
+			return;
+		}
+	}
+
+	int H = output->full.height;
+	if (H <= 0 && output->wlr_output != NULL) {
+		H = output->wlr_output->height;
+	}
+	if (H <= 0) {
+		workspace_switch_instant(output, to);
+		return;
+	}
+
+	/* Next (higher index): content slides up — old exits top, new enters from bottom.
+	 * Prev: opposite. Matches natural 3-finger swipe (finger up → next). */
+	int travel = (to->index >= from->index) ? -H : H;
+
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	int64_t dur_ns = (int64_t)sf_cfg(output->server)->slide_duration_ms * 1000000LL;
+
+	output->ws_anim.active = true;
+	output->ws_anim.from = from;
+	output->ws_anim.to = to;
+	output->ws_anim.from_y0 = 0;
+	output->ws_anim.to_y0 = -travel; /* enter from the opposite edge */
+	output->ws_anim.travel = travel;
+	output->ws_anim.start = now;
+	output->ws_anim.dur_ns = dur_ns;
+
+	output->active = to;
+	workspace_update_visibility(output);
+	workspace_anim_apply(output, 0.0);
+	sf_workspace_apply_layout(to);
+	sf_focus_top(output->server);
+	sf_pointer_follow_focus(output->server);
+	sf_anim_schedule(output->server);
 }
 
 static struct sf_workspace *workspace_create(struct sf_output *output) {
@@ -247,9 +354,13 @@ void sf_workspace_compact(struct sf_output *output) {
 
 	struct sf_workspace *ws, *tmp;
 
-	/* Keep occupied workspaces and the current active (may be empty). */
+	/* Keep occupied workspaces, the current active (may be empty), and the
+	 * outgoing slide partner until the strip animation finishes. */
 	wl_list_for_each_safe(ws, tmp, &output->workspaces, link) {
 		if (workspace_has_members(ws) || ws == output->active) {
+			continue;
+		}
+		if (output->ws_anim.active && ws == output->ws_anim.from) {
 			continue;
 		}
 		workspace_destroy(ws);
@@ -305,7 +416,8 @@ void sf_workspace_compact(struct sf_output *output) {
 	/* Drop empties after the single trailing slot. */
 	wl_list_for_each_safe(ws, tmp, &output->workspaces, link) {
 		if (ws->index > want_trailing && !workspace_has_members(ws) &&
-		    ws != output->active) {
+		    ws != output->active &&
+		    !(output->ws_anim.active && ws == output->ws_anim.from)) {
 			workspace_destroy(ws);
 		}
 	}
@@ -338,11 +450,11 @@ void sf_workspace_switch(struct sf_output *output, struct sf_workspace *ws) {
 	if (output->active == ws) {
 		return;
 	}
-	output->active = ws;
-	workspace_update_visibility(output);
-	sf_workspace_apply_layout(ws);
-	sf_focus_top(output->server);
-	sf_pointer_follow_focus(output->server);
+	if (sf_cfg(output->server)->slide_duration_ms <= 0) {
+		workspace_switch_instant(output, ws);
+		return;
+	}
+	workspace_anim_start(output, ws);
 }
 
 void sf_workspace_switch_offset(struct sf_output *output, int delta) {
@@ -507,6 +619,7 @@ void sf_workspace_output_init(struct sf_output *output) {
 }
 
 void sf_workspace_output_finish(struct sf_output *output) {
+	workspace_anim_finish(output);
 	struct sf_workspace *ws, *tmp;
 	wl_list_for_each_safe(ws, tmp, &output->workspaces, link) {
 		/* Toplevels should already be gone with the output; clear back-ptrs. */
@@ -567,6 +680,43 @@ static void ext_workspace_commit(struct wl_listener *listener, void *data) {
 		}
 	}
 	(void)server;
+}
+
+void sf_workspace_anim_tick(struct sf_server *server, const struct timespec *now) {
+	if (server == NULL || now == NULL) {
+		return;
+	}
+	struct sf_output *output;
+	wl_list_for_each(output, &server->outputs, link) {
+		if (!output->ws_anim.active) {
+			continue;
+		}
+		int64_t elapsed = sf_timespec_ns(now) - sf_timespec_ns(&output->ws_anim.start);
+		double t = 1.0;
+		if (output->ws_anim.dur_ns > 0) {
+			t = (double)elapsed / (double)output->ws_anim.dur_ns;
+		}
+		double p = sf_ease_out_cubic(t);
+		workspace_anim_apply(output, p);
+		if (t >= 1.0) {
+			workspace_anim_finish(output);
+			/* Drop an emptied outgoing workspace now that it is off-strip. */
+			sf_workspace_compact(output);
+		}
+	}
+}
+
+bool sf_workspace_anim_busy(struct sf_server *server) {
+	if (server == NULL) {
+		return false;
+	}
+	struct sf_output *output;
+	wl_list_for_each(output, &server->outputs, link) {
+		if (output->ws_anim.active) {
+			return true;
+		}
+	}
+	return false;
 }
 
 void sf_workspace_setup(struct sf_server *server) {

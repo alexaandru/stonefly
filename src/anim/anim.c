@@ -13,6 +13,7 @@
 #include "util/math.h"
 #include "util/time.h"
 #include "wm/wm.h"
+#include "wm/workspace.h"
 #include "toplevel/toplevel.h"
 
 enum sf_slide_dir {
@@ -278,7 +279,7 @@ bool sf_anim_busy(struct sf_server *server) {
 			return true;
 		}
 	}
-	return false;
+	return sf_workspace_anim_busy(server);
 }
 
 static void begin_slide(struct sf_toplevel *toplevel, int from_x, int from_y, int to_x, int to_y,
@@ -532,6 +533,7 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now) {
 	}
 
 	sf_ghost_tick(server, now);
+	sf_workspace_anim_tick(server, now);
 
 	if (sf_anim_busy(server) || !wl_list_empty(&server->ghosts)) {
 		sf_anim_schedule(server);

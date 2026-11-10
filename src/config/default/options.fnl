@@ -7,7 +7,7 @@
             :gap 15
             :cascade_step 25
             :cascade_wrap 10
-            ;; animation
+            ;; animation (slide_duration_ms also drives workspace strip switches)
             :slide_duration_ms 200
             :slide_dir_closest true
             :morph_duration_ms 200

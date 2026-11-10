@@ -1,6 +1,8 @@
 #ifndef SF_OUTPUT_H
 #define SF_OUTPUT_H
 
+#include <stdint.h>
+#include <time.h>
 #include <wayland-server-core.h>
 #include <wlr/util/box.h>
 
@@ -28,6 +30,18 @@ struct sf_output {
 	struct sf_workspace *active;
 	enum sf_layout layout; /* UNSET = inherit global */
 	struct wlr_ext_workspace_group_handle_v1 *ext_group;
+
+	/* Vertical strip slide (keybind / IPC / 3-finger swipe share this). */
+	struct {
+		bool active;
+		struct sf_workspace *from;
+		struct sf_workspace *to;
+		int from_y0; /* scene offset at t=0 */
+		int to_y0;
+		int travel; /* signed: from → from_y0+travel, to → to_y0+travel */
+		struct timespec start;
+		int64_t dur_ns;
+	} ws_anim;
 };
 
 void sf_output_setup(struct sf_server *server);

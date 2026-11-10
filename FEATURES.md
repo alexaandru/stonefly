@@ -50,7 +50,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 | SSD titlebars | `ssd_mode` (`auto`/`prefer_ssd`/`always`/`never`) + `ssd_height` (28) + `ssd_font_size` (17, fcft). Honors client `request_mode` within policy; hide on fullscreen/edge-max; TopInset in ensure-on-screen / cascade / gap-max / snap. Defer `set_mode` until `xdg_surface` initialized. Outer `corner_radii_top` on SSD; border hole punches content+SSD |
 | Transient / dialog placement | Center on visible `set_parent` (+ stack above); late parent/size re-place while `auto_place`. No size-based dialog heuristic. Cleared on move/resize/max/snap |
 | Window rules (app-id/title) | `sf.window_rule(match, actions [, parent])`. Match patterns via Lua `string.find`. Declarative `center`/`float`/`width`/`height`/`ssd`/`borderless`; WM `:action` shared with binds. SoftPlace appear-hold for late title. IPC `stonefly config window_rules` |
-| Workspaces | Dynamic per-output strip (`workspace.c`): trailing empty, compact on empty, Super+Page/1–9 + Shift move-follow, IPC `workspaces`/`workspace`/`move-to-workspace`, windows `{output,workspace}`. `ext-workspace-v1` sync. 3-finger vertical swipe (`swipe_workspace_threshold`, `swipe_workspace_natural`). `xdg-toplevel-tag` stored + IPC |
+| Workspaces | Dynamic per-output strip (`workspace.c`): trailing empty, compact on empty, Super+Page/1–9 + Shift move-follow, IPC `workspaces`/`workspace`/`move-to-workspace`, windows `{output,workspace}`. `ext-workspace-v1` sync. 3-finger vertical swipe (`swipe_workspace_threshold`, `swipe_workspace_natural`). Vertical switch slide (shared by keybind / IPC / swipe; `slide_duration_ms`, 0 = instant). `xdg-toplevel-tag` stored + IPC |
 | Cursor follows focus / pointer center | `sf.opt.cursor_follows_focus` (default true): warp pointer to window center on Super+Tab / workspace switch / move-follow. Click-to-focus does not warp. Action `pointer_center` warps on demand (ignores the opt). Skips MOVE/RESIZE grabs and locked pointer constraints |
 | Multi-monitor focus / send | Actions `focus_monitor` / `send_to_monitor` with `:cmd` target: `left`\|`right`\|`up`\|`down`, `next`\|`prev`, or connector name (`eDP-1`). Focus warps to head center then top window (+ cursor_follows_focus). Send assigns to the target's active workspace, re-fits max/fullscreen, centers floaters, focuses + `pointer_center`. Defaults: Super+Ctrl+arrows focus, Super+Shift+arrows send |
 | Keyboard nudge move / resize | Actions `nudge` / `resize_edge` with `:cmd` `left`\|`right`\|`up`\|`down`. Step from `sf.opt.nudge_step` (default 25). Resize: right/down grow, left/up shrink (top-left anchored, min 50px). No-op when max/snap/fullscreen. Defaults: Alt+arrows move, Alt+Shift+arrows resize |
@@ -66,6 +66,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 | Close slide (WM-initiated) | Shared `slide_offscreen` / `closest_dir` with appear, scratch, close-ghost |
 | Close slide (client Ctrl+W / CSD) | Cached last-frame ghost (`close_snap`); unmap slides via `sf_anim_offscreen_for_box`. Skipped when WM hide already ran |
 | Snap / unsnap / max morph | Live peeble-style morph (`morph_duration_ms`); mid-flight retarget. Fullscreen stays instant |
+| Workspace switch slide | Vertical strip slide on Super+Page / 1–9, IPC `workspace`, and 3-finger swipe. Next: content up (new from below); prev: opposite. Focus + pointer follow at start. Duration `slide_duration_ms` (0 = instant). Mid-flight interrupt lands then retargets |
 | Scratchpad / minimize slides | Mid-flight reverse |
 | Vsync-capped animation pacing | Own scene / frame loop |
 | Backdrop / window blur | Per-window SceneFX blur (`window_blur`) or client `ext-background-effect-v1` (`client_blur`). Gate: `(window_blur or client_blur) and not fullscreen`. Default `blur_xray false` |
@@ -180,7 +181,7 @@ Former River-fork blockers that stonefly owns in-process:
 | P1 | Urgency / xdg-activation | Shipped |
 | P1 | System bell | Shipped |
 | P1 | Capture privacy | Shipped |
-| P2 | Workspaces + toplevel-tag | Dynamic workspaces + `ext-workspace-v1` + tag protocol (rules/persist/switch anim still open) |
+| P2 | Workspaces + toplevel-tag | Dynamic workspaces + `ext-workspace-v1` + tag protocol + switch slide (rules/persist still open) |
 | P2 | Layer exclusive_edge + presentation-time | Via scene configure + `wp_presentation` |
 | P3 | SceneFX blur / corners / shadows | Shipped |
 
@@ -266,7 +267,7 @@ Owns a small harness under `tests/` (no Criterion/Check/cmocka/fluent DSL).
 | Driver | `tests/drive.py` (discover / build / run / cover) |
 | Entry | `tests/drive.py`; `make test` (host) / APK `check()` runs the same driver; meson `test('unit')` remains optional |
 | Layout | Mirror `src/`: `tests/<module>/<name>_test.c` |
-| Host stubs | `tests/stubs/include` ahead of system headers |
+| Unit stubs | `tests/stubs/include` ahead of system headers (host + APK check); compositor Meson uses real deps |
 | Coverage | `OPTS=cover` default on `make test` (host gcov; not gated in APK) |
 
 **Add a suite:** create `tests/…/foo_test.c` with one pragma — no Makefile /

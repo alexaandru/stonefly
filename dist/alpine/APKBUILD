@@ -69,5 +69,5 @@ package() {
 }
 
 sha512sums="
-3cab54b79b47ca463aead4297dbd7a01bae8a2a54d8032bac462c1ed472bb403ec591ccf16a464ab0775b73cdf5b3d0695d78dd17444bcfc7a1b8fc6a00eed97  stonefly-0.0.1.tar.gz
+ece0e3dfe2a20e9fe51aa5f070426026a1e9af419432f67e8218cf4766c473cf254abd376e583190077cdea9a199daafac18c1341bbff8caacae289d15819789  stonefly-0.0.1.tar.gz
 "

@@ -20,7 +20,7 @@ the detail rows. When an item ships, check it off here and move the row to
 | 2 | Multi-monitor focus + send-to-monitor | ✅ | Shipped (`focus_monitor` / `send_to_monitor` + Super+Ctrl/Shift+arrows) |
 | 3 | Keyboard nudge move / resize | ✅ | Shipped (`nudge` / `resize_edge` + `nudge_step`; Alt / Alt+Shift+arrows) |
 | 4 | Always-on-top / pin | ✅ | Shipped (`toggle_always_on_top` / rule / Super+Shift+p) |
-| 5 | Workspace switch animation | ❌ | Reuse swipe path for Super+Page / 1–9 so keybind ≈ gesture |
+| 5 | Workspace switch animation | ✅ | Shipped (vertical strip slide; Super+Page / 1–9 + IPC + swipe share `sf_workspace_switch`) |
 | 6 | Real `inputs.fnl` API | 🚧 | Tap-to-click, natural scroll, accel — how the machine feels before windows |
 | 7 | Live config reload (binds + opts first) | ❌ | Tweak chords without logout; mango/Hypr baseline |
 | 8 | Dim-inactive / spotlight polish | 🚧 | Opacity knobs exist; stronger dim or overlay so focus reads at a glance |
@@ -47,8 +47,7 @@ the detail rows. When an item ships, check it off here and move the row to
 | Focus next / prev including minimized | 🚧 | Alt+Tab → `noctalia msg window-switcher`; Alt+Shift+Tab still `FOCUS_PREV_ALL` (unhides). Super+Tab visible-only |
 | Window menu | ❌ | |
 | Geometry persist across restart | ❌ | Tag protocol shipped; no persist consumer yet |
-| Workspaces polish | 🚧 | ❌ geometry persist / named window rules. Switch anim → own row. Layout engines separate |
-| Workspace switch animation | ❌ | TODO NEXT #5. Animate Super+Page / 1–9 (and IPC) with the same path as 3-finger swipe |
+| Workspaces polish | 🚧 | ❌ geometry persist / named window rules. Switch slide shipped (FEATURES). Layout engines separate |
 | Layout engine (tile/columns/…) | 🚧 | Resolve `workspace → output → global` (`sf_layout`); only `stacking` implemented. `columns`/`tile` enum + `apply_layout` hook reserved. Global `sf.opt.layout` |
 | Focus cycle policy (MRU vs stack) | 🚧 | Stacking / MRU list front |
 | Picture-in-picture float | ❌ | Related to always-on-top; dedicated PiP policy still open |
@@ -134,10 +133,9 @@ product asks for in-process chrome again.
 | Pri | Item | Status |
 |---|---|---|
 | P1 | WM opacity | 🚧 global focused + inactive; no per-window API (TODO NEXT #8) |
-| P2 | Workspaces polish | ❌ rules / geometry persist; switch anim is TODO NEXT #5 |
+| P2 | Workspaces polish | ❌ rules / geometry persist (switch slide ✅) |
 | P2 | `wp_fifo_v1` | ❌ |
 | — | Xwayland / IME | ❌ TODO NEXT #10 |
-| — | Workspace switch anim | ❌ TODO NEXT #5 (#1–#4 shipped) |
 | — | Tiling engines (`columns`/`tile`) | 🚧 reserved |
 
 ---
@@ -147,7 +145,6 @@ product asks for in-process chrome again.
 | Habit | Status |
 |---|---|
 | Winmenu | ❌ |
-| Workspace switch anim | ❌ TODO NEXT #5 |
 | Geometry persist | ❌ |
 | Xwayland / IME | ❌ TODO NEXT #10 |
 | Tiling layouts | ❌ (`columns`/`tile` reserved) |

@@ -168,7 +168,7 @@ Still open relative to the old River-fork brief / peeble feature set:
 |---|---|---|
 | Foreign-toplevel for docks/taskbars | [#1449](https://codeberg.org/river/river/issues/1449) / [#1537](https://codeberg.org/river/river/pulls/1537) | ✅ `zwlr_foreign_toplevel_management_v1` v3 + `ext-foreign-toplevel-list-v1` |
 | Capture privacy (block window from screenshots) | [#1481](https://codeberg.org/river/river/issues/1481) | ✅ per-toplevel (`capture_blocked` + IPC/config); full-output screencopy blanking still open |
-| Workspaces / tags | [#1402](https://codeberg.org/river/river/issues/1402) `ext-workspace-v1`, [#1390](https://codeberg.org/river/river/issues/1390) toplevel-tag | ✅ dynamic per-output workspaces + `ext-workspace-v1` + IPC + swipe (`workspace.c`); tag protocol ✅; rules / persist / switch anim ❌. Layout resolve workspace→output→global (`stacking` only; columns/tile reserved) |
+| Workspaces / tags | [#1402](https://codeberg.org/river/river/issues/1402) `ext-workspace-v1`, [#1390](https://codeberg.org/river/river/issues/1390) toplevel-tag | ✅ dynamic per-output workspaces + `ext-workspace-v1` + IPC + swipe + switch slide (`workspace.c`); tag protocol ✅; rules / persist ❌. Layout resolve workspace→output→global (`stacking` only; columns/tile reserved) |
 | Window previews / destination size | [#1384](https://codeberg.org/river/river/issues/1384) | ✅ ext toplevel image-capture + image-copy-capture for Noctalia switcher (`ext_capture.c`) |
 | Xwayland | peeble/river day-to-day | Not implemented |
 | Screenshots / screencopy / image-copy-capture | peeble | ✅ `zwlr_screencopy` + ext-image-copy-capture; Print binds → noctalia 🌙 |
