@@ -284,6 +284,9 @@ void sf_decor_init_toplevel(struct sf_toplevel *toplevel) {
 /* Clip the subsurface tree inside wlr_scene_xdg_surface_create's wrapper.
  * set_clip on the outer tree is a no-op — only the subsurface tree accepts it. */
 static void decor_clip_xdg_surface(struct sf_toplevel *toplevel, const struct wlr_box *geo) {
+	if (toplevel->xdg_scene_tree == NULL) {
+		return;
+	}
 	struct wlr_scene_node *child;
 	wl_list_for_each(child, &toplevel->xdg_scene_tree->children, link) {
 		wlr_scene_subsurface_tree_set_clip(child, geo);
@@ -293,6 +296,12 @@ static void decor_clip_xdg_surface(struct sf_toplevel *toplevel, const struct wl
 }
 
 void sf_decor_update_geom(struct sf_toplevel *toplevel) {
+	/* Nested-session output teardown detaches scene chrome while the xdg
+	 * object can still commit; skip until destroy. */
+	if (toplevel == NULL || toplevel->xdg_scene_tree == NULL ||
+	    toplevel->xdg_toplevel == NULL) {
+		return;
+	}
 	struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
 	if (geo->width <= 0 || geo->height <= 0) {
 		return;

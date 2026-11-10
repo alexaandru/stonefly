@@ -64,6 +64,8 @@ enum sf_cursor_mode {
 	SF_CURSOR_PASSTHROUGH,
 	SF_CURSOR_MOVE,
 	SF_CURSOR_RESIZE,
+	/* Super+Alt+RMB: grow/shrink around a fixed center (both axes). */
+	SF_CURSOR_RESIZE_CENTER,
 };
 
 /* Discriminator for scene node->data (toplevel vs layer vs SSD). First field. */

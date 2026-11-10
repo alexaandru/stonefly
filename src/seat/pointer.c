@@ -3,6 +3,7 @@
 
 #include <errno.h>
 #include <linux/input-event-codes.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -273,6 +274,8 @@ static void process_cursor_move(struct sf_server *server) {
 	sf_drag_snap_motion(server);
 }
 
+#define SF_RESIZE_CENTER_MIN 50
+
 static void process_cursor_resize(struct sf_server *server) {
 	/*
 	 * Resizing the grabbed toplevel can be a little bit complicated, because we
@@ -324,6 +327,39 @@ static void process_cursor_resize(struct sf_server *server) {
 
 	int new_width = new_right - new_left;
 	int new_height = new_bottom - new_top;
+	wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, new_width, new_height);
+	sf_seat_apply_grab_cursor(server);
+}
+
+/* Super+Alt+RMB: Δw = 2·Δx, Δh = 2·Δy from press; center stays put. */
+static void process_cursor_resize_center(struct sf_server *server) {
+	struct sf_toplevel *toplevel = server->grabbed_toplevel;
+	if (toplevel == NULL || toplevel->scene_tree == NULL || toplevel->xdg_toplevel == NULL) {
+		return;
+	}
+
+	int dx = (int)lround(server->cursor->x - server->grab_x);
+	int dy = (int)lround(server->cursor->y - server->grab_y);
+	int new_width = server->grab_geobox.width + 2 * dx;
+	int new_height = server->grab_geobox.height + 2 * dy;
+	if (new_width < SF_RESIZE_CENTER_MIN) {
+		new_width = SF_RESIZE_CENTER_MIN;
+	}
+	if (new_height < SF_RESIZE_CENTER_MIN) {
+		new_height = SF_RESIZE_CENTER_MIN;
+	}
+
+	int cx = server->grab_geobox.x + server->grab_geobox.width / 2;
+	int cy = server->grab_geobox.y + server->grab_geobox.height / 2;
+	int new_left = cx - new_width / 2;
+	int new_top = cy - new_height / 2;
+
+	struct wlr_box *geo_box = &toplevel->xdg_toplevel->base->geometry;
+	int x = new_left - geo_box->x;
+	int y = new_top - geo_box->y;
+	wlr_scene_node_set_position(&toplevel->scene_tree->node, x, y);
+	toplevel->resting_x = x;
+	toplevel->resting_y = y;
 	wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, new_width, new_height);
 	sf_seat_apply_grab_cursor(server);
 }
@@ -384,8 +420,13 @@ static void process_cursor_motion(struct sf_server *server, uint32_t time) {
 	if (server->cursor_mode == SF_CURSOR_MOVE) {
 		process_cursor_move(server);
 		return;
-	} else if (server->cursor_mode == SF_CURSOR_RESIZE) {
+	}
+	if (server->cursor_mode == SF_CURSOR_RESIZE) {
 		process_cursor_resize(server);
+		return;
+	}
+	if (server->cursor_mode == SF_CURSOR_RESIZE_CENTER) {
+		process_cursor_resize_center(server);
 		return;
 	}
 
@@ -628,6 +669,12 @@ void sf_seat_apply_grab_cursor(struct sf_server *server) {
 		} else {
 			wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "default");
 		}
+		return;
+	}
+	if (server->cursor_mode == SF_CURSOR_RESIZE_CENTER) {
+		static const char *const center_names[] = {"size_all", "all-scroll", "fleur",
+							   "se-resize", NULL};
+		seat_set_xcursor_fallback(server, center_names);
 	}
 }
 
@@ -812,9 +859,21 @@ void server_cursor_button(struct wl_listener *listener, void *data) {
 		return;
 	}
 
-	/* Super+LMB move, Super+RMB resize — do not forward the press. */
+	/* Super+LMB move, Super+RMB edge resize, Super+Alt+RMB center-lock resize. */
 	if (!sf_session_locked(server)) {
 		uint32_t mods = seat_keyboard_mods(server) & (uint32_t)SF_MOD_MASK;
+		if (event->button == BTN_RIGHT && mods == (SF_SUPER | SF_ALT)) {
+			sf_tap_disarm(server);
+			double sx, sy;
+			struct wlr_surface *surface = NULL;
+			struct sf_toplevel *toplevel = sf_desktop_toplevel_at(
+				server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+			if (toplevel != NULL) {
+				sf_focus_toplevel(toplevel);
+				sf_begin_interactive(toplevel, SF_CURSOR_RESIZE_CENTER, 0);
+				return;
+			}
+		}
 		if (mods == SF_SUPER && (event->button == BTN_LEFT || event->button == BTN_RIGHT)) {
 			sf_tap_disarm(server);
 			double sx, sy;

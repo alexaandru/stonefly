@@ -35,13 +35,14 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 | Unsnap / restore PreSnap | Super+u |
 | Drag move (Super+LMB) | WM xcursor via `sf_seat_apply_grab_cursor`. Clear client pointer focus before set; re-assert each grab motion. SSD titlebar hover shows move face |
 | Drag resize (Super+RMB) | Edges nearest pointer. Does not clear edge-max / gap-max / snap — only the dragged edge moves |
+| Center-lock resize (Super+Alt+RMB) | Grow/shrink around a fixed center: Δw = 2·Δx, Δh = 2·Δy from press (min 50). Pure H/V only changes that axis; diagonal both. `SF_CURSOR_RESIZE_CENTER` |
 | Border/corner mouse resize | Hover + LMB on hit band (`resize_border_in` 3 / `resize_border_out` 1); edge cursors. Keep enter/motion on surface in inner band; honor implicit grab until release |
 | Magnetic drag-snap + resistance | `drag_snap.c` — threshold 26, 4× push-through |
 | Snap preview overlay | SceneFX overlay rects — border 1, fill 40% active |
 | `set_tiled` on snap/max | `wlr_xdg_toplevel_set_tiled` on snap / edge-max / restore / unsnap; gap-max stays untiled |
-| Cascade initial place | Gap + `(n%10)*25`, cursor output |
+| Cascade initial place | Gap + `(n%wrap)*cascade_step` (defaults wrap 10 / step 25), cursor usable. SoftPlace morph only after appear (disabled-on-map path keeps cascade; ensure_on_screen clamps resting, not a stale 0×0 pose) |
 | Nested client disconnect (parent UAF) | Clear `xdg_toplevel->base->data` before destroying scene tree |
-| Nested `ipc exit` / output teardown | `workspace_finish` destroys per-output ws scene trees before root scene destroy. `workspace_destroy` detaches member scene chrome (`ssd` / decor) before freeing `ws->tree` so cursor-shape border hit-tests cannot UAF dangling `scene_tree` |
+| Nested `ipc exit` / output teardown | `workspace_finish` destroys per-output ws scene trees before root scene destroy. `workspace_destroy` detaches member scene chrome (`ssd` / decor) before freeing `ws->tree` so cursor-shape border hit-tests cannot UAF dangling `scene_tree`. Late xdg commits no-op when `xdg_scene_tree` is already NULL (`sf_decor_update_geom` / commit) |
 | EnsureOnScreen / usable relayout | On exclusive-zone change |
 | Per-output usable area | `exclusive_zone != 0` (incl. −1) |
 | Named scratchpads | `scratchpads.fnl` + `sf.scratchpad` / `scratch_toggle`/`scratch_claim`. Default ships `term` only. Fake `app_id` (`stonefly.scratch.term`) for claim vs normal windows. `auto_hide` (default true) hides when focus moves to another window on the same output |
@@ -198,6 +199,7 @@ Former River-fork blockers that stonefly owns in-process:
 | Super+Page / Super+1–9 workspaces; Shift moves follow | ✅ |
 | 3-finger vertical swipe workspaces | ✅ |
 | Super+LMB/RMB move/resize + magnetic snap + preview | ✅ |
+| Super+Alt+RMB center-lock resize | ✅ |
 | Border/corner LMB resize | ✅ |
 | Ctrl+Esc minimize LIFO | ✅ |
 | Super tap launcher / double-tap term / Super+t claim | ✅ |

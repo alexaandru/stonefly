@@ -460,8 +460,11 @@ static void toplevel_set_resting(struct sf_toplevel *toplevel, int x, int y) {
 		return;
 	}
 	/* Late SoftPlace / auto_place recenter after appear finished: morph
-	 * instead of snapping (Chrome profile title can arrive after the slide). */
-	if ((toplevel->soft_place || toplevel->auto_place) &&
+	 * instead of snapping (Chrome profile title can arrive after the slide).
+	 * Skip while still disabled on the map path — morphing from the default
+	 * (0,0) left ensure_on_screen clamping every new client to usable
+	 * top-left and erased cascade offsets. */
+	if ((toplevel->soft_place || toplevel->auto_place) && toplevel->scene_tree->node.enabled &&
 	    (toplevel->scene_tree->node.x != x || toplevel->scene_tree->node.y != y)) {
 		struct wlr_box from, to;
 		sf_toplevel_layout_geom(toplevel, &from);
@@ -502,6 +505,13 @@ void sf_toplevel_ensure_on_screen(struct sf_toplevel *toplevel) {
 	struct wlr_box geom;
 	sf_toplevel_layout_geom(toplevel, &geom);
 	int top_inset = sf_ssd_top_inset(toplevel);
+	/* Prefer logical resting while a morph/slide still shows an old pose —
+	 * otherwise clamp can yank a brand-new cascade back to usable origin. */
+	if (toplevel->anim.active ||
+	    (toplevel->scene_tree != NULL && !toplevel->scene_tree->node.enabled)) {
+		geom.x = toplevel->resting_x;
+		geom.y = toplevel->resting_y;
+	}
 	if (geom.width <= 0 || geom.height <= 0) {
 		/* Size unknown: at least park the cascade origin inside usable. */
 		int x = toplevel->resting_x;
@@ -660,11 +670,11 @@ void sf_toplevel_place_cascade(struct sf_toplevel *toplevel) {
 	const struct sf_config *cfg = sf_cfg(server);
 	sf_box_inset_gap(&out, cfg->gap_size);
 
-	/* Count already-mapped siblings (caller inserts after place). */
+	/* Count siblings already on the strip (map inserts before place). */
 	size_t n = 0;
 	struct sf_toplevel *t;
 	wl_list_for_each(t, &toplevel->server->toplevels, link) {
-		if (t != toplevel && !t->minimized) {
+		if (t != toplevel && !t->minimized && !sf_toplevel_is_scratchpad(t)) {
 			n++;
 		}
 	}

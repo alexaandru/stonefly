@@ -248,6 +248,10 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 		wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, 0, 0);
 		return;
 	}
+	/* Output teardown may have already destroyed scene chrome. */
+	if (toplevel->scene_tree == NULL || toplevel->xdg_scene_tree == NULL) {
+		return;
+	}
 	sf_decor_update_geom(toplevel);
 	sf_foreign_toplevel_on_outputs_change(toplevel);
 	/* Parent-centered windows re-center when size arrives (still auto_place). */
@@ -340,7 +344,7 @@ void sf_begin_interactive(struct sf_toplevel *toplevel, enum sf_cursor_mode mode
 	if (mode == SF_CURSOR_MOVE) {
 		/* Peeble PrepareDrag: float snap/max, keep PreSnap, record origin. */
 		sf_drag_snap_prepare(toplevel);
-	} else if (mode == SF_CURSOR_RESIZE) {
+	} else if (mode == SF_CURSOR_RESIZE || mode == SF_CURSOR_RESIZE_CENTER) {
 		/* Leave edge-max / gap-max / snap flags alone so chrome and the
 		 * undragged edges stay put; only the grabbed edge moves. */
 		sf_toplevel_clear_auto_place(toplevel);
@@ -353,6 +357,16 @@ void sf_begin_interactive(struct sf_toplevel *toplevel, enum sf_cursor_mode mode
 		server->grab_x = server->cursor->x - toplevel->scene_tree->node.x;
 		server->grab_y = server->cursor->y - toplevel->scene_tree->node.y;
 		sf_drag_snap_begin(server, toplevel);
+	} else if (mode == SF_CURSOR_RESIZE_CENTER) {
+		struct wlr_box *geo_box = &toplevel->xdg_toplevel->base->geometry;
+		/* Press point in layout coords; geobox is content at press. */
+		server->grab_x = server->cursor->x;
+		server->grab_y = server->cursor->y;
+		server->grab_geobox = *geo_box;
+		server->grab_geobox.x += toplevel->scene_tree->node.x;
+		server->grab_geobox.y += toplevel->scene_tree->node.y;
+		server->resize_edges = 0;
+		(void)edges;
 	} else {
 		struct wlr_box *geo_box = &toplevel->xdg_toplevel->base->geometry;
 

@@ -140,6 +140,7 @@ Wire format matches peeble: one JSON object per line, e.g. `{"cmd":"windows"}`,
 | **3-finger vertical swipe** | Workspace next/prev (`swipe_workspace_natural`) |
 | **Super+LMB** | Move window (magnetic edge snap + preview) |
 | **Super+RMB** | Resize window (edges nearest pointer) |
+| **Super+Alt+RMB** | Center-lock resize (grow/shrink around fixed center) |
 | **Super+w** | spawn `ghostty +new-window` |
 | **Super+Space** | spawn `foot` |
 | **Super+z** | spawn `nautilus` |
