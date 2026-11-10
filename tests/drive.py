@@ -10,8 +10,9 @@ Suites are tests/**/*_test.c with a pragma near the top:
 	stub=   log  → also compile tests/stubs/log_stub.c (optional)
 	libs=   m    → -lm (optional)
 
-Host builds put tests/stubs/include ahead of system headers. Adding a suite
-is: drop *_test.c with an sf-suite line — no Makefile / meson edits.
+Both host `make test` and APK check put tests/stubs/include ahead of system
+headers (compositor Meson build uses real deps; unit suites do not). Adding a
+suite is: drop *_test.c with an sf-suite line — no Makefile / meson edits.
 """
 
 from __future__ import annotations

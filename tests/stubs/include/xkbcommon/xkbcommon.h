@@ -1,4 +1,5 @@
-/* Host-only stub for unit tests (abuild uses real libxkbcommon). */
+/* Unit-test stub: drive.py -I's this ahead of system headers (host + APK check).
+ * The compositor Meson build uses real libxkbcommon; unit suites do not. */
 #ifndef TEST_STUB_XKBCOMMON_H
 #define TEST_STUB_XKBCOMMON_H
 
