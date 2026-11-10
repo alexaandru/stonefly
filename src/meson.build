@@ -64,6 +64,7 @@ sf_embed_defaults = files(
   'config/default/binds.fnl',
   'config/default/scratchpads.fnl',
   'config/default/rules.fnl',
+  'config/default/execs.fnl',
   'config/default/inputs.fnl',
   'config/default/outputs.fnl',
   'config/default/flsproject.fnl',

@@ -153,6 +153,28 @@ const struct sf_config *sf_cfg(const struct sf_server *server) {
 	return &server->config;
 }
 
+void sf_config_run_execs(struct sf_server *server, bool is_reload) {
+	if (server == NULL) {
+		return;
+	}
+	const struct sf_config *cfg = &server->config;
+	for (size_t i = 0; i < cfg->n_execs; i++) {
+		const struct sf_exec *e = &cfg->execs[i];
+		if (e->cmd == NULL || e->cmd[0] == '\0') {
+			continue;
+		}
+		if (is_reload && !e->reload) {
+			continue;
+		}
+		SF_LOGI("exec", sf_str("cmd", e->cmd), sf_i64("reload", e->reload ? 1 : 0),
+			sf_i64("is_reload", is_reload ? 1 : 0));
+		if (fork() == 0) {
+			execl("/bin/sh", "/bin/sh", "-c", e->cmd, (void *)NULL);
+			_exit(1);
+		}
+	}
+}
+
 void sf_config_finish(struct sf_config *cfg) {
 	if (cfg == NULL) {
 		return;
@@ -183,6 +205,10 @@ void sf_config_finish(struct sf_config *cfg) {
 		sf_action_steps_free(cfg->window_rules[i].steps, cfg->window_rules[i].n_steps);
 	}
 	free(cfg->window_rules);
+	for (size_t i = 0; i < cfg->n_execs; i++) {
+		free(cfg->execs[i].cmd);
+	}
+	free(cfg->execs);
 	memset(cfg, 0, sizeof *cfg);
 }
 

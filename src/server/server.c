@@ -176,6 +176,8 @@ int sf_server_run(struct sf_server *server, const char *startup_cmd) {
 	if (!sf_ipc_start(server)) {
 		SF_LOGW("ipc not available");
 	}
+	/* sf.exec session spawns (once + {:reload true}); before -s. */
+	sf_config_run_execs(server, false);
 	if (startup_cmd != NULL) {
 		if (fork() == 0) {
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, (void *)NULL);

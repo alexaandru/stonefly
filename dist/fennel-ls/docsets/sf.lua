@@ -342,6 +342,14 @@ return {
         ["fnl/docstring"] = "Add a window rule; returns a tag string for parent composition.\n  (sf.window_rule match actions [?parent-tag])\nMatch: :app_id / :title as Lua patterns (string.find). Exact: \"^…$\"; escape magic with %.\nDeclarative: :center :float :borderless (bool), :width :height (int),\n  :ssd (\"never\"|\"auto\"|\"prefer_ssd\"|\"always\").\nWM: :action string | step table | (sf.chain …) — same vocabulary as binds (prefer maximize / maximize_to_edges over toggles; toggles flip on every reapply).\nLongest pattern wins; child overwrites parent keys.",
       },
     },
+    ["exec"] = {
+      binding = "sf.exec",
+      metadata = {
+        ["fls/itemKind"] = "Function",
+        ["fnl/arglist"] = {"…cmd", "?opts"},
+        ["fnl/docstring"] = "Session spawn after WAYLAND_DISPLAY is up (Hyprland exec-once / sway exec).\n  (sf.exec \"flatpak run com.slack.Slack\")\n  (sf.exec \"flatpak\" \"run\" \"com.slack.Slack\")\n  (sf.exec \"helper\" {:reload true})\nOne string → sh -c as-is (pipes ok). Several strings → shell-quoted argv join.\nTrailing opts table: :reload bool (default false = once per compositor start; true also on future config reload). Distinct from bind action :exec.",
+      },
+    },
     ["stdpath"] = {
       binding = "sf.stdpath",
       metadata = {

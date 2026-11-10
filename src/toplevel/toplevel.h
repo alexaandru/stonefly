@@ -72,6 +72,9 @@ struct sf_toplevel {
 	bool auto_place;
 	/* Late title/app_id may still match a center window_rule (peeble SoftPlace). */
 	bool soft_place;
+	/* SoftPlace hold: stay unmapped-visible until a pending center rule settles
+	 * (Chrome profile title often arrives seconds after map). */
+	bool appear_pending;
 	/* xdg_dialog_v1.set_modal (requires parent). */
 	bool modal;
 	/* window_rule borderless: no WM border/shadow. */

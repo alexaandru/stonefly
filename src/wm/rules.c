@@ -72,6 +72,41 @@ bool sf_rules_wants_center(const struct sf_toplevel *toplevel) {
 	return r != NULL && r->center_set && r->center;
 }
 
+bool sf_rules_center_still_possible(const struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->xdg_toplevel == NULL) {
+		return false;
+	}
+	const struct sf_config *cfg = sf_cfg(toplevel->server);
+	if (cfg->n_window_rules == 0) {
+		return false;
+	}
+	const char *title = toplevel->xdg_toplevel->title;
+	const char *app_id = toplevel->xdg_toplevel->app_id;
+	bool title_known = title != NULL && title[0] != '\0';
+	bool app_known = app_id != NULL && app_id[0] != '\0';
+
+	for (size_t i = 0; i < cfg->n_window_rules; i++) {
+		const struct sf_window_rule *r = &cfg->window_rules[i];
+		if (!r->center_set || !r->center) {
+			continue;
+		}
+		bool has_title = r->title != NULL && r->title[0] != '\0';
+		bool has_app = r->app_id != NULL && r->app_id[0] != '\0';
+		if (has_title && title_known && !sf_lua_pattern_match(cfg, title, r->title)) {
+			continue;
+		}
+		if (has_app && app_known && !sf_lua_pattern_match(cfg, app_id, r->app_id)) {
+			continue;
+		}
+		/* Ruled out only when a required field is known and mismatches.
+		 * Missing fields keep the rule possible (SoftPlace wait). */
+		if ((has_title && !title_known) || (has_app && !app_known)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 void sf_rules_apply(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->xdg_toplevel == NULL) {
 		return;
@@ -155,12 +190,14 @@ void sf_rules_consider_place(struct sf_toplevel *toplevel) {
 	}
 	if (toplevel->maximized_edges || toplevel->maximized_gaps ||
 	    toplevel->snapped != SF_SNAP_NONE || toplevel->fullscreen) {
+		sf_toplevel_try_appear(toplevel);
 		return;
 	}
 	if (toplevel->minimized || toplevel->anim_hide) {
 		return;
 	}
 	if (!toplevel->soft_place) {
+		sf_toplevel_try_appear(toplevel);
 		return;
 	}
 
@@ -170,22 +207,21 @@ void sf_rules_consider_place(struct sf_toplevel *toplevel) {
 	if (toplevel->maximized_edges || toplevel->maximized_gaps ||
 	    toplevel->snapped != SF_SNAP_NONE || toplevel->fullscreen) {
 		toplevel->soft_place = false;
+		sf_toplevel_try_appear(toplevel);
 		return;
 	}
 
 	if (!sf_rules_wants_center(toplevel)) {
-		const char *title =
-			toplevel->xdg_toplevel != NULL ? toplevel->xdg_toplevel->title : NULL;
-		const char *app =
-			toplevel->xdg_toplevel != NULL ? toplevel->xdg_toplevel->app_id : NULL;
-		if (title != NULL && title[0] != '\0' && app != NULL && app[0] != '\0') {
+		if (!sf_rules_center_still_possible(toplevel)) {
 			toplevel->soft_place = false;
 		}
+		sf_toplevel_try_appear(toplevel);
 		return;
 	}
 
 	toplevel->auto_place = true;
 	sf_toplevel_place_transient(toplevel);
+	sf_toplevel_try_appear(toplevel);
 }
 
 void sf_rules_reapply_all(struct sf_server *server) {

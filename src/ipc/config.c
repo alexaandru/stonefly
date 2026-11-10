@@ -297,6 +297,24 @@ static void emit_scratchpads(struct json_buf *b, const struct sf_config *cfg) {
 	json_byte(b, ']');
 }
 
+static void emit_execs(struct json_buf *b, const struct sf_config *cfg) {
+	json_byte(b, '[');
+	for (size_t i = 0; i < cfg->n_execs; i++) {
+		const struct sf_exec *e = &cfg->execs[i];
+		if (i > 0) {
+			json_byte(b, ',');
+		}
+		json_byte(b, '{');
+		json_key(b, "cmd");
+		json_str(b, e->cmd ? e->cmd : "");
+		json_byte(b, ',');
+		json_key(b, "reload");
+		json_bool(b, e->reload);
+		json_byte(b, '}');
+	}
+	json_byte(b, ']');
+}
+
 static void emit_window_rules(struct json_buf *b, const struct sf_config *cfg) {
 	json_byte(b, '[');
 	for (size_t i = 0; i < cfg->n_window_rules; i++) {
@@ -370,7 +388,8 @@ static bool section_ok(const char *section) {
 	return section == NULL || section[0] == '\0' || strcmp(section, "options") == 0 ||
 	       strcmp(section, "binds") == 0 || strcmp(section, "taps") == 0 ||
 	       strcmp(section, "scratchpads") == 0 || strcmp(section, "window_rules") == 0 ||
-	       strcmp(section, "inputs") == 0 || strcmp(section, "outputs") == 0;
+	       strcmp(section, "execs") == 0 || strcmp(section, "inputs") == 0 ||
+	       strcmp(section, "outputs") == 0;
 }
 
 int sf_config_to_json(struct sf_server *server, const char *section, char *buf, size_t cap) {
@@ -433,6 +452,16 @@ int sf_config_to_json(struct sf_server *server, const char *section, char *buf, 
 			json_key(&b, "window_rules");
 		}
 		emit_window_rules(&b, cfg);
+		need_comma = true;
+	}
+	if (all || strcmp(section, "execs") == 0) {
+		if (all) {
+			if (need_comma) {
+				json_byte(&b, ',');
+			}
+			json_key(&b, "execs");
+		}
+		emit_execs(&b, cfg);
 		need_comma = true;
 	}
 	if (all || strcmp(section, "inputs") == 0) {

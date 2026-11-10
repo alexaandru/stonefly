@@ -26,6 +26,7 @@ struct sf_server;
 
 #define SF_SCRATCHPAD_MAX 8
 #define SF_WINDOW_RULE_MAX 64
+#define SF_EXEC_MAX 64
 
 enum sf_action {
 	SF_ACTION_NONE = 0,
@@ -92,6 +93,14 @@ struct sf_scratchpad_spec {
 	char *app_id; /* match for spawn claim; empty = first map while pending */
 	/* Hide when focus moves to another window on the same output (peeble). */
 	bool auto_hide;
+};
+
+/* Session spawn from sf.exec(...). cmd is sh -c payload; reload=false is
+ * once-per-compositor-start (Hyprland exec-once); reload=true re-runs when
+ * live config reload lands. */
+struct sf_exec {
+	char *cmd;
+	bool reload;
 };
 
 /* Fennel window_rule(match, actions [, parent]). Parent merge baked in.
@@ -183,6 +192,8 @@ struct sf_config {
 	size_t n_scratchpads;
 	struct sf_window_rule *window_rules;
 	size_t n_window_rules;
+	struct sf_exec *execs;
+	size_t n_execs;
 
 	/* LuaJIT state; NULL when SF_NOCONFIG or before load. */
 	void *lua; /* lua_State * — opaque here to avoid forcing luajit.h on all TUs */
@@ -205,6 +216,10 @@ int sf_config_write_default(void);
 
 /* Load user init.lua or embedded Fennel-first default into server->config. */
 bool sf_config_load(struct sf_server *server);
+
+/* Fork sf.exec entries. is_reload false → all; true → only {:reload true}.
+ * Call after WAYLAND_DISPLAY is set (same window as -s). */
+void sf_config_run_execs(struct sf_server *server, bool is_reload);
 
 const struct sf_config *sf_cfg(const struct sf_server *server);
 

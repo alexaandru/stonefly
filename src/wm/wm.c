@@ -499,9 +499,32 @@ static void toplevel_set_resting(struct sf_toplevel *toplevel, int x, int y) {
 		toplevel->anim.to_y = y;
 		return;
 	}
-	if (!toplevel->anim.active) {
-		wlr_scene_node_set_position(&toplevel->scene_tree->node, x, y);
+	if (toplevel->anim.active) {
+		return;
 	}
+	/* SoftPlace hold: logical resting only until try_appear slides in. */
+	if (toplevel->appear_pending) {
+		return;
+	}
+	if (toplevel->scene_tree == NULL) {
+		return;
+	}
+	/* Late SoftPlace / auto_place recenter after appear finished: morph
+	 * instead of snapping (Chrome profile title can arrive after the slide). */
+	if ((toplevel->soft_place || toplevel->auto_place) &&
+	    (toplevel->scene_tree->node.x != x || toplevel->scene_tree->node.y != y)) {
+		struct wlr_box from, to;
+		sf_toplevel_layout_geom(toplevel, &from);
+		if (from.width > 0 && from.height > 0) {
+			to = from;
+			to.x = x;
+			to.y = y;
+			if (sf_anim_start_morph(toplevel, &from, &to)) {
+				return;
+			}
+		}
+	}
+	wlr_scene_node_set_position(&toplevel->scene_tree->node, x, y);
 }
 
 void sf_toplevel_ensure_on_screen(struct sf_toplevel *toplevel) {
@@ -613,9 +636,65 @@ void sf_toplevel_unsnap(struct sf_toplevel *toplevel) {
 }
 
 void sf_toplevel_clear_auto_place(struct sf_toplevel *toplevel) {
-	if (toplevel != NULL) {
-		toplevel->auto_place = false;
-		toplevel->soft_place = false;
+	if (toplevel == NULL) {
+		return;
+	}
+	toplevel->auto_place = false;
+	toplevel->soft_place = false;
+	/* User/geometry owner took over — do not leave SoftPlace hold stuck. */
+	sf_toplevel_try_appear(toplevel);
+}
+
+static bool appear_should_hold(const struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || !toplevel->soft_place) {
+		return false;
+	}
+	if (sf_rules_wants_center(toplevel)) {
+		return false;
+	}
+	if (!sf_rules_center_still_possible(toplevel)) {
+		return false;
+	}
+	/* Hold only with partial identity (e.g. Chrome app_id before title).
+	 * Blank identity still appears to cascade; SoftPlace may morph later. */
+	const char *title = toplevel->xdg_toplevel != NULL ? toplevel->xdg_toplevel->title : NULL;
+	const char *app = toplevel->xdg_toplevel != NULL ? toplevel->xdg_toplevel->app_id : NULL;
+	bool title_known = title != NULL && title[0] != '\0';
+	bool app_known = app != NULL && app[0] != '\0';
+	return title_known || app_known;
+}
+
+void sf_toplevel_try_appear(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || !toplevel->appear_pending) {
+		return;
+	}
+	if (appear_should_hold(toplevel)) {
+		return;
+	}
+	toplevel->appear_pending = false;
+	if (toplevel->scene_tree != NULL) {
+		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
+	}
+	if (!sf_anim_start_show(toplevel) && toplevel->scene_tree != NULL) {
+		wlr_scene_node_set_position(&toplevel->scene_tree->node, toplevel->resting_x,
+					    toplevel->resting_y);
+	}
+}
+
+void sf_toplevel_arm_appear(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->scene_tree == NULL) {
+		return;
+	}
+	if (appear_should_hold(toplevel)) {
+		toplevel->appear_pending = true;
+		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, false);
+		return;
+	}
+	toplevel->appear_pending = false;
+	wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
+	if (!sf_anim_start_show(toplevel)) {
+		wlr_scene_node_set_position(&toplevel->scene_tree->node, toplevel->resting_x,
+					    toplevel->resting_y);
 	}
 }
 

@@ -86,6 +86,13 @@ void sf_toplevel_place_transient(struct sf_toplevel *toplevel);
 /* Stop WM auto-placement (user move/resize/max/snap owns geometry). */
 void sf_toplevel_clear_auto_place(struct sf_toplevel *toplevel);
 
+/* SoftPlace appear-hold: park hidden while a center rule may still match on
+ * late title/app_id; otherwise slide in (or enable instantly if slides off). */
+void sf_toplevel_arm_appear(struct sf_toplevel *toplevel);
+
+/* Release appear_pending once SoftPlace settled; no-op when not holding. */
+void sf_toplevel_try_appear(struct sf_toplevel *toplevel);
+
 /* cmd: EXEC string, or scratchpad name for SCRATCH_TOGGLE/CLAIM; else NULL.
  * target NULL → focused window (binds/taps); non-NULL → that window (rules). */
 void sf_run_action(struct sf_server *server, struct sf_toplevel *target, enum sf_action action,

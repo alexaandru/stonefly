@@ -9,7 +9,7 @@ struct sf_server;
 /*
  * Encode live server->config as JSON.
  * section NULL or "" → full object with keys:
- *   options, binds, taps, scratchpads, window_rules, inputs, outputs
+ *   options, binds, taps, scratchpads, window_rules, execs, inputs, outputs
  * section one of those keys → that value only.
  * Returns bytes written (excl. NUL), or -1 on error / unknown section.
  */

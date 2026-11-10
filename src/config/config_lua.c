@@ -37,6 +37,7 @@ struct lua_runtime {
 	bool taps_replaced;
 	bool scratches_replaced;
 	bool rules_replaced;
+	bool execs_replaced;
 	unsigned rule_seq;
 };
 
@@ -363,6 +364,145 @@ static void clear_window_rules(struct sf_config *cfg) {
 	free(cfg->window_rules);
 	cfg->window_rules = NULL;
 	cfg->n_window_rules = 0;
+}
+
+static void clear_execs(struct sf_config *cfg) {
+	for (size_t i = 0; i < cfg->n_execs; i++) {
+		free(cfg->execs[i].cmd);
+	}
+	free(cfg->execs);
+	cfg->execs = NULL;
+	cfg->n_execs = 0;
+}
+
+/* Heap shell-single-quote of s ('…' with '\'' escapes). Caller frees. */
+static char *shell_quote_dup(const char *s) {
+	size_t cap = 3; /* '' + NUL */
+	for (const char *p = s; *p != '\0'; p++) {
+		cap += (*p == '\'') ? 4 : 1;
+	}
+	char *dst = malloc(cap);
+	if (dst == NULL) {
+		return NULL;
+	}
+	size_t o = 0;
+	dst[o++] = '\'';
+	for (const char *p = s; *p != '\0'; p++) {
+		if (*p == '\'') {
+			dst[o++] = '\'';
+			dst[o++] = '\\';
+			dst[o++] = '\'';
+			dst[o++] = '\'';
+		} else {
+			dst[o++] = *p;
+		}
+	}
+	dst[o++] = '\'';
+	dst[o] = '\0';
+	return dst;
+}
+
+/*
+ * sf.exec(cmd...) [ {:reload bool} ]
+ * One string → sh -c as-is (pipes/redir ok). Several strings → shell-quoted
+ * argv join. Trailing table opts; :reload default false (once per start).
+ */
+static int l_exec(lua_State *L) {
+	int narg = lua_gettop(L);
+	if (narg < 1) {
+		return luaL_error(L, "exec: need command string(s) [, {:reload bool}]");
+	}
+	if (G == NULL) {
+		return luaL_error(L, "exec: no runtime");
+	}
+	struct sf_config *cfg = &G->server->config;
+	if (!G->execs_replaced) {
+		clear_execs(cfg);
+		G->execs_replaced = true;
+	}
+	if (cfg->n_execs >= SF_EXEC_MAX) {
+		return luaL_error(L, "exec: max %d", SF_EXEC_MAX);
+	}
+
+	bool reload = false;
+	int nstr = narg;
+	if (lua_istable(L, narg)) {
+		nstr = narg - 1;
+		if (nstr < 1) {
+			return luaL_error(L, "exec: need command string(s) before opts table");
+		}
+		lua_pushnil(L);
+		while (lua_next(L, narg) != 0) {
+			if (!lua_isstring(L, -2)) {
+				return luaL_error(L, "exec: opts keys must be strings");
+			}
+			const char *k = lua_tostring(L, -2);
+			if (strcmp(k, "reload") == 0) {
+				if (!lua_isboolean(L, -1)) {
+					return luaL_error(L, "exec: opts.reload must be a bool");
+				}
+				reload = lua_toboolean(L, -1);
+			} else {
+				return luaL_error(L, "exec: unknown opts key %s", k);
+			}
+			lua_pop(L, 1);
+		}
+	}
+
+	for (int i = 1; i <= nstr; i++) {
+		if (!lua_isstring(L, i)) {
+			return luaL_error(L, "exec: argument %d must be a string", i);
+		}
+	}
+
+	char *cmd = NULL;
+	if (nstr == 1) {
+		cmd = sf_xstrdup(lua_tostring(L, 1));
+	} else {
+		/* Quote-join argv; grow with realloc so bounds stay local. */
+		size_t len = 0;
+		cmd = malloc(1);
+		if (cmd == NULL) {
+			return luaL_error(L, "exec: out of memory");
+		}
+		cmd[0] = '\0';
+		for (int i = 1; i <= nstr; i++) {
+			char *q = shell_quote_dup(lua_tostring(L, i));
+			if (q == NULL) {
+				free(cmd);
+				return luaL_error(L, "exec: out of memory");
+			}
+			size_t qlen = strlen(q);
+			size_t add = qlen + (i > 1 ? 1 : 0);
+			char *nb = realloc(cmd, len + add + 1);
+			if (nb == NULL) {
+				free(q);
+				free(cmd);
+				return luaL_error(L, "exec: out of memory");
+			}
+			cmd = nb;
+			if (i > 1) {
+				cmd[len++] = ' ';
+			}
+			memcpy(cmd + len, q, qlen + 1);
+			len += qlen;
+			free(q);
+		}
+	}
+	if (cmd == NULL) {
+		return luaL_error(L, "exec: out of memory");
+	}
+
+	struct sf_exec *nb = realloc(cfg->execs, (cfg->n_execs + 1) * sizeof *nb);
+	if (nb == NULL) {
+		free(cmd);
+		return luaL_error(L, "exec: out of memory");
+	}
+	cfg->execs = nb;
+	cfg->execs[cfg->n_execs].cmd = cmd;
+	cfg->execs[cfg->n_execs].reload = reload;
+	cfg->n_execs++;
+	return 0;
 }
 
 /*
@@ -1241,6 +1381,8 @@ static void push_sf_table(struct lua_runtime *rt) {
 	lua_setfield(L, -2, "scratchpad");
 	lua_pushcfunction(L, l_window_rule);
 	lua_setfield(L, -2, "window_rule");
+	lua_pushcfunction(L, l_exec);
+	lua_setfield(L, -2, "exec");
 
 	/* sf.opt with __newindex */
 	lua_newtable(L); /* opt */

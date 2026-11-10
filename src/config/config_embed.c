@@ -19,6 +19,9 @@ static const unsigned char emb_scratchpads_fnl[] = {
 static const unsigned char emb_rules_fnl[] = {
 #embed "default/rules.fnl"
 };
+static const unsigned char emb_execs_fnl[] = {
+#embed "default/execs.fnl"
+};
 static const unsigned char emb_inputs_fnl[] = {
 #embed "default/inputs.fnl"
 };
@@ -35,6 +38,7 @@ const struct sf_embed_file sf_default_files[] = {
 	{"binds.fnl", emb_binds_fnl, sizeof emb_binds_fnl},
 	{"scratchpads.fnl", emb_scratchpads_fnl, sizeof emb_scratchpads_fnl},
 	{"rules.fnl", emb_rules_fnl, sizeof emb_rules_fnl},
+	{"execs.fnl", emb_execs_fnl, sizeof emb_execs_fnl},
 	{"inputs.fnl", emb_inputs_fnl, sizeof emb_inputs_fnl},
 	{"outputs.fnl", emb_outputs_fnl, sizeof emb_outputs_fnl},
 	{"flsproject.fnl", emb_flsproject_fnl, sizeof emb_flsproject_fnl},

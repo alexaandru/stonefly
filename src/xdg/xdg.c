@@ -153,8 +153,9 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	/* Called when the surface is mapped, or ready to display on-screen. */
 	struct sf_toplevel *toplevel = wl_container_of(listener, toplevel, map);
 
+	/* Stay disabled until arm_appear — SoftPlace may hold for late center. */
 	if (toplevel->scene_tree != NULL) {
-		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
+		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, false);
 	}
 
 	wl_list_insert(&toplevel->server->toplevels, &toplevel->link);
@@ -178,8 +179,8 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	}
 	sf_decor_apply_buffers(toplevel);
 	sf_decor_refresh_close_snap(toplevel);
-	/* Park off-screen then slide in (peeble open/appear). */
-	sf_anim_start_show(toplevel);
+	/* SoftPlace hold or park off-screen then slide in (peeble open/appear). */
+	sf_toplevel_arm_appear(toplevel);
 	sf_foreign_toplevel_on_map(toplevel);
 	sf_ext_capture_on_map(toplevel);
 }
@@ -200,6 +201,7 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	/* Client Ctrl+W / CSD close: slide cached last frame (FORK.md close-ghost). */
 	sf_ghost_try_spawn(toplevel);
 	sf_anim_cancel(toplevel, false);
+	toplevel->appear_pending = false;
 	sf_scratchpad_on_destroy(toplevel);
 
 	/* Hide wrapper immediately so blur/border/shadow cannot outlive the
