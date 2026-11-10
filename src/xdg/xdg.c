@@ -366,12 +366,13 @@ void sf_begin_interactive(struct sf_toplevel *toplevel, enum sf_cursor_mode mode
 		sf_drag_snap_begin(server, toplevel);
 	} else if (mode == SF_CURSOR_RESIZE_CENTER) {
 		struct wlr_box *geo_box = &toplevel->xdg_toplevel->base->geometry;
-		/* Press point in layout coords; geobox is content at press. */
+		/* scene_tree origin is geometry TL (xdg scene); do not add geo.x/y. */
 		server->grab_x = server->cursor->x;
 		server->grab_y = server->cursor->y;
-		server->grab_geobox = *geo_box;
-		server->grab_geobox.x += toplevel->scene_tree->node.x;
-		server->grab_geobox.y += toplevel->scene_tree->node.y;
+		server->grab_geobox.x = toplevel->scene_tree->node.x;
+		server->grab_geobox.y = toplevel->scene_tree->node.y;
+		server->grab_geobox.width = geo_box->width;
+		server->grab_geobox.height = geo_box->height;
 		server->resize_center_x =
 			(double)server->grab_geobox.x + (double)server->grab_geobox.width / 2.0;
 		server->resize_center_y =
@@ -381,16 +382,17 @@ void sf_begin_interactive(struct sf_toplevel *toplevel, enum sf_cursor_mode mode
 	} else {
 		struct wlr_box *geo_box = &toplevel->xdg_toplevel->base->geometry;
 
-		double border_x = (toplevel->scene_tree->node.x + geo_box->x) +
+		double border_x = (double)toplevel->scene_tree->node.x +
 				  ((edges & (uint32_t)WLR_EDGE_RIGHT) ? geo_box->width : 0);
-		double border_y = (toplevel->scene_tree->node.y + geo_box->y) +
+		double border_y = (double)toplevel->scene_tree->node.y +
 				  ((edges & (uint32_t)WLR_EDGE_BOTTOM) ? geo_box->height : 0);
 		server->grab_x = server->cursor->x - border_x;
 		server->grab_y = server->cursor->y - border_y;
 
-		server->grab_geobox = *geo_box;
-		server->grab_geobox.x += toplevel->scene_tree->node.x;
-		server->grab_geobox.y += toplevel->scene_tree->node.y;
+		server->grab_geobox.x = toplevel->scene_tree->node.x;
+		server->grab_geobox.y = toplevel->scene_tree->node.y;
+		server->grab_geobox.width = geo_box->width;
+		server->grab_geobox.height = geo_box->height;
 
 		server->resize_edges = edges;
 	}

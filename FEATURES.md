@@ -34,8 +34,8 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 | Keyboard half-snap (arrows) | Super+arrows — gap math ports `snapBorderBox` |
 | Unsnap / restore PreSnap | Super+u |
 | Drag move (Super+LMB) | WM xcursor via `sf_seat_apply_grab_cursor`. Clear client pointer focus before set; re-assert each grab motion. SSD titlebar hover shows move face |
-| Drag resize (Super+RMB) | Edges nearest pointer. Does not clear edge-max / gap-max / snap — only the dragged edge moves. Moving edge(s) clamped so the *outer* chrome stays in usable∩gaps (SSD titleband + border; CSD max(surface−geo, border)) |
-| Center-lock resize (Super+Shift+RMB) | Grow/shrink around a fixed layout center: propose Δw = 2·Δx, Δh = 2·Δy (min 50). Cap with the same outer-chrome usable box. Scene position follows the *committed* buffer; re-sync on xdg commit. `SF_CURSOR_RESIZE_CENTER` |
+| Drag resize (Super+RMB) | Edges nearest pointer. Does not clear edge-max / gap-max / snap — only the dragged edge moves. Moving edge(s) clamped so geometry + SSD titleband + compositor border stay in usable∩gaps. Grab/apply use scene origin as geometry TL (no ±geo.x/y) — the old add/subtract shifted CSD by the geometry inset (zero gap L/T, double R/B) |
+| Center-lock resize (Super+Shift+RMB) | Grow/shrink around a fixed layout center: propose Δw = 2·Δx, Δh = 2·Δy (min 50). Cap with the same usable box. Scene position follows the *committed* buffer; re-sync on xdg commit. `SF_CURSOR_RESIZE_CENTER` |
 | Border/corner mouse resize | Hover + LMB on hit band (`resize_border_in` 3 / `resize_border_out` 1); edge cursors. Same usable clamp as Super+RMB. Keep enter/motion on surface in inner band; honor implicit grab until release |
 | Magnetic drag-snap + resistance | `drag_snap.c` — threshold 26, 4× push-through |
 | Snap preview overlay | SceneFX overlay rects — border 1, fill 40% active |

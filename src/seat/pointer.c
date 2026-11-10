@@ -279,9 +279,10 @@ static void process_cursor_move(struct sf_server *server) {
 #define SF_RESIZE_CENTER_MIN 50
 
 /*
- * Chrome outside the xdg geometry box so the *outer* visible edge sits on the
- * gap. SSD: titleband + compositor border. CSD: max(surface−geo, border) per
- * side (border is drawn around geometry; CSD may extend further).
+ * Chrome outside the xdg geometry box so the outer *opaque* edge sits on the
+ * gap. SSD: titleband + compositor border. CSD: geometry is already the
+ * placement box (xdg-shell); surface−geo is mostly drop-shadow — using it as
+ * hard inset left ~1″ empty gap on the heavy shadow sides (ghostty R/B).
  */
 static void resize_frame_insets(struct sf_toplevel *toplevel, int *left, int *top, int *right,
 				int *bottom) {
@@ -297,42 +298,10 @@ static void resize_frame_insets(struct sf_toplevel *toplevel, int *left, int *to
 		border = 0;
 	}
 	int ssd_h = sf_ssd_top_inset(toplevel);
-	if (ssd_h > 0) {
-		*left = border;
-		*right = border;
-		*bottom = border;
-		*top = ssd_h + border;
-		return;
-	}
-	struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
-	struct wlr_surface *surf = toplevel->xdg_toplevel->base->surface;
-	if (geo == NULL || surf == NULL || geo->width <= 0 || geo->height <= 0) {
-		*left = border;
-		*top = border;
-		*right = border;
-		*bottom = border;
-		return;
-	}
-	int sw = surf->current.width;
-	int sh = surf->current.height;
-	int csd_l = geo->x > 0 ? geo->x : 0;
-	int csd_t = geo->y > 0 ? geo->y : 0;
-	int csd_r = 0;
-	int csd_b = 0;
-	if (sw > 0 && sh > 0) {
-		csd_r = sw - geo->x - geo->width;
-		csd_b = sh - geo->y - geo->height;
-		if (csd_r < 0) {
-			csd_r = 0;
-		}
-		if (csd_b < 0) {
-			csd_b = 0;
-		}
-	}
-	*left = csd_l > border ? csd_l : border;
-	*top = csd_t > border ? csd_t : border;
-	*right = csd_r > border ? csd_r : border;
-	*bottom = csd_b > border ? csd_b : border;
+	*left = border;
+	*right = border;
+	*bottom = border;
+	*top = (ssd_h > 0 ? ssd_h : 0) + border;
 }
 
 /* Usable∩gaps box for the *geometry* edges so the visible frame stays inside. */
@@ -429,12 +398,10 @@ static void process_cursor_resize(struct sf_server *server) {
 		}
 	}
 
-	struct wlr_box *geo_box = &toplevel->xdg_toplevel->base->geometry;
-	int x = new_left - geo_box->x;
-	int y = new_top - geo_box->y;
-	wlr_scene_node_set_position(&toplevel->scene_tree->node, x, y);
-	toplevel->resting_x = x;
-	toplevel->resting_y = y;
+	/* scene_tree origin is geometry TL — do not subtract geo.x/y (CSD). */
+	wlr_scene_node_set_position(&toplevel->scene_tree->node, new_left, new_top);
+	toplevel->resting_x = new_left;
+	toplevel->resting_y = new_top;
 
 	int new_width = new_right - new_left;
 	int new_height = new_bottom - new_top;
@@ -460,18 +427,12 @@ void sf_seat_resize_center_sync(struct sf_server *server) {
 	int cur_w = geo->width;
 	int cur_h = geo->height;
 	if (cur_w <= 0 || cur_h <= 0) {
-		struct wlr_surface *surf = toplevel->xdg_toplevel->base->surface;
-		if (surf != NULL) {
-			cur_w = surf->current.width;
-			cur_h = surf->current.height;
-		}
-	}
-	if (cur_w <= 0 || cur_h <= 0) {
 		return;
 	}
 
-	int x = (int)lround(server->resize_center_x - (double)cur_w / 2.0) - geo->x;
-	int y = (int)lround(server->resize_center_y - (double)cur_h / 2.0) - geo->y;
+	/* scene_tree origin is geometry TL — same as layout_geom / decor. */
+	int x = (int)lround(server->resize_center_x - (double)cur_w / 2.0);
+	int y = (int)lround(server->resize_center_y - (double)cur_h / 2.0);
 	wlr_scene_node_set_position(&toplevel->scene_tree->node, x, y);
 	toplevel->resting_x = x;
 	toplevel->resting_y = y;
