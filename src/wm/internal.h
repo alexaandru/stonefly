@@ -1,4 +1,4 @@
-/* WM module-private decls shared across src/wm/*.c. */
+/* WM module-private decls shared across the wm/ tree. */
 #ifndef SF_WM_INTERNAL_H
 #define SF_WM_INTERNAL_H
 

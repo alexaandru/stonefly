@@ -8,10 +8,8 @@
 #include "config/config.h"
 
 /* Shared precondition bits (visible next to each verb in the catalog). */
-enum sf_action_flag {
-	SF_ACTION_F_WIN = 1u << 0, /* need a resolved toplevel */
-	SF_ACTION_F_CMD = 1u << 1, /* need non-empty cmd; warn otherwise */
-};
+#define SF_ACTION_F_WIN 1u /* need a resolved toplevel */
+#define SF_ACTION_F_CMD 2u /* need non-empty cmd; warn otherwise */
 
 /* Introspection for unit tests / tooling. */
 unsigned sf_action_run_flags(enum sf_action action);
