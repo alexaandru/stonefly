@@ -127,6 +127,9 @@ void sf_rules_apply(struct sf_toplevel *toplevel) {
 		if (r->borderless_set) {
 			borderless = r->borderless;
 		}
+		if (r->always_on_top_set) {
+			sf_toplevel_set_always_on_top(toplevel, r->always_on_top);
+		}
 		if (r->ssd_set) {
 			ssd_set = true;
 			ssd_mode = r->ssd_mode;

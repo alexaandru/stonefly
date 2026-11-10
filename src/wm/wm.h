@@ -13,6 +13,12 @@ struct wlr_output;
 void sf_focus_toplevel(struct sf_toplevel *toplevel);
 struct sf_toplevel *sf_focused_toplevel(struct sf_server *server);
 
+/* Raise toplevel, then re-stack always-on-top (+ hide slides above pins). */
+void sf_toplevel_raise(struct sf_toplevel *toplevel);
+void sf_pinned_restack(struct sf_server *server);
+void sf_toplevel_set_always_on_top(struct sf_toplevel *toplevel, bool on);
+void sf_toplevel_toggle_always_on_top(struct sf_toplevel *toplevel);
+
 /* Focus the top of the stacking list (most recently focused visible),
  * or clear keyboard focus when none remain. Peeble Focus(nil) equivalent. */
 void sf_focus_top(struct sf_server *server);

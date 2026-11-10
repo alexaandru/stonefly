@@ -19,7 +19,7 @@ the detail rows. When an item ships, check it off here and move the row to
 | 1 | Cursor follows focus + warp on workspace / monitor change | ✅ | Shipped (`cursor_follows_focus` + `pointer_center`); monitor focus via #2 |
 | 2 | Multi-monitor focus + send-to-monitor | ✅ | Shipped (`focus_monitor` / `send_to_monitor` + Super+Ctrl/Shift+arrows) |
 | 3 | Keyboard nudge move / resize | ✅ | Shipped (`nudge` / `resize_edge` + `nudge_step`; Alt / Alt+Shift+arrows) |
-| 4 | Always-on-top / pin | ❌ | Floating video, docs, calculators |
+| 4 | Always-on-top / pin | ✅ | Shipped (`toggle_always_on_top` / rule / Super+Shift+p) |
 | 5 | Workspace switch animation | ❌ | Reuse swipe path for Super+Page / 1–9 so keybind ≈ gesture |
 | 6 | Real `inputs.fnl` API | 🚧 | Tap-to-click, natural scroll, accel — how the machine feels before windows |
 | 7 | Live config reload (binds + opts first) | ❌ | Tweak chords without logout; mango/Hypr baseline |
@@ -45,7 +45,6 @@ the detail rows. When an item ships, check it off here and move the row to
 | Feature | Status | Notes |
 |---|---|---|
 | Focus next / prev including minimized | 🚧 | Alt+Tab → `noctalia msg window-switcher`; Alt+Shift+Tab still `FOCUS_PREV_ALL` (unhides). Super+Tab visible-only |
-| Always-on-top / pin | ❌ | TODO NEXT #4. Window flag + raise/restack; optional rule / action / IPC |
 | Window menu | ❌ | |
 | Geometry persist across restart | ❌ | Tag protocol shipped; no persist consumer yet |
 | Workspaces polish | 🚧 | ❌ geometry persist / named window rules. Switch anim → own row. Layout engines separate |
@@ -138,7 +137,7 @@ product asks for in-process chrome again.
 | P2 | Workspaces polish | ❌ rules / geometry persist; switch anim is TODO NEXT #5 |
 | P2 | `wp_fifo_v1` | ❌ |
 | — | Xwayland / IME | ❌ TODO NEXT #10 |
-| — | Always-on-top / ws anim | ❌ TODO NEXT #4–#5 (#1–#3 shipped) |
+| — | Workspace switch anim | ❌ TODO NEXT #5 (#1–#4 shipped) |
 | — | Tiling engines (`columns`/`tile`) | 🚧 reserved |
 
 ---
@@ -147,7 +146,7 @@ product asks for in-process chrome again.
 
 | Habit | Status |
 |---|---|
-| Always-on-top / winmenu | ❌ AOT is TODO NEXT #4; winmenu still open |
+| Winmenu | ❌ |
 | Workspace switch anim | ❌ TODO NEXT #5 |
 | Geometry persist | ❌ |
 | Xwayland / IME | ❌ TODO NEXT #10 |

@@ -54,6 +54,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 | Cursor follows focus / pointer center | `sf.opt.cursor_follows_focus` (default true): warp pointer to window center on Super+Tab / workspace switch / move-follow. Click-to-focus does not warp. Action `pointer_center` warps on demand (ignores the opt). Skips MOVE/RESIZE grabs and locked pointer constraints |
 | Multi-monitor focus / send | Actions `focus_monitor` / `send_to_monitor` with `:cmd` target: `left`\|`right`\|`up`\|`down`, `next`\|`prev`, or connector name (`eDP-1`). Focus warps to head center then top window (+ cursor_follows_focus). Send assigns to the target's active workspace, re-fits max/fullscreen, centers floaters, focuses + `pointer_center`. Defaults: Super+Ctrl+arrows focus, Super+Shift+arrows send |
 | Keyboard nudge move / resize | Actions `nudge` / `resize_edge` with `:cmd` `left`\|`right`\|`up`\|`down`. Step from `sf.opt.nudge_step` (default 25). Resize: right/down grow, left/up shrink (top-left anchored, min 50px). No-op when max/snap/fullscreen. Defaults: Alt+arrows move, Alt+Shift+arrows resize |
+| Always-on-top / pin | Flag + restack: pinned windows stay above normal ones after focus/raise; hide slides stay above pins. Actions `toggle_always_on_top` / `always_on_top` (`:cmd` true\|false). Window rule `always_on_top`. IPC `windows[].always_on_top`. Default Super+Shift+p |
 
 ---
 
@@ -161,7 +162,7 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 | IPC `config` [section] | Live dump: options/binds/taps/scratchpads/window_rules/execs/inputs/outputs |
 | IPC `outputs` | `ipc/outputs.c` |
 | Structured JSON logs | `wm.log` + `wm.last.json` rotate |
-| APK / meson `check` | `check()`: `make style-check` then `meson test`. Dist tarball packs `tests/` |
+| APK / meson `check` | `check()`: `make style-check` then `OPTS= ./tests/drive.py` (same listing as host `make test`, no coverage). Dist tarball packs `tests/` |
 
 ---
 
@@ -263,7 +264,7 @@ Owns a small harness under `tests/` (no Criterion/Check/cmocka/fluent DSL).
 |---|---|
 | Assertions | `tests/sf_test.c` / `tests/sf_test.h` |
 | Driver | `tests/drive.py` (discover / build / run / cover) |
-| Entry | `tests/drive.py`; `make test` / meson `test('unit')` |
+| Entry | `tests/drive.py`; `make test` (host) / APK `check()` runs the same driver; meson `test('unit')` remains optional |
 | Layout | Mirror `src/`: `tests/<module>/<name>_test.c` |
 | Host stubs | `tests/stubs/include` ahead of system headers |
 | Coverage | `OPTS=cover` default on `make test` (host gcov; not gated in APK) |
@@ -286,6 +287,6 @@ meson edits:
 | Style | Same house C as `./src` |
 | Build | Driver compiles selected TUs into `build/unit*` |
 
-Host: `make test`. Abuild `check()`: `make style-check` then `meson test`
-(one `unit` test that runs the same driver). Integration / coverage floors stay
+Host: `make test`. Abuild `check()`: `make style-check` then `OPTS= ./tests/drive.py`
+(same per-file listing; no coverage footer). Integration / coverage floors stay
 on the roadmap.

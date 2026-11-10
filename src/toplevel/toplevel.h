@@ -79,6 +79,8 @@ struct sf_toplevel {
 	bool modal;
 	/* window_rule borderless: no WM border/shadow. */
 	bool borderless;
+	/* Sticky: stay above normal windows in the same scene tree. */
+	bool always_on_top;
 	/* window_rule ssd override; when rule_ssd_set, use rule_ssd_mode. */
 	bool rule_ssd_set;
 	enum sf_ssd_mode rule_ssd_mode;

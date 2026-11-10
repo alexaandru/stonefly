@@ -70,6 +70,9 @@ enum sf_action {
 	/* cmd = left|right|up|down. Resize: right/down grow, left/up shrink. */
 	SF_ACTION_NUDGE,
 	SF_ACTION_RESIZE_EDGE,
+	SF_ACTION_TOGGLE_ALWAYS_ON_TOP,
+	/* cmd = true|false|1|0|on|off. */
+	SF_ACTION_ALWAYS_ON_TOP,
 };
 
 /* One step in a bind/tap/rule action (or sf.chain). cmd for EXEC / scratch / ws. */
@@ -125,6 +128,8 @@ struct sf_window_rule {
 	bool float_set;
 	bool borderless;
 	bool borderless_set;
+	bool always_on_top;
+	bool always_on_top_set;
 	bool ssd_set;
 	enum sf_ssd_mode ssd_mode;
 	bool width_set;

@@ -44,6 +44,8 @@ static const struct sf_action_entry sf_actions[] = {
 	{"send_to_monitor", SF_ACTION_SEND_TO_MONITOR},
 	{"nudge", SF_ACTION_NUDGE},
 	{"resize_edge", SF_ACTION_RESIZE_EDGE},
+	{"toggle_always_on_top", SF_ACTION_TOGGLE_ALWAYS_ON_TOP},
+	{"always_on_top", SF_ACTION_ALWAYS_ON_TOP},
 };
 
 const char *sf_action_name(enum sf_action action) {

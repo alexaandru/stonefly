@@ -583,6 +583,13 @@ static int parse_rule_actions(lua_State *L, int idx, struct sf_window_rule *out)
 			}
 			out->borderless = lua_toboolean(L, -1);
 			out->borderless_set = true;
+		} else if (strcmp(k, "always_on_top") == 0) {
+			if (!lua_isboolean(L, -1)) {
+				return luaL_error(
+					L, "window_rule: actions.always_on_top must be a bool");
+			}
+			out->always_on_top = lua_toboolean(L, -1);
+			out->always_on_top_set = true;
 		} else if (strcmp(k, "ssd") == 0) {
 			const char *s = lua_tostring(L, -1);
 			if (s == NULL) {
@@ -644,6 +651,8 @@ static void merge_window_rule(struct sf_window_rule *dst, const struct sf_window
 	dst->float_set = parent->float_set;
 	dst->borderless = parent->borderless;
 	dst->borderless_set = parent->borderless_set;
+	dst->always_on_top = parent->always_on_top;
+	dst->always_on_top_set = parent->always_on_top_set;
 	dst->ssd_set = parent->ssd_set;
 	dst->ssd_mode = parent->ssd_mode;
 	dst->width_set = parent->width_set;
@@ -662,6 +671,10 @@ static void merge_window_rule(struct sf_window_rule *dst, const struct sf_window
 	if (child->borderless_set) {
 		dst->borderless = child->borderless;
 		dst->borderless_set = true;
+	}
+	if (child->always_on_top_set) {
+		dst->always_on_top = child->always_on_top;
+		dst->always_on_top_set = true;
 	}
 	if (child->ssd_set) {
 		dst->ssd_mode = child->ssd_mode;

@@ -362,6 +362,13 @@ static void emit_window_rules(struct json_buf *b, const struct sf_config *cfg) {
 			json_raw(b, "null");
 		}
 		json_byte(b, ',');
+		json_key(b, "always_on_top");
+		if (r->always_on_top_set) {
+			json_bool(b, r->always_on_top);
+		} else {
+			json_raw(b, "null");
+		}
+		json_byte(b, ',');
 		json_key(b, "ssd");
 		if (r->ssd_set) {
 			json_str(b, sf_ssd_mode_name(r->ssd_mode));

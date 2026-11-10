@@ -58,8 +58,10 @@ check() {
 	# Uses output/compile_commands.json from build(). Run `make fmt` once
 	# before the first green check if sources predate .clang-format.
 	make BUILDDIR=output style-check
-	# Owned unit harness under tests/ (Meson test() binaries; no compositor).
-	meson test --no-rebuild -C output
+	# Same driver as host `make test`, without coverage (OPTS empty).
+	# Do not use `meson test` here: it registers one wrapper suite and hides
+	# drive.py's per-file listing on success (only "1/1 stonefly:unit OK").
+	OPTS= ./tests/drive.py
 }
 
 package() {
@@ -67,5 +69,5 @@ package() {
 }
 
 sha512sums="
-7af369fc2b031dd5d6aefd3faa5c6e139e6440c52bee9168e85f2fadfb1acf127a94fc251b108d62e3f90c4166abac92ba8f3b55c6df132e83659d021d749779  stonefly-0.0.1.tar.gz
+3cab54b79b47ca463aead4297dbd7a01bae8a2a54d8032bac462c1ed472bb403ec591ccf16a464ab0775b73cdf5b3d0695d78dd17444bcfc7a1b8fc6a00eed97  stonefly-0.0.1.tar.gz
 "

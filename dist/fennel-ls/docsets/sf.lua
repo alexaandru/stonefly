@@ -329,7 +329,7 @@ return {
       metadata = {
         ["fls/itemKind"] = "Function",
         ["fnl/arglist"] = {"chord-or-opts", "?opts"},
-        ["fnl/docstring"] = "Register a keybind.\n  (sf.bind \"Super+w\" {:action \"exec\" :cmd \"…\"})\n  (sf.bind {:key \"Super+Shift+Tab\" :action \"focus_prev\"})\nOptional :key_alt. Shift+Tab auto-adds ISO_Left_Tab.\nAction names: none quit close focus_next focus_prev focus_next_all focus_prev_all maximize maximize_to_edges unmaximize toggle_maximize toggle_maximize_to_edges minimize unminimize snap_left snap_right snap_top snap_bottom unsnap exec (needs :cmd) scratch_toggle scratch_claim (cmd = pad name) workspace_next workspace_prev workspace_switch (cmd = N) move_to_workspace_next move_to_workspace_prev move_to_workspace (cmd = N) pointer_center focus_monitor send_to_monitor (cmd = left|right|up|down|next|prev|connector) nudge resize_edge (cmd = left|right|up|down).\n:action may be a string, {:action :cmd} table, or (sf.chain …).",
+        ["fnl/docstring"] = "Register a keybind.\n  (sf.bind \"Super+w\" {:action \"exec\" :cmd \"…\"})\n  (sf.bind {:key \"Super+Shift+Tab\" :action \"focus_prev\"})\nOptional :key_alt. Shift+Tab auto-adds ISO_Left_Tab.\nAction names: none quit close focus_next focus_prev focus_next_all focus_prev_all maximize maximize_to_edges unmaximize toggle_maximize toggle_maximize_to_edges minimize unminimize snap_left snap_right snap_top snap_bottom unsnap exec (needs :cmd) scratch_toggle scratch_claim (cmd = pad name) workspace_next workspace_prev workspace_switch (cmd = N) move_to_workspace_next move_to_workspace_prev move_to_workspace (cmd = N) pointer_center focus_monitor send_to_monitor (cmd = left|right|up|down|next|prev|connector) nudge resize_edge (cmd = left|right|up|down) toggle_always_on_top always_on_top (cmd = true|false).\n:action may be a string, {:action :cmd} table, or (sf.chain …).",
       },
     },
     ["tap"] = {
@@ -337,7 +337,7 @@ return {
       metadata = {
         ["fls/itemKind"] = "Function",
         ["fnl/arglist"] = {"mod-or-opts", "?opts"},
-        ["fnl/docstring"] = "Register a modifier tap (L+R expanded).\n  (sf.tap \"Super\" {:single \"exec\" :single_cmd \"…\" :double \"scratch_toggle\" :double_cmd \"term\"})\n  (sf.tap {:key \"Super\" :single (sf.chain …)})\nAction names: none quit close focus_next focus_prev focus_next_all focus_prev_all maximize maximize_to_edges unmaximize toggle_maximize toggle_maximize_to_edges minimize unminimize snap_left snap_right snap_top snap_bottom unsnap exec (needs :cmd) scratch_toggle scratch_claim (cmd = pad name) workspace_next workspace_prev workspace_switch (cmd = N) move_to_workspace_next move_to_workspace_prev move_to_workspace (cmd = N) pointer_center focus_monitor send_to_monitor (cmd = left|right|up|down|next|prev|connector) nudge resize_edge (cmd = left|right|up|down).\n:action may be a string, {:action :cmd} table, or (sf.chain …).",
+        ["fnl/docstring"] = "Register a modifier tap (L+R expanded).\n  (sf.tap \"Super\" {:single \"exec\" :single_cmd \"…\" :double \"scratch_toggle\" :double_cmd \"term\"})\n  (sf.tap {:key \"Super\" :single (sf.chain …)})\nAction names: none quit close focus_next focus_prev focus_next_all focus_prev_all maximize maximize_to_edges unmaximize toggle_maximize toggle_maximize_to_edges minimize unminimize snap_left snap_right snap_top snap_bottom unsnap exec (needs :cmd) scratch_toggle scratch_claim (cmd = pad name) workspace_next workspace_prev workspace_switch (cmd = N) move_to_workspace_next move_to_workspace_prev move_to_workspace (cmd = N) pointer_center focus_monitor send_to_monitor (cmd = left|right|up|down|next|prev|connector) nudge resize_edge (cmd = left|right|up|down) toggle_always_on_top always_on_top (cmd = true|false).\n:action may be a string, {:action :cmd} table, or (sf.chain …).",
       },
     },
     ["scratchpad"] = {
@@ -353,7 +353,7 @@ return {
       metadata = {
         ["fls/itemKind"] = "Function",
         ["fnl/arglist"] = {"match", "actions", "?parent"},
-        ["fnl/docstring"] = "Add a window rule; returns a tag string for parent composition.\n  (sf.window_rule match actions [?parent-tag])\nMatch: :app_id / :title as Lua patterns (string.find). Exact: \"^…$\"; escape magic with %.\nDeclarative: :center :float :borderless (bool), :width :height (int),\n  :ssd (\"never\"|\"auto\"|\"prefer_ssd\"|\"always\").\nWM: :action string | step table | (sf.chain …) — same vocabulary as binds (prefer maximize / maximize_to_edges over toggles; toggles flip on every reapply).\nLongest pattern wins; child overwrites parent keys.",
+        ["fnl/docstring"] = "Add a window rule; returns a tag string for parent composition.\n  (sf.window_rule match actions [?parent-tag])\nMatch: :app_id / :title as Lua patterns (string.find). Exact: \"^…$\"; escape magic with %.\nDeclarative: :center :float :borderless :always_on_top (bool), :width :height (int),\n  :ssd (\"never\"|\"auto\"|\"prefer_ssd\"|\"always\").\nWM: :action string | step table | (sf.chain …) — same vocabulary as binds (prefer maximize / maximize_to_edges over toggles; toggles flip on every reapply).\nLongest pattern wins; child overwrites parent keys.",
       },
     },
     ["exec"] = {

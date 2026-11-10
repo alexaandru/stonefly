@@ -27,6 +27,7 @@ static void test_roundtrip(void) {
 	in.snapped = true;
 	in.urgent = true;
 	in.capture_blocked = true;
+	in.always_on_top = true;
 	snprintf(in.snap_dir, sizeof(in.snap_dir), "%s", "left");
 	in.workspace = 2;
 	snprintf(in.output, sizeof(in.output), "%s", "eDP-1");
@@ -51,6 +52,7 @@ static void test_roundtrip(void) {
 	SF_TEST_TRUE(out[0].snapped);
 	SF_TEST_TRUE(out[0].urgent);
 	SF_TEST_TRUE(out[0].capture_blocked);
+	SF_TEST_TRUE(out[0].always_on_top);
 	SF_TEST_STREQ(out[0].snap_dir, "left");
 	SF_TEST_EQ_INT(out[0].workspace, 2);
 	SF_TEST_STREQ(out[0].output, "eDP-1");

@@ -1,5 +1,7 @@
 #include <limits.h>
 #include <stdlib.h>
+#include <string.h>
+#include <strings.h>
 #include <unistd.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
@@ -787,8 +789,9 @@ static bool place_on_parent(struct sf_toplevel *toplevel) {
 	if (toplevel->scene_tree != NULL && parent->scene_tree != NULL &&
 	    toplevel->scene_tree->node.parent == parent->scene_tree->node.parent) {
 		wlr_scene_node_place_above(&toplevel->scene_tree->node, &parent->scene_tree->node);
+		sf_pinned_restack(toplevel->server);
 	} else {
-		wlr_scene_node_raise_to_top(&toplevel->scene_tree->node);
+		sf_toplevel_raise(toplevel);
 	}
 	return true;
 }
@@ -935,6 +938,55 @@ void sf_toplevel_unminimize(struct sf_toplevel *toplevel) {
 	sf_toplevel_apply_shown(toplevel, false);
 }
 
+void sf_pinned_restack(struct sf_server *server) {
+	if (server == NULL) {
+		return;
+	}
+	struct sf_toplevel *t;
+	/* Oldest pinned first so MRU pinned ends on top. */
+	wl_list_for_each_reverse(t, &server->toplevels, link) {
+		if (!t->always_on_top || t->minimized || t->scene_tree == NULL) {
+			continue;
+		}
+		if (!sf_toplevel_workspace_visible(t)) {
+			continue;
+		}
+		wlr_scene_node_raise_to_top(&t->scene_tree->node);
+	}
+	/* Hide/close slides stay above sticky (peeble reapplyHideAnimating). */
+	wl_list_for_each_reverse(t, &server->toplevels, link) {
+		if (!t->anim_hide || t->scene_tree == NULL) {
+			continue;
+		}
+		wlr_scene_node_raise_to_top(&t->scene_tree->node);
+	}
+}
+
+void sf_toplevel_raise(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->scene_tree == NULL) {
+		return;
+	}
+	wlr_scene_node_raise_to_top(&toplevel->scene_tree->node);
+	sf_pinned_restack(toplevel->server);
+}
+
+void sf_toplevel_set_always_on_top(struct sf_toplevel *toplevel, bool on) {
+	if (toplevel == NULL || toplevel->always_on_top == on) {
+		return;
+	}
+	toplevel->always_on_top = on;
+	if (on) {
+		sf_toplevel_raise(toplevel);
+	}
+}
+
+void sf_toplevel_toggle_always_on_top(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL) {
+		return;
+	}
+	sf_toplevel_set_always_on_top(toplevel, !toplevel->always_on_top);
+}
+
 void sf_focus_toplevel(struct sf_toplevel *toplevel) {
 	/* Note: this function only deals with keyboard focus. */
 	if (toplevel == NULL) {
@@ -957,9 +1009,9 @@ void sf_focus_toplevel(struct sf_toplevel *toplevel) {
 	if (prev_surface == surface) {
 		/* Already focused (e.g. taskbar click on the active window before
 		 * minimize). Still raise so the request is visible. */
-		wlr_scene_node_raise_to_top(&toplevel->scene_tree->node);
 		wl_list_remove(&toplevel->link);
 		wl_list_insert(&server->toplevels, &toplevel->link);
+		sf_toplevel_raise(toplevel);
 		return;
 	}
 	struct sf_toplevel *prev_toplevel = NULL;
@@ -985,10 +1037,10 @@ void sf_focus_toplevel(struct sf_toplevel *toplevel) {
 		}
 	}
 	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
-	/* Move the toplevel to the front */
-	wlr_scene_node_raise_to_top(&toplevel->scene_tree->node);
+	/* MRU list first so pinned restack sees this window as front. */
 	wl_list_remove(&toplevel->link);
 	wl_list_insert(&server->toplevels, &toplevel->link);
+	sf_toplevel_raise(toplevel);
 	/* Activate the new surface */
 	wlr_xdg_toplevel_set_activated(toplevel->xdg_toplevel, true);
 	sf_decor_set_focused(toplevel, true);
@@ -1310,6 +1362,32 @@ void sf_run_action(struct sf_server *server, struct sf_toplevel *target, enum sf
 			SF_LOGW("resize_edge action with empty direction");
 		}
 		break;
+	case SF_ACTION_TOGGLE_ALWAYS_ON_TOP:
+		if (win != NULL) {
+			sf_toplevel_toggle_always_on_top(win);
+		}
+		break;
+	case SF_ACTION_ALWAYS_ON_TOP: {
+		if (win == NULL || cmd == NULL || cmd[0] == '\0') {
+			if (win != NULL) {
+				SF_LOGW("always_on_top action with empty value");
+			}
+			break;
+		}
+		bool on = false;
+		if (strcmp(cmd, "1") == 0 || strcasecmp(cmd, "true") == 0 ||
+		    strcasecmp(cmd, "on") == 0 || strcasecmp(cmd, "yes") == 0) {
+			on = true;
+		} else if (strcmp(cmd, "0") == 0 || strcasecmp(cmd, "false") == 0 ||
+			   strcasecmp(cmd, "off") == 0 || strcasecmp(cmd, "no") == 0) {
+			on = false;
+		} else {
+			SF_LOGW("always_on_top bad value", sf_str("cmd", cmd));
+			break;
+		}
+		sf_toplevel_set_always_on_top(win, on);
+		break;
+	}
 	}
 }
 

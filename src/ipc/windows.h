@@ -27,6 +27,7 @@ struct sf_window_info {
 	bool snapped;
 	bool urgent;
 	bool capture_blocked;
+	bool always_on_top;
 	char snap_dir[16]; /* empty when not snapped */
 	char output[64];
 	int workspace; /* 1-based; 0 when unset/scratchpad */

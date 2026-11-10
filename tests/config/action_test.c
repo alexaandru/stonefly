@@ -41,6 +41,10 @@ static void test_parse_name_roundtrip(void) {
 	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_NUDGE);
 	SF_TEST_TRUE(sf_action_parse_ok("resize_edge", &a));
 	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_RESIZE_EDGE);
+	SF_TEST_TRUE(sf_action_parse_ok("toggle_always_on_top", &a));
+	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_TOGGLE_ALWAYS_ON_TOP);
+	SF_TEST_TRUE(sf_action_parse_ok("always_on_top", &a));
+	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_ALWAYS_ON_TOP);
 
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_QUIT), "quit");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_SCRATCH_TOGGLE), "scratch_toggle");
@@ -50,6 +54,8 @@ static void test_parse_name_roundtrip(void) {
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_SEND_TO_MONITOR), "send_to_monitor");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_NUDGE), "nudge");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_RESIZE_EDGE), "resize_edge");
+	SF_TEST_STREQ(sf_action_name(SF_ACTION_TOGGLE_ALWAYS_ON_TOP), "toggle_always_on_top");
+	SF_TEST_STREQ(sf_action_name(SF_ACTION_ALWAYS_ON_TOP), "always_on_top");
 	SF_TEST_STREQ(sf_action_name((enum sf_action)9999), "unknown");
 }
 

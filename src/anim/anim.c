@@ -325,7 +325,7 @@ static void begin_slide(struct sf_toplevel *toplevel, int from_x, int from_y, in
 
 	set_visual_pos(toplevel, from_x, from_y);
 	if (hide) {
-		wlr_scene_node_raise_to_top(&toplevel->scene_tree->node);
+		sf_toplevel_raise(toplevel);
 	}
 	sf_anim_schedule(toplevel->server);
 }
@@ -499,7 +499,7 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now) {
 			morph_apply_live(toplevel, x, y, w, h);
 		} else {
 			if (toplevel->anim_hide) {
-				wlr_scene_node_raise_to_top(&toplevel->scene_tree->node);
+				sf_toplevel_raise(toplevel);
 			}
 			int x = sf_lerp_i(toplevel->anim.from_x, toplevel->anim.to_x, p);
 			int y = sf_lerp_i(toplevel->anim.from_y, toplevel->anim.to_y, p);

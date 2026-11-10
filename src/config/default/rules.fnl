@@ -3,7 +3,7 @@
 ;; Exact whole string: "^Google Chrome$". Escape magic (.-%[]()*+?^$) with %
 ;; (e.g. "google%-chrome").
 ;;
-;; Declarative: center, float, width, height, borderless,
+;; Declarative: center, float, width, height, borderless, always_on_top,
 ;;   ssd ("never"|"auto"|"prefer_ssd"|"always").
 ;; WM: :action string | {:action :cmd} | (sf.chain …) — same names as binds
 ;;   (maximize, maximize_to_edges, unmaximize, …). Prefer absolute maximize

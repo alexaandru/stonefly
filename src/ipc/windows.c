@@ -55,6 +55,7 @@ size_t sf_windows_collect(struct sf_server *server, struct sf_window_info *out, 
 		info->snapped = toplevel->snapped != SF_SNAP_NONE;
 		info->urgent = toplevel->urgent;
 		info->capture_blocked = toplevel->capture_blocked;
+		info->always_on_top = toplevel->always_on_top;
 		info->floating =
 			!info->maximized_to_edges && !toplevel->maximized_gaps && !info->snapped;
 		copy_str(info->snap_dir, sizeof(info->snap_dir), sf_snap_name(toplevel->snapped));
@@ -93,6 +94,9 @@ void sf_windows_print(const struct sf_window_info *infos, size_t n, FILE *fp) {
 		}
 		if (w->capture_blocked) {
 			fprintf(fp, "\tcapture=blocked");
+		}
+		if (w->always_on_top) {
+			fprintf(fp, "\talways_on_top");
 		}
 		fputc('\n', fp);
 	}

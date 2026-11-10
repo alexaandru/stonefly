@@ -84,6 +84,10 @@ int sf_windows_to_json(const struct sf_window_info *infos, size_t n, char *buf, 
 		json_key(&b, "capture_blocked");
 		json_bool(&b, w->capture_blocked);
 
+		json_byte(&b, ',');
+		json_key(&b, "always_on_top");
+		json_bool(&b, w->always_on_top);
+
 		if (w->snap_dir[0] != '\0') {
 			json_byte(&b, ',');
 			json_key(&b, "snap_dir");
@@ -181,7 +185,8 @@ static bool parse_object(struct json_scan *s, struct sf_window_info *out) {
 		} else if (strcmp(key, "focused") == 0 || strcmp(key, "floating") == 0 ||
 			   strcmp(key, "maximized_to_edges") == 0 ||
 			   strcmp(key, "minimized") == 0 || strcmp(key, "snapped") == 0 ||
-			   strcmp(key, "urgent") == 0 || strcmp(key, "capture_blocked") == 0) {
+			   strcmp(key, "urgent") == 0 || strcmp(key, "capture_blocked") == 0 ||
+			   strcmp(key, "always_on_top") == 0) {
 			bool v = false;
 			if (!json_scan_bool(s, &v)) {
 				return false;
@@ -198,8 +203,10 @@ static bool parse_object(struct json_scan *s, struct sf_window_info *out) {
 				out->snapped = v;
 			} else if (strcmp(key, "urgent") == 0) {
 				out->urgent = v;
-			} else {
+			} else if (strcmp(key, "capture_blocked") == 0) {
 				out->capture_blocked = v;
+			} else {
+				out->always_on_top = v;
 			}
 		} else {
 			/* Skip unknown value: string, bool, or integer. */
