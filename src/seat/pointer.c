@@ -845,7 +845,8 @@ static void toplevel_frame_box(struct sf_toplevel *toplevel, struct wlr_box *fra
 }
 
 static int toplevel_chrome_border(struct sf_toplevel *toplevel) {
-	if (toplevel->fullscreen || toplevel->maximized_edges || toplevel->borderless) {
+	if (sf_layout_sm_is_fullscreen(&toplevel->layout) ||
+	    sf_layout_sm_is_max_edges(&toplevel->layout) || toplevel->borderless) {
 		return 0;
 	}
 	return sf_cfg(toplevel->server)->border_thickness;
@@ -862,7 +863,7 @@ static uint32_t border_resize_edges_at(struct sf_toplevel *toplevel, double lx, 
 	if (inner <= 0 && outer <= 0) {
 		return 0;
 	}
-	if (toplevel->fullscreen || toplevel->minimized) {
+	if (sf_layout_sm_is_fullscreen(&toplevel->layout) || toplevel->minimized) {
 		return 0;
 	}
 	if (toplevel->scene_tree == NULL || !toplevel->scene_tree->node.enabled) {
@@ -955,7 +956,7 @@ static struct sf_toplevel *border_resize_toplevel_at(struct sf_server *server, d
 
 	struct sf_toplevel *toplevel;
 	wl_list_for_each(toplevel, &server->toplevels, link) {
-		if (toplevel->fullscreen || toplevel->minimized) {
+		if (sf_layout_sm_is_fullscreen(&toplevel->layout) || toplevel->minimized) {
 			continue;
 		}
 		if (toplevel->scene_tree == NULL || !toplevel->scene_tree->node.enabled) {

@@ -48,8 +48,7 @@ static bool nudge_allowed(const struct sf_toplevel *toplevel) {
 	if (sf_toplevel_is_scratchpad(toplevel)) {
 		return true;
 	}
-	if (toplevel->fullscreen || toplevel->maximized_edges || toplevel->maximized_gaps ||
-	    toplevel->snapped != SF_SNAP_NONE) {
+	if (sf_layout_sm_is_fixed(&toplevel->layout)) {
 		return false;
 	}
 	return true;

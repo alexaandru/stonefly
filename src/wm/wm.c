@@ -138,15 +138,6 @@ static bool toplevel_try_morph_to(struct sf_toplevel *toplevel, const struct wlr
 static bool toplevel_full_output_box(struct sf_toplevel *toplevel, struct wlr_output *hint,
 				     struct wlr_box *box);
 
-static void layout_sync_mirrors(struct sf_toplevel *toplevel) {
-	toplevel->maximized_edges = sf_layout_sm_is_max_edges(&toplevel->layout);
-	toplevel->maximized_gaps = sf_layout_sm_is_max_gaps(&toplevel->layout);
-	toplevel->fullscreen = sf_layout_sm_is_fullscreen(&toplevel->layout);
-	toplevel->snapped = sf_layout_sm_snap(&toplevel->layout);
-	toplevel->has_saved_geom = toplevel->layout.has_saved;
-	toplevel->saved_geom = toplevel->layout.saved;
-}
-
 static void layout_fill_targets(struct sf_toplevel *toplevel, const struct wlr_box *usable,
 				struct wlr_output *fs_hint, struct sf_layout_ctx *ctx) {
 	*ctx = (struct sf_layout_ctx){0};
@@ -194,7 +185,6 @@ static uint32_t layout_tiled_edges(unsigned tiled) {
 
 static void layout_apply_result(struct sf_toplevel *toplevel, const struct sf_layout_result *r) {
 	toplevel->layout = r->state;
-	layout_sync_mirrors(toplevel);
 	for (size_t i = 0; i < r->nfx; i++) {
 		const struct sf_layout_effect *e = &r->fx[i];
 		switch (e->kind) {
@@ -305,7 +295,6 @@ void sf_toplevel_restore_saved(struct sf_toplevel *toplevel) {
 		{
 			struct wlr_box to = toplevel->layout.saved;
 			toplevel->layout.has_saved = false;
-			layout_sync_mirrors(toplevel);
 			sf_toplevel_apply_box(toplevel, &to);
 			sf_decor_update_geom(toplevel);
 		}
@@ -323,7 +312,6 @@ void sf_toplevel_capture_geom(struct sf_toplevel *toplevel, const struct wlr_box
 	}
 	toplevel->layout.saved = *box;
 	toplevel->layout.has_saved = true;
-	layout_sync_mirrors(toplevel);
 }
 
 void sf_toplevel_apply_saved_at(struct sf_toplevel *toplevel, int x, int y) {
@@ -835,8 +823,7 @@ void sf_toplevel_place_transient(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || !toplevel->auto_place || toplevel->scene_tree == NULL) {
 		return;
 	}
-	if (toplevel->maximized_edges || toplevel->maximized_gaps ||
-	    toplevel->snapped != SF_SNAP_NONE || toplevel->fullscreen) {
+	if (sf_layout_sm_is_fixed(&toplevel->layout)) {
 		return;
 	}
 	if (place_on_parent(toplevel)) {
@@ -857,8 +844,7 @@ void sf_toplevel_place_new(struct sf_toplevel *toplevel) {
 	sf_rules_apply(toplevel);
 	/* Rule :action may have maximized/snapped — do not center/cascade over it
 	 * (would gap-inset + retarget morph → offset full-size window). */
-	if (toplevel->maximized_edges || toplevel->maximized_gaps ||
-	    toplevel->snapped != SF_SNAP_NONE || toplevel->fullscreen) {
+	if (sf_layout_sm_is_fixed(&toplevel->layout)) {
 		toplevel->soft_place = false;
 		toplevel->auto_place = false;
 		return;
@@ -1239,9 +1225,9 @@ void sf_run_action(struct sf_server *server, struct sf_toplevel *target, enum sf
 		if (win == NULL) {
 			break;
 		}
-		if (win->maximized_edges) {
+		if (sf_layout_sm_is_max_edges(&win->layout)) {
 			sf_toplevel_set_max_edges(win, false);
-		} else if (win->maximized_gaps) {
+		} else if (sf_layout_sm_is_max_gaps(&win->layout)) {
 			sf_toplevel_set_max_gaps(win, false);
 		}
 		break;

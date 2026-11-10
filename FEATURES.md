@@ -29,7 +29,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 | Maximize to edges | Super+f — `maximize_to_edges` / `toggle_maximize_to_edges` (client maximized hint). Live morph (`morph_duration_ms`) |
 | Maximize with gaps (WM-only) | Super+m — `maximize` / `toggle_maximize`. No client maximized → rounder CSD. Gap-max/snap content box insets by `sf_ssd_top_inset` so SSD stays below exclusive zones. Live morph |
 | Unmaximize / restore | `unmaximize` clears either mode; toggles morph-restore. `float_for_resize` / `layout_float` for window_rule / drag break |
-| Layout mode state machine | Pure `wm/layout_sm` (commands + geometry observe → state + effects). WM applies effects only. Resize/nudge/commit reconcile mode both ways: leave max/snap/fs when the box diverges; regain when it matches again; toggle after a broken max re-enters (does not unmaximize). Unit suite `tests/wm/layout_sm_test.c` |
+| Layout mode state machine | Pure `wm/layout_sm` owns float/max/snap/fullscreen + PreMax on `toplevel->layout` (no mirror bools). Commands + geometry observe → state + effects; WM applies effects only. Resize/nudge/commit reconcile both ways. Unit suite `tests/wm/layout_sm_test.c` |
 | Fullscreen (client + WM) | Saved geom + full output box; client `request_fullscreen` + foreign set/unset (no WM keybind; Super+f is edge-max) |
 | Minimize / unminimize LIFO | Ctrl+Esc — unnamed scratchpad. Shared `apply_hidden`/`apply_shown` (LIFO vs scratch). `xdg request_minimize` → CSD/SSD buttons |
 | Keyboard half-snap (arrows) | Super+arrows — gap math ports `snapBorderBox` |

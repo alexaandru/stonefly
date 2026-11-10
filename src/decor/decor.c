@@ -83,12 +83,14 @@ void sf_decor_mark_blur_dirty(struct sf_server *server) {
  * Blur is separate (stays on for edge-max / quick terminal; off only for true
  * fullscreen). */
 static bool decor_chrome_on(const struct sf_toplevel *toplevel) {
-	return !toplevel->maximized_edges && !toplevel->fullscreen && !toplevel->borderless;
+	return !sf_layout_sm_is_max_edges(&toplevel->layout) &&
+	       !sf_layout_sm_is_fullscreen(&toplevel->layout) && !toplevel->borderless;
 }
 
 static bool decor_blur_on(const struct sf_toplevel *toplevel) {
 	const struct sf_config *cfg = sf_cfg(toplevel->server);
-	return (cfg->window_blur || toplevel->client_blur) && !toplevel->fullscreen;
+	return (cfg->window_blur || toplevel->client_blur) &&
+	       !sf_layout_sm_is_fullscreen(&toplevel->layout);
 }
 
 /*
@@ -157,7 +159,7 @@ static struct fx_corner_radii corners_for_buffer(int sx, int sy, int bw, int bh,
  * Fullscreen stays opaque; edge-max (quick terminal) still gets opacity so
  * blur can show through. */
 static float toplevel_chrome_opacity(struct sf_toplevel *toplevel, bool focused) {
-	if (toplevel->fullscreen) {
+	if (sf_layout_sm_is_fullscreen(&toplevel->layout)) {
 		return 1.0f;
 	}
 	const struct sf_config *cfg = sf_cfg(toplevel->server);

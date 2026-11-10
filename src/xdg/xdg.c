@@ -163,7 +163,7 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	if (sf_toplevel_is_scratchpad(toplevel)) {
 		sf_workspace_detach_scratchpad(toplevel);
 		/* Claim may have run early on set_app_id; finish first-spawn max. */
-		if (!toplevel->maximized_edges) {
+		if (!sf_layout_sm_is_max_edges(&toplevel->layout)) {
 			sf_toplevel_set_max_edges(toplevel, true);
 		}
 		sf_focus_toplevel(toplevel);

@@ -104,7 +104,8 @@ bool sf_ssd_should_show(const struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || !toplevel->want_ssd) {
 		return false;
 	}
-	if (toplevel->fullscreen || toplevel->maximized_edges || toplevel->minimized) {
+	if (sf_layout_sm_is_fullscreen(&toplevel->layout) ||
+	    sf_layout_sm_is_max_edges(&toplevel->layout) || toplevel->minimized) {
 		return false;
 	}
 	return true;
@@ -269,7 +270,8 @@ void sf_ssd_update(struct sf_toplevel *toplevel) {
 	uint8_t fill[4];
 	ssd_fill_color(toplevel, focused, fill);
 	const char *title = toplevel->xdg_toplevel->title;
-	bool maximized = toplevel->maximized_gaps || toplevel->maximized_edges;
+	bool maximized = sf_layout_sm_is_max_gaps(&toplevel->layout) ||
+			 sf_layout_sm_is_max_edges(&toplevel->layout);
 	sf_ssd_paint_titlebar(ssd->pixels, width, height, title, focused, maximized, fill, &lay);
 
 	/* Force scene to re-upload after CPU paint (same buffer pointer). */
@@ -306,7 +308,8 @@ void sf_ssd_set_focused(struct sf_toplevel *toplevel, bool focused) {
 	uint8_t fill[4];
 	ssd_fill_color(toplevel, focused, fill);
 	const char *title = toplevel->xdg_toplevel->title;
-	bool maximized = toplevel->maximized_gaps || toplevel->maximized_edges;
+	bool maximized = sf_layout_sm_is_max_gaps(&toplevel->layout) ||
+			 sf_layout_sm_is_max_edges(&toplevel->layout);
 	sf_ssd_paint_titlebar(ssd->pixels, ssd->width, ssd->height, title, focused, maximized, fill,
 			      &lay);
 	wlr_scene_buffer_set_buffer(ssd->scene_buf, NULL);

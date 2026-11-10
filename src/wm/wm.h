@@ -62,7 +62,7 @@ void sf_toplevel_snap_in(struct sf_toplevel *toplevel, enum sf_snap edge,
 			 const struct wlr_box *usable);
 /* Remember floating geom as PreSnap if none is stored yet. */
 void sf_toplevel_capture_geom(struct sf_toplevel *toplevel, const struct wlr_box *box);
-/* Apply saved size at (x,y) without clearing has_saved_geom (PrepareDrag). */
+/* Apply saved size at (x,y) without clearing PreMax (PrepareDrag). */
 void sf_toplevel_apply_saved_at(struct sf_toplevel *toplevel, int x, int y);
 void sf_toplevel_unsnap(struct sf_toplevel *toplevel);
 

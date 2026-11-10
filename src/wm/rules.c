@@ -191,8 +191,7 @@ void sf_rules_consider_place(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->scene_tree == NULL) {
 		return;
 	}
-	if (toplevel->maximized_edges || toplevel->maximized_gaps ||
-	    toplevel->snapped != SF_SNAP_NONE || toplevel->fullscreen) {
+	if (sf_layout_sm_is_fixed(&toplevel->layout)) {
 		sf_toplevel_try_appear(toplevel);
 		return;
 	}
@@ -207,8 +206,7 @@ void sf_rules_consider_place(struct sf_toplevel *toplevel) {
 	sf_rules_apply(toplevel);
 
 	/* Maximize/snap from :action owns geometry — skip SoftPlace center. */
-	if (toplevel->maximized_edges || toplevel->maximized_gaps ||
-	    toplevel->snapped != SF_SNAP_NONE || toplevel->fullscreen) {
+	if (sf_layout_sm_is_fixed(&toplevel->layout)) {
 		toplevel->soft_place = false;
 		sf_toplevel_try_appear(toplevel);
 		return;

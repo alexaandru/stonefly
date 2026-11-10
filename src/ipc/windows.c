@@ -50,15 +50,16 @@ size_t sf_windows_collect(struct sf_server *server, struct sf_window_info *out, 
 		info->w = geom.width;
 		info->h = geom.height;
 		info->focused = toplevel == focused;
-		info->maximized_to_edges = toplevel->maximized_edges;
+		info->maximized_to_edges = sf_layout_sm_is_max_edges(&toplevel->layout);
 		info->minimized = toplevel->minimized;
-		info->snapped = toplevel->snapped != SF_SNAP_NONE;
+		info->snapped = sf_layout_sm_snap(&toplevel->layout) != SF_SNAP_NONE;
 		info->urgent = toplevel->urgent;
 		info->capture_blocked = toplevel->capture_blocked;
 		info->always_on_top = toplevel->always_on_top;
-		info->floating =
-			!info->maximized_to_edges && !toplevel->maximized_gaps && !info->snapped;
-		copy_str(info->snap_dir, sizeof(info->snap_dir), sf_snap_name(toplevel->snapped));
+		info->floating = !info->maximized_to_edges &&
+				 !sf_layout_sm_is_max_gaps(&toplevel->layout) && !info->snapped;
+		copy_str(info->snap_dir, sizeof(info->snap_dir),
+			 sf_snap_name(sf_layout_sm_snap(&toplevel->layout)));
 		if (toplevel->workspace != NULL) {
 			info->workspace = toplevel->workspace->index + 1;
 			struct wlr_output *wo = toplevel->workspace->output->wlr_output;

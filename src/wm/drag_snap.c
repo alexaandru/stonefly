@@ -86,10 +86,10 @@ void sf_drag_snap_prepare(struct sf_toplevel *toplevel) {
 	struct wlr_box geom;
 	sf_toplevel_layout_geom(toplevel, &geom);
 
-	if (toplevel->snapped != SF_SNAP_NONE) {
+	if (sf_layout_sm_snap(&toplevel->layout) != SF_SNAP_NONE) {
 		drag->started_snapped = true;
 		/* Peeble PrepareDrag: restore PreSnap size, keep pointer ratio. */
-		if (toplevel->has_saved_geom) {
+		if (toplevel->layout.has_saved) {
 			double rx = 0.5;
 			double ry = 0.5;
 			if (geom.width > 0) {
@@ -110,8 +110,8 @@ void sf_drag_snap_prepare(struct sf_toplevel *toplevel) {
 					ry = 1.0;
 				}
 			}
-			int w = toplevel->saved_geom.width;
-			int h = toplevel->saved_geom.height;
+			int w = toplevel->layout.saved.width;
+			int h = toplevel->layout.saved.height;
 			int x = (int)(server->cursor->x - rx * (double)w);
 			int y = (int)(server->cursor->y - ry * (double)h);
 			sf_toplevel_apply_saved_at(toplevel, x, y);
@@ -122,9 +122,10 @@ void sf_drag_snap_prepare(struct sf_toplevel *toplevel) {
 		return;
 	}
 
-	if (toplevel->maximized_edges || toplevel->maximized_gaps) {
-		if (toplevel->has_saved_geom) {
-			int w = toplevel->saved_geom.width;
+	if (sf_layout_sm_is_max_edges(&toplevel->layout) ||
+	    sf_layout_sm_is_max_gaps(&toplevel->layout)) {
+		if (toplevel->layout.has_saved) {
+			int w = toplevel->layout.saved.width;
 			int x = (int)server->cursor->x - w / 2;
 			int y = (int)server->cursor->y - 16;
 			sf_toplevel_apply_saved_at(toplevel, x, y);
@@ -136,7 +137,7 @@ void sf_drag_snap_prepare(struct sf_toplevel *toplevel) {
 	}
 
 	/* Floating: remember drag origin for capturePreSnap on release snap. */
-	if (!toplevel->has_saved_geom && geom.width > 0 && geom.height > 0) {
+	if (!toplevel->layout.has_saved && geom.width > 0 && geom.height > 0) {
 		drag->drag_origin = geom;
 		drag->has_drag_origin = true;
 	}
@@ -151,9 +152,9 @@ void sf_drag_snap_begin(struct sf_server *server, struct sf_toplevel *toplevel) 
 	drag->start_y = toplevel->scene_tree->node.y;
 
 	/* Prefer PreSnap size after PrepareDrag — xdg geometry may lag one commit. */
-	if (drag->started_snapped && toplevel->has_saved_geom) {
-		drag->width = toplevel->saved_geom.width;
-		drag->height = toplevel->saved_geom.height;
+	if (drag->started_snapped && toplevel->layout.has_saved) {
+		drag->width = toplevel->layout.saved.width;
+		drag->height = toplevel->layout.saved.height;
 	} else {
 		struct wlr_box geom;
 		sf_toplevel_layout_geom(toplevel, &geom);
@@ -266,7 +267,7 @@ void sf_drag_snap_finish(struct sf_server *server) {
 	struct wlr_box usable;
 	enum sf_snap edge = SF_SNAP_NONE;
 	if (pointer_usable(server, &usable) && snap_candidate(toplevel, &usable, &edge)) {
-		if (drag->has_drag_origin && !toplevel->has_saved_geom) {
+		if (drag->has_drag_origin && !toplevel->layout.has_saved) {
 			sf_toplevel_capture_geom(toplevel, &drag->drag_origin);
 		}
 		sf_toplevel_snap_in(toplevel, edge, &usable);
@@ -276,7 +277,7 @@ void sf_drag_snap_finish(struct sf_server *server) {
 
 	if (drag->started_snapped) {
 		/* Dragged off every snap edge: restore PreSnap. */
-		if (toplevel->has_saved_geom) {
+		if (toplevel->layout.has_saved) {
 			sf_toplevel_restore_saved(toplevel);
 		} else {
 			sf_toplevel_layout_float(toplevel, false);

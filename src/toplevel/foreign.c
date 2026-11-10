@@ -74,7 +74,8 @@ static void sf_foreign_encode_state(struct sf_toplevel *toplevel, struct wl_arra
 
 	uint32_t *state;
 
-	if (toplevel->maximized_edges || toplevel->maximized_gaps) {
+	if (sf_layout_sm_is_max_edges(&toplevel->layout) ||
+	    sf_layout_sm_is_max_gaps(&toplevel->layout)) {
 		state = wl_array_add(states, sizeof(uint32_t));
 		if (state != NULL) {
 			*state = ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_MAXIMIZED;
@@ -92,7 +93,7 @@ static void sf_foreign_encode_state(struct sf_toplevel *toplevel, struct wl_arra
 			*state = ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_ACTIVATED;
 		}
 	}
-	if (toplevel->fullscreen) {
+	if (sf_layout_sm_is_fullscreen(&toplevel->layout)) {
 		state = wl_array_add(states, sizeof(uint32_t));
 		if (state != NULL) {
 			*state = ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_FULLSCREEN;
