@@ -238,6 +238,31 @@ static void test_fullscreen_geom_sticky(void) {
 	SF_TEST_TRUE(!has_fx(&out, SF_LAYOUT_FX_APPLY_BOX));
 }
 
+/* After explicit leave, a still-full-output buffer must not GEOM-regain fs. */
+static void test_fullscreen_no_geom_regain(void) {
+	struct sf_layout_sm s;
+	sf_layout_sm_init(&s);
+	struct sf_layout_ctx ctx = make_ctx(box(30, 30, 500, 400));
+	struct sf_layout_result out;
+
+	struct sf_layout_ev on = {.kind = SF_LAYOUT_EV_SET_FULLSCREEN, .want = true};
+	sf_layout_sm_step(&s, &on, &ctx, &out);
+	s = out.state;
+
+	struct sf_layout_ev off = {.kind = SF_LAYOUT_EV_SET_FULLSCREEN, .want = false};
+	ctx.current = ctx.fullscreen;
+	sf_layout_sm_step(&s, &off, &ctx, &out);
+	s = out.state;
+	SF_TEST_EQ_INT((int)out.state.mode, (int)SF_LAYOUT_MODE_FLOAT);
+
+	/* Chrome often keeps the full-output buffer for a few commits. */
+	ctx.current = ctx.fullscreen;
+	struct sf_layout_ev geom = {.kind = SF_LAYOUT_EV_GEOM};
+	sf_layout_sm_step(&s, &geom, &ctx, &out);
+	SF_TEST_EQ_INT((int)out.state.mode, (int)SF_LAYOUT_MODE_FLOAT);
+	SF_TEST_TRUE(!has_fx(&out, SF_LAYOUT_FX_XDG_FULLSCREEN));
+}
+
 static void test_reapply_arranged(void) {
 	struct sf_layout_sm s = {
 		.mode = SF_LAYOUT_MODE_MAX_EDGES,
@@ -290,6 +315,7 @@ static const struct sf_test tests[] = {
 	{"fullscreen_instant_and_restore", test_fullscreen_instant_and_restore},
 	{"fullscreen_toggle", test_fullscreen_toggle},
 	{"fullscreen_geom_sticky", test_fullscreen_geom_sticky},
+	{"fullscreen_no_geom_regain", test_fullscreen_no_geom_regain},
 	{"reapply_arranged", test_reapply_arranged},
 	{"match_priority", test_match_priority},
 	{"queries", test_queries},

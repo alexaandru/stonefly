@@ -9,6 +9,7 @@
 #include "output/output.h"
 #include "server/server.h"
 #include "toplevel/foreign.h"
+#include "wm/layout_sm.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
 
@@ -166,8 +167,29 @@ static bool toplevel_intersects_output(struct sf_toplevel *toplevel, struct wlr_
 	if (output == NULL || !output->enabled) {
 		return false;
 	}
+	/*
+	 * Fullscreen is reparented onto layers.fullscreen; mid-configure the
+	 * client buffer can be 0×0 or still the pre-fs size. Taskbars that key
+	 * off output_enter would then drop the window. Pin to the workspace
+	 * (or center) head while fullscreen so the handle stays advertised.
+	 */
+	if (sf_layout_sm_is_fullscreen(&toplevel->layout)) {
+		if (toplevel->workspace != NULL && toplevel->workspace->output != NULL) {
+			return toplevel->workspace->output->wlr_output == output;
+		}
+		struct wlr_box fs;
+		sf_toplevel_layout_geom(toplevel, &fs);
+		double cx = fs.x + fs.width / 2.0;
+		double cy = fs.y + fs.height / 2.0;
+		struct wlr_output *at =
+			wlr_output_layout_output_at(toplevel->server->output_layout, cx, cy);
+		return at == output;
+	}
 	struct wlr_box geom, out_box, inter;
 	sf_toplevel_layout_geom(toplevel, &geom);
+	if (geom.width <= 0 || geom.height <= 0) {
+		return false;
+	}
 	wlr_output_layout_get_box(toplevel->server->output_layout, output, &out_box);
 	if (out_box.width <= 0 || out_box.height <= 0) {
 		return false;
