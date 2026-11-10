@@ -45,6 +45,9 @@ static bool nudge_allowed(const struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->scene_tree == NULL || toplevel->minimized) {
 		return false;
 	}
+	if (toplevel->arrange_managed) {
+		return false;
+	}
 	if (sf_toplevel_is_scratchpad(toplevel)) {
 		return true;
 	}

@@ -65,6 +65,11 @@ struct sf_toplevel {
 	struct sf_layout_sm layout;
 	/* Map / SoftPlace / appear-hold (wm/place_sm). */
 	struct sf_place_sm place;
+	/* Workspace arrange engine owns this window's box. */
+	bool arrange_managed;
+	/* After break-out: suppress GEOM regain until box leaves hold. */
+	bool geom_regain_hold;
+	struct wlr_box geom_regain_box;
 	bool minimized;
 	/* xdg_dialog_v1.set_modal (requires parent). */
 	bool modal;

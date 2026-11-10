@@ -297,13 +297,25 @@ static void test_match_priority(void) {
 
 static void test_queries(void) {
 	struct sf_layout_sm s = {.mode = SF_LAYOUT_MODE_SNAP, .snap = SF_SNAP_TOP};
-	SF_TEST_TRUE(sf_layout_sm_is_arranged(&s));
+	SF_TEST_TRUE(sf_layout_sm_is_edged(&s));
 	SF_TEST_TRUE(sf_layout_sm_is_fixed(&s));
 	SF_TEST_EQ_INT((int)sf_layout_sm_snap(&s), (int)SF_SNAP_TOP);
 	SF_TEST_TRUE(!sf_layout_sm_is_max_edges(&s));
 	s.mode = SF_LAYOUT_MODE_FLOAT;
 	SF_TEST_TRUE(sf_layout_sm_is_float(&s));
 	SF_TEST_TRUE(!sf_layout_sm_is_fixed(&s));
+}
+
+static void test_no_geom_regain_gate(void) {
+	struct sf_layout_sm s;
+	sf_layout_sm_init(&s);
+	struct sf_layout_ctx ctx = make_ctx(box(0, 0, 400, 600));
+	ctx.current = ctx.snap_left;
+	ctx.no_geom_regain = true;
+	struct sf_layout_result out;
+	struct sf_layout_ev geom = {.kind = SF_LAYOUT_EV_GEOM};
+	sf_layout_sm_step(&s, &geom, &ctx, &out);
+	SF_TEST_EQ_INT((int)out.state.mode, (int)SF_LAYOUT_MODE_FLOAT);
 }
 
 static const struct sf_test tests[] = {
@@ -319,6 +331,7 @@ static const struct sf_test tests[] = {
 	{"reapply_arranged", test_reapply_arranged},
 	{"match_priority", test_match_priority},
 	{"queries", test_queries},
+	{"no_geom_regain_gate", test_no_geom_regain_gate},
 };
 
 int main(void) {

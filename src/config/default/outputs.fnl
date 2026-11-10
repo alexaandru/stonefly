@@ -1,6 +1,6 @@
-;; Output / layout policy — stub until an output API exists.
+;; Output / arrange policy — stub until an output API exists.
 ;;
 ;; Planned shape (not wired yet):
-;;   (sf.output "eDP-1" {:layout "stacking"})
-;; Layout resolve: workspace override → output → global (sf.opt.layout).
-;; Values: "stacking" (implemented), "columns" / "tile" (reserved).
+;;   (sf.output "eDP-1" {:arrange "stacking"})
+;; Arrange resolve: workspace override → output → global (sf.opt.arrange).
+;; Values: stacking | columns | master (tile) | dwindle | monocle.

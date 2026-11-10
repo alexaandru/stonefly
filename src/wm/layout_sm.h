@@ -65,6 +65,8 @@ struct sf_layout_ctx {
 	struct wlr_box snap_bottom;
 	/* Boxes match within this many px per edge (≤0 → default 2). */
 	int tol;
+	/* Skip FLOAT→edged regain (arrange-managed / post break-out hold). */
+	bool no_geom_regain;
 };
 
 enum sf_layout_fx_kind {
@@ -134,14 +136,15 @@ static inline enum sf_snap sf_layout_sm_snap(const struct sf_layout_sm *s) {
 	return s->snap;
 }
 
-/* Edge-max, gap-max, or half-snap (not fullscreen). */
-static inline bool sf_layout_sm_is_arranged(const struct sf_layout_sm *s) {
+/* Edge-max, gap-max, or half-snap (not fullscreen). Renamed from is_arranged
+ * so it does not collide with workspace arrange engines. */
+static inline bool sf_layout_sm_is_edged(const struct sf_layout_sm *s) {
 	return sf_layout_sm_is_max_edges(s) || sf_layout_sm_is_max_gaps(s) ||
 	       sf_layout_sm_snap(s) != SF_SNAP_NONE;
 }
 
 static inline bool sf_layout_sm_is_fixed(const struct sf_layout_sm *s) {
-	return sf_layout_sm_is_arranged(s) || sf_layout_sm_is_fullscreen(s);
+	return sf_layout_sm_is_edged(s) || sf_layout_sm_is_fullscreen(s);
 }
 
 #endif

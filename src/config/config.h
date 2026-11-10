@@ -86,6 +86,10 @@ enum sf_action {
 	SF_ACTION_SET_FULLSCREEN,
 	SF_ACTION_UNSET_FULLSCREEN,
 	SF_ACTION_TOGGLE_FULLSCREEN,
+	/* cmd = next|prev (default next). Cycles stacking/columns/master/dwindle/monocle. */
+	SF_ACTION_ARRANGE_CYCLE,
+	/* cmd = stacking|columns|master|tile|dwindle|monocle. */
+	SF_ACTION_ARRANGE_SET,
 
 	/* One past the last real action — table sizes / completeness checks. */
 	SF_ACTION_COUNT,
@@ -211,8 +215,14 @@ struct sf_config {
 	int tap_max_hold_ms;
 	int double_tap_gap_ms;
 
-	/* Global layout default (workspace → output → global). */
-	enum sf_layout layout;
+	/* Global arrange default (workspace → output → global). */
+	enum sf_arrange arrange;
+	/* Master engine: side + factor + count (Lua-configurable). */
+	enum sf_master_pos master_pos;
+	float master_factor; /* 0.05..0.95; default 0.55 */
+	int master_count;    /* ≥1; default 1 */
+	/* Niri columns: column width as fraction of usable (default 0.5). */
+	float column_ratio;
 	/* 3-finger vertical swipe distance (logical px) to change workspace. */
 	int swipe_workspace_threshold;
 	/* Natural: finger up moves content up → next; finger down → prev.

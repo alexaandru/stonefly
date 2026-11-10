@@ -20,11 +20,46 @@ return {
         ["fnl/docstring"] = "Day-zero options. Assign with (tset sf.opt :key value). Unknown keys ignored. Colors are {r g b a} float tables.",
       },
       fields = {
+      ["arrange"] = {
+        binding = "sf.opt.arrange",
+        metadata = {
+          ["fls/itemKind"] = "Variable",
+          ["fnl/docstring"] = "Global arrange: \"stacking\"|\"columns\"|\"master\"|\"tile\"|\"dwindle\"|\"monocle\". Resolve workspace→output→global. sf.opt.layout is a deprecated alias.",
+        },
+      },
       ["layout"] = {
         binding = "sf.opt.layout",
         metadata = {
           ["fls/itemKind"] = "Variable",
-          ["fnl/docstring"] = "Global layout: \"stacking\" (implemented); \"columns\"/\"tile\" reserved. Resolve workspace→output→global.",
+          ["fnl/docstring"] = "Deprecated alias for sf.opt.arrange.",
+        },
+      },
+      ["master_pos"] = {
+        binding = "sf.opt.master_pos",
+        metadata = {
+          ["fls/itemKind"] = "Variable",
+          ["fnl/docstring"] = "Master arrange side: \"left\"|\"right\"|\"top\"|\"bottom\"|\"center\".",
+        },
+      },
+      ["master_factor"] = {
+        binding = "sf.opt.master_factor",
+        metadata = {
+          ["fls/itemKind"] = "Variable",
+          ["fnl/docstring"] = "Master area fraction 0.05..0.95 (default 0.55).",
+        },
+      },
+      ["master_count"] = {
+        binding = "sf.opt.master_count",
+        metadata = {
+          ["fls/itemKind"] = "Variable",
+          ["fnl/docstring"] = "Number of master windows (default 1).",
+        },
+      },
+      ["column_ratio"] = {
+        binding = "sf.opt.column_ratio",
+        metadata = {
+          ["fls/itemKind"] = "Variable",
+          ["fnl/docstring"] = "Niri columns: column width as fraction of usable (default 0.5).",
         },
       },
       ["scale"] = {
@@ -329,7 +364,7 @@ return {
       metadata = {
         ["fls/itemKind"] = "Function",
         ["fnl/arglist"] = {"chord-or-opts", "?opts"},
-        ["fnl/docstring"] = "Register a keybind.\n  (sf.bind \"Super+w\" {:action \"exec\" :cmd \"…\"})\n  (sf.bind {:key \"Super+Shift+Tab\" :action \"focus_prev\"})\nOptional :key_alt. Shift+Tab auto-adds ISO_Left_Tab.\nAction names: none quit close focus_next focus_prev focus_next_all focus_prev_all maximize maximize_to_edges unmaximize toggle_maximize toggle_maximize_to_edges minimize unminimize snap_left snap_right snap_top snap_bottom unsnap exec (needs :cmd) scratch_toggle scratch_claim (cmd = pad name) workspace_next workspace_prev workspace_switch (cmd = N) move_to_workspace_next move_to_workspace_prev move_to_workspace (cmd = N) pointer_center focus_monitor send_to_monitor (cmd = left|right|up|down|next|prev|connector) nudge resize_edge (cmd = left|right|up|down) toggle_always_on_top always_on_top (cmd = true|false).\n:action may be a string, {:action :cmd} table, or (sf.chain …).",
+        ["fnl/docstring"] = "Register a keybind.\n  (sf.bind \"Super+w\" {:action \"exec\" :cmd \"…\"})\n  (sf.bind {:key \"Super+Shift+Tab\" :action \"focus_prev\"})\nOptional :key_alt. Shift+Tab auto-adds ISO_Left_Tab.\nAction names: none quit close focus_next focus_prev focus_next_all focus_prev_all maximize maximize_to_edges unmaximize toggle_maximize toggle_maximize_to_edges minimize unminimize snap_left snap_right snap_top snap_bottom unsnap exec (needs :cmd) scratch_toggle scratch_claim (cmd = pad name) workspace_next workspace_prev workspace_switch (cmd = N) move_to_workspace_next move_to_workspace_prev move_to_workspace (cmd = N) pointer_center focus_monitor send_to_monitor (cmd = left|right|up|down|next|prev|connector) nudge resize_edge (cmd = left|right|up|down) toggle_always_on_top always_on_top (cmd = true|false) set_fullscreen unset_fullscreen toggle_fullscreen arrange_cycle (cmd = next|prev) arrange_set (cmd = stacking|columns|master|dwindle|monocle).\n:action may be a string, {:action :cmd} table, or (sf.chain …).",
       },
     },
     ["tap"] = {
@@ -337,7 +372,7 @@ return {
       metadata = {
         ["fls/itemKind"] = "Function",
         ["fnl/arglist"] = {"mod-or-opts", "?opts"},
-        ["fnl/docstring"] = "Register a modifier tap (L+R expanded).\n  (sf.tap \"Super\" {:single \"exec\" :single_cmd \"…\" :double \"scratch_toggle\" :double_cmd \"term\"})\n  (sf.tap {:key \"Super\" :single (sf.chain …)})\nAction names: none quit close focus_next focus_prev focus_next_all focus_prev_all maximize maximize_to_edges unmaximize toggle_maximize toggle_maximize_to_edges minimize unminimize snap_left snap_right snap_top snap_bottom unsnap exec (needs :cmd) scratch_toggle scratch_claim (cmd = pad name) workspace_next workspace_prev workspace_switch (cmd = N) move_to_workspace_next move_to_workspace_prev move_to_workspace (cmd = N) pointer_center focus_monitor send_to_monitor (cmd = left|right|up|down|next|prev|connector) nudge resize_edge (cmd = left|right|up|down) toggle_always_on_top always_on_top (cmd = true|false).\n:action may be a string, {:action :cmd} table, or (sf.chain …).",
+        ["fnl/docstring"] = "Register a modifier tap (L+R expanded).\n  (sf.tap \"Super\" {:single \"exec\" :single_cmd \"…\" :double \"scratch_toggle\" :double_cmd \"term\"})\n  (sf.tap {:key \"Super\" :single (sf.chain …)})\nAction names: same vocabulary as sf.bind (including arrange_cycle / arrange_set).\n:action may be a string, {:action :cmd} table, or (sf.chain …).",
       },
     },
     ["scratchpad"] = {

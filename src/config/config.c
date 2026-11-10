@@ -225,7 +225,11 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 	cfg->snap_preview_opacity = 0.40f;
 	cfg->tap_max_hold_ms = 500;
 	cfg->double_tap_gap_ms = 300;
-	cfg->layout = SF_LAYOUT_STACKING;
+	cfg->arrange = SF_ARRANGE_STACKING;
+	cfg->master_pos = SF_MASTER_LEFT;
+	cfg->master_factor = 0.55f;
+	cfg->master_count = 1;
+	cfg->column_ratio = 0.5f;
 	cfg->swipe_workspace_threshold = 80;
 	cfg->swipe_workspace_natural = true;
 	cfg->cursor_follows_focus = true;

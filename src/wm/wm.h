@@ -40,6 +40,9 @@ void sf_toplevel_resize_edge(struct sf_toplevel *toplevel, const char *dir);
 /* Layout-box in output-layout coordinates (scene position + surface size). */
 void sf_toplevel_layout_geom(struct sf_toplevel *toplevel, struct wlr_box *box);
 
+/* Move/resize content box; morph when duration > 0 and sizes known. */
+void sf_toplevel_move_resize(struct sf_toplevel *toplevel, const struct wlr_box *box, bool morph);
+
 /* Restore floating geometry saved before maximize/snap. */
 void sf_toplevel_restore_saved(struct sf_toplevel *toplevel);
 

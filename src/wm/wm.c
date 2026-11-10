@@ -20,6 +20,7 @@
 #include "session/session.h"
 #include "ssd/ssd.h"
 #include "toplevel/foreign.h"
+#include "wm/arrange.h"
 #include "wm/geom.h"
 #include "wm/internal.h"
 #include "wm/layout_sm.h"
@@ -135,6 +136,17 @@ static bool toplevel_try_morph_to(struct sf_toplevel *toplevel, const struct wlr
 	return false;
 }
 
+void sf_toplevel_move_resize(struct sf_toplevel *toplevel, const struct wlr_box *box, bool morph) {
+	if (toplevel == NULL || box == NULL) {
+		return;
+	}
+	if (morph) {
+		toplevel_try_morph_to(toplevel, box);
+	} else {
+		sf_toplevel_apply_box(toplevel, box);
+	}
+}
+
 static bool toplevel_full_output_box(struct sf_toplevel *toplevel, struct wlr_output *hint,
 				     struct wlr_box *box);
 
@@ -170,6 +182,15 @@ static bool layout_fill_ctx(struct sf_toplevel *toplevel, struct wlr_output *fs_
 		u = &usable;
 	}
 	layout_fill_targets(toplevel, u, fs_hint, ctx);
+	if (toplevel->arrange_managed) {
+		ctx->no_geom_regain = true;
+	} else if (toplevel->geom_regain_hold) {
+		if (sf_layout_sm_box_near(&ctx->current, &toplevel->geom_regain_box, ctx->tol)) {
+			ctx->no_geom_regain = true;
+		} else {
+			toplevel->geom_regain_hold = false;
+		}
+	}
 	return true;
 }
 
@@ -356,9 +377,12 @@ void sf_toplevel_layout_float(struct sf_toplevel *toplevel, bool clear_saved) {
 	if (toplevel == NULL) {
 		return;
 	}
+	if (toplevel->arrange_managed) {
+		sf_arrange_break_out(toplevel);
+	}
 	/* Break max/snap only (not fullscreen). clear_saved on an already-float
 	 * window drops PreMax when a rule asks for float. */
-	if (!sf_layout_sm_is_arranged(&toplevel->layout)) {
+	if (!sf_layout_sm_is_edged(&toplevel->layout)) {
 		if (!(sf_layout_sm_is_float(&toplevel->layout) && clear_saved &&
 		      toplevel->layout.has_saved)) {
 			return;
@@ -533,7 +557,11 @@ void sf_toplevel_ensure_on_screen(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->minimized || toplevel->anim_hide) {
 		return;
 	}
-	if (sf_layout_sm_is_arranged(&toplevel->layout)) {
+	if (sf_layout_sm_is_edged(&toplevel->layout)) {
+		return;
+	}
+	if (toplevel->arrange_managed && toplevel->workspace != NULL &&
+	    sf_arrange_is_tiling(sf_workspace_arrange(toplevel->workspace))) {
 		return;
 	}
 	if (toplevel->server->grabbed_toplevel == toplevel) {
@@ -617,15 +645,22 @@ void sf_wm_relayout_output(struct sf_output *output) {
 		if (sf_layout_sm_is_fixed(&toplevel->layout)) {
 			struct sf_layout_ev ev = {.kind = SF_LAYOUT_EV_REAPPLY};
 			layout_dispatch_usable(toplevel, &ev, &out);
+		} else if (toplevel->arrange_managed && toplevel->workspace != NULL &&
+			   sf_arrange_is_tiling(sf_workspace_arrange(toplevel->workspace))) {
+			/* Engine-owned: schedule arrange instead of floater clamp. */
+			continue;
 		} else {
 			/* Floaters: exclusive zone often arrives after PlaceNew. */
 			sf_toplevel_ensure_on_screen(toplevel);
 		}
 	}
+	if (output->active != NULL) {
+		sf_arrange_schedule(output->active);
+	}
 }
 
 void sf_toplevel_unsnap(struct sf_toplevel *toplevel) {
-	if (toplevel == NULL || !sf_layout_sm_is_arranged(&toplevel->layout)) {
+	if (toplevel == NULL || !sf_layout_sm_is_edged(&toplevel->layout)) {
 		return;
 	}
 	struct sf_layout_ev ev = {.kind = SF_LAYOUT_EV_UNSNAP};
@@ -1126,6 +1161,10 @@ void sf_focus_toplevel(struct sf_toplevel *toplevel) {
 	sf_foreign_toplevel_on_state_change(toplevel);
 	/* After the new window owns focus so auto_hide cannot focus_top-steal. */
 	sf_scratchpad_on_focus_change(toplevel);
+	/* Columns scroll / monocle focus need a re-pack. */
+	if (toplevel->workspace != NULL) {
+		sf_arrange_schedule(toplevel->workspace);
+	}
 }
 
 struct sf_toplevel *sf_focused_toplevel(struct sf_server *server) {

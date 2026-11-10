@@ -48,7 +48,7 @@ the detail rows. When an item ships, check it off here and move the row to
 | Window menu | ❌ | |
 | Geometry persist across restart | ❌ | Tag protocol shipped; no persist consumer yet |
 | Workspaces polish | 🚧 | ❌ geometry persist / named window rules. Switch slide shipped (FEATURES). Layout engines separate |
-| Layout engine (tile/columns/…) | 🚧 | Resolve `workspace → output → global` (`sf_layout`); only `stacking` implemented. `columns`/`tile` enum + `apply_layout` hook reserved. Global `sf.opt.layout` |
+| Layout engine (tile/columns/…) | ✅ | Shipped as **arrange** engines — see FEATURES. Polish (deck/grid, per-ws params IPC, Lua custom register) still open |
 | Focus cycle policy (MRU vs stack) | 🚧 | Stacking / MRU list front |
 | Picture-in-picture float | ❌ | Related to always-on-top; dedicated PiP policy still open |
 | Dim inactive / spotlight | 🚧 | TODO NEXT #8. Global `client_opacity` / `inactive_opacity` shipped; no black dim-overlay / spotlight; consider stronger default inactive |
@@ -147,7 +147,7 @@ product asks for in-process chrome again.
 | Winmenu | ❌ |
 | Geometry persist | ❌ |
 | Xwayland / IME | ❌ TODO NEXT #10 |
-| Tiling layouts | ❌ (`columns`/`tile` reserved) |
+| Tiling layouts | ✅ (arrange engines; see FEATURES) |
 | Alt+Tab cycle policy polish | 🚧 noctalia switcher + `FOCUS_PREV_ALL` |
 
 ---
@@ -175,7 +175,7 @@ Shell/OSD/media stay **🌙 Noctalia**.
 | Live reload mid-session | ❌ | TODO NEXT #7. Loads once at init; start with binds + opts; `sf.exec` `reload true` waits on this |
 | Config validate CLI | ❌ | Check without applying |
 | `--write-config-lua` | ❌ | Offload compiled/plain Lua instead of `.fnl` |
-| `outputs.fnl` API | 🚧 | `inputs.fnl` / `sf.input` shipped (FEATURES). Output `:layout` override planned (workspace→output→global; global `opt.layout` wired) |
+| `outputs.fnl` API | 🚧 | `inputs.fnl` / `sf.input` shipped (FEATURES). Output `:arrange` override planned (workspace→output→global; global `opt.arrange` wired) |
 | IPC `config` outputs section | 🚧 | Inputs emit rules array; outputs still `{}` until that API exists |
 | Neovim API compat / fake `vim.*` | ❌ | Non-goal |
 | Fennel as C dependency | ❌ | Non-goal (Fennel is Lua in the pack) |

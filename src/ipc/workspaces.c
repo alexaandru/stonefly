@@ -48,7 +48,7 @@ size_t sf_workspaces_collect(struct sf_server *server, struct sf_workspace_info 
 			info->windows = workspace_member_count(ws);
 			info->empty = info->windows == 0;
 			snprintf(info->layout, sizeof(info->layout), "%s",
-				 sf_layout_name(sf_workspace_layout(ws)));
+				 sf_arrange_name(sf_workspace_arrange(ws)));
 		}
 	}
 	return n;

@@ -289,10 +289,15 @@ static void reconcile_geom(struct sf_layout_result *out, struct sf_layout_sm *s,
 		to_float_keep_geom(out, s, false);
 		return;
 	}
-	/* Floating: regain arranged modes when the box matches again.
+	/* Floating: regain edged modes when the box matches again.
 	 * Fullscreen is explicit-only (SET/TOGGLE/client request). Chromium
 	 * often keeps a full-output buffer for a few frames after unset; GEOM
-	 * regain would immediately re-enter and trap Esc/F11. */
+	 * regain would immediately re-enter and trap Esc/F11.
+	 * Arrange-managed / break-out hold skip regain so engine boxes that
+	 * match half-snap or gap-max are not stolen into fixed modes. */
+	if (ctx->no_geom_regain) {
+		return;
+	}
 	enum sf_snap snap = SF_SNAP_NONE;
 	enum sf_layout_mode match = sf_layout_sm_match(ctx, &snap);
 	if (match == SF_LAYOUT_MODE_FLOAT || match == SF_LAYOUT_MODE_FULLSCREEN) {

@@ -49,6 +49,8 @@ static const struct sf_action_entry sf_actions[] = {
 	{"set_fullscreen", SF_ACTION_SET_FULLSCREEN},
 	{"unset_fullscreen", SF_ACTION_UNSET_FULLSCREEN},
 	{"toggle_fullscreen", SF_ACTION_TOGGLE_FULLSCREEN},
+	{"arrange_cycle", SF_ACTION_ARRANGE_CYCLE},
+	{"arrange_set", SF_ACTION_ARRANGE_SET},
 };
 
 size_t sf_action_name_table_len(void) {

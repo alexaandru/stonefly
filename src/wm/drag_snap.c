@@ -6,6 +6,7 @@
 #include "config/config.h"
 #include "layer/layer.h"
 #include "server/server.h"
+#include "wm/arrange.h"
 #include "wm/drag_snap.h"
 #include "wm/snap_preview.h"
 #include "wm/wm.h"
@@ -134,6 +135,10 @@ void sf_drag_snap_prepare(struct sf_toplevel *toplevel) {
 			sf_toplevel_layout_float(toplevel, false);
 		}
 		return;
+	}
+
+	if (toplevel->arrange_managed) {
+		sf_arrange_break_out(toplevel);
 	}
 
 	/* Floating: remember drag origin for capturePreSnap on release snap. */

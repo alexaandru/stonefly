@@ -8,6 +8,7 @@
 #include <wlr/types/wlr_ext_workspace_v1.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
+#include <wlr/types/wlr_xdg_shell.h>
 #include <scenefx/types/wlr_scene.h>
 #include <wayland-protocols/ext-workspace-v1-enum.h>
 
@@ -21,6 +22,8 @@
 #include "ssd/ssd.h"
 #include "util/math.h"
 #include "util/time.h"
+#include "wm/arrange.h"
+#include "wm/layout_sm.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
 #include "toplevel/toplevel.h"
@@ -134,7 +137,7 @@ static void workspace_switch_instant(struct sf_output *output, struct sf_workspa
 	workspace_anim_finish(output);
 	output->active = ws;
 	workspace_update_visibility(output);
-	sf_workspace_apply_layout(ws);
+	sf_workspace_apply_arrange(ws);
 	sf_focus_top(output->server);
 	sf_pointer_follow_focus(output->server);
 }
@@ -187,7 +190,7 @@ static void workspace_anim_start(struct sf_output *output, struct sf_workspace *
 	output->active = to;
 	workspace_update_visibility(output);
 	workspace_anim_apply(output, 0.0);
-	sf_workspace_apply_layout(to);
+	sf_workspace_apply_arrange(to);
 	sf_focus_top(output->server);
 	sf_pointer_follow_focus(output->server);
 	sf_anim_schedule(output->server);
@@ -200,7 +203,7 @@ static struct sf_workspace *workspace_create(struct sf_output *output) {
 		return NULL;
 	}
 	ws->output = output;
-	ws->layout = SF_LAYOUT_UNSET;
+	ws->arrange = SF_ARRANGE_UNSET;
 	ws->tree = wlr_scene_tree_create(server->layers.toplevel);
 	if (ws->tree == NULL) {
 		free(ws);
@@ -264,6 +267,10 @@ static void workspace_destroy(struct sf_workspace *ws) {
 	if (ws == NULL) {
 		return;
 	}
+	if (ws->arrange_idle != NULL) {
+		wl_event_source_remove(ws->arrange_idle);
+		ws->arrange_idle = NULL;
+	}
 	workspace_clear_members(ws);
 	if (ws->ext != NULL) {
 		wlr_ext_workspace_handle_v1_destroy(ws->ext);
@@ -275,31 +282,6 @@ static void workspace_destroy(struct sf_workspace *ws) {
 	}
 	wl_list_remove(&ws->link);
 	free(ws);
-}
-
-enum sf_layout sf_workspace_layout(const struct sf_workspace *ws) {
-	if (ws == NULL) {
-		return SF_LAYOUT_STACKING;
-	}
-	if (ws->layout != SF_LAYOUT_UNSET) {
-		return ws->layout;
-	}
-	if (ws->output != NULL && ws->output->layout != SF_LAYOUT_UNSET) {
-		return ws->output->layout;
-	}
-	if (ws->output == NULL) {
-		return SF_LAYOUT_STACKING;
-	}
-	return ws->output->server->config.layout;
-}
-
-void sf_workspace_apply_layout(struct sf_workspace *ws) {
-	if (ws == NULL) {
-		return;
-	}
-	enum sf_layout layout = sf_workspace_layout(ws);
-	/* STACKING: no rearrange. COLUMNS/TILE land here later. */
-	(void)layout;
 }
 
 struct sf_output *sf_output_at_cursor(struct sf_server *server) {
@@ -358,8 +340,8 @@ void sf_workspace_assign(struct sf_toplevel *toplevel, struct sf_workspace *ws) 
 		sf_workspace_detach_scratchpad(toplevel);
 		return;
 	}
-	struct sf_output *old_output =
-		toplevel->workspace != NULL ? toplevel->workspace->output : NULL;
+	struct sf_workspace *old_ws = toplevel->workspace;
+	struct sf_output *old_output = old_ws != NULL ? old_ws->output : NULL;
 	toplevel->workspace = ws;
 	/* Fullscreen stays on layers.fullscreen above the bar; sync picks
 	 * ws->tree only when not fullscreen. */
@@ -368,6 +350,16 @@ void sf_workspace_assign(struct sf_toplevel *toplevel, struct sf_workspace *ws) 
 		sf_workspace_compact(old_output);
 	}
 	sf_workspace_compact(ws->output);
+	if (sf_arrange_is_tiling(sf_workspace_arrange(ws)) &&
+	    !sf_layout_sm_is_fixed(&toplevel->layout) &&
+	    (toplevel->xdg_toplevel == NULL || toplevel->xdg_toplevel->parent == NULL)) {
+		toplevel->arrange_managed = true;
+		toplevel->geom_regain_hold = false;
+		sf_arrange_schedule(ws);
+	}
+	if (old_ws != NULL && old_ws != ws) {
+		sf_arrange_schedule(old_ws);
+	}
 }
 
 void sf_workspace_detach_scratchpad(struct sf_toplevel *toplevel) {
@@ -474,7 +466,7 @@ void sf_workspace_compact(struct sf_output *output) {
 	workspace_renumber(output);
 	workspace_update_visibility(output);
 	if (output->active != NULL) {
-		sf_workspace_apply_layout(output->active);
+		sf_workspace_apply_arrange(output->active);
 	}
 }
 
@@ -632,7 +624,7 @@ void sf_workspace_reveal_toplevel(struct sf_toplevel *toplevel) {
 void sf_workspace_output_init(struct sf_output *output) {
 	wl_list_init(&output->workspaces);
 	output->active = NULL;
-	output->layout = SF_LAYOUT_UNSET;
+	output->arrange = SF_ARRANGE_UNSET;
 	output->ext_group = NULL;
 
 	struct sf_server *server = output->server;

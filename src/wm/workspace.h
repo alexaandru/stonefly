@@ -5,6 +5,8 @@
 #include <time.h>
 #include <wayland-server-core.h>
 
+#include "wm/arrange.h"
+
 struct sf_server;
 struct sf_output;
 struct sf_toplevel;
@@ -12,24 +14,19 @@ struct wlr_ext_workspace_handle_v1;
 struct wlr_ext_workspace_group_handle_v1;
 struct wlr_scene_tree;
 
-/* Layout inheritance: workspace override → output → global.
- * Only STACKING is implemented; COLUMNS/TILE reserved for later. */
-enum sf_layout {
-	SF_LAYOUT_UNSET = -1,
-	SF_LAYOUT_STACKING = 0,
-	SF_LAYOUT_COLUMNS = 1,
-	SF_LAYOUT_TILE = 2,
-};
-
 struct sf_workspace {
 	struct wl_list link; /* sf_output.workspaces */
 	struct sf_output *output;
-	int index;	       /* 0-based in strip */
-	char name[16];	       /* "1", "2", … */
-	enum sf_layout layout; /* UNSET = inherit */
+	int index;		 /* 0-based in strip */
+	char name[16];		 /* "1", "2", … */
+	enum sf_arrange arrange; /* UNSET = inherit */
+	/* Niri columns: horizontal scroll of the strip (layout px). */
+	int columns_view_offset;
 	struct wlr_scene_tree *tree;
 	struct wlr_ext_workspace_handle_v1 *ext;
 	char ext_id[64];
+	/* Idle coalesce for sf_arrange_schedule. */
+	struct wl_event_source *arrange_idle;
 };
 
 void sf_workspace_setup(struct sf_server *server);
@@ -38,11 +35,6 @@ void sf_workspace_finish(struct sf_server *server);
 /* Create the per-output strip (one empty workspace) + ext group. */
 void sf_workspace_output_init(struct sf_output *output);
 void sf_workspace_output_finish(struct sf_output *output);
-
-enum sf_layout sf_layout_parse(const char *s);
-const char *sf_layout_name(enum sf_layout layout);
-enum sf_layout sf_workspace_layout(const struct sf_workspace *ws);
-void sf_workspace_apply_layout(struct sf_workspace *ws);
 
 struct sf_output *sf_output_at_cursor(struct sf_server *server);
 struct sf_output *sf_output_for_toplevel(struct sf_toplevel *toplevel);

@@ -28,6 +28,9 @@
   ["Super+Down" {:action :snap_bottom}]
   ["Super+u" {:action :unsnap}]
   ["Super+Shift+p" {:action :toggle_always_on_top}]
+  ;; arrange engines: stacking → columns → master → dwindle → monocle
+  ["Super+bracketright" {:action :arrange_cycle :cmd "next"}]
+  ["Super+bracketleft" {:action :arrange_cycle :cmd "prev"}]
   ;; multi-monitor (cmd = left|right|up|down|next|prev|connector)
   ["Super+Ctrl+Left" {:action :focus_monitor :cmd "left"}]
   ["Super+Ctrl+Right" {:action :focus_monitor :cmd "right"}]

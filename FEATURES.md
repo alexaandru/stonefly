@@ -23,7 +23,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 
 | Feature | Notes |
 |---|---|
-| Stacking (no layout engine) | Stacking-first; layout engines reserved on roadmap |
+| Workspace arrange engines | `stacking` (default) · `columns` (niri scroll strip) · `master`/`tile` (Lua `master_pos` left\|right\|top\|bottom\|center) · `dwindle` · `monocle`. Resolve workspace→output→global (`sf.opt.arrange`). Super+] / Super+[ cycle. Drag / float rule breaks out of the tile set. Distinct from per-window `layout_sm` |
 | Focus next / prev (visible) | Super+Tab |
 | Close focused | Super+q |
 | Maximize to edges | Super+f — `maximize_to_edges` / `toggle_maximize_to_edges` (client maximized hint). Live morph (`morph_duration_ms`) |
@@ -214,6 +214,7 @@ Former River-fork blockers that stonefly owns in-process:
 | Screenshots, clipboard, idle/lock/gamma | 🌙 noctalia binds + ✅ screencopy/ext-capture / ✅ idle+lock+DPMS / ✅ clipboard+gamma |
 | Real config file | ✅ LuaJIT + Fennel-first + `--write-config` + IPC `config` |
 | Workspaces (stacking) | ✅ |
+| Super+] / Super+[ arrange cycle | ✅ stacking→columns→master→dwindle→monocle |
 | Foreign-toplevel for docks/taskbars | ✅ |
 
 ---

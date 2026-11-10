@@ -28,7 +28,7 @@ struct sf_output {
 	/* Dynamic per-output workspace strip. */
 	struct wl_list workspaces;
 	struct sf_workspace *active;
-	enum sf_layout layout; /* UNSET = inherit global */
+	enum sf_arrange arrange; /* UNSET = inherit global */
 	struct wlr_ext_workspace_group_handle_v1 *ext_group;
 
 	/* Vertical strip slide (keybind / IPC / 3-finger swipe share this). */

@@ -1208,6 +1208,9 @@ static const struct opt_num opt_numbers[] = {
 	{"ssd_font_size", OPT_NUM_FN, 0, opt_set_ssd_font_size},
 	{"resize_border_in", OPT_NUM_FN, 0, opt_set_resize_border_in},
 	{"resize_border_out", OPT_NUM_FN, 0, opt_set_resize_border_out},
+	{"master_factor", OPT_NUM_FLOAT, offsetof(struct sf_config, master_factor), NULL},
+	{"master_count", OPT_NUM_INT, offsetof(struct sf_config, master_count), NULL},
+	{"column_ratio", OPT_NUM_FLOAT, offsetof(struct sf_config, column_ratio), NULL},
 };
 
 static const struct {
@@ -1272,8 +1275,11 @@ static int l_opt_newindex(lua_State *L) {
 		const char *s = lua_tostring(L, 3);
 		if (strcmp(k, "capture_block_app_ids") == 0) {
 			sf_replace_str(&cfg->capture_block_app_ids, s);
-		} else if (strcmp(k, "layout") == 0) {
-			cfg->layout = sf_layout_parse(s);
+		} else if (strcmp(k, "arrange") == 0 || strcmp(k, "layout") == 0) {
+			/* layout is a deprecated alias for arrange. */
+			cfg->arrange = sf_arrange_parse(s);
+		} else if (strcmp(k, "master_pos") == 0) {
+			cfg->master_pos = sf_master_pos_parse(s);
 		} else if (strcmp(k, "ssd_mode") == 0) {
 			cfg->ssd_mode = sf_ssd_mode_parse(s);
 		}

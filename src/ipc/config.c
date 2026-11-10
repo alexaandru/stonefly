@@ -154,8 +154,16 @@ static void emit_options(struct json_buf *b, const struct sf_config *cfg) {
 	json_key(b, "double_tap_gap_ms");
 	json_i64(b, cfg->double_tap_gap_ms);
 	json_byte(b, ',');
-	json_key(b, "layout");
-	json_str(b, sf_layout_name(cfg->layout));
+	json_key(b, "arrange");
+	json_str(b, sf_arrange_name(cfg->arrange));
+	json_key(b, "master_pos");
+	json_str(b, sf_master_pos_name(cfg->master_pos));
+	json_key(b, "master_factor");
+	json_f64(b, (double)cfg->master_factor);
+	json_key(b, "master_count");
+	json_i64(b, cfg->master_count);
+	json_key(b, "column_ratio");
+	json_f64(b, (double)cfg->column_ratio);
 	json_byte(b, ',');
 	json_key(b, "swipe_workspace_threshold");
 	json_i64(b, cfg->swipe_workspace_threshold);

@@ -9,6 +9,7 @@
 #include "config/action.h"
 #include "log/log.h"
 #include "seat/seat.h"
+#include "wm/arrange.h"
 #include "wm/internal.h"
 #include "wm/layout_sm.h"
 #include "wm/scratchpad.h"
@@ -211,6 +212,18 @@ static void action_toggle_fullscreen(struct sf_action_ctx *ctx) {
 	sf_toplevel_toggle_fullscreen(ctx->win);
 }
 
+static void action_arrange_cycle(struct sf_action_ctx *ctx) {
+	int delta = 1;
+	if (ctx->cmd != NULL && (strcmp(ctx->cmd, "prev") == 0 || strcmp(ctx->cmd, "-1") == 0)) {
+		delta = -1;
+	}
+	sf_arrange_cycle(ctx->server, delta);
+}
+
+static void action_arrange_set(struct sf_action_ctx *ctx) {
+	sf_arrange_set(ctx->server, ctx->cmd);
+}
+
 /*
  * Verb catalog: one slot per enum value. Flags encode the shared protocol
  * (need window / need cmd) so arms stay free of duplicated guards.
@@ -254,6 +267,8 @@ static const struct sf_action_slot sf_action_slots[SF_ACTION_COUNT] = {
 	[SF_ACTION_SET_FULLSCREEN] = {SF_ACTION_F_WIN, action_set_fullscreen},
 	[SF_ACTION_UNSET_FULLSCREEN] = {SF_ACTION_F_WIN, action_unset_fullscreen},
 	[SF_ACTION_TOGGLE_FULLSCREEN] = {SF_ACTION_F_WIN, action_toggle_fullscreen},
+	[SF_ACTION_ARRANGE_CYCLE] = {0, action_arrange_cycle},
+	[SF_ACTION_ARRANGE_SET] = {SF_ACTION_F_CMD, action_arrange_set},
 };
 
 _Static_assert(sizeof(sf_action_slots) / sizeof(sf_action_slots[0]) == (size_t)SF_ACTION_COUNT,
