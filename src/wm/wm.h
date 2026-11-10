@@ -17,6 +17,16 @@ struct sf_toplevel *sf_focused_toplevel(struct sf_server *server);
  * or clear keyboard focus when none remain. Peeble Focus(nil) equivalent. */
 void sf_focus_top(struct sf_server *server);
 
+/* Resolve a head: connector name, left|right|up|down, next|prev|current.
+ * from may be NULL (falls back to cursor / first live). */
+struct sf_output *sf_output_resolve(struct sf_server *server, struct sf_output *from,
+				    const char *target);
+/* Warp to target head + focus topmost window there (cursor_follows_focus). */
+void sf_focus_monitor(struct sf_server *server, const char *target);
+/* Move toplevel onto target head (active workspace); focus + pointer center. */
+void sf_send_to_monitor(struct sf_server *server, struct sf_toplevel *toplevel, const char *target);
+void sf_toplevel_place_on_output(struct sf_toplevel *toplevel, struct sf_output *output);
+
 /* Layout-box in output-layout coordinates (scene position + surface size). */
 void sf_toplevel_layout_geom(struct sf_toplevel *toplevel, struct wlr_box *box);
 

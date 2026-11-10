@@ -64,6 +64,9 @@ enum sf_action {
 	SF_ACTION_MOVE_TO_WORKSPACE,
 	/* Warp pointer to center of focused window (ignores cursor_follows_focus). */
 	SF_ACTION_POINTER_CENTER,
+	/* cmd = target: connector name, left|right|up|down, next|prev. */
+	SF_ACTION_FOCUS_MONITOR,
+	SF_ACTION_SEND_TO_MONITOR,
 };
 
 /* One step in a bind/tap/rule action (or sf.chain). cmd for EXEC / scratch / ws. */

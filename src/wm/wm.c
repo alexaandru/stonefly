@@ -1273,6 +1273,23 @@ void sf_run_action(struct sf_server *server, struct sf_toplevel *target, enum sf
 	case SF_ACTION_POINTER_CENTER:
 		sf_pointer_center(server, win);
 		break;
+	case SF_ACTION_FOCUS_MONITOR:
+		if (cmd != NULL && cmd[0] != '\0') {
+			sf_focus_monitor(server, cmd);
+		} else {
+			SF_LOGW("focus_monitor action with empty target");
+		}
+		break;
+	case SF_ACTION_SEND_TO_MONITOR:
+		if (win == NULL) {
+			break;
+		}
+		if (cmd != NULL && cmd[0] != '\0') {
+			sf_send_to_monitor(server, win, cmd);
+		} else {
+			SF_LOGW("send_to_monitor action with empty target");
+		}
+		break;
 	}
 }
 

@@ -31,6 +31,7 @@ sf_src = files(
   'session/session.c',
   'xdg/xdg.c',
   'wm/wm.c',
+  'wm/monitor.c',
   'wm/geom.c',
   'wm/layout.c',
   'wm/workspace.c',

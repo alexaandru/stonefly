@@ -31,11 +31,19 @@ static void test_parse_name_roundtrip(void) {
 	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_MOVE_TO_WORKSPACE);
 	SF_TEST_TRUE(sf_action_parse_ok("scratch_claim", &a));
 	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_SCRATCH_CLAIM);
+	SF_TEST_TRUE(sf_action_parse_ok("pointer_center", &a));
+	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_POINTER_CENTER);
+	SF_TEST_TRUE(sf_action_parse_ok("focus_monitor", &a));
+	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_FOCUS_MONITOR);
+	SF_TEST_TRUE(sf_action_parse_ok("send_to_monitor", &a));
+	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_SEND_TO_MONITOR);
 
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_QUIT), "quit");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_SCRATCH_TOGGLE), "scratch_toggle");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_FOCUS_NEXT_ALL), "focus_next_all");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_WORKSPACE_NEXT), "workspace_next");
+	SF_TEST_STREQ(sf_action_name(SF_ACTION_FOCUS_MONITOR), "focus_monitor");
+	SF_TEST_STREQ(sf_action_name(SF_ACTION_SEND_TO_MONITOR), "send_to_monitor");
 	SF_TEST_STREQ(sf_action_name((enum sf_action)9999), "unknown");
 }
 

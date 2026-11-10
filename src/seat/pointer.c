@@ -233,8 +233,8 @@ void sf_reset_cursor_mode(struct sf_server *server) {
 	process_cursor_motion(server, msec);
 }
 
-static void pointer_warp_to(struct sf_server *server, double lx, double ly) {
-	if (server->cursor_mode != SF_CURSOR_PASSTHROUGH) {
+void sf_pointer_warp_to(struct sf_server *server, double lx, double ly) {
+	if (server == NULL || server->cursor_mode != SF_CURSOR_PASSTHROUGH) {
 		return;
 	}
 	if (server->constraints.current != NULL &&
@@ -256,7 +256,7 @@ void sf_pointer_center(struct sf_server *server, struct sf_toplevel *toplevel) {
 	if (geom.width <= 0 || geom.height <= 0) {
 		return;
 	}
-	pointer_warp_to(server, geom.x + geom.width / 2.0, geom.y + geom.height / 2.0);
+	sf_pointer_warp_to(server, geom.x + geom.width / 2.0, geom.y + geom.height / 2.0);
 }
 
 void sf_pointer_follow_focus(struct sf_server *server) {

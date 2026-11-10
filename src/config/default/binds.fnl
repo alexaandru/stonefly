@@ -26,6 +26,15 @@
   ["Super+Up" {:action :snap_top}]
   ["Super+Down" {:action :snap_bottom}]
   ["Super+u" {:action :unsnap}]
+  ;; multi-monitor (cmd = left|right|up|down|next|prev|connector)
+  ["Super+Ctrl+Left" {:action :focus_monitor :cmd "left"}]
+  ["Super+Ctrl+Right" {:action :focus_monitor :cmd "right"}]
+  ["Super+Ctrl+Up" {:action :focus_monitor :cmd "up"}]
+  ["Super+Ctrl+Down" {:action :focus_monitor :cmd "down"}]
+  ["Super+Shift+Left" {:action :send_to_monitor :cmd "left"}]
+  ["Super+Shift+Right" {:action :send_to_monitor :cmd "right"}]
+  ["Super+Shift+Up" {:action :send_to_monitor :cmd "up"}]
+  ["Super+Shift+Down" {:action :send_to_monitor :cmd "down"}]
   ;; workspaces (per-output strip; move follows focus)
   ["Super+Prior" {:action :workspace_prev}]
   ["Super+Next" {:action :workspace_next}]
