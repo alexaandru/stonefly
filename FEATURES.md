@@ -4,7 +4,8 @@ Shipped capabilities in this tree. Open and partial work lives in
 [`ROADMAP.md`](ROADMAP.md). When a roadmap item lands, move it here in the
 same turn (feature + short notes; drop the open-row from the roadmap).
 
-`peeble/` is historical reference only — not a product spec.
+`umbriel/` is the primary reference compositor; `peeble/` is secondary only for
+features Umbriel lacks — neither is a product spec. See `AGENTS.md`.
 
 ## Architecture
 
@@ -23,7 +24,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 
 | Feature | Notes |
 |---|---|
-| Workspace arrange engines | **`columns` default** · `stacking` only. First-class strip: `ws->columns` of `struct sf_column` (ordered rows, `width_frac`, `full_width`, row height weights, end gap weights) — umbriel `Column`/`m_columns`. Windows hold `toplevel->column` + `column_row_weight` + `column_extent_saved` (consume→expel). Pack: `sf_arrange_math_column_strip` / `_rows`. Super+] / [ toggle. Non-floats join (`arrange_floating` opt-out). Lone column fills usable; 2+ use per-column `width_frac` (default `column_ratio`). Insert after focused column; Super+, / . consume/expel; Super+LMB drag join/gap-insert; Super+v float; pink `border_float_*`; Super+m column full-width; Super+RMB resizes that column’s frac; Super+c rotates columns. Half-snap stacking-only |
+| Workspace arrange engines | **`columns` default** · `stacking` only. First-class strip: `ws->columns` of `struct sf_column` (ordered rows, `width_frac`, `full_width`, row height weights, end gap weights) — umbriel `Column`/`m_columns`. Windows hold `toplevel->column` + `column_row_weight` + `column_extent_saved` (consume→expel). Pack: `sf_arrange_math_column_strip` / `_rows`. Super+] / [ toggle. Non-floats join (`arrange_floating` opt-out). Lone column fills usable; 2+ use per-column `width_frac` (default `column_ratio`). Insert after focused column; Super+, / . consume/expel; Super+LMB cell swap / seam-insert / gap new-col; Super+v float; pink `border_float_*`; Super+m column full-width; Super+RMB resizes that column’s frac; Super+c rotates columns. Half-snap stacking-only |
 | Arrange-aware keybinds | `sf.bind` `:arrange` filter (`stacking` / `tiling` / exact engine). Defaults: Super+arrows snap while stacking only, `focus_dir` while tiling, Super+v `toggle_float` while tiling, Super+c / Super+Shift+c `arrange_rotate` (cw/ccw tile order; cw = last→first). Snap actions no-op when tiled. Arrange-specific binds preferred over unset |
 | Focus next / prev (visible) | Super+Tab / Super+Shift+Tab. Stacking: MRU. Columns: columns→rows order (cw = next; Super+c rotates columns) |
 | Close focused | Super+q |
@@ -37,7 +38,7 @@ same turn (feature + short notes; drop the open-row from the roadmap).
 | Minimize / unminimize LIFO | Ctrl+Esc — unnamed scratchpad. Shared `apply_hidden`/`apply_shown` (LIFO vs scratch). `xdg request_minimize` → CSD/SSD buttons |
 | Keyboard half-snap (arrows) | Super+arrows while stacking — gap math ports `snapBorderBox`. Tiling uses `focus_dir` |
 | Unsnap / restore PreSnap | Super+u |
-| Drag move (Super+LMB) | Stacking: free move + magnetic edge-snap. Columns: follow pointer; drop on peer joins that column as a row; drop in gap/edge inserts a new column. WM xcursor via `sf_seat_apply_grab_cursor` |
+| Drag move (Super+LMB) | Stacking: free move + magnetic edge-snap. Columns: follow pointer; **middle of a cell swaps** with that row; **top/bottom ~15% seams insert** above/below; gap/edge → new column. Preview box matches the op (full cell vs seam strip vs gap strip). WM xcursor via `sf_seat_apply_grab_cursor` |
 | Tile factor resize (Super+RMB) | Columns: `SF_CURSOR_ARRANGE_RESIZE` adjusts that column’s `width_frac` (also writes `column_ratio` default); clears full-width. Stacking: free edge resize unchanged |
 | Drag resize (Super+RMB) | Edges nearest pointer; undragged edges stay put. Layout SM observes the proposed box so max/snap/fs status tracks the live geometry. Moving edge(s) clamped so geometry + SSD titleband + compositor border stay in usable∩gaps. Grab/apply use scene origin as geometry TL (no ±geo.x/y) |
 | Center-lock resize (Super+Shift+RMB) | Grow/shrink around a fixed layout center: propose Δw = 2·Δx, Δh = 2·Δy (min 50). Cap with the same usable box. Scene position follows the *committed* buffer; re-sync on xdg commit. `SF_CURSOR_RESIZE_CENTER` |

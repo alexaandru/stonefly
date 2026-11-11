@@ -66,7 +66,7 @@ void sf_arrange_focus_dir(struct sf_server *server, const char *dir);
  * Returns false when not tiling / fewer than 2 tiles — caller falls back to MRU. */
 bool sf_arrange_focus_cycle(struct sf_server *server, bool backward);
 
-/* Super+LMB: drag follows pointer; drop on peer joins column, gap makes new column. */
+/* Super+LMB: drag follows pointer; cell mid swaps, seams insert, gap = new column. */
 void sf_arrange_swap_begin(struct sf_server *server, struct sf_toplevel *toplevel);
 void sf_arrange_swap_motion(struct sf_server *server);
 void sf_arrange_swap_finish(struct sf_server *server);

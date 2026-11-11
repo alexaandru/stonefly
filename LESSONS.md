@@ -107,10 +107,11 @@ membership / consume / float / drag / foreign before inventing deck/grid.
 | Per-row height weights | `column_row_weight` + end gap weights |
 | Consume remembers extent | `column_extent_saved` → expel restore |
 | Foreign pin to workspace output | fixed (was geom∩ → taskbar flicker) |
-| Drag into column / new column | Super+LMB drop on peer or gap |
+| Drag into column / new column | Super+LMB: cell mid = swap; seam = insert; gap = new col |
+| Drag preview matches op | full cell / seam strip / gap strip |
 | Scroll just-enough / on_overflow | still center-ish |
 | Consume-from API | `sf_columns_consume_from` (no default bind yet) |
-| Drag insert preview + edge pan | missing |
+| Drag edge pan of off-strip columns | missing |
 | MRU row after close | missing |
 | Column tabs | missing |
 | Minimize = float-only policy | tile minimize still allowed |
@@ -131,7 +132,9 @@ tie foreign output to the current scene box for workspace members.
 
 ### Reference trees
 
-- `./umbriel` — columns / float / consume / foreign UX (primary for scrolling).
-- `./peeble` — River companion reference only; do not port Go style into `./src`.
-- niri — inspiration Umbriel already digested; prefer Umbriel docs over guessing
-  niri when shaping stonefly columns.
+- `./umbriel` — **primary** reference compositor (layouts, float, consume,
+  foreign, scratchpads, animation tables, …). Prefer over peeble and over
+  guessing niri.
+- `./peeble` — secondary only for features Umbriel lacks (bar / launcher /
+  services-shaped ideas). Do not port Go style into `./src`.
+- niri — already digested by Umbriel; do not bypass Umbriel to “match niri.”

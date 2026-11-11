@@ -7,12 +7,21 @@ diagnosing stonefly.
 
 - **Product code lives in `./src`** (and root Meson/`protocol/`/`runtime/`/
   `dist/`). That is what you change.
-- **`peeble/` is reference only** — the old Go/River companion. Use it to
-  compare behavior or port ideas. Do not treat it as the codebase under
-  edit, and do not apply peeble Go style or packaging habits to stonefly.
+- **`umbriel/` is the reference compositor** — Noctalia’s C++/wlroots sibling
+  (cloned under `./umbriel`). Prefer its docs, action catalog, layouts,
+  scratchpads, foreign UX, and effects model when shaping stonefly. Steal
+  abstractions and behavior from Umbriel first; do not treat it as code to
+  edit, and do not import Umbriel C++ style into `./src` (house style stays
+  wlroots/tinywl C below).
+- **`peeble/` is secondary reference only** — the old Go/River companion.
+  Use it **only for features Umbriel does not cover** (e.g. in-process bar,
+  launcher plugins, services, other peeble-only shell/helpers). Never prefer
+  peeble over Umbriel when both have an answer. Do not apply peeble Go style
+  or packaging habits to stonefly.
 - Shell UI (bar, launcher, OSD, wallpaper chrome) is day-zero **Noctalia**,
   not an in-process peeble-style shell. Prefer compositor/protocol work in
   `./src` over reinventing shell features.
+- Peer lessons and traps: [`LESSONS.md`](LESSONS.md) (Umbriel first).
 
 ## Style
 

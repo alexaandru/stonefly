@@ -262,6 +262,79 @@ void sf_column_remove_row(struct sf_toplevel *toplevel) {
 	column_destroy_empty(col);
 }
 
+bool sf_columns_swap_rows(struct sf_toplevel *a, struct sf_toplevel *b) {
+	if (a == NULL || b == NULL || a == b || a->column == NULL || b->column == NULL) {
+		return false;
+	}
+	struct sf_column *ca = a->column;
+	struct sf_column *cb = b->column;
+	int ra = sf_column_row_of(a);
+	int rb = sf_column_row_of(b);
+	if (ra < 0 || rb < 0) {
+		return false;
+	}
+	float wa = a->column_row_weight;
+	float wb = b->column_row_weight;
+	float ea = a->column_extent_saved;
+	float eb = b->column_extent_saved;
+
+	if (ca == cb) {
+		struct sf_toplevel *rows[SF_COLUMN_MAX];
+		size_t n = 0;
+		struct sf_toplevel *t;
+		wl_list_for_each(t, &ca->rows, column_link) {
+			if (n >= SF_COLUMN_MAX) {
+				return false;
+			}
+			rows[n++] = t;
+		}
+		if ((size_t)ra >= n || (size_t)rb >= n) {
+			return false;
+		}
+		rows[ra] = b;
+		rows[rb] = a;
+		while (!wl_list_empty(&ca->rows)) {
+			t = wl_container_of(ca->rows.next, t, column_link);
+			row_unlink(t);
+		}
+		for (size_t i = 0; i < n; i++) {
+			wl_list_init(&rows[i]->column_link);
+			wl_list_insert(ca->rows.prev, &rows[i]->column_link);
+			rows[i]->column = ca;
+		}
+		a->column_row_weight = wa > 0.0f ? wa : 1.0f;
+		b->column_row_weight = wb > 0.0f ? wb : 1.0f;
+		a->column_extent_saved = ea;
+		b->column_extent_saved = eb;
+		return true;
+	}
+
+	/* Different columns: park both, then land in each other's cells. */
+	row_unlink(a);
+	row_unlink(b);
+	bool ok_a = sf_column_insert_row(cb, a, rb);
+	bool ok_b = ok_a && sf_column_insert_row(ca, b, ra);
+	if (!ok_a || !ok_b) {
+		/* Best-effort restore; columns may briefly have been empty. */
+		if (a->column != NULL) {
+			row_unlink(a);
+		}
+		if (b->column != NULL) {
+			row_unlink(b);
+		}
+		sf_column_insert_row(ca, a, ra);
+		sf_column_insert_row(cb, b, rb);
+		column_destroy_empty(ca);
+		column_destroy_empty(cb);
+		return false;
+	}
+	a->column_row_weight = wa > 0.0f ? wa : 1.0f;
+	b->column_row_weight = wb > 0.0f ? wb : 1.0f;
+	a->column_extent_saved = ea;
+	b->column_extent_saved = eb;
+	return true;
+}
+
 bool sf_columns_consume(struct sf_toplevel *toplevel, int dir) {
 	if (toplevel == NULL || toplevel->column == NULL || (dir != -1 && dir != 1)) {
 		return false;

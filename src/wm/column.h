@@ -51,6 +51,9 @@ bool sf_column_insert_row(struct sf_column *col, struct sf_toplevel *toplevel, i
 /* Detach from its column; destroy the column if empty. */
 void sf_column_remove_row(struct sf_toplevel *toplevel);
 
+/* Swap two rows' cells (column + row index). Same or different columns. */
+bool sf_columns_swap_rows(struct sf_toplevel *a, struct sf_toplevel *b);
+
 /* Move into neighbor column (dir -1|+1). Drops empty source. */
 bool sf_columns_consume(struct sf_toplevel *toplevel, int dir);
 

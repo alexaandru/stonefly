@@ -627,11 +627,68 @@ bool sf_arrange_focus_cycle(struct sf_server *server, bool backward) {
 	return true;
 }
 
-static struct sf_toplevel *swap_peer_at(struct sf_workspace *ws, struct sf_toplevel *grab,
-					double lx, double ly) {
-	if (ws == NULL || grab == NULL) {
-		return NULL;
+/* Cell-drag drop ops; stored on server->arrange_swap so finish matches preview. */
+enum sf_column_drop {
+	SF_COLUMN_DROP_NONE = 0,
+	SF_COLUMN_DROP_SWAP = 1,
+	SF_COLUMN_DROP_INSERT = 2,
+	SF_COLUMN_DROP_NEW_COL = 3,
+};
+
+#define SF_COLUMN_DROP_SEAM 0.15
+
+static int hint_band(int gap) {
+	int b = gap > 0 ? gap : 8;
+	if (b < 8) {
+		b = 8;
 	}
+	return b;
+}
+
+static int column_paint_width(struct sf_column *col, struct sf_toplevel *grab, size_t ncol,
+			      const struct wlr_box *usable) {
+	bool alone = ncol == 1 && col == grab->column && sf_column_row_count(col) <= 1;
+	int cw;
+	if (alone || ncol == 1 || col->full_width) {
+		cw = usable->width;
+	} else {
+		cw = (int)(usable->width * (double)col->width_frac);
+	}
+	return cw < 1 ? 1 : cw;
+}
+
+static void columns_drop_clear(struct sf_server *server) {
+	server->arrange_swap.hover = NULL;
+	server->arrange_swap.drop_kind = SF_COLUMN_DROP_NONE;
+	server->arrange_swap.drop_peer = NULL;
+	server->arrange_swap.drop_column = NULL;
+	server->arrange_swap.drop_index = 0;
+	server->arrange_swap.drop_hint = (struct wlr_box){0};
+	server->arrange_swap.drop_valid = false;
+}
+
+static bool columns_drop_at(struct sf_server *server, struct sf_toplevel *grab, double lx,
+			    double ly, enum sf_column_drop *kind_out, struct sf_toplevel **peer_out,
+			    struct sf_column **col_out, int *index_out, struct wlr_box *hint_out) {
+	struct sf_workspace *ws = grab->workspace;
+	*kind_out = SF_COLUMN_DROP_NONE;
+	*peer_out = NULL;
+	*col_out = NULL;
+	*index_out = 0;
+	*hint_out = (struct wlr_box){0};
+	if (ws == NULL || ws->output == NULL) {
+		return false;
+	}
+
+	struct wlr_box usable;
+	if (!sf_output_usable_box(ws->output, &usable) || usable.width <= 0) {
+		return false;
+	}
+	int gap = sf_cfg(server)->gap_size;
+	sf_box_inset_gap(&usable, gap);
+	int band = hint_band(gap);
+
+	/* Peer cell: middle = swap, top/bottom seams = insert. */
 	struct sf_toplevel *wins[SF_ARRANGE_MAX];
 	size_t n = sf_columns_collect(ws, wins, SF_ARRANGE_MAX);
 	if (n > SF_ARRANGE_MAX) {
@@ -639,77 +696,132 @@ static struct sf_toplevel *swap_peer_at(struct sf_workspace *ws, struct sf_tople
 	}
 	for (size_t i = 0; i < n; i++) {
 		struct sf_toplevel *t = wins[i];
-		if (t == grab || t->scene_tree == NULL) {
+		if (t == grab || t->column == NULL || t->workspace != ws) {
 			continue;
 		}
 		struct wlr_box b;
 		sf_toplevel_layout_geom(t, &b);
-		if (lx >= (double)b.x && lx < (double)(b.x + b.width) && ly >= (double)b.y &&
-		    ly < (double)(b.y + b.height)) {
-			return t;
+		if (b.width <= 0 || b.height <= 0) {
+			continue;
 		}
+		if (lx < (double)b.x || lx >= (double)(b.x + b.width) || ly < (double)b.y ||
+		    ly >= (double)(b.y + b.height)) {
+			continue;
+		}
+		double frac = (ly - (double)b.y) / (double)b.height;
+		int row = sf_column_row_of(t);
+		if (row < 0) {
+			continue;
+		}
+		if (frac < SF_COLUMN_DROP_SEAM) {
+			*kind_out = SF_COLUMN_DROP_INSERT;
+			*peer_out = t;
+			*col_out = t->column;
+			*index_out = row;
+			*hint_out = (struct wlr_box){
+				.x = b.x,
+				.y = b.y - band / 2,
+				.width = b.width,
+				.height = band,
+			};
+			return true;
+		}
+		if (frac > 1.0 - SF_COLUMN_DROP_SEAM) {
+			*kind_out = SF_COLUMN_DROP_INSERT;
+			*peer_out = t;
+			*col_out = t->column;
+			*index_out = row + 1;
+			*hint_out = (struct wlr_box){
+				.x = b.x,
+				.y = b.y + b.height - band / 2,
+				.width = b.width,
+				.height = band,
+			};
+			return true;
+		}
+		*kind_out = SF_COLUMN_DROP_SWAP;
+		*peer_out = t;
+		*col_out = t->column;
+		*index_out = row;
+		*hint_out = b;
+		return true;
 	}
-	return NULL;
-}
 
-static void columns_drag_finish(struct sf_server *server, struct sf_toplevel *grab,
-				struct sf_toplevel *hover) {
-	struct sf_workspace *ws = grab->workspace;
-	if (hover != NULL && hover->column != NULL && hover->workspace == ws) {
-		int row = sf_column_row_of(hover) + 1;
-		sf_column_insert_row(hover->column, grab, row);
-		return;
-	}
-
-	struct wlr_box usable;
-	if (!sf_output_usable_box(ws->output, &usable) || usable.width <= 0) {
-		return;
-	}
-	int gap = sf_cfg(server)->gap_size;
-	sf_box_inset_gap(&usable, gap);
-
-	/* Build strip geometry excluding the grabbed window's old paint. */
+	/* Strip gaps / edges → new column. */
 	size_t ncol = sf_columns_count(ws);
 	if (ncol == 0) {
-		sf_columns_insert_new(ws, grab, 0);
-		return;
+		*kind_out = SF_COLUMN_DROP_NEW_COL;
+		*index_out = 0;
+		*hint_out = (struct wlr_box){
+			.x = usable.x,
+			.y = usable.y,
+			.width = band,
+			.height = usable.height,
+		};
+		return true;
 	}
 
-	double lx = server->cursor->x;
 	int view = ws->columns_view_offset;
 	int x = 0;
 	int k = 0;
 	struct sf_column *col;
 	wl_list_for_each(col, &ws->columns, link) {
-		bool alone = ncol == 1 && col == grab->column && sf_column_row_count(col) <= 1;
-		int cw;
-		if (alone || ncol == 1 || col->full_width) {
-			cw = usable.width;
-		} else {
-			cw = (int)(usable.width * (double)col->width_frac);
-		}
-		if (cw < 1) {
-			cw = 1;
-		}
+		int cw = column_paint_width(col, grab, ncol, &usable);
 		int left = usable.x + x - view;
 		int right = left + cw;
 		if (lx < (double)left) {
-			sf_column_remove_row(grab);
-			sf_columns_insert_new(ws, grab, k);
-			return;
+			*kind_out = SF_COLUMN_DROP_NEW_COL;
+			*col_out = col;
+			*index_out = k;
+			*hint_out = (struct wlr_box){
+				.x = left - band / 2,
+				.y = usable.y,
+				.width = band,
+				.height = usable.height,
+			};
+			return true;
 		}
 		if (lx < (double)right) {
-			if (col == grab->column) {
-				return;
-			}
-			sf_column_insert_row(col, grab, (int)sf_column_row_count(col));
-			return;
+			/* Inside a column but not on a peer cell (e.g. own cell): no-op. */
+			return false;
 		}
 		x += cw + (k + 1 < (int)ncol ? gap : 0);
 		k++;
 	}
-	sf_column_remove_row(grab);
-	sf_columns_insert_new(ws, grab, (int)sf_columns_count(ws));
+	*kind_out = SF_COLUMN_DROP_NEW_COL;
+	*index_out = (int)ncol;
+	*hint_out = (struct wlr_box){
+		.x = usable.x + x - view - band / 2,
+		.y = usable.y,
+		.width = band,
+		.height = usable.height,
+	};
+	return true;
+}
+
+static void columns_drop_apply(struct sf_toplevel *grab, enum sf_column_drop kind,
+			       struct sf_toplevel *peer, struct sf_column *col, int index) {
+	struct sf_workspace *ws = grab->workspace;
+	switch (kind) {
+	case SF_COLUMN_DROP_SWAP:
+		if (peer != NULL) {
+			sf_columns_swap_rows(grab, peer);
+		}
+		break;
+	case SF_COLUMN_DROP_INSERT:
+		if (col != NULL) {
+			sf_column_insert_row(col, grab, index);
+		}
+		break;
+	case SF_COLUMN_DROP_NEW_COL:
+		if (ws != NULL) {
+			sf_columns_insert_new(ws, grab, index);
+		}
+		break;
+	case SF_COLUMN_DROP_NONE:
+	default:
+		break;
+	}
 }
 
 void sf_arrange_swap_begin(struct sf_server *server, struct sf_toplevel *toplevel) {
@@ -719,7 +831,7 @@ void sf_arrange_swap_begin(struct sf_server *server, struct sf_toplevel *topleve
 	}
 	sf_toplevel_clear_auto_place(toplevel);
 	server->arrange_swap.active = true;
-	server->arrange_swap.hover = NULL;
+	columns_drop_clear(server);
 	server->grab_x = server->cursor->x - (double)toplevel->scene_tree->node.x;
 	server->grab_y = server->cursor->y - (double)toplevel->scene_tree->node.y;
 	sf_toplevel_raise(toplevel);
@@ -739,13 +851,25 @@ void sf_arrange_swap_motion(struct sf_server *server) {
 	grab->resting_x = x;
 	grab->resting_y = y;
 
-	struct sf_toplevel *hover =
-		swap_peer_at(grab->workspace, grab, server->cursor->x, server->cursor->y);
-	server->arrange_swap.hover = hover;
-	if (hover != NULL) {
-		struct wlr_box box;
-		sf_toplevel_layout_geom(hover, &box);
-		sf_snap_preview_show_box(server, &box);
+	enum sf_column_drop kind = SF_COLUMN_DROP_NONE;
+	struct sf_toplevel *peer = NULL;
+	struct sf_column *col = NULL;
+	int index = 0;
+	struct wlr_box hint = {0};
+	bool ok = false;
+	if (sf_workspace_arrange(grab->workspace) == SF_ARRANGE_COLUMNS) {
+		ok = columns_drop_at(server, grab, server->cursor->x, server->cursor->y, &kind,
+				     &peer, &col, &index, &hint);
+	}
+	server->arrange_swap.hover = peer;
+	server->arrange_swap.drop_kind = (int)kind;
+	server->arrange_swap.drop_peer = peer;
+	server->arrange_swap.drop_column = col;
+	server->arrange_swap.drop_index = index;
+	server->arrange_swap.drop_hint = hint;
+	server->arrange_swap.drop_valid = ok;
+	if (ok && kind != SF_COLUMN_DROP_NONE && hint.width > 0 && hint.height > 0) {
+		sf_snap_preview_show_box(server, &hint);
 	} else {
 		sf_snap_preview_hide(server);
 	}
@@ -756,19 +880,23 @@ void sf_arrange_swap_finish(struct sf_server *server) {
 		return;
 	}
 	struct sf_toplevel *grab = server->grabbed_toplevel;
-	struct sf_toplevel *hover = server->arrange_swap.hover;
 	struct sf_workspace *ws = grab != NULL ? grab->workspace : NULL;
+	bool drop_valid = server->arrange_swap.drop_valid;
+	enum sf_column_drop kind = (enum sf_column_drop)server->arrange_swap.drop_kind;
+	struct sf_toplevel *peer = server->arrange_swap.drop_peer;
+	struct sf_column *col = server->arrange_swap.drop_column;
+	int index = server->arrange_swap.drop_index;
 	sf_snap_preview_hide(server);
 	server->arrange_swap.active = false;
-	server->arrange_swap.hover = NULL;
+	columns_drop_clear(server);
 	if (grab == NULL || ws == NULL || !grab->arrange_managed) {
 		if (ws != NULL) {
 			sf_arrange_schedule(ws);
 		}
 		return;
 	}
-	if (sf_workspace_arrange(ws) == SF_ARRANGE_COLUMNS) {
-		columns_drag_finish(server, grab, hover);
+	if (sf_workspace_arrange(ws) == SF_ARRANGE_COLUMNS && drop_valid) {
+		columns_drop_apply(grab, kind, peer, col, index);
 	}
 	sf_arrange_schedule(ws);
 }

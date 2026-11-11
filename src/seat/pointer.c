@@ -235,6 +235,12 @@ void sf_reset_cursor_mode(struct sf_server *server) {
 		sf_snap_preview_hide(server);
 		server->arrange_swap.active = false;
 		server->arrange_swap.hover = NULL;
+		server->arrange_swap.drop_kind = 0;
+		server->arrange_swap.drop_peer = NULL;
+		server->arrange_swap.drop_column = NULL;
+		server->arrange_swap.drop_index = 0;
+		server->arrange_swap.drop_hint = (struct wlr_box){0};
+		server->arrange_swap.drop_valid = false;
 	}
 	if (server->arrange_resize.active) {
 		server->arrange_resize.active = false;

@@ -48,7 +48,7 @@ the detail rows. When an item ships, check it off here and move the row to
 | Window menu | ❌ | |
 | Geometry persist across restart | ❌ | Tag protocol shipped; no persist consumer yet |
 | Workspaces polish | 🚧 | ❌ geometry persist / named window rules. Switch slide shipped (FEATURES). Layout engines separate |
-| Layout engine (tile/columns/…) | ✅ | **stacking + columns** only; first-class `sf_column` strip (umbriel-shaped) shipped — see FEATURES / LESSONS. Polish (scroll policy, drag preview, consume-from bind, tabs) still open; deck/grid declined for now |
+| Layout engine (tile/columns/…) | ✅ | **stacking + columns** only; first-class `sf_column` strip (umbriel-shaped) shipped — see FEATURES / LESSONS. Cell-drag swap/insert seams shipped. Polish (scroll policy, consume-from bind, tabs) still open; deck/grid declined for now |
 | Focus cycle policy (MRU vs stack) | 🚧 | Stacking / MRU list front |
 | Picture-in-picture float | ❌ | Related to always-on-top; dedicated PiP policy still open |
 | Dim inactive / spotlight | 🚧 | TODO NEXT #8. Global `client_opacity` / `inactive_opacity` shipped; no black dim-overlay / spotlight; consider stronger default inactive |
@@ -63,6 +63,7 @@ the detail rows. When an item ships, check it off here and move the row to
 | Feature | Status | Notes |
 |---|---|---|
 | Fade / scale appear | ❌ | TODO NEXT #9. Opacity/scale pop on map; slide already ships |
+| Umbriel-shaped `sf.opt.anim` table | ❌ | Per-op `enabled` / `duration_ms` / `style` (appear, close, minimize, scratchpad, morph, workspace) + master; chrome gate. Day-zero intent when picked up: scratchpad + workspace slide on, rest none |
 | WM-settable per-window opacity | 🚧 | Global focused/inactive knobs; no per-window / rules API yet |
 | Blur region mask | 🚧 | Non-empty blur region → full-window SceneFX (no region mask yet) |
 

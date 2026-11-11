@@ -50,6 +50,7 @@ struct wlr_pointer_constraints_v1;
 struct wlr_pointer_constraint_v1;
 
 struct sf_toplevel;
+struct sf_column;
 struct sf_output;
 struct sf_keyboard;
 struct sf_ipc;
@@ -66,7 +67,7 @@ enum sf_cursor_mode {
 	SF_CURSOR_RESIZE,
 	/* Super+Shift+RMB: grow/shrink around a fixed center (both axes). */
 	SF_CURSOR_RESIZE_CENTER,
-	/* Super+LMB on a tiled window: drag to swap tile order (not float/snap). */
+	/* Super+LMB on a tiled window: cell swap / insert / new column (not float). */
 	SF_CURSOR_ARRANGE_SWAP,
 	/* Super+RMB on a tiled window: adjust column_ratio. */
 	SF_CURSOR_ARRANGE_RESIZE,
@@ -179,10 +180,17 @@ struct sf_server {
 	/* Layout-space content center locked for SF_CURSOR_RESIZE_CENTER. */
 	double resize_center_x, resize_center_y;
 	struct sf_drag_snap drag_snap;
-	/* Tile-swap drag (SF_CURSOR_ARRANGE_SWAP). */
+	/* Tile-swap drag (SF_CURSOR_ARRANGE_SWAP). Drop kind matches preview. */
 	struct {
 		bool active;
 		struct sf_toplevel *hover;
+		/* 0 none, 1 swap, 2 insert row, 3 new column — see arrange.c. */
+		int drop_kind;
+		struct sf_toplevel *drop_peer;
+		struct sf_column *drop_column;
+		int drop_index;
+		struct wlr_box drop_hint;
+		bool drop_valid;
 	} arrange_swap;
 	/* Tile-factor resize (SF_CURSOR_ARRANGE_RESIZE). */
 	struct {
