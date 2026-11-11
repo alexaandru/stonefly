@@ -47,6 +47,8 @@ struct sf_place_ctx {
 	bool center_still_possible;
 	bool partial_identity; /* title or app_id known */
 	bool layout_fixed;
+	bool wants_float;
+	bool float_still_possible;
 };
 
 enum sf_place_fx_kind {

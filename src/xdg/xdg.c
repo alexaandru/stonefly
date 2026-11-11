@@ -312,10 +312,20 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	(void)data;
 	/* Called when the xdg_toplevel is destroyed. */
 	struct sf_toplevel *toplevel = wl_container_of(listener, toplevel, destroy);
+	struct sf_server *server = toplevel->server;
+	struct sf_workspace *ws = toplevel->workspace;
+
+	/* Unmap usually clears grabs first; destroy-without-unmap must too. */
+	if (server != NULL && server->grabbed_toplevel == toplevel) {
+		sf_reset_cursor_mode(server);
+	}
 
 	sf_foreign_toplevel_on_close(toplevel);
 	sf_ext_capture_on_close(toplevel);
 	sf_arrange_unlink(toplevel);
+	if (ws != NULL) {
+		sf_arrange_schedule(ws);
+	}
 	/* Drop snapshot overlay before the live scene tree is destroyed. */
 	sf_anim_cancel(toplevel, false);
 	sf_scratchpad_on_destroy(toplevel);

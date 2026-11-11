@@ -382,7 +382,7 @@ void sf_toplevel_layout_float(struct sf_toplevel *toplevel, bool clear_saved) {
 		return;
 	}
 	if (toplevel->arrange_managed) {
-		sf_arrange_break_out(toplevel);
+		sf_arrange_break_out(toplevel, true);
 	}
 	/* Break max/snap only (not fullscreen). clear_saved on an already-float
 	 * window drops PreMax when a rule asks for float. */
@@ -407,18 +407,30 @@ static enum sf_arrange toplevel_ws_arrange(const struct sf_toplevel *toplevel) {
 	return sf_workspace_arrange(toplevel->workspace);
 }
 
+void sf_toplevel_release_transient_max_edges(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || !toplevel->arrange_max_edges_rejoin) {
+		return;
+	}
+	if (!sf_layout_sm_is_max_edges(&toplevel->layout)) {
+		toplevel->arrange_max_edges_rejoin = false;
+		return;
+	}
+	sf_toplevel_set_max_edges(toplevel, false);
+}
+
 void sf_toplevel_set_max_edges(struct sf_toplevel *toplevel, bool want) {
 	if (toplevel == NULL || !xdg_surface_ready(toplevel)) {
 		return;
 	}
-	/* Tiling: break out + raise so the strip cannot cover it. Remember
-	 * whether this was a tile so unmax can rejoin; prior floats stay out. */
+	/* Tiling: break out + raise so the strip cannot cover it. Tile-originated
+	 * max-edges is a transient overlay (arrange_max_edges_rejoin) — not a sticky
+	 * arrange_floating — so Super+m / pink float chrome stay honest and focus
+	 * change can drop it back into its cell. Prior floats stay floating. */
 	if (want && toplevel->arrange_managed) {
-		sf_arrange_break_out(toplevel);
+		sf_arrange_break_out(toplevel, true);
 		toplevel->arrange_max_edges_rejoin = true;
-	}
-	if (want) {
-		toplevel->arrange_floating = true;
+		toplevel->arrange_floating = false;
+		sf_decor_refresh_border(toplevel);
 	}
 	if (want && sf_layout_sm_is_max_edges(&toplevel->layout)) {
 		/* Already edged (QT show): re-apply usable box + chrome. */
@@ -475,6 +487,10 @@ void sf_toplevel_set_max_gaps(struct sf_toplevel *toplevel, bool want) {
 		return;
 	}
 	enum sf_arrange kind = toplevel_ws_arrange(toplevel);
+	/* Transient max-edges stole the column; drop it back first. */
+	if (kind == SF_ARRANGE_COLUMNS && toplevel->arrange_max_edges_rejoin) {
+		sf_toplevel_release_transient_max_edges(toplevel);
+	}
 	/* Columns: widen this column to usable (still tiled). Not layout_sm. */
 	if (kind == SF_ARRANGE_COLUMNS && toplevel->column != NULL) {
 		sf_column_set_full_width(toplevel->column, want);
@@ -494,6 +510,9 @@ void sf_toplevel_toggle_max_gaps(struct sf_toplevel *toplevel) {
 		return;
 	}
 	enum sf_arrange kind = toplevel_ws_arrange(toplevel);
+	if (kind == SF_ARRANGE_COLUMNS && toplevel->arrange_max_edges_rejoin) {
+		sf_toplevel_release_transient_max_edges(toplevel);
+	}
 	if (kind == SF_ARRANGE_COLUMNS && toplevel->column != NULL) {
 		sf_column_toggle_full_width(toplevel->column);
 		sf_arrange_schedule(toplevel->workspace);
@@ -759,6 +778,8 @@ static void place_fill_ctx(const struct sf_toplevel *toplevel, struct sf_place_c
 	}
 	ctx->wants_center = sf_rules_wants_center(toplevel);
 	ctx->center_still_possible = sf_rules_center_still_possible(toplevel);
+	ctx->wants_float = sf_rules_wants_float(toplevel);
+	ctx->float_still_possible = sf_rules_float_still_possible(toplevel);
 }
 
 static void place_apply_result(struct sf_toplevel *toplevel, const struct sf_place_result *r) {
@@ -1029,15 +1050,25 @@ void sf_toplevel_place_new(struct sf_toplevel *toplevel) {
 		place_dispatch(toplevel, SF_PLACE_EV_LAYOUT_OWNED);
 		return;
 	}
-	if (place_on_parent(toplevel)) {
+	if (place_on_parent(toplevel) ||
+	    (sf_rules_wants_center(toplevel) && place_on_usable_center(toplevel))) {
 		sf_toplevel_ensure_on_screen(toplevel);
-		return;
+	} else {
+		sf_toplevel_place_cascade(toplevel);
 	}
-	if (sf_rules_wants_center(toplevel) && place_on_usable_center(toplevel)) {
-		sf_toplevel_ensure_on_screen(toplevel);
-		return;
+	/* Natural size before columns pack — rule float restores this, not usable. */
+	if (!toplevel->arrange_floating &&
+	    (toplevel->arrange_managed || toplevel->column != NULL ||
+	     (toplevel->workspace != NULL &&
+	      sf_workspace_arrange(toplevel->workspace) == SF_ARRANGE_COLUMNS))) {
+		sf_arrange_remember_float_box(toplevel);
 	}
-	sf_toplevel_place_cascade(toplevel);
+	/* Join may have been deferred while float SoftPlace was undecided. */
+	if (!toplevel->arrange_floating && toplevel->workspace != NULL &&
+	    sf_arrange_is_tiling(sf_workspace_arrange(toplevel->workspace))) {
+		sf_arrange_join_toplevel(toplevel);
+		sf_arrange_schedule(toplevel->workspace);
+	}
 }
 
 /* minimize_link is either self-linked (off stack) or in server->minimized. */
@@ -1077,6 +1108,11 @@ void sf_toplevel_apply_hidden(struct sf_toplevel *toplevel, enum sf_hide_kind ki
 		sf_focus_top(server);
 	}
 	sf_foreign_toplevel_on_state_change(toplevel);
+	/* Columns pack only visible rows — reflow so a lone visible column fills. */
+	if (!was_hidden && toplevel->workspace != NULL &&
+	    sf_arrange_is_tiling(sf_workspace_arrange(toplevel->workspace))) {
+		sf_arrange_schedule(toplevel->workspace);
+	}
 }
 
 void sf_toplevel_apply_shown(struct sf_toplevel *toplevel, bool activate) {
@@ -1221,6 +1257,10 @@ void sf_focus_toplevel(struct sf_toplevel *toplevel) {
 				}
 			}
 		}
+	}
+	/* Columns max-edges is transient: leaving focus drops it back into its cell. */
+	if (prev_toplevel != NULL && prev_toplevel != toplevel) {
+		sf_toplevel_release_transient_max_edges(prev_toplevel);
 	}
 
 	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);

@@ -15,10 +15,10 @@ bool sf_place_sm_should_hold(const struct sf_place_sm *s, const struct sf_place_
 	if (ctx->has_parent) {
 		return false;
 	}
-	if (ctx->wants_center) {
+	if (ctx->wants_center || ctx->wants_float) {
 		return false;
 	}
-	if (!ctx->center_still_possible) {
+	if (!ctx->center_still_possible && !ctx->float_still_possible) {
 		return false;
 	}
 	/* Hold only with partial identity (e.g. app_id before title). */

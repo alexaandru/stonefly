@@ -57,6 +57,8 @@ void sf_toplevel_ensure_on_screen(struct sf_toplevel *toplevel);
 
 void sf_toplevel_set_max_edges(struct sf_toplevel *toplevel, bool want);
 void sf_toplevel_toggle_max_edges(struct sf_toplevel *toplevel);
+/* Drop tile-originated max-edges back into the strip (focus change / Tab). */
+void sf_toplevel_release_transient_max_edges(struct sf_toplevel *toplevel);
 void sf_toplevel_set_max_gaps(struct sf_toplevel *toplevel, bool want);
 void sf_toplevel_toggle_max_gaps(struct sf_toplevel *toplevel);
 void sf_toplevel_snap(struct sf_toplevel *toplevel, enum sf_snap edge);

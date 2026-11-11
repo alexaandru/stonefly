@@ -106,16 +106,22 @@ static struct wlr_output *toplevel_output(struct sf_toplevel *toplevel) {
 
 static void scratch_show(struct sf_toplevel *toplevel) {
 	if (sf_anim_active(toplevel) && toplevel->anim_hide) {
-		/* Reverse an in-flight hide (peeble beginSlide mid-flight). */
+		/* Reverse an in-flight hide (peeble beginSlide mid-flight).
+		 * Do not REAPPLY edge-max here — apply_box cancels the slide. */
 		sf_anim_start_show(toplevel);
+		sf_toplevel_apply_shown(toplevel, true);
+		return;
+	}
+	/*
+	 * QT is edge-max on claim. Reassert while still hidden so apply_box
+	 * updates resting/size without cancelling the show slide that
+	 * apply_shown starts next (a post-show REAPPLY snapped on-screen).
+	 */
+	if (toplevel->minimized && sf_layout_sm_is_max_edges(&toplevel->layout)) {
+		sf_toplevel_set_max_edges(toplevel, true);
 	}
 	/* apply_shown + focus via focus_toplevel. */
 	sf_toplevel_apply_shown(toplevel, true);
-	/* QT is edge-max on claim; reassert after hide so CSD/size commits
-	 * during the slide cannot leave a float chrome pose. */
-	if (sf_layout_sm_is_max_edges(&toplevel->layout)) {
-		sf_toplevel_set_max_edges(toplevel, true);
-	}
 }
 
 static void scratch_claim(struct sf_scratch_slot *slot, struct sf_toplevel *toplevel) {

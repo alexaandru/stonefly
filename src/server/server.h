@@ -180,7 +180,7 @@ struct sf_server {
 	/* Layout-space content center locked for SF_CURSOR_RESIZE_CENTER. */
 	double resize_center_x, resize_center_y;
 	struct sf_drag_snap drag_snap;
-	/* Tile-swap drag (SF_CURSOR_ARRANGE_SWAP). Drop kind matches preview. */
+	/* Tile-swap drag (SF_CURSOR_ARRANGE_SWAP). Drop kind matches live reflow. */
 	struct {
 		bool active;
 		struct sf_toplevel *hover;
@@ -191,6 +191,18 @@ struct sf_server {
 		int drop_index;
 		struct wlr_box drop_hint;
 		bool drop_valid;
+		/* Lifted home (grab unlinked for the drag). home_column pins
+		 * identity; home_col is only the preferred insert index when
+		 * restoring as a sole/new column after the home column dies. */
+		bool home_valid;
+		bool home_was_sole;
+		struct sf_column *home_column;
+		int home_col;
+		int home_row;
+		float home_weight;
+		float home_extent;
+		float home_width_frac;
+		bool home_full_width;
 	} arrange_swap;
 	/* Tile-factor resize (SF_CURSOR_ARRANGE_RESIZE). */
 	struct {

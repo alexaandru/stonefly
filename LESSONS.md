@@ -49,12 +49,38 @@ in). Move-left/right is a different verb (reorder / new column).
 - `client_maximize = "column"|"edges"` wires the client button.
 
 Stonefly: Super+m = column-wide in columns; Super+f = edges break-out.
+Under columns, edge-max is **transient**: `arrange_max_edges_rejoin` without
+sticky `arrange_floating`. Focus change / Tab / focus_dir / Super+m releases
+it back into its cell. Marking it `arrange_floating` made Super+Tab walk only
+tiles (focus “behind” the overlay) and Super+m look like a pink float.
 
 ### Minimize is float-only (Umbriel)
 
 Tiled windows do not minimize into a hole under the strip. A hidden tile must
 not keep a ghost packing slot. Stonefly still allows tile minimize but skips
-minimized windows in packing; foreign must keep advertising them.
+minimized windows in packing; foreign must keep advertising them. Expel keys
+off **row count** (any sibling), not visible count — otherwise a sole visible
+row stuck with minimized ghosts cannot peel out. Cell-drag INSERT/NEW_COL
+indices are **painted** (visible-only) for live spacer reflow and mapped to
+structural on commit; raw `sf_column_row_of` as a reflow slot disagrees with
+minimized prefixes.
+
+### SoftPlace soft bit vs float-pending
+
+Do not `drop_soft` while a float rule is still possible. Soft false + early
+`consider_place` return skips `rules_apply` / join on late title, leaving an
+unmanaged cascade under columns. Mirror center hold: keep soft until center
+and float identity are decided; when soft is already false, still apply rules
+and join/float on identity change.
+
+### Cell-drag home and drop pointers
+
+Home must be a **column pointer** (plus preferred insert index), not a strip
+index alone — destroying an earlier column shifts indices and abort restores
+into the wrong column. Validate `drop_peer` / `drop_column` on finish (and
+clear on unlink of the last row / peer). Mid-drag `break_out` / `arrange_set`
+must abort the grab first so finish cannot re-tile an `arrange_floating`
+window.
 
 ### Scroll policy is “reveal enough,” not always center
 
@@ -101,14 +127,17 @@ membership / consume / float / drag / foreign before inventing deck/grid.
 | Consume L/R (+ expel when stacked) | Super+, / . |
 | Column max vs edges max | Super+m / Super+f |
 | Columns default | `arrange = columns` |
-| Lone column fills usable | yes; 2+ use per-column `width_frac` |
+| Lone visible column fills usable | yes (skip columns with only minimized rows); 2+ use `width_frac` |
+| Tiled slide direction | strip-axis L/R (Umbriel windows_in default is **popin**, not closest-slide) |
+| Popin / popout (deferred) | Umbriel: fade + presented box `lerp(scale→1)` centered in slot (crop/dest_size). Stonefly v1 path: morph inset→slot + buffer opacity; popout = reverse on hide/ghost. Keep QT/scratch as edge slide. ROADMAP §2 / TODO NEXT #9 |
+| Consume / rotate vs minimized | skip minimized-only neighbor columns; pull first visible row |
 | Insert after focused column | yes (first-class strip index) |
 | First-class Column objects | `sf_column` + `ws->columns` |
 | Per-row height weights | `column_row_weight` + end gap weights |
 | Consume remembers extent | `column_extent_saved` → expel restore |
 | Foreign pin to workspace output | fixed (was geom∩ → taskbar flicker) |
-| Drag into column / new column | Super+LMB: cell mid = swap; seam = insert; gap = new col |
-| Drag preview matches op | full cell / seam strip / gap strip |
+| Drag into column / new column | Super+LMB: cell mid = swap; seam **or inter-row gap** = insert; strip gap = new col |
+| Drag live make-room | insert/new-col reflow a real spacer; neighbors shrink; tint on spacer |
 | Scroll just-enough / on_overflow | still center-ish |
 | Consume-from API | `sf_columns_consume_from` (no default bind yet) |
 | Drag edge pan of off-strip columns | missing |

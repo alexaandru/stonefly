@@ -70,12 +70,13 @@ struct sf_toplevel {
 	struct sf_place_sm place;
 	/* Workspace arrange engine owns this window's box. */
 	bool arrange_managed;
-	/* Explicit float (toggle_float / float / max-edges break-out). Tiling
-	 * layouts rejoin every other eligible window so nothing sits under the
-	 * strip. */
+	/* Explicit sticky float (toggle_float / float / rule). Tiling layouts
+	 * rejoin every other eligible window so nothing sits under the strip.
+	 * Tile-originated max-edges does *not* set this — see rejoin flag. */
 	bool arrange_floating;
-	/* Set when max-edges broke a tile out; unmax rejoins. Cleared when the
-	 * window was already an explicit float before max-edges. */
+	/* Tile broke out for max-edges as a transient overlay. Unmax / focus
+	 * change / Super+Tab release rejoins the strip. Cleared when the window
+	 * was already an explicit float before max-edges. */
 	bool arrange_max_edges_rejoin;
 	/* First-class column membership (umbriel). NULL when not in the strip. */
 	struct sf_column *column;

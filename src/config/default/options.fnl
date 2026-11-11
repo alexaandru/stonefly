@@ -10,9 +10,9 @@
             :cascade_step 25
             :cascade_wrap 10
             ;; animation (slide_duration_ms also drives workspace strip switches)
-            :slide_duration_ms 200
+            :slide_duration_ms 300
             :slide_dir_closest true
-            :morph_duration_ms 200
+            :morph_duration_ms 300
             ;; chrome / SceneFX
             ;; Focused vs unfocused opacity (hypr/mango/niri: dim is opt-in).
             ;; Set inactive_opacity lower (e.g. 0.85) to dim unfocused windows.

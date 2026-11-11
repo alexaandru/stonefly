@@ -5,8 +5,9 @@
 ;;
 ;; Declarative: center, float, width, height, borderless, always_on_top,
 ;;   ssd ("never"|"auto"|"prefer_ssd"|"always").
+;;   :float true → sticky arrange_floating (out of columns; pink border).
 ;; WM: :action string | {:action :cmd} | (sf.chain …) — same names as binds
-;;   (maximize, maximize_to_edges, unmaximize, …). Prefer absolute maximize
+;;   (float, maximize, maximize_to_edges, …). Prefer absolute maximize
 ;;   on rules; toggles flip again on SoftPlace reapply.
 ;; Parent tag composes match+actions.
 ;;
@@ -14,9 +15,11 @@
 
 (let [rule sf.window_rule
       chrome (rule {:app_id "google%-chrome"} {})]
-  (rule {:title "^Google Chrome$"} {:center true :borderless true :ssd "never"}
+  (rule {:title "^Google Chrome$"}
+        {:center true :borderless true :ssd "never" :float true}
         chrome)
-  (rule {:app_id "dosbox"} {:center true :borderless true :ssd "never"})
-  (rule {:app_id "gcr%-prompter"} {:center true :borderless true})
+  (rule {:app_id "dosbox"}
+        {:center true :borderless true :ssd "never" :float true})
+  (rule {:app_id "gcr%-prompter"} {:center true :borderless true :float true})
   (rule {:app_id "com.slack.Slack"}
         {:borderless true :action :maximize_to_edges}))

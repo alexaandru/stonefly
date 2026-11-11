@@ -107,6 +107,20 @@ size_t sf_column_row_count(const struct sf_column *col) {
 	return n;
 }
 
+size_t sf_column_visible_count(const struct sf_column *col) {
+	if (col == NULL) {
+		return 0;
+	}
+	size_t n = 0;
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &col->rows, column_link) {
+		if (!t->minimized) {
+			n++;
+		}
+	}
+	return n;
+}
+
 size_t sf_columns_count(const struct sf_workspace *ws) {
 	if (ws == NULL) {
 		return 0;
@@ -115,6 +129,20 @@ size_t sf_columns_count(const struct sf_workspace *ws) {
 	struct sf_column *c;
 	wl_list_for_each(c, &ws->columns, link) {
 		n++;
+	}
+	return n;
+}
+
+size_t sf_columns_visible_count(const struct sf_workspace *ws) {
+	if (ws == NULL) {
+		return 0;
+	}
+	size_t n = 0;
+	struct sf_column *c;
+	wl_list_for_each(c, &ws->columns, link) {
+		if (sf_column_visible_count(c) > 0) {
+			n++;
+		}
 	}
 	return n;
 }
@@ -262,6 +290,17 @@ void sf_column_remove_row(struct sf_toplevel *toplevel) {
 	column_destroy_empty(col);
 }
 
+void sf_column_detach_row(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->column == NULL) {
+		return;
+	}
+	row_unlink(toplevel);
+}
+
+void sf_column_destroy_if_empty(struct sf_column *col) {
+	column_destroy_empty(col);
+}
+
 bool sf_columns_swap_rows(struct sf_toplevel *a, struct sf_toplevel *b) {
 	if (a == NULL || b == NULL || a == b || a->column == NULL || b->column == NULL) {
 		return false;
@@ -341,8 +380,15 @@ bool sf_columns_consume(struct sf_toplevel *toplevel, int dir) {
 	}
 	struct sf_column *src = toplevel->column;
 	struct sf_workspace *ws = src->ws;
+	/* Skip neighbors that only hold minimized rows (not on the painted strip). */
 	int di = sf_column_index(src) + dir;
-	struct sf_column *dst = sf_columns_at(ws, di);
+	struct sf_column *dst = NULL;
+	while ((dst = sf_columns_at(ws, di)) != NULL) {
+		if (sf_column_visible_count(dst) > 0) {
+			break;
+		}
+		di += dir;
+	}
 	if (dst == NULL) {
 		return false;
 	}
@@ -360,19 +406,29 @@ bool sf_columns_expel(struct sf_toplevel *toplevel, int dir) {
 		return false;
 	}
 	struct sf_column *src = toplevel->column;
+	/* Any sibling (including minimized) can be peeled away from; visible-only
+	 * would strand a sole visible row sharing a column with minimized ghosts. */
 	if (sf_column_row_count(src) <= 1) {
 		return false;
 	}
 	struct sf_workspace *ws = src->ws;
 	int si = sf_column_index(src);
+	int home_row = sf_column_row_of(toplevel);
 	float remembered = toplevel->column_extent_saved;
 	float weight = toplevel->column_row_weight;
-	sf_column_remove_row(toplevel);
+	/* Detach without destroying src — siblings remain; analyzer cannot prove
+	 * remove_row leaves src alive across the OOM reinsert path. */
+	sf_column_detach_row(toplevel);
 	int dest = si + (dir > 0 ? 1 : 0);
 	struct sf_column *col = sf_columns_insert_new(ws, toplevel, dest);
 	if (col == NULL) {
+		/* OOM / insert failure: never leave a detached managed row. */
+		if (!sf_column_insert_row(src, toplevel, home_row >= 0 ? home_row : 0)) {
+			toplevel->arrange_managed = false;
+		}
 		return false;
 	}
+	sf_column_destroy_if_empty(src);
 	col->width_frac = remembered > 0.0f ? remembered : default_width_frac(ws);
 	toplevel->column_row_weight = weight > 0.0f ? weight : 1.0f;
 	toplevel->column_extent_saved = 0.0f;
@@ -387,11 +443,27 @@ bool sf_columns_consume_from(struct sf_toplevel *toplevel, int dir) {
 	struct sf_workspace *ws = dst->ws;
 	int di = sf_column_index(dst);
 	int si = di + dir;
-	struct sf_column *src = sf_columns_at(ws, si);
-	if (src == NULL || wl_list_empty(&src->rows)) {
+	struct sf_column *src = NULL;
+	while ((src = sf_columns_at(ws, si)) != NULL) {
+		if (sf_column_visible_count(src) > 0) {
+			break;
+		}
+		si += dir;
+	}
+	if (src == NULL) {
 		return false;
 	}
-	struct sf_toplevel *pulled = wl_container_of(src->rows.next, pulled, column_link);
+	struct sf_toplevel *pulled = NULL;
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &src->rows, column_link) {
+		if (!t->minimized) {
+			pulled = t;
+			break;
+		}
+	}
+	if (pulled == NULL) {
+		return false;
+	}
 	float remembered = src->width_frac_saved > 0.0f ? src->width_frac_saved : src->width_frac;
 	int focus_row = sf_column_row_of(toplevel);
 	sf_column_remove_row(pulled);
@@ -469,12 +541,17 @@ size_t sf_columns_apply(struct sf_workspace *ws, const struct wlr_box *usable, i
 		gap = 0;
 	}
 
+	/* Only columns with a visible row count for the strip. A lone visible
+	 * column fills usable even if other columns only hold minimized rows. */
 	struct sf_column *cols[SF_COLUMN_MAX];
 	float fracs[SF_COLUMN_MAX];
 	bool fulls[SF_COLUMN_MAX];
 	size_t ncol = 0;
 	struct sf_column *c;
 	wl_list_for_each(c, &ws->columns, link) {
+		if (sf_column_visible_count(c) == 0) {
+			continue;
+		}
 		if (ncol >= SF_COLUMN_MAX) {
 			break;
 		}

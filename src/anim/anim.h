@@ -33,9 +33,9 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now);
 /* Request frames on every output so slides keep advancing. */
 void sf_anim_schedule(struct sf_server *server);
 
-/* Off-screen end of a closest-edge slide from a resting box (usable area
- * at box center, then cursor). Same dir rules as show/hide, including
- * short-axis preference when several edges are near the margin. */
+/* Off-screen end of a slide from a resting box (usable at box center, then
+ * cursor). Box-only path uses closest-edge; tiled show/hide use strip-axis
+ * left/right instead. */
 void sf_anim_offscreen_for_box(struct sf_server *server, int resting_x, int resting_y, int w, int h,
 			       int *ox, int *oy);
 

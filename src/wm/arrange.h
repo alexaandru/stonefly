@@ -38,11 +38,17 @@ void sf_arrange_join_workspace(struct sf_workspace *ws);
  * Skips arrange_floating windows. */
 void sf_arrange_join_toplevel(struct sf_toplevel *toplevel);
 
-/* Leave the tile set as an explicit float. Arms geom-regain hold. */
-void sf_arrange_break_out(struct sf_toplevel *toplevel);
+/* Leave the tile set as an explicit float. Arms geom-regain hold.
+ * keep_current_size: true = user float (keep slot geom); false = prefer
+ * arrange_float_box saved at join/place (rule float after lone-column pack). */
+void sf_arrange_break_out(struct sf_toplevel *toplevel, bool keep_current_size);
 
 void sf_arrange_float(struct sf_toplevel *toplevel);
+/* Rule :float — restore pre-tile size when leaving the strip. */
+void sf_arrange_float_from_rule(struct sf_toplevel *toplevel);
 void sf_arrange_unfloat(struct sf_toplevel *toplevel);
+/* Snapshot current geom as the float restore box (after SoftPlace/cascade). */
+void sf_arrange_remember_float_box(struct sf_toplevel *toplevel);
 /* Toggle tile membership: tiled→float, or float→rejoin on a tiling workspace. */
 void sf_arrange_toggle_float(struct sf_toplevel *toplevel);
 
@@ -66,12 +72,15 @@ void sf_arrange_focus_dir(struct sf_server *server, const char *dir);
  * Returns false when not tiling / fewer than 2 tiles — caller falls back to MRU. */
 bool sf_arrange_focus_cycle(struct sf_server *server, bool backward);
 
-/* Super+LMB: drag follows pointer; cell mid swaps, seams insert, gap = new column. */
+/* Super+LMB: drag follows pointer; cell mid swaps, seams/gaps insert with live
+ * make-room reflow, strip gap = new column. */
 void sf_arrange_swap_begin(struct sf_server *server, struct sf_toplevel *toplevel);
 void sf_arrange_swap_motion(struct sf_server *server);
 void sf_arrange_swap_finish(struct sf_server *server);
+/* Cancel without commit: restore lifted window to its home cell. */
+void sf_arrange_swap_abort(struct sf_server *server);
 
-/* Super+RMB tile resize: adjust column_ratio while columns. */
+/* Super+RMB tile resize: adjust that column's width_frac while columns. */
 void sf_arrange_resize_begin(struct sf_server *server, struct sf_toplevel *toplevel);
 void sf_arrange_resize_motion(struct sf_server *server);
 void sf_arrange_resize_finish(struct sf_server *server);

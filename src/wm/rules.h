@@ -16,9 +16,15 @@ void sf_rules_apply(struct sf_toplevel *toplevel);
 /* True when the best match asks to center. */
 bool sf_rules_wants_center(const struct sf_toplevel *toplevel);
 
+/* True when the best match asks to float (sticky arrange_floating). */
+bool sf_rules_wants_float(const struct sf_toplevel *toplevel);
+
 /* True when some center window_rule is not yet ruled out by known title/app_id
  * (missing fields could still make it match). SoftPlace appear-hold uses this. */
 bool sf_rules_center_still_possible(const struct sf_toplevel *toplevel);
+
+/* Same SoftPlace idea for :float — do not tile-pack until float is decided. */
+bool sf_rules_float_still_possible(const struct sf_toplevel *toplevel);
 
 /* Late title/app_id: re-engage managed place when a center rule now matches. */
 void sf_rules_consider_place(struct sf_toplevel *toplevel);

@@ -18,6 +18,8 @@ static struct sf_place_ctx ctx_hold(void) {
 		.center_still_possible = true,
 		.partial_identity = true,
 		.layout_fixed = false,
+		.wants_float = false,
+		.float_still_possible = false,
 	};
 }
 
@@ -122,6 +124,17 @@ static void test_blank_identity_does_not_hold(void) {
 	SF_TEST_TRUE(!sf_place_sm_should_hold(&s, &ctx));
 }
 
+static void test_float_still_possible_holds(void) {
+	struct sf_place_sm s = {.phase = SF_PLACE_MANAGED, .soft = true};
+	struct sf_place_ctx ctx = ctx_hold();
+	ctx.center_still_possible = false;
+	ctx.float_still_possible = true;
+	SF_TEST_TRUE(sf_place_sm_should_hold(&s, &ctx));
+
+	ctx.float_still_possible = false;
+	SF_TEST_TRUE(!sf_place_sm_should_hold(&s, &ctx));
+}
+
 static void test_may_morph(void) {
 	struct sf_place_sm s = {.phase = SF_PLACE_MANAGED, .soft = false};
 	SF_TEST_TRUE(sf_place_sm_may_morph(&s));
@@ -146,6 +159,7 @@ static const struct sf_test tests[] = {
 	{"begin_and_user_own", test_begin_and_user_own},
 	{"arm_hold_then_try_release", test_arm_hold_then_try_release},
 	{"parent_never_holds", test_parent_never_holds},
+	{"float_still_possible_holds", test_float_still_possible_holds},
 	{"layout_owned_releases_hold", test_layout_owned_releases_hold},
 	{"drop_soft_releases_when_holding", test_drop_soft_releases_when_holding},
 	{"soft_center_reasserts_managed", test_soft_center_reasserts_managed},

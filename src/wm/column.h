@@ -37,7 +37,11 @@ int sf_column_index(const struct sf_column *col);
 int sf_column_row_of(const struct sf_toplevel *toplevel);
 
 size_t sf_column_row_count(const struct sf_column *col);
+/* Non-minimized rows only (strip packing / consume targets). */
+size_t sf_column_visible_count(const struct sf_column *col);
 size_t sf_columns_count(const struct sf_workspace *ws);
+/* Columns that still have a visible row. */
+size_t sf_columns_visible_count(const struct sf_workspace *ws);
 
 struct sf_column *sf_columns_at(struct sf_workspace *ws, int index);
 
@@ -51,13 +55,20 @@ bool sf_column_insert_row(struct sf_column *col, struct sf_toplevel *toplevel, i
 /* Detach from its column; destroy the column if empty. */
 void sf_column_remove_row(struct sf_toplevel *toplevel);
 
+/* Unlink from its column but leave an empty column alive (drag / mid-swap). */
+void sf_column_detach_row(struct sf_toplevel *toplevel);
+
+/* Free col when it has no rows. */
+void sf_column_destroy_if_empty(struct sf_column *col);
+
 /* Swap two rows' cells (column + row index). Same or different columns. */
 bool sf_columns_swap_rows(struct sf_toplevel *a, struct sf_toplevel *b);
 
 /* Move into neighbor column (dir -1|+1). Drops empty source. */
 bool sf_columns_consume(struct sf_toplevel *toplevel, int dir);
 
-/* Peel a multi-row window into a new column beside (dir -1|+1). */
+/* Peel a multi-row window into a new column beside (dir -1|+1).
+ * Any sibling counts (minimized included); OOM reinserts into src. */
 bool sf_columns_expel(struct sf_toplevel *toplevel, int dir);
 
 /* Pull neighbor column's first row into toplevel's column (dir -1|+1). */

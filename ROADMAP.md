@@ -24,7 +24,7 @@ the detail rows. When an item ships, check it off here and move the row to
 | 6 | Real `inputs.fnl` API | ✅ | Shipped (`sf.input` + libinput apply; tap/natural/accel + left_handed/dwt/repeat) |
 | 7 | Live config reload (binds + opts first) | ❌ | Tweak chords without logout; mango/Hypr baseline |
 | 8 | Dim-inactive / spotlight polish | 🚧 | Opacity knobs exist; stronger dim or overlay so focus reads at a glance |
-| 9 | Fade / scale appear | ❌ | Slide ships; short opacity/scale pop is the Hypr/mango open cue |
+| 9 | Popin / popout appear+close | ❌ | Umbriel-style scale+fade; see §2. Slide ships (tiled = strip-axis L/R; scratch closest) |
 | 10 | IME **or** Xwayland (pick by apps) | ❌ | fcitx/CJK/OSK → IME; Steam/legacy → Xwayland — real projects, not afternoon bites |
 
 ---
@@ -62,8 +62,8 @@ the detail rows. When an item ships, check it off here and move the row to
 
 | Feature | Status | Notes |
 |---|---|---|
-| Fade / scale appear | ❌ | TODO NEXT #9. Opacity/scale pop on map; slide already ships |
-| Umbriel-shaped `sf.opt.anim` table | ❌ | Per-op `enabled` / `duration_ms` / `style` (appear, close, minimize, scratchpad, morph, workspace) + master; chrome gate. Day-zero intent when picked up: scratchpad + workspace slide on, rest none |
+| Popin / popout (scale + fade) | ❌ | TODO NEXT #9. Umbriel `windows_in`/`windows_out` popin: lerp presented box from `scale`→1 centered in slot + opacity 0→1 (reverse on close/ghost). v1 can reuse morph + buffer opacity; full crop/dest_size polish later. Intent: tiled windows popin/popout; scratchpad keeps edge slide |
+| Umbriel-shaped `sf.opt.anim` table | ❌ | Per-op `enabled` / `duration_ms` / `style` (appear, close, minimize, scratchpad, morph, workspace) + master; chrome gate. Day-zero intent when picked up: scratchpad + workspace slide on; tiled appear/close → popin once shipped |
 | WM-settable per-window opacity | 🚧 | Global focused/inactive knobs; no per-window / rules API yet |
 | Blur region mask | 🚧 | Non-empty blur region → full-window SceneFX (no region mask yet) |
 

@@ -6,11 +6,20 @@
 #include "config/config.h"
 #include "layer/layer.h"
 #include "server/server.h"
+#include "toplevel/toplevel.h"
 #include "wm/arrange.h"
 #include "wm/drag_snap.h"
 #include "wm/snap_preview.h"
 #include "wm/wm.h"
-#include "toplevel/toplevel.h"
+#include "wm/workspace.h"
+
+/* Half-edge magnetic snap is stacking-only. Columns floats stay free. */
+static bool drag_snap_allowed(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->workspace == NULL) {
+		return true;
+	}
+	return sf_workspace_arrange(toplevel->workspace) != SF_ARRANGE_COLUMNS;
+}
 
 static int iabs(int v) {
 	return v < 0 ? -v : v;
@@ -190,8 +199,8 @@ void sf_drag_snap_motion(struct sf_server *server) {
 	const int border = cfg->border_thickness;
 	const int gap = cfg->gap_size;
 
-	if (threshold > 0 && pointer_usable(server, &usable) && drag->width > 0 &&
-	    drag->height > 0) {
+	if (drag_snap_allowed(toplevel) && threshold > 0 && pointer_usable(server, &usable) &&
+	    drag->width > 0 && drag->height > 0) {
 		x = resist_axis(dx, x, drag->width, usable.x, usable.width, border, gap, threshold,
 				&drag->lo_x, &drag->hi_x, &drag->lo_x_delta, &drag->hi_x_delta);
 		y = resist_axis(dy, y, drag->height, usable.y, usable.height, border, gap,
@@ -204,6 +213,14 @@ void sf_drag_snap_motion(struct sf_server *server) {
 	wlr_scene_node_set_position(&toplevel->scene_tree->node, x, y);
 	toplevel->resting_x = x;
 	toplevel->resting_y = y;
+
+	if (!drag_snap_allowed(toplevel)) {
+		if (drag->stuck != SF_SNAP_NONE) {
+			drag->stuck = SF_SNAP_NONE;
+			sf_snap_preview_hide(server);
+		}
+		return;
+	}
 
 	enum sf_snap edge = stuck_edge(drag);
 	if (edge != drag->stuck) {
@@ -273,7 +290,8 @@ void sf_drag_snap_finish(struct sf_server *server) {
 
 	struct wlr_box usable;
 	enum sf_snap edge = SF_SNAP_NONE;
-	if (pointer_usable(server, &usable) && snap_candidate(toplevel, &usable, &edge)) {
+	if (drag_snap_allowed(toplevel) && pointer_usable(server, &usable) &&
+	    snap_candidate(toplevel, &usable, &edge)) {
 		if (drag->has_drag_origin && !toplevel->layout.has_saved) {
 			sf_toplevel_capture_geom(toplevel, &drag->drag_origin);
 		}

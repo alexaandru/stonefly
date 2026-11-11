@@ -11,9 +11,11 @@
 #include "ssd/ssd.h"
 #include "ssd/ssd_policy.h"
 #include "server/server.h"
+#include "toplevel/toplevel.h"
+#include "wm/arrange.h"
 #include "wm/rules.h"
 #include "wm/wm.h"
-#include "toplevel/toplevel.h"
+#include "wm/workspace.h"
 
 static bool rule_matches(const struct sf_config *cfg, const struct sf_window_rule *r,
 			 const char *title, const char *app_id) {
@@ -72,7 +74,13 @@ bool sf_rules_wants_center(const struct sf_toplevel *toplevel) {
 	return r != NULL && r->center_set && r->center;
 }
 
-bool sf_rules_center_still_possible(const struct sf_toplevel *toplevel) {
+bool sf_rules_wants_float(const struct sf_toplevel *toplevel) {
+	const struct sf_window_rule *r = sf_rules_match(toplevel);
+	return r != NULL && r->float_set && r->float_win;
+}
+
+static bool rule_field_still_possible(const struct sf_toplevel *toplevel, bool want_center,
+				      bool want_float) {
 	if (toplevel == NULL || toplevel->xdg_toplevel == NULL) {
 		return false;
 	}
@@ -87,7 +95,13 @@ bool sf_rules_center_still_possible(const struct sf_toplevel *toplevel) {
 
 	for (size_t i = 0; i < cfg->n_window_rules; i++) {
 		const struct sf_window_rule *r = &cfg->window_rules[i];
-		if (!r->center_set || !r->center) {
+		if (want_center && (!r->center_set || !r->center)) {
+			continue;
+		}
+		if (want_float && (!r->float_set || !r->float_win)) {
+			continue;
+		}
+		if (!want_center && !want_float) {
 			continue;
 		}
 		bool has_title = r->title != NULL && r->title[0] != '\0';
@@ -105,6 +119,14 @@ bool sf_rules_center_still_possible(const struct sf_toplevel *toplevel) {
 		}
 	}
 	return false;
+}
+
+bool sf_rules_center_still_possible(const struct sf_toplevel *toplevel) {
+	return rule_field_still_possible(toplevel, true, false);
+}
+
+bool sf_rules_float_still_possible(const struct sf_toplevel *toplevel) {
+	return rule_field_still_possible(toplevel, false, true);
 }
 
 void sf_rules_apply(struct sf_toplevel *toplevel) {
@@ -135,7 +157,8 @@ void sf_rules_apply(struct sf_toplevel *toplevel) {
 			ssd_mode = r->ssd_mode;
 		}
 		if (r->float_set && r->float_win) {
-			sf_toplevel_float_for_resize(toplevel);
+			/* Sticky tile opt-out; restore pre-tile size if we were packed. */
+			sf_arrange_float_from_rule(toplevel);
 		}
 		if ((r->width_set || r->height_set) && toplevel->xdg_toplevel->base->initialized) {
 			int w = r->width_set ? r->width : 0;
@@ -187,6 +210,21 @@ void sf_rules_apply(struct sf_toplevel *toplevel) {
 	}
 }
 
+static void consider_join_after_soft(struct sf_toplevel *toplevel) {
+	if (toplevel->arrange_floating || toplevel->workspace == NULL) {
+		return;
+	}
+	if (!sf_arrange_is_tiling(sf_workspace_arrange(toplevel->workspace))) {
+		return;
+	}
+	if (sf_rules_float_still_possible(toplevel) || sf_rules_wants_float(toplevel)) {
+		return;
+	}
+	sf_arrange_remember_float_box(toplevel);
+	sf_arrange_join_toplevel(toplevel);
+	sf_arrange_schedule(toplevel->workspace);
+}
+
 void sf_rules_consider_place(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->scene_tree == NULL) {
 		return;
@@ -198,7 +236,15 @@ void sf_rules_consider_place(struct sf_toplevel *toplevel) {
 	if (toplevel->minimized || toplevel->anim_hide) {
 		return;
 	}
+	/* Soft already dropped: still re-apply rules on late identity (title/app_id)
+	 * so a float match or deferred tile join is not skipped forever. */
 	if (!sf_place_sm_is_soft(&toplevel->place)) {
+		sf_rules_apply(toplevel);
+		if (sf_layout_sm_is_fixed(&toplevel->layout)) {
+			sf_toplevel_clear_auto_place(toplevel);
+			return;
+		}
+		consider_join_after_soft(toplevel);
 		sf_toplevel_try_appear(toplevel);
 		return;
 	}
@@ -211,8 +257,15 @@ void sf_rules_consider_place(struct sf_toplevel *toplevel) {
 		return;
 	}
 
+	/* Float decided (or ruled out): join strays that were waiting on SoftPlace. */
+	consider_join_after_soft(toplevel);
+
 	if (!sf_rules_wants_center(toplevel)) {
-		if (!sf_rules_center_still_possible(toplevel)) {
+		/* Keep soft while center *or* float identity is still pending — dropping
+		 * soft early makes the !soft path the only chance to join/float, and a
+		 * late title float rule would never run if we also skipped rules_apply. */
+		if (!sf_rules_center_still_possible(toplevel) &&
+		    !sf_rules_float_still_possible(toplevel)) {
 			sf_toplevel_place_drop_soft(toplevel);
 		}
 		sf_toplevel_try_appear(toplevel);
