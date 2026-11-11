@@ -168,23 +168,16 @@ static bool toplevel_intersects_output(struct sf_toplevel *toplevel, struct wlr_
 		return false;
 	}
 	/*
-	 * Fullscreen is reparented onto layers.fullscreen; mid-configure the
-	 * client buffer can be 0×0 or still the pre-fs size. Taskbars that key
-	 * off output_enter would then drop the window. Pin to the workspace
-	 * (or center) head while fullscreen so the handle stays advertised.
+	 * Pin foreign output_enter to the window's workspace head (umbriel).
+	 * Columns scroll off-screen boxes out of the output; geom∩output then
+	 * sends leave and Noctalia drops taskbar icons. Fullscreen mid-
+	 * configure can also be 0×0 / stale. Membership is workspace, not
+	 * current paint rect.
 	 */
-	if (sf_layout_sm_is_fullscreen(&toplevel->layout)) {
-		if (toplevel->workspace != NULL && toplevel->workspace->output != NULL) {
-			return toplevel->workspace->output->wlr_output == output;
-		}
-		struct wlr_box fs;
-		sf_toplevel_layout_geom(toplevel, &fs);
-		double cx = fs.x + fs.width / 2.0;
-		double cy = fs.y + fs.height / 2.0;
-		struct wlr_output *at =
-			wlr_output_layout_output_at(toplevel->server->output_layout, cx, cy);
-		return at == output;
+	if (toplevel->workspace != NULL && toplevel->workspace->output != NULL) {
+		return toplevel->workspace->output->wlr_output == output;
 	}
+	/* Scratchpads / no workspace: fall back to layout geometry. */
 	struct wlr_box geom, out_box, inter;
 	sf_toplevel_layout_geom(toplevel, &geom);
 	if (geom.width <= 0 || geom.height <= 0) {

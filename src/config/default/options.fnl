@@ -1,14 +1,8 @@
 ;; Day-zero knobs — one table, applied through sf.opt's __newindex.
 (local opt {;; arrange — global default; resolve is workspace → output → global.
-            ;; stacking | columns (umbriel scroll strip) | master (tile) | dwindle | monocle
+            ;; stacking | columns (umbriel scroll strip). Old master/dwindle/monocle → columns.
             :arrange "columns"
-            ;; master engine: left|right|top|bottom|center (merges mango tile variants)
-            :master_pos "left"
-            :master_factor 0.55
-            :master_count 1
-            ;; dwindle first/rest split (Super+RMB while dwindle)
-            :dwindle_factor 0.5
-            ;; columns: fraction of usable width per column
+            ;; columns: fraction of usable width when 2+ columns (lone column fills usable)
             :column_ratio 0.5
             :scale 1.5
             :cursor_size 24

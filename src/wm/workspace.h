@@ -20,11 +20,10 @@ struct sf_workspace {
 	int index;		 /* 0-based in strip */
 	char name[16];		 /* "1", "2", … */
 	enum sf_arrange arrange; /* UNSET = inherit */
-	/* Niri columns: horizontal scroll of the strip (layout px). */
+	/* Umbriel scrolling: ordered strip of first-class columns. */
+	struct wl_list columns;
+	/* Horizontal scroll of the strip (layout px). */
 	int columns_view_offset;
-	/* Stable packing order for tiling (sf_toplevel.arrange_link). Focus/MRU
-	 * must not reshuffle this — that would turn focus into a swap. */
-	struct wl_list arrange_tiles;
 	struct wlr_scene_tree *tree;
 	struct wlr_ext_workspace_handle_v1 *ext;
 	char ext_id[64];

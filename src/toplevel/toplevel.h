@@ -23,14 +23,15 @@ struct wlr_xdg_toplevel;
 struct wlr_xdg_toplevel_decoration_v1;
 struct wlr_xdg_toplevel_icon_v1;
 struct sf_workspace;
+struct sf_column;
 struct sf_ssd;
 
 struct sf_toplevel {
 	enum sf_node_kind kind; /* SF_NODE_TOPLEVEL */
 	struct wl_list link;
 	struct wl_list minimize_link;
-	/* Stable tile-set order on workspace->arrange_tiles (not MRU). */
-	struct wl_list arrange_link;
+	/* Row link inside sf_column.rows (columns arrange). */
+	struct wl_list column_link;
 	struct sf_server *server;
 	struct wlr_xdg_toplevel *xdg_toplevel;
 	/* Wrapper: blur + shadow + border + xdg_scene_tree. */
@@ -76,11 +77,12 @@ struct sf_toplevel {
 	/* Set when max-edges broke a tile out; unmax rejoins. Cleared when the
 	 * window was already an explicit float before max-edges. */
 	bool arrange_max_edges_rejoin;
-	/* Columns: column index while managed (-1 when not). Multi-window
-	 * columns share an index (consume stacks into a neighbor). */
-	int arrange_column;
-	/* Columns only: this column is full-usable wide (Super+m); stays tiled. */
-	bool arrange_column_max;
+	/* First-class column membership (umbriel). NULL when not in the strip. */
+	struct sf_column *column;
+	/* Cross-axis weight inside the column (default 1). */
+	float column_row_weight;
+	/* Primary extent remembered across consume; restored on expel. */
+	float column_extent_saved;
 	/* After break-out: suppress GEOM regain until box leaves hold. */
 	bool geom_regain_hold;
 	struct wlr_box geom_regain_box;

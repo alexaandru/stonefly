@@ -68,7 +68,7 @@ enum sf_cursor_mode {
 	SF_CURSOR_RESIZE_CENTER,
 	/* Super+LMB on a tiled window: drag to swap tile order (not float/snap). */
 	SF_CURSOR_ARRANGE_SWAP,
-	/* Super+RMB on a tiled window: adjust master/column/dwindle factor. */
+	/* Super+RMB on a tiled window: adjust column_ratio. */
 	SF_CURSOR_ARRANGE_RESIZE,
 };
 

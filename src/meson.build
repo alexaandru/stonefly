@@ -38,6 +38,7 @@ sf_src = files(
   'wm/geom.c',
   'wm/arrange_math.c',
   'wm/arrange.c',
+  'wm/column.c',
   'wm/layout_sm.c',
   'wm/place_sm.c',
   'wm/workspace.c',

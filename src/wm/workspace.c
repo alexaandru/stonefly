@@ -23,6 +23,7 @@
 #include "util/math.h"
 #include "util/time.h"
 #include "wm/arrange.h"
+#include "wm/column.h"
 #include "wm/layout_sm.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
@@ -204,7 +205,7 @@ static struct sf_workspace *workspace_create(struct sf_output *output) {
 	}
 	ws->output = output;
 	ws->arrange = SF_ARRANGE_UNSET;
-	wl_list_init(&ws->arrange_tiles);
+	wl_list_init(&ws->columns);
 	ws->tree = wlr_scene_tree_create(server->layers.toplevel);
 	if (ws->tree == NULL) {
 		free(ws);
@@ -277,6 +278,7 @@ static void workspace_destroy(struct sf_workspace *ws) {
 		ws->arrange_idle = NULL;
 	}
 	workspace_clear_members(ws);
+	sf_columns_clear(ws);
 	if (ws->ext != NULL) {
 		wlr_ext_workspace_handle_v1_destroy(ws->ext);
 		ws->ext = NULL;
@@ -367,7 +369,7 @@ void sf_workspace_assign(struct sf_toplevel *toplevel, struct sf_workspace *ws) 
 		sf_arrange_schedule(ws);
 	} else if (old_ws != ws && !toplevel->arrange_floating) {
 		toplevel->arrange_managed = false;
-		toplevel->arrange_column = -1;
+		sf_column_remove_row(toplevel);
 	}
 	if (old_ws != NULL && old_ws != ws) {
 		sf_arrange_schedule(old_ws);

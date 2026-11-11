@@ -21,6 +21,7 @@
 #include "ssd/ssd.h"
 #include "toplevel/foreign.h"
 #include "wm/arrange.h"
+#include "wm/column.h"
 #include "wm/geom.h"
 #include "wm/internal.h"
 #include "wm/layout_sm.h"
@@ -474,27 +475,17 @@ void sf_toplevel_set_max_gaps(struct sf_toplevel *toplevel, bool want) {
 		return;
 	}
 	enum sf_arrange kind = toplevel_ws_arrange(toplevel);
-	/* Monocle already fills usable — gap-max is a no-op. */
-	if (want && kind == SF_ARRANGE_MONOCLE) {
-		return;
-	}
 	/* Columns: widen this column to usable (still tiled). Not layout_sm. */
-	if (kind == SF_ARRANGE_COLUMNS && toplevel->arrange_managed) {
-		toplevel->arrange_column_max = want;
+	if (kind == SF_ARRANGE_COLUMNS && toplevel->column != NULL) {
+		sf_column_set_full_width(toplevel->column, want);
 		sf_arrange_schedule(toplevel->workspace);
 		return;
 	}
-	/*
-	 * Master/dwindle: temporary layout overlay above the pack; focus leave
-	 * demotes. Stacking: normal gap-max.
-	 */
+	/* Stacking (and floats): normal gap-max overlay. */
 	struct sf_layout_ev ev = {.kind = SF_LAYOUT_EV_SET_MAX_GAPS, .want = want};
 	layout_dispatch(toplevel, &ev, NULL);
 	if (want) {
 		sf_toplevel_raise(toplevel);
-	}
-	if (toplevel->workspace != NULL && sf_arrange_is_tiling(kind)) {
-		sf_arrange_schedule(toplevel->workspace);
 	}
 }
 
@@ -503,11 +494,9 @@ void sf_toplevel_toggle_max_gaps(struct sf_toplevel *toplevel) {
 		return;
 	}
 	enum sf_arrange kind = toplevel_ws_arrange(toplevel);
-	if (kind == SF_ARRANGE_COLUMNS && toplevel->arrange_managed) {
-		sf_toplevel_set_max_gaps(toplevel, !toplevel->arrange_column_max);
-		return;
-	}
-	if (kind == SF_ARRANGE_MONOCLE) {
+	if (kind == SF_ARRANGE_COLUMNS && toplevel->column != NULL) {
+		sf_column_toggle_full_width(toplevel->column);
+		sf_arrange_schedule(toplevel->workspace);
 		return;
 	}
 	if (sf_layout_sm_is_max_gaps(&toplevel->layout)) {
@@ -1233,15 +1222,7 @@ void sf_focus_toplevel(struct sf_toplevel *toplevel) {
 			}
 		}
 	}
-	/* Master/dwindle gap-max overlay only: leaving focus tiles it back.
-	 * Columns column-max stays widened across Tab. */
-	if (prev_toplevel != NULL && prev_toplevel != toplevel && prev_toplevel->arrange_managed &&
-	    sf_layout_sm_is_max_gaps(&prev_toplevel->layout)) {
-		enum sf_arrange pk = toplevel_ws_arrange(prev_toplevel);
-		if (pk == SF_ARRANGE_MASTER || pk == SF_ARRANGE_DWINDLE) {
-			sf_toplevel_set_max_gaps(prev_toplevel, false);
-		}
-	}
+
 	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
 	/* MRU list first so pinned restack sees this window as front. */
 	wl_list_remove(&toplevel->link);
@@ -1265,7 +1246,7 @@ void sf_focus_toplevel(struct sf_toplevel *toplevel) {
 	sf_foreign_toplevel_on_state_change(toplevel);
 	/* After the new window owns focus so auto_hide cannot focus_top-steal. */
 	sf_scratchpad_on_focus_change(toplevel);
-	/* Columns scroll / monocle focus need a re-pack. */
+	/* Columns scroll on focus needs a re-pack. */
 	if (toplevel->workspace != NULL) {
 		sf_arrange_schedule(toplevel->workspace);
 	}

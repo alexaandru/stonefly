@@ -1,4 +1,4 @@
-/* Workspace arrange engines: stacking / columns / master / dwindle / monocle.
+/* Workspace arrange engines: stacking / columns.
  * Distinct from per-window layout_sm (float/max/snap/fullscreen). */
 #ifndef SF_WM_ARRANGE_H
 #define SF_WM_ARRANGE_H
@@ -20,14 +20,15 @@ void sf_workspace_apply_arrange(struct sf_workspace *ws);
 void sf_arrange_schedule(struct sf_workspace *ws);
 
 /* Cycle active workspace arrange. delta +1 = next, -1 = prev.
- * Order: stacking → columns → master → dwindle → monocle → … */
+ * Order: stacking ↔ columns. */
 void sf_arrange_cycle(struct sf_server *server, int delta);
 
 /* Rotate tile-set order on the active workspace. delta +1 = clockwise
  * (last→first); -1 = counter-clockwise (first→last). Focus stays put. */
 void sf_arrange_rotate(struct sf_server *server, int delta);
 
-/* Set active workspace arrange by name (stacking/columns/master|tile/…). */
+/* Set active workspace arrange by name (stacking|columns; old master/dwindle/
+ * monocle names alias to columns). */
 void sf_arrange_set(struct sf_server *server, const char *name);
 
 /* Join eligible windows into the tile set when entering a tiling arrange. */
@@ -58,19 +59,19 @@ bool sf_arrange_toplevel_managed(const struct sf_toplevel *toplevel);
 /* Keybind filter: UNSET=any, TILING=any tiling, else exact name match. */
 bool sf_arrange_bind_matches(enum sf_arrange filter, enum sf_arrange current);
 
-/* Focus nearest managed peer in direction (monocle: cycle). cmd=left|right|up|down. */
+/* Focus nearest managed peer in direction. cmd=left|right|up|down. */
 void sf_arrange_focus_dir(struct sf_server *server, const char *dir);
 
-/* Tab cycle along arrange_tiles (cw = next in order, same ring as arrange_rotate).
+/* Tab cycle along columns→rows (cw = next; same ring as arrange_rotate on columns).
  * Returns false when not tiling / fewer than 2 tiles — caller falls back to MRU. */
 bool sf_arrange_focus_cycle(struct sf_server *server, bool backward);
 
-/* Super+LMB tile swap: drag follows pointer; drop on a peer swaps order. */
+/* Super+LMB: drag follows pointer; drop on peer joins column, gap makes new column. */
 void sf_arrange_swap_begin(struct sf_server *server, struct sf_toplevel *toplevel);
 void sf_arrange_swap_motion(struct sf_server *server);
 void sf_arrange_swap_finish(struct sf_server *server);
 
-/* Super+RMB tile resize: adjust master_factor / column_ratio / dwindle_factor. */
+/* Super+RMB tile resize: adjust column_ratio while columns. */
 void sf_arrange_resize_begin(struct sf_server *server, struct sf_toplevel *toplevel);
 void sf_arrange_resize_motion(struct sf_server *server);
 void sf_arrange_resize_finish(struct sf_server *server);

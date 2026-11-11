@@ -86,11 +86,11 @@ enum sf_action {
 	SF_ACTION_SET_FULLSCREEN,
 	SF_ACTION_UNSET_FULLSCREEN,
 	SF_ACTION_TOGGLE_FULLSCREEN,
-	/* cmd = next|prev (default next). Cycles stacking/columns/master/dwindle/monocle. */
+	/* cmd = next|prev (default next). Cycles stacking ↔ columns. */
 	SF_ACTION_ARRANGE_CYCLE,
-	/* cmd = stacking|columns|master|tile|dwindle|monocle. */
+	/* cmd = stacking|columns (master/tile/dwindle/monocle alias to columns). */
 	SF_ACTION_ARRANGE_SET,
-	/* cmd = left|right|up|down — focus nearest tiled peer (or cycle in monocle). */
+	/* cmd = left|right|up|down — focus nearest tiled peer. */
 	SF_ACTION_FOCUS_DIR,
 	/* Tiling: leave/rejoin the tile set. Stacking: no-op unless edged→float. */
 	SF_ACTION_TOGGLE_FLOAT,

@@ -8,10 +8,11 @@ static void test_arrange_parse(void) {
 	SF_TEST_EQ_INT((int)sf_arrange_parse("stacking"), (int)SF_ARRANGE_STACKING);
 	SF_TEST_EQ_INT((int)sf_arrange_parse("columns"), (int)SF_ARRANGE_COLUMNS);
 	SF_TEST_EQ_INT((int)sf_arrange_parse("scroller"), (int)SF_ARRANGE_COLUMNS);
-	SF_TEST_EQ_INT((int)sf_arrange_parse("tile"), (int)SF_ARRANGE_MASTER);
-	SF_TEST_EQ_INT((int)sf_arrange_parse("master"), (int)SF_ARRANGE_MASTER);
-	SF_TEST_EQ_INT((int)sf_arrange_parse("dwindle"), (int)SF_ARRANGE_DWINDLE);
-	SF_TEST_EQ_INT((int)sf_arrange_parse("monocle"), (int)SF_ARRANGE_MONOCLE);
+	/* Removed engines alias to columns. */
+	SF_TEST_EQ_INT((int)sf_arrange_parse("tile"), (int)SF_ARRANGE_COLUMNS);
+	SF_TEST_EQ_INT((int)sf_arrange_parse("master"), (int)SF_ARRANGE_COLUMNS);
+	SF_TEST_EQ_INT((int)sf_arrange_parse("dwindle"), (int)SF_ARRANGE_COLUMNS);
+	SF_TEST_EQ_INT((int)sf_arrange_parse("monocle"), (int)SF_ARRANGE_COLUMNS);
 	SF_TEST_EQ_INT((int)sf_arrange_parse("unset"), (int)SF_ARRANGE_UNSET);
 	SF_TEST_EQ_INT((int)sf_arrange_parse("inherit"), (int)SF_ARRANGE_UNSET);
 	SF_TEST_EQ_INT((int)sf_arrange_parse("tiling"), (int)SF_ARRANGE_TILING);
@@ -23,9 +24,6 @@ static void test_arrange_name(void) {
 	SF_TEST_STREQ(sf_arrange_name(SF_ARRANGE_TILING), "tiling");
 	SF_TEST_STREQ(sf_arrange_name(SF_ARRANGE_STACKING), "stacking");
 	SF_TEST_STREQ(sf_arrange_name(SF_ARRANGE_COLUMNS), "columns");
-	SF_TEST_STREQ(sf_arrange_name(SF_ARRANGE_MASTER), "master");
-	SF_TEST_STREQ(sf_arrange_name(SF_ARRANGE_DWINDLE), "dwindle");
-	SF_TEST_STREQ(sf_arrange_name(SF_ARRANGE_MONOCLE), "monocle");
 	SF_TEST_STREQ(sf_arrange_name((enum sf_arrange)99), "stacking");
 }
 
@@ -33,9 +31,6 @@ static void test_arrange_is_tiling(void) {
 	SF_TEST_TRUE(!sf_arrange_is_tiling(SF_ARRANGE_STACKING));
 	SF_TEST_TRUE(!sf_arrange_is_tiling(SF_ARRANGE_TILING));
 	SF_TEST_TRUE(sf_arrange_is_tiling(SF_ARRANGE_COLUMNS));
-	SF_TEST_TRUE(sf_arrange_is_tiling(SF_ARRANGE_MASTER));
-	SF_TEST_TRUE(sf_arrange_is_tiling(SF_ARRANGE_DWINDLE));
-	SF_TEST_TRUE(sf_arrange_is_tiling(SF_ARRANGE_MONOCLE));
 }
 
 static const struct sf_test tests[] = {

@@ -5,16 +5,14 @@
 #include <stddef.h>
 #include <wlr/util/box.h>
 
-/* Workspace packing engines (distinct from per-window layout_sm). */
+/* Workspace packing engines (distinct from per-window layout_sm).
+ * Product set is stacking + columns only (umbriel polish over breadth). */
 enum sf_arrange {
 	/* Bind filter only: match any tiling engine (not a real workspace mode). */
 	SF_ARRANGE_TILING = -2,
 	SF_ARRANGE_UNSET = -1,
 	SF_ARRANGE_STACKING = 0,
-	SF_ARRANGE_COLUMNS = 1, /* niri-style scrollable strip */
-	SF_ARRANGE_MASTER = 2,	/* tile alias; master_pos configures side */
-	SF_ARRANGE_DWINDLE = 3,
-	SF_ARRANGE_MONOCLE = 4,
+	SF_ARRANGE_COLUMNS = 1, /* umbriel-style scrollable strip */
 };
 
 enum sf_master_pos {
@@ -45,6 +43,18 @@ bool sf_arrange_math_master(const struct wlr_box *usable, size_t n, enum sf_mast
 
 bool sf_arrange_math_columns(const struct wlr_box *usable, size_t n, double col_ratio, int gap,
 			     int view_offset, struct wlr_box *out);
+
+/* First-class column strip (umbriel): per-column width_frac, optional full_width.
+ * Lone column fills usable. Writes out_left/out_width[0..ncol) and centers
+ * view_offset on focus_col. gap >= 0. */
+bool sf_arrange_math_column_strip(const struct wlr_box *usable, size_t ncol,
+				  const float *width_frac, const bool *full_width, int gap,
+				  size_t focus_col, int *out_left, int *out_width,
+				  int *out_view_offset);
+
+/* Weighted rows inside one column box. weights > 0; last row takes remainder. */
+bool sf_arrange_math_column_rows(const struct wlr_box *col_box, size_t nrows, const float *weights,
+				 int gap, struct wlr_box *out);
 
 /* Binary dwindle: alternate vertical/horizontal splits starting with vertical
  * (left/right). factor is first/rest split (clamped). Window 0 gets first

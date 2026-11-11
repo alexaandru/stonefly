@@ -379,7 +379,7 @@ void sf_begin_interactive(struct sf_toplevel *toplevel, enum sf_cursor_mode mode
 		if (toplevel->workspace != NULL) {
 			kind = sf_workspace_arrange(toplevel->workspace);
 		}
-		if (kind != SF_ARRANGE_MONOCLE && sf_arrange_is_tiling(kind)) {
+		if (sf_arrange_is_tiling(kind)) {
 			server->grabbed_toplevel = toplevel;
 			server->cursor_mode = SF_CURSOR_ARRANGE_RESIZE;
 			server->resize_edges = edges;
@@ -522,7 +522,10 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	toplevel->xdg_toplevel = xdg_toplevel;
 	toplevel->id = ++server->next_toplevel_id;
 	wl_list_init(&toplevel->minimize_link);
-	wl_list_init(&toplevel->arrange_link);
+	wl_list_init(&toplevel->column_link);
+	toplevel->column = NULL;
+	toplevel->column_row_weight = 1.0f;
+	toplevel->column_extent_saved = 0.0f;
 	/* Wrapper holds blur/shadow/border; xdg content is a child. */
 	toplevel->scene_tree = wlr_scene_tree_create(server->layers.toplevel);
 	toplevel->xdg_scene_tree =

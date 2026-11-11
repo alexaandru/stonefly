@@ -307,6 +307,121 @@ bool sf_arrange_math_columns(const struct wlr_box *usable, size_t n, double col_
 	return true;
 }
 
+bool sf_arrange_math_column_strip(const struct wlr_box *usable, size_t ncol,
+				  const float *width_frac, const bool *full_width, int gap,
+				  size_t focus_col, int *out_left, int *out_width,
+				  int *out_view_offset) {
+	if (!usable_ok(usable) || out_left == NULL || out_width == NULL ||
+	    out_view_offset == NULL) {
+		return false;
+	}
+	if (ncol == 0) {
+		*out_view_offset = 0;
+		return true;
+	}
+	if (width_frac == NULL || full_width == NULL) {
+		return false;
+	}
+	if (gap < 0) {
+		gap = 0;
+	}
+	if (focus_col >= ncol) {
+		focus_col = 0;
+	}
+
+	int x = 0;
+	for (size_t k = 0; k < ncol; k++) {
+		int w;
+		if (ncol == 1 || full_width[k]) {
+			w = usable->width;
+		} else {
+			float f = width_frac[k];
+			if (f < 0.05f) {
+				f = 0.05f;
+			}
+			if (f > 4.0f) {
+				f = 4.0f;
+			}
+			w = (int)(usable->width * (double)f);
+		}
+		if (w < 1) {
+			w = 1;
+		}
+		out_width[k] = w;
+		out_left[k] = x;
+		x += w + (k + 1 < ncol ? gap : 0);
+	}
+
+	int fw = out_width[focus_col];
+	int fl = out_left[focus_col];
+	int offset = fl + fw / 2 - usable->width / 2;
+	if (offset < 0) {
+		offset = 0;
+	}
+	int max_off = x > usable->width ? x - usable->width : 0;
+	if (offset > max_off) {
+		offset = max_off;
+	}
+	*out_view_offset = offset;
+	return true;
+}
+
+bool sf_arrange_math_column_rows(const struct wlr_box *col_box, size_t nrows, const float *weights,
+				 int gap, struct wlr_box *out) {
+	if (col_box == NULL || col_box->width <= 0 || col_box->height <= 0) {
+		return false;
+	}
+	if (nrows == 0) {
+		return true;
+	}
+	if (out == NULL || weights == NULL) {
+		return false;
+	}
+	if (gap < 0) {
+		gap = 0;
+	}
+
+	double wsum = 0.0;
+	for (size_t r = 0; r < nrows; r++) {
+		float w = weights[r];
+		if (w < 0.05f) {
+			w = 0.05f;
+		}
+		wsum += (double)w;
+	}
+
+	int y = col_box->y;
+	int content = col_box->height - (int)(nrows - 1) * gap;
+	if (content < (int)nrows) {
+		content = (int)nrows;
+	}
+	int used = 0;
+	for (size_t r = 0; r < nrows; r++) {
+		int h;
+		if (r + 1 == nrows) {
+			h = content - used;
+		} else if (wsum > 0.0) {
+			float w = weights[r] < 0.05f ? 0.05f : weights[r];
+			h = (int)((double)content * (double)w / wsum);
+			if (h < 1) {
+				h = 1;
+			}
+			used += h;
+		} else {
+			h = content / (int)nrows;
+			used += h;
+		}
+		out[r] = (struct wlr_box){
+			.x = col_box->x,
+			.y = y,
+			.width = col_box->width,
+			.height = h,
+		};
+		y += h + gap;
+	}
+	return true;
+}
+
 static void dwindle_into(struct wlr_box box, size_t start, size_t count, bool vertical,
 			 double factor, int gap, struct wlr_box *out) {
 	struct wlr_box first;
@@ -390,14 +505,10 @@ enum sf_arrange sf_arrange_parse(const char *s) {
 	if (strcmp(s, "columns") == 0 || strcmp(s, "scroller") == 0) {
 		return SF_ARRANGE_COLUMNS;
 	}
-	if (strcmp(s, "master") == 0 || strcmp(s, "tile") == 0) {
-		return SF_ARRANGE_MASTER;
-	}
-	if (strcmp(s, "dwindle") == 0) {
-		return SF_ARRANGE_DWINDLE;
-	}
-	if (strcmp(s, "monocle") == 0) {
-		return SF_ARRANGE_MONOCLE;
+	/* Removed engines: accept old names as columns so configs keep working. */
+	if (strcmp(s, "master") == 0 || strcmp(s, "tile") == 0 || strcmp(s, "dwindle") == 0 ||
+	    strcmp(s, "monocle") == 0) {
+		return SF_ARRANGE_COLUMNS;
 	}
 	if (strcmp(s, "unset") == 0 || strcmp(s, "inherit") == 0) {
 		return SF_ARRANGE_UNSET;
@@ -418,19 +529,12 @@ const char *sf_arrange_name(enum sf_arrange arrange) {
 		return "stacking";
 	case SF_ARRANGE_COLUMNS:
 		return "columns";
-	case SF_ARRANGE_MASTER:
-		return "master";
-	case SF_ARRANGE_DWINDLE:
-		return "dwindle";
-	case SF_ARRANGE_MONOCLE:
-		return "monocle";
 	}
 	return "stacking";
 }
 
 bool sf_arrange_is_tiling(enum sf_arrange arrange) {
-	return arrange == SF_ARRANGE_COLUMNS || arrange == SF_ARRANGE_MASTER ||
-	       arrange == SF_ARRANGE_DWINDLE || arrange == SF_ARRANGE_MONOCLE;
+	return arrange == SF_ARRANGE_COLUMNS;
 }
 
 enum sf_master_pos sf_master_pos_parse(const char *s) {

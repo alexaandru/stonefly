@@ -174,12 +174,14 @@ thin C API over an optional static C++ helper). Keep the compositor C-first.
 - **Do not bump `pkgrel` / `pkgver`** unless the user explicitly asks.
   Build/source fixes are fine; revision numbering is the user’s call.
 
-## FEATURES.md / ROADMAP.md
+## FEATURES.md / ROADMAP.md / LESSONS.md
 
 Shipped work lives in [`FEATURES.md`](FEATURES.md); open and partial work in
-[`ROADMAP.md`](ROADMAP.md). After a change, fix, feature, or notable diagnosis,
-update the matching rows **in the same turn**. When something ships, move it
-from the roadmap into features (and drop or shrink the open row).
+[`ROADMAP.md`](ROADMAP.md). Peer-compositor UX notes and hard-won traps live in
+[`LESSONS.md`](LESSONS.md) (start with Umbriel columns / foreign / float). After
+a change, fix, feature, or notable diagnosis, update the matching rows **in the
+same turn**. When something ships, move it from the roadmap into features (and
+drop or shrink the open row). Capture durable peer lessons in `LESSONS.md`.
 
 ## Done checklist
 

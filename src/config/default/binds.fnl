@@ -42,7 +42,7 @@
   ["Super+c" {:action :arrange_rotate :cmd "cw" :arrange "tiling"}]
   ["Super+Shift+c" {:action :arrange_rotate :cmd "ccw" :arrange "tiling"}]
   ["Super+Shift+p" {:action :toggle_always_on_top}]
-  ;; arrange engines: stacking → columns → master → dwindle → monocle
+  ;; arrange engines: stacking ↔ columns
   ["Super+bracketright" {:action :arrange_cycle :cmd "next"}]
   ["Super+bracketleft" {:action :arrange_cycle :cmd "prev"}]
   ;; multi-monitor (cmd = left|right|up|down|next|prev|connector)

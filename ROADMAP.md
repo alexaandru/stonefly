@@ -48,7 +48,7 @@ the detail rows. When an item ships, check it off here and move the row to
 | Window menu | ❌ | |
 | Geometry persist across restart | ❌ | Tag protocol shipped; no persist consumer yet |
 | Workspaces polish | 🚧 | ❌ geometry persist / named window rules. Switch slide shipped (FEATURES). Layout engines separate |
-| Layout engine (tile/columns/…) | ✅ | Shipped as **arrange** engines — see FEATURES (gaps, float restore, monocle leave, arrange-scoped binds, cursor sync). Polish (deck/grid, per-ws params IPC, Lua custom register) still open |
+| Layout engine (tile/columns/…) | ✅ | **stacking + columns** only; first-class `sf_column` strip (umbriel-shaped) shipped — see FEATURES / LESSONS. Polish (scroll policy, drag preview, consume-from bind, tabs) still open; deck/grid declined for now |
 | Focus cycle policy (MRU vs stack) | 🚧 | Stacking / MRU list front |
 | Picture-in-picture float | ❌ | Related to always-on-top; dedicated PiP policy still open |
 | Dim inactive / spotlight | 🚧 | TODO NEXT #8. Global `client_opacity` / `inactive_opacity` shipped; no black dim-overlay / spotlight; consider stronger default inactive |

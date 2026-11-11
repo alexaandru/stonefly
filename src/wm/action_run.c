@@ -40,7 +40,7 @@ static void action_close(struct sf_action_ctx *ctx) {
 }
 
 static void action_focus_next(struct sf_action_ctx *ctx) {
-	/* Tiling: walk arrange_tiles (layout order). Stacking: MRU list. */
+	/* Tiling: walk columns→rows. Stacking: MRU list. */
 	if (!sf_arrange_focus_cycle(ctx->server, false)) {
 		sf_focus_cycle(ctx->server, false, false);
 	}
