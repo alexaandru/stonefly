@@ -22,6 +22,7 @@
 #include "wm/column.h"
 #include "wm/geom.h"
 #include "wm/layout_sm.h"
+#include "wm/place_sm.h"
 #include "wm/rules.h"
 #include "wm/scratchpad.h"
 #include "wm/snap_preview.h"
@@ -334,12 +335,52 @@ static void rejoin_strays(struct sf_workspace *ws) {
 	}
 }
 
+static void apply_box_preappear(struct sf_toplevel *t, const struct wlr_box *box) {
+	/* Size + resting only: keep scene disabled so appear can slide at the
+	 * final cell once the client commits this configure. */
+	t->resting_x = box->x;
+	t->resting_y = box->y;
+	t->arrange_prop_w = box->width;
+	t->arrange_prop_h = box->height;
+	t->arrange_prop_waits = 0;
+	if (t->scene_tree != NULL) {
+		wlr_scene_node_set_position(&t->scene_tree->node, box->x, box->y);
+	}
+	if (t->xdg_toplevel != NULL && t->xdg_toplevel->base->initialized) {
+		wlr_xdg_toplevel_set_size(t->xdg_toplevel, box->width, box->height);
+		uint32_t edges = (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_BOTTOM |
+				 (uint32_t)WLR_EDGE_LEFT | (uint32_t)WLR_EDGE_RIGHT;
+		wlr_xdg_toplevel_set_tiled(t->xdg_toplevel, edges);
+	}
+	sf_decor_update_geom(t);
+}
+
+static bool awaiting_appear(const struct sf_toplevel *t) {
+	if (t == NULL) {
+		return false;
+	}
+	if (sf_place_sm_is_holding(&t->place)) {
+		return true;
+	}
+	/* Map parks disabled until arm_appear; SoftPlace may still be managed. */
+	return t->scene_tree != NULL && !t->scene_tree->node.enabled &&
+	       sf_place_sm_is_managed(&t->place);
+}
+
 static void apply_boxes(struct sf_toplevel **wins, const struct wlr_box *boxes, size_t n,
 			bool morph) {
 	for (size_t i = 0; i < n; i++) {
 		struct sf_toplevel *t = wins[i];
 		const struct wlr_box *box = &boxes[i];
 		if (box->width <= 0 || box->height <= 0) {
+			continue;
+		}
+		t->arrange_prop_w = box->width;
+		t->arrange_prop_h = box->height;
+		if (awaiting_appear(t)) {
+			/* Do not clear_auto_place / enable — that would START_SHOW
+			 * at the natural buffer size before the cell configure. */
+			apply_box_preappear(t, box);
 			continue;
 		}
 		if (t->scene_tree != NULL && !t->scene_tree->node.enabled) {
@@ -432,6 +473,20 @@ void sf_arrange_schedule(struct sf_workspace *ws) {
 		return;
 	}
 	ws->arrange_idle = wl_event_loop_add_idle(loop, arrange_idle_cb, ws);
+}
+
+void sf_arrange_flush(struct sf_workspace *ws) {
+	if (ws == NULL || ws->output == NULL || ws->output->server == NULL) {
+		return;
+	}
+	if (!sf_arrange_is_tiling(sf_workspace_arrange(ws))) {
+		return;
+	}
+	if (ws->arrange_idle != NULL) {
+		wl_event_source_remove(ws->arrange_idle);
+		ws->arrange_idle = NULL;
+	}
+	sf_workspace_apply_arrange(ws);
 }
 
 void sf_arrange_set(struct sf_server *server, const char *name) {

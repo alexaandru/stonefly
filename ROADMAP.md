@@ -24,7 +24,7 @@ the detail rows. When an item ships, check it off here and move the row to
 | 6 | Real `inputs.fnl` API | ✅ | Shipped (`sf.input` + libinput apply; tap/natural/accel + left_handed/dwt/repeat) |
 | 7 | Live config reload (binds + opts first) | ❌ | Tweak chords without logout; mango/Hypr baseline |
 | 8 | Dim-inactive / spotlight polish | 🚧 | Opacity knobs exist; stronger dim or overlay so focus reads at a glance |
-| 9 | Popin / popout appear+close | ❌ | Umbriel-style scale+fade; see §2. Slide ships (tiled = strip-axis L/R; scratch closest) |
+| 9 | Popin / popout appear+close | ❌ | Umbriel-style scale+fade; see §2. Slide ships (tiled = right inter-gap; scratch closest) |
 | 10 | IME **or** Xwayland (pick by apps) | ❌ | fcitx/CJK/OSK → IME; Steam/legacy → Xwayland — real projects, not afternoon bites |
 
 ---

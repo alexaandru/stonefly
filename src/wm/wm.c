@@ -411,6 +411,11 @@ void sf_toplevel_release_transient_max_edges(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || !toplevel->arrange_max_edges_rejoin) {
 		return;
 	}
+	/* Scratch/QT edge-max is sticky and layout-independent. */
+	if (sf_toplevel_is_scratchpad(toplevel)) {
+		toplevel->arrange_max_edges_rejoin = false;
+		return;
+	}
 	if (!sf_layout_sm_is_max_edges(&toplevel->layout)) {
 		toplevel->arrange_max_edges_rejoin = false;
 		return;
@@ -422,11 +427,28 @@ void sf_toplevel_set_max_edges(struct sf_toplevel *toplevel, bool want) {
 	if (toplevel == NULL || !xdg_surface_ready(toplevel)) {
 		return;
 	}
-	/* Tiling: break out + raise so the strip cannot cover it. Tile-originated
-	 * max-edges is a transient overlay (arrange_max_edges_rejoin) — not a sticky
-	 * arrange_floating — so Super+m / pink float chrome stay honest and focus
-	 * change can drop it back into its cell. Prior floats stay floating. */
-	if (want && toplevel->arrange_managed) {
+	bool scratch = sf_toplevel_is_scratchpad(toplevel);
+	/* Scratch/QT: leave the strip entirely; never arm transient rejoin. */
+	if (want && scratch) {
+		if (toplevel->arrange_managed || toplevel->column != NULL) {
+			struct sf_workspace *ws = toplevel->workspace;
+			sf_arrange_unlink(toplevel);
+			toplevel->arrange_managed = false;
+			toplevel->arrange_floating = false;
+			toplevel->arrange_max_edges_rejoin = false;
+			if (ws != NULL) {
+				sf_arrange_schedule(ws);
+			}
+		} else {
+			toplevel->arrange_max_edges_rejoin = false;
+			toplevel->arrange_floating = false;
+		}
+	} else if (want && toplevel->arrange_managed) {
+		/* Tiling: break out + raise so the strip cannot cover it.
+		 * Tile-originated max-edges is a transient overlay
+		 * (arrange_max_edges_rejoin) — not sticky arrange_floating —
+		 * so Super+m / pink float chrome stay honest and focus change
+		 * can drop it back into its cell. Prior floats stay floating. */
 		sf_arrange_break_out(toplevel, true);
 		toplevel->arrange_max_edges_rejoin = true;
 		toplevel->arrange_floating = false;
@@ -443,7 +465,7 @@ void sf_toplevel_set_max_edges(struct sf_toplevel *toplevel, bool want) {
 	layout_dispatch(toplevel, &ev, NULL);
 	if (want) {
 		sf_toplevel_raise(toplevel);
-	} else if (toplevel->arrange_max_edges_rejoin && toplevel->workspace != NULL &&
+	} else if (!scratch && toplevel->arrange_max_edges_rejoin && toplevel->workspace != NULL &&
 		   sf_arrange_is_tiling(toplevel_ws_arrange(toplevel))) {
 		toplevel->arrange_max_edges_rejoin = false;
 		toplevel->arrange_floating = false;
@@ -782,6 +804,36 @@ static void place_fill_ctx(const struct sf_toplevel *toplevel, struct sf_place_c
 	ctx->float_still_possible = sf_rules_float_still_possible(toplevel);
 }
 
+/* Tiled appear waits for the client to commit near the packed cell size so
+ * the slide runs at final height (not the natural mid-column square). */
+static bool tiled_appear_size_ready(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || !toplevel->arrange_managed) {
+		return true;
+	}
+	if (toplevel->arrange_prop_w <= 0 || toplevel->arrange_prop_h <= 0) {
+		return true;
+	}
+	struct wlr_box geom;
+	sf_toplevel_layout_geom(toplevel, &geom);
+	if (geom.width <= 0 || geom.height <= 0) {
+		return false;
+	}
+	const int tol = 2;
+	int dw = geom.width - toplevel->arrange_prop_w;
+	int dh = geom.height - toplevel->arrange_prop_h;
+	if (dw < 0) {
+		dw = -dw;
+	}
+	if (dh < 0) {
+		dh = -dh;
+	}
+	if (dw <= tol && dh <= tol) {
+		return true;
+	}
+	/* Clients that ignore the configure: give up after a few commits. */
+	return toplevel->arrange_prop_waits >= 3;
+}
+
 static void place_apply_result(struct sf_toplevel *toplevel, const struct sf_place_result *r) {
 	toplevel->place = r->state;
 	for (size_t i = 0; i < r->nfx; i++) {
@@ -792,11 +844,28 @@ static void place_apply_result(struct sf_toplevel *toplevel, const struct sf_pla
 			}
 			break;
 		case SF_PLACE_FX_SCENE_ENABLE:
+			/* Skip if tiled size not ready — START_SHOW holds next. */
+			if (!tiled_appear_size_ready(toplevel)) {
+				break;
+			}
 			if (toplevel->scene_tree != NULL) {
 				wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
 			}
 			break;
 		case SF_PLACE_FX_START_SHOW:
+			if (!tiled_appear_size_ready(toplevel)) {
+				/* Pack proposed the cell; wait for commit. */
+				toplevel->place.appear_hold = true;
+				if (toplevel->scene_tree != NULL) {
+					wlr_scene_node_set_enabled(&toplevel->scene_tree->node,
+								   false);
+				}
+				break;
+			}
+			toplevel->arrange_prop_waits = 0;
+			if (toplevel->scene_tree != NULL) {
+				wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
+			}
 			if (!sf_anim_start_show(toplevel) && toplevel->scene_tree != NULL) {
 				wlr_scene_node_set_position(&toplevel->scene_tree->node,
 							    toplevel->resting_x,
@@ -841,12 +910,20 @@ void sf_toplevel_try_appear(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL) {
 		return;
 	}
+	if (!tiled_appear_size_ready(toplevel)) {
+		return;
+	}
 	place_dispatch(toplevel, SF_PLACE_EV_TRY_APPEAR);
 }
 
 void sf_toplevel_arm_appear(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->scene_tree == NULL) {
 		return;
+	}
+	/* Pack the cell before the appear slide so travel uses final w×h. */
+	if (toplevel->arrange_managed && toplevel->workspace != NULL &&
+	    sf_arrange_is_tiling(sf_workspace_arrange(toplevel->workspace))) {
+		sf_arrange_flush(toplevel->workspace);
 	}
 	place_dispatch(toplevel, SF_PLACE_EV_ARM_APPEAR);
 }
@@ -1139,9 +1216,11 @@ void sf_toplevel_apply_shown(struct sf_toplevel *toplevel, bool activate) {
 		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
 		sf_anim_start_show(toplevel);
 		sf_foreign_toplevel_on_state_change(toplevel);
-		/* Tiling: non-floats must rejoin the strip (umbriel: layout
-		 * cannot hold a hidden tile under the columns). */
-		if (toplevel->workspace != NULL && !toplevel->arrange_floating &&
+		/* Scratch/QT stays layout-independent. Tiling: non-floats must
+		 * rejoin the strip (umbriel: cannot hold a hidden tile under
+		 * the columns). */
+		if (!sf_toplevel_is_scratchpad(toplevel) && toplevel->workspace != NULL &&
+		    !toplevel->arrange_floating &&
 		    sf_arrange_is_tiling(sf_workspace_arrange(toplevel->workspace))) {
 			sf_arrange_join_toplevel(toplevel);
 			sf_arrange_schedule(toplevel->workspace);

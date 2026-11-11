@@ -13,7 +13,6 @@
 #include "toplevel/toplevel.h"
 #include "util/math.h"
 #include "util/time.h"
-#include "wm/column.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
 
@@ -158,50 +157,23 @@ static void offscreen_pos(enum sf_slide_dir dir, int resting_x, int resting_y, i
 }
 
 /*
- * Tiled columns: always horizontal (strip axis). Left half of the strip /
- * usable enters from the left; right half from the right. Avoids the
- * closest-edge circus where one tile slides up and its neighbor slides left.
- * Umbriel defaults windows_in to popin; we keep slide but pin the axis.
+ * Tiled columns: always enter from / exit to the right, and travel only from
+ * the column's right edge (inter-column gap), not the usable/screen edge.
+ * Umbriel defaults windows_in to popin; we keep slide but pin the seam.
  */
-static enum sf_slide_dir strip_axis_dir(struct sf_toplevel *toplevel, int resting_x, int w,
-					const struct wlr_box *area) {
-	if (toplevel != NULL && toplevel->column != NULL && toplevel->column->ws != NULL) {
-		struct sf_workspace *ws = toplevel->column->ws;
-		int vis_i = 0;
-		int my = -1;
-		struct sf_column *c;
-		wl_list_for_each(c, &ws->columns, link) {
-			if (sf_column_visible_count(c) == 0) {
-				continue;
-			}
-			if (c == toplevel->column) {
-				my = vis_i;
-			}
-			vis_i++;
-		}
-		if (my < 0 || vis_i <= 1 || my * 2 < vis_i) {
-			return SF_SLIDE_RIGHT; /* enter from left */
-		}
-		return SF_SLIDE_LEFT; /* enter from right */
-	}
-	if (area != NULL && area->width > 0) {
-		int cx = resting_x + w / 2;
-		int mid = area->x + area->width / 2;
-		return cx < mid ? SF_SLIDE_RIGHT : SF_SLIDE_LEFT;
-	}
-	return SF_SLIDE_RIGHT;
-}
-
-/* Closest-dir (floats) or strip-axis (tiled) + offscreen_pos. */
 static void slide_offscreen(struct sf_server *server, struct sf_toplevel *toplevel, int resting_x,
 			    int resting_y, int w, int h, const struct wlr_box *area, int *ox,
 			    int *oy) {
-	enum sf_slide_dir dir = SF_SLIDE_DOWN;
 	bool tiled = toplevel != NULL && (toplevel->arrange_managed || toplevel->column != NULL);
-	if (tiled && area != NULL && area->width > 0 && area->height > 0) {
-		dir = strip_axis_dir(toplevel, resting_x, w, area);
-	} else if (sf_cfg(server)->slide_dir_closest && area != NULL && area->width > 0 &&
-		   area->height > 0) {
+	if (tiled) {
+		/* Fully past the resting right edge = the gap / next column. */
+		*ox = resting_x + w;
+		*oy = resting_y;
+		return;
+	}
+	enum sf_slide_dir dir = SF_SLIDE_DOWN;
+	if (sf_cfg(server)->slide_dir_closest && area != NULL && area->width > 0 &&
+	    area->height > 0) {
 		dir = closest_dir(resting_x, resting_y, w, h, area);
 	}
 	offscreen_pos(dir, resting_x, resting_y, w, h, area, ox, oy);

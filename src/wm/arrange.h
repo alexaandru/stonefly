@@ -19,6 +19,9 @@ void sf_workspace_apply_arrange(struct sf_workspace *ws);
 /* Coalesce apply onto the display idle handler (map / exclusive-zone storms). */
 void sf_arrange_schedule(struct sf_workspace *ws);
 
+/* Cancel a pending idle and apply now (pack before tiled appear slide). */
+void sf_arrange_flush(struct sf_workspace *ws);
+
 /* Cycle active workspace arrange. delta +1 = next, -1 = prev.
  * Order: stacking ↔ columns. */
 void sf_arrange_cycle(struct sf_server *server, int delta);

@@ -91,6 +91,12 @@ struct sf_toplevel {
 	 * when returning to stacking. */
 	bool arrange_float_saved;
 	struct wlr_box arrange_float_box;
+	/* Last cell size proposed by columns pack; appear waits until the
+	 * client commits near this (or give-up commits elapse). 0 = none. */
+	int arrange_prop_w;
+	int arrange_prop_h;
+	/* Commits seen while waiting for arrange_prop_* before appear. */
+	int arrange_prop_waits;
 	bool minimized;
 	/* xdg_dialog_v1.set_modal (requires parent). */
 	bool modal;

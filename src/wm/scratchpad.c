@@ -113,11 +113,13 @@ static void scratch_show(struct sf_toplevel *toplevel) {
 		return;
 	}
 	/*
-	 * QT is edge-max on claim. Reassert while still hidden so apply_box
-	 * updates resting/size without cancelling the show slide that
-	 * apply_shown starts next (a post-show REAPPLY snapped on-screen).
+	 * QT edge-max is sticky and layout-independent. Reassert while still
+	 * hidden so apply_box updates resting/size without cancelling the show
+	 * slide that apply_shown starts next (a post-show REAPPLY snapped
+	 * on-screen). Always force max-edges — claim from a tiled window may
+	 * still be cell-sized until this runs.
 	 */
-	if (toplevel->minimized && sf_layout_sm_is_max_edges(&toplevel->layout)) {
+	if (toplevel->minimized) {
 		sf_toplevel_set_max_edges(toplevel, true);
 	}
 	/* apply_shown + focus via focus_toplevel. */
@@ -296,6 +298,10 @@ void sf_scratchpad_claim_focused(struct sf_server *server, const char *name) {
 		return;
 	}
 	scratch_claim(slot, toplevel);
+	/* Claimed windows keep prior geom until edge-max — force usable fill. */
+	if (toplevel->xdg_toplevel != NULL && toplevel->xdg_toplevel->base->initialized) {
+		sf_toplevel_set_max_edges(toplevel, true);
+	}
 	scratch_show(toplevel);
 }
 

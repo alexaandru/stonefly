@@ -380,9 +380,18 @@ void sf_workspace_detach_scratchpad(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL) {
 		return;
 	}
-	struct sf_output *output = toplevel->workspace != NULL ? toplevel->workspace->output : NULL;
+	struct sf_workspace *ws = toplevel->workspace;
+	struct sf_output *output = ws != NULL ? ws->output : NULL;
+	/* Drop column membership so arrange cannot pack QT to a cell. */
+	sf_arrange_unlink(toplevel);
+	toplevel->arrange_managed = false;
+	toplevel->arrange_floating = false;
+	toplevel->arrange_max_edges_rejoin = false;
 	toplevel->workspace = NULL;
 	sf_toplevel_sync_scene_layer(toplevel);
+	if (ws != NULL) {
+		sf_arrange_schedule(ws);
+	}
 	if (output != NULL) {
 		sf_workspace_compact(output);
 	}
