@@ -119,6 +119,7 @@ void sf_arrange_unlink(struct sf_toplevel *toplevel) {
 	}
 	sf_column_remove_row(toplevel);
 	toplevel->arrange_managed = false;
+	toplevel->arrange_deferred = false;
 	if (toplevel->xdg_toplevel != NULL && toplevel->xdg_toplevel->base->initialized) {
 		wlr_xdg_toplevel_set_tiled(toplevel->xdg_toplevel, 0);
 	}
@@ -367,8 +368,30 @@ static bool awaiting_appear(const struct sf_toplevel *t) {
 	       sf_place_sm_is_managed(&t->place);
 }
 
+static void apply_box_now(struct sf_toplevel *t, const struct wlr_box *box, bool morph) {
+	t->arrange_deferred = false;
+	if (t->scene_tree != NULL && !t->scene_tree->node.enabled) {
+		wlr_scene_node_set_enabled(&t->scene_tree->node, true);
+	}
+	sf_toplevel_clear_auto_place(t);
+	sf_toplevel_move_resize(t, box, morph);
+	if (t->xdg_toplevel != NULL && t->xdg_toplevel->base->initialized) {
+		uint32_t edges = (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_BOTTOM |
+				 (uint32_t)WLR_EDGE_LEFT | (uint32_t)WLR_EDGE_RIGHT;
+		wlr_xdg_toplevel_set_tiled(t->xdg_toplevel, edges);
+	}
+	sf_decor_update_geom(t);
+}
+
 static void apply_boxes(struct sf_toplevel **wins, const struct wlr_box *boxes, size_t n,
 			bool morph) {
+	bool has_opener = false;
+	for (size_t i = 0; i < n; i++) {
+		if (awaiting_appear(wins[i])) {
+			has_opener = true;
+			break;
+		}
+	}
 	for (size_t i = 0; i < n; i++) {
 		struct sf_toplevel *t = wins[i];
 		const struct wlr_box *box = &boxes[i];
@@ -383,17 +406,14 @@ static void apply_boxes(struct sf_toplevel **wins, const struct wlr_box *boxes, 
 			apply_box_preappear(t, box);
 			continue;
 		}
-		if (t->scene_tree != NULL && !t->scene_tree->node.enabled) {
-			wlr_scene_node_set_enabled(&t->scene_tree->node, true);
+		if (has_opener) {
+			/* Hold neighbor geom until the opener's show slide starts
+			 * so push + slide share one clock (umbriel windows_move). */
+			t->arrange_deferred = true;
+			t->arrange_deferred_box = *box;
+			continue;
 		}
-		sf_toplevel_clear_auto_place(t);
-		sf_toplevel_move_resize(t, box, morph);
-		if (t->xdg_toplevel != NULL && t->xdg_toplevel->base->initialized) {
-			uint32_t edges = (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_BOTTOM |
-					 (uint32_t)WLR_EDGE_LEFT | (uint32_t)WLR_EDGE_RIGHT;
-			wlr_xdg_toplevel_set_tiled(t->xdg_toplevel, edges);
-		}
-		sf_decor_update_geom(t);
+		apply_box_now(t, box, morph);
 	}
 }
 
@@ -487,6 +507,25 @@ void sf_arrange_flush(struct sf_workspace *ws) {
 		ws->arrange_idle = NULL;
 	}
 	sf_workspace_apply_arrange(ws);
+}
+
+void sf_arrange_release_deferred(struct sf_workspace *ws) {
+	if (ws == NULL || ws->output == NULL || ws->output->server == NULL) {
+		return;
+	}
+	struct sf_server *server = ws->output->server;
+	bool morph = server->cursor_mode != SF_CURSOR_ARRANGE_RESIZE;
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &server->toplevels, link) {
+		if (t->workspace != ws || !t->arrange_deferred) {
+			continue;
+		}
+		if (t->arrange_deferred_box.width <= 0 || t->arrange_deferred_box.height <= 0) {
+			t->arrange_deferred = false;
+			continue;
+		}
+		apply_box_now(t, &t->arrange_deferred_box, morph);
+	}
 }
 
 void sf_arrange_set(struct sf_server *server, const char *name) {

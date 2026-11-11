@@ -22,6 +22,10 @@ void sf_arrange_schedule(struct sf_workspace *ws);
 /* Cancel a pending idle and apply now (pack before tiled appear slide). */
 void sf_arrange_flush(struct sf_workspace *ws);
 
+/* Morph neighbors whose boxes were deferred while an opener was appear-held.
+ * Call when the opener's show slide starts so push + slide share one clock. */
+void sf_arrange_release_deferred(struct sf_workspace *ws);
+
 /* Cycle active workspace arrange. delta +1 = next, -1 = prev.
  * Order: stacking ↔ columns. */
 void sf_arrange_cycle(struct sf_server *server, int delta);

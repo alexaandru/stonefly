@@ -34,9 +34,9 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now);
 void sf_anim_schedule(struct sf_server *server);
 
 /* Off-screen end of a slide from a resting box (usable at box center, then
- * cursor). Box-only path uses closest-edge; tiled show/hide always use the
- * column's right inter-gap (resting_x + w), never the screen edge. */
+ * cursor). When strip_column is true (tiled / close-ghost from a column), use
+ * the column's right inter-gap (resting_x + w). Otherwise closest-edge. */
 void sf_anim_offscreen_for_box(struct sf_server *server, int resting_x, int resting_y, int w, int h,
-			       int *ox, int *oy);
+			       bool strip_column, int *ox, int *oy);
 
 #endif

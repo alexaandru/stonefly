@@ -97,6 +97,12 @@ struct sf_toplevel {
 	int arrange_prop_h;
 	/* Commits seen while waiting for arrange_prop_* before appear. */
 	int arrange_prop_waits;
+	/* Neighbor cell waiting for an opener/closer slide before morph
+	 * (push/pull in sync with the appear/close slide). */
+	bool arrange_deferred;
+	struct wlr_box arrange_deferred_box;
+	/* Slide uses column right-gap even after unlink (WM close / hide). */
+	bool anim_slide_column;
 	bool minimized;
 	/* xdg_dialog_v1.set_modal (requires parent). */
 	bool modal;

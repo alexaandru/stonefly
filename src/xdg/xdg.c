@@ -25,6 +25,7 @@
 #include "toplevel/ext_capture.h"
 #include "toplevel/foreign.h"
 #include "util/str.h"
+#include "wm/arrange.h"
 #include "wm/drag_snap.h"
 #include "wm/rules.h"
 #include "wm/scratchpad.h"
@@ -217,6 +218,7 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 
 	struct sf_workspace *old_ws = toplevel->workspace;
 	struct sf_output *ws_output = old_ws != NULL ? old_ws->output : NULL;
+	bool was_tiled = toplevel->arrange_managed || toplevel->column != NULL;
 	sf_arrange_unlink(toplevel);
 	toplevel->arrange_managed = false;
 	toplevel->workspace = NULL;
@@ -229,8 +231,13 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 
 	wl_list_remove(&toplevel->link);
 
+	/* Flush so survivors morph on the same clock as the close ghost. */
 	if (old_ws != NULL) {
-		sf_arrange_schedule(old_ws);
+		if (was_tiled) {
+			sf_arrange_flush(old_ws);
+		} else {
+			sf_arrange_schedule(old_ws);
+		}
 	}
 	if (ws_output != NULL) {
 		sf_workspace_compact(ws_output);

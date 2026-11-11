@@ -161,11 +161,10 @@ static void offscreen_pos(enum sf_slide_dir dir, int resting_x, int resting_y, i
  * the column's right edge (inter-column gap), not the usable/screen edge.
  * Umbriel defaults windows_in to popin; we keep slide but pin the seam.
  */
-static void slide_offscreen(struct sf_server *server, struct sf_toplevel *toplevel, int resting_x,
+static void slide_offscreen(struct sf_server *server, bool strip_column, int resting_x,
 			    int resting_y, int w, int h, const struct wlr_box *area, int *ox,
 			    int *oy) {
-	bool tiled = toplevel != NULL && (toplevel->arrange_managed || toplevel->column != NULL);
-	if (tiled) {
+	if (strip_column) {
 		/* Fully past the resting right edge = the gap / next column. */
 		*ox = resting_x + w;
 		*oy = resting_y;
@@ -179,8 +178,13 @@ static void slide_offscreen(struct sf_server *server, struct sf_toplevel *toplev
 	offscreen_pos(dir, resting_x, resting_y, w, h, area, ox, oy);
 }
 
+static bool toplevel_strip_column(const struct sf_toplevel *toplevel) {
+	return toplevel != NULL && (toplevel->arrange_managed || toplevel->column != NULL ||
+				    toplevel->anim_slide_column);
+}
+
 void sf_anim_offscreen_for_box(struct sf_server *server, int resting_x, int resting_y, int w, int h,
-			       int *ox, int *oy) {
+			       bool strip_column, int *ox, int *oy) {
 	struct wlr_box area;
 	const struct wlr_box *area_p = NULL;
 	double cx = (double)resting_x + (double)w / 2.0;
@@ -189,8 +193,7 @@ void sf_anim_offscreen_for_box(struct sf_server *server, int resting_x, int rest
 	    sf_layout_usable_at(server, server->cursor->x, server->cursor->y, &area)) {
 		area_p = &area;
 	}
-	/* Ghosts / box-only: closest-edge (no toplevel strip context). */
-	slide_offscreen(server, NULL, resting_x, resting_y, w, h, area_p, ox, oy);
+	slide_offscreen(server, strip_column, resting_x, resting_y, w, h, area_p, ox, oy);
 }
 
 static void toplevel_size(struct sf_toplevel *toplevel, int *w, int *h) {
@@ -279,6 +282,7 @@ void sf_anim_cancel(struct sf_toplevel *toplevel, bool commit_visual) {
 	toplevel->anim.active = false;
 	toplevel->anim.on_done = NULL;
 	toplevel->anim_hide = false;
+	toplevel->anim_slide_column = false;
 }
 
 bool sf_anim_active(const struct sf_toplevel *toplevel) {
@@ -337,6 +341,7 @@ static void begin_slide(struct sf_toplevel *toplevel, int from_x, int from_y, in
 	toplevel->anim.morph = false;
 	toplevel->anim_hide = hide;
 
+	/* Park off-screen before any enable so chrome cannot flash at rest. */
 	set_visual_pos(toplevel, from_x, from_y);
 	if (hide) {
 		sf_toplevel_raise(toplevel);
@@ -367,8 +372,11 @@ bool sf_anim_start_show(struct sf_toplevel *toplevel) {
 		area_p = &area;
 	}
 
+	bool strip = toplevel_strip_column(toplevel);
+	toplevel->anim_slide_column = strip;
+
 	int from_x, from_y;
-	slide_offscreen(toplevel->server, toplevel, resting_x, resting_y, w, h, area_p, &from_x,
+	slide_offscreen(toplevel->server, strip, resting_x, resting_y, w, h, area_p, &from_x,
 			&from_y);
 
 	begin_slide(toplevel, from_x, from_y, resting_x, resting_y, resting_x, resting_y, false,
@@ -401,10 +409,12 @@ bool sf_anim_start_hide(struct sf_toplevel *toplevel, sf_anim_done_fn on_done) {
 		area_p = &area;
 	}
 
+	bool strip = toplevel_strip_column(toplevel);
+	toplevel->anim_slide_column = strip;
+
 	/* Same off-screen target as show start (peeble). */
 	int to_x, to_y;
-	slide_offscreen(toplevel->server, toplevel, resting_x, resting_y, w, h, area_p, &to_x,
-			&to_y);
+	slide_offscreen(toplevel->server, strip, resting_x, resting_y, w, h, area_p, &to_x, &to_y);
 
 	begin_slide(toplevel, from_x, from_y, to_x, to_y, resting_x, resting_y, true, on_done);
 	return true;
@@ -537,6 +547,9 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now) {
 		bool was_morph = t->anim.morph;
 		t->anim.on_done = NULL;
 		t->anim_hide = false;
+		if (!was_morph) {
+			t->anim_slide_column = false;
+		}
 		if (was_morph) {
 			morph_finish(t, true);
 		} else if (!was_hide) {

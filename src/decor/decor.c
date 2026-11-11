@@ -685,9 +685,12 @@ void sf_ghost_try_spawn(struct sf_toplevel *toplevel) {
 	wlr_scene_node_set_position(&ghost->tree->node, ghost->resting_x, ghost->resting_y);
 	wlr_scene_node_raise_to_top(&ghost->tree->node);
 
+	/* Capture before unmap unlinks the column (caller order). */
+	bool strip = toplevel->arrange_managed || toplevel->column != NULL ||
+		     toplevel->anim_slide_column;
 	int to_x, to_y;
 	sf_anim_offscreen_for_box(ghost->server, ghost->resting_x, ghost->resting_y, ghost->width,
-				  ghost->height, &to_x, &to_y);
+				  ghost->height, strip, &to_x, &to_y);
 
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);

@@ -834,8 +834,35 @@ static bool tiled_appear_size_ready(struct sf_toplevel *toplevel) {
 	return toplevel->arrange_prop_waits >= 3;
 }
 
+static bool place_fx_has(const struct sf_place_result *r, enum sf_place_fx_kind kind) {
+	for (size_t i = 0; i < r->nfx; i++) {
+		if (r->fx[i].kind == kind) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static void appear_start_show(struct sf_toplevel *toplevel) {
+	toplevel->arrange_prop_waits = 0;
+	/* Park off-screen first, then enable — avoids a resting chrome flash. */
+	bool slid = sf_anim_start_show(toplevel);
+	if (toplevel->scene_tree != NULL) {
+		if (!slid) {
+			wlr_scene_node_set_position(&toplevel->scene_tree->node,
+						    toplevel->resting_x, toplevel->resting_y);
+		}
+		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
+	}
+	/* Neighbors deferred while appear-held: morph now with the slide. */
+	if (toplevel->workspace != NULL) {
+		sf_arrange_release_deferred(toplevel->workspace);
+	}
+}
+
 static void place_apply_result(struct sf_toplevel *toplevel, const struct sf_place_result *r) {
 	toplevel->place = r->state;
+	bool start_show = place_fx_has(r, SF_PLACE_FX_START_SHOW);
 	for (size_t i = 0; i < r->nfx; i++) {
 		switch (r->fx[i].kind) {
 		case SF_PLACE_FX_SCENE_DISABLE:
@@ -844,8 +871,8 @@ static void place_apply_result(struct sf_toplevel *toplevel, const struct sf_pla
 			}
 			break;
 		case SF_PLACE_FX_SCENE_ENABLE:
-			/* Skip if tiled size not ready — START_SHOW holds next. */
-			if (!tiled_appear_size_ready(toplevel)) {
+			/* START_SHOW parks then enables — do not flash at rest. */
+			if (start_show || !tiled_appear_size_ready(toplevel)) {
 				break;
 			}
 			if (toplevel->scene_tree != NULL) {
@@ -862,15 +889,7 @@ static void place_apply_result(struct sf_toplevel *toplevel, const struct sf_pla
 				}
 				break;
 			}
-			toplevel->arrange_prop_waits = 0;
-			if (toplevel->scene_tree != NULL) {
-				wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
-			}
-			if (!sf_anim_start_show(toplevel) && toplevel->scene_tree != NULL) {
-				wlr_scene_node_set_position(&toplevel->scene_tree->node,
-							    toplevel->resting_x,
-							    toplevel->resting_y);
-			}
+			appear_start_show(toplevel);
 			break;
 		}
 	}
@@ -1210,11 +1229,12 @@ void sf_toplevel_apply_shown(struct sf_toplevel *toplevel, bool activate) {
 		}
 		toplevel->minimized = false;
 		minimize_link_detach(toplevel);
-		/* Enable at resting, then slide in from off-screen. */
-		wlr_scene_node_set_position(&toplevel->scene_tree->node, toplevel->resting_x,
-					    toplevel->resting_y);
+		/* Park off-screen, then enable (no resting chrome flash). */
+		if (!sf_anim_start_show(toplevel)) {
+			wlr_scene_node_set_position(&toplevel->scene_tree->node,
+						    toplevel->resting_x, toplevel->resting_y);
+		}
 		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
-		sf_anim_start_show(toplevel);
 		sf_foreign_toplevel_on_state_change(toplevel);
 		/* Scratch/QT stays layout-independent. Tiling: non-floats must
 		 * rejoin the strip (umbriel: cannot hold a hidden tile under
@@ -1434,6 +1454,15 @@ static void close_after_hide(struct sf_toplevel *toplevel) {
 void sf_close_toplevel(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL) {
 		return;
+	}
+	struct sf_workspace *ws = toplevel->workspace;
+	bool strip = toplevel->arrange_managed || toplevel->column != NULL;
+	if (strip && ws != NULL && sf_arrange_is_tiling(sf_workspace_arrange(ws))) {
+		/* Unlink + reflow now so survivors morph while this slides out. */
+		toplevel->anim_slide_column = true;
+		sf_arrange_unlink(toplevel);
+		toplevel->arrange_managed = false;
+		sf_arrange_flush(ws);
 	}
 	if (sf_anim_start_hide(toplevel, close_after_hide)) {
 		return;

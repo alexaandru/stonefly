@@ -128,8 +128,10 @@ membership / consume / float / drag / foreign before inventing deck/grid.
 | Column max vs edges max | Super+m / Super+f |
 | Columns default | `arrange = columns` |
 | Lone visible column fills usable | yes (skip columns with only minimized rows); 2+ use `width_frac` |
-| Tiled slide direction | always from/to column **right inter-gap** (not screen edge; not left-half→left). Umbriel `windows_in` default is **popin** |
+| Tiled slide direction | always from/to column **right inter-gap** (not screen edge; not left-half→left). Close-ghost must pass `strip_column` — box-only closest-edge slides to **top**. Umbriel `windows_in` default is **popin** |
 | Tiled appear size | pack cell + wait for configure before slide — natural buffer mid-slide looks like a short square growing in the column |
+| Tiled push/pull sync | defer neighbor morph while opener appear-held; release on show start. Close: unlink+flush with ghost/hide so survivors move on the same clock (umbriel windows_in + windows_move) |
+| Appear chrome flash | never enable at resting before parking off-screen |
 | Scratch/QT vs layout | detach must `arrange_unlink`; edge-max is sticky (never `arrange_max_edges_rejoin` / focus demote) |
 | Popin / popout (deferred) | Umbriel: fade + presented box `lerp(scale→1)` centered in slot (crop/dest_size). Stonefly v1 path: morph inset→slot + buffer opacity; popout = reverse on hide/ghost. Keep QT/scratch as edge slide. ROADMAP §2 / TODO NEXT #9 |
 | Consume / rotate vs minimized | skip minimized-only neighbor columns; pull first visible row |
