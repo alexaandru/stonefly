@@ -53,6 +53,9 @@ static const struct sf_action_entry sf_actions[] = {
 	{"arrange_set", SF_ACTION_ARRANGE_SET},
 	{"focus_dir", SF_ACTION_FOCUS_DIR},
 	{"toggle_float", SF_ACTION_TOGGLE_FLOAT},
+	{"float", SF_ACTION_FLOAT},
+	{"unfloat", SF_ACTION_UNFLOAT},
+	{"consume", SF_ACTION_CONSUME},
 	{"arrange_rotate", SF_ACTION_ARRANGE_ROTATE},
 };
 

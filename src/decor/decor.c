@@ -388,17 +388,22 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 	sf_decor_refresh_close_snap(toplevel);
 }
 
+static const struct sf_rgba *border_color_for(const struct sf_toplevel *toplevel, bool focused,
+					      const struct sf_config *cfg) {
+	if (toplevel->bell_flash || toplevel->urgent) {
+		return &cfg->border_urgent;
+	}
+	if (toplevel->arrange_floating) {
+		return focused ? &cfg->border_float_active : &cfg->border_float_inactive;
+	}
+	return focused ? &cfg->border_active : &cfg->border_inactive;
+}
+
 void sf_decor_refresh_border(struct sf_toplevel *toplevel) {
 	bool focused = sf_focused_toplevel(toplevel->server) == toplevel;
 	const struct sf_config *cfg = sf_cfg(toplevel->server);
 	float opacity = toplevel_chrome_opacity(toplevel, focused);
-	const struct sf_rgba *color = &cfg->border_inactive;
-	if (toplevel->bell_flash || toplevel->urgent) {
-		color = &cfg->border_urgent;
-	} else if (focused) {
-		color = &cfg->border_active;
-	}
-	apply_border_color(toplevel, color, opacity);
+	apply_border_color(toplevel, border_color_for(toplevel, focused, cfg), opacity);
 	apply_shadow_opacity(toplevel, opacity);
 }
 
@@ -410,13 +415,7 @@ void sf_decor_set_focused(struct sf_toplevel *toplevel, bool focused) {
 	/* Use the caller-supplied focus bit: seat focus may not have moved yet. */
 	const struct sf_config *cfg = sf_cfg(toplevel->server);
 	float opacity = toplevel_chrome_opacity(toplevel, focused);
-	const struct sf_rgba *color = &cfg->border_inactive;
-	if (toplevel->bell_flash || toplevel->urgent) {
-		color = &cfg->border_urgent;
-	} else if (focused) {
-		color = &cfg->border_active;
-	}
-	apply_border_color(toplevel, color, opacity);
+	apply_border_color(toplevel, border_color_for(toplevel, focused, cfg), opacity);
 	apply_shadow_opacity(toplevel, opacity);
 	decor_apply_buffers_focused(toplevel, focused);
 }

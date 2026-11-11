@@ -1237,6 +1237,8 @@ static const struct {
 } opt_colors[] = {
 	{"border_active", offsetof(struct sf_config, border_active)},
 	{"border_inactive", offsetof(struct sf_config, border_inactive)},
+	{"border_float_active", offsetof(struct sf_config, border_float_active)},
+	{"border_float_inactive", offsetof(struct sf_config, border_float_inactive)},
 	{"border_urgent", offsetof(struct sf_config, border_urgent)},
 	{"shadow_color", offsetof(struct sf_config, shadow_color)},
 };

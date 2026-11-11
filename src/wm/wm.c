@@ -182,7 +182,10 @@ static bool layout_fill_ctx(struct sf_toplevel *toplevel, struct wlr_output *fs_
 		u = &usable;
 	}
 	layout_fill_targets(toplevel, u, fs_hint, ctx);
-	if (toplevel->arrange_managed) {
+	if (toplevel->arrange_managed || toplevel->anim.active ||
+	    sf_toplevel_is_scratchpad(toplevel)) {
+		/* Engine tiles, show/hide slides, and scratchpads (QT): do not
+		 * GEOM-demote edged modes from mid-slide / CSD size noise. */
 		ctx->no_geom_regain = true;
 	} else if (toplevel->geom_regain_hold) {
 		if (sf_layout_sm_box_near(&ctx->current, &toplevel->geom_regain_box, ctx->tol)) {
@@ -396,20 +399,58 @@ void sf_toplevel_float_for_resize(struct sf_toplevel *toplevel) {
 	sf_toplevel_layout_float(toplevel, true);
 }
 
+static enum sf_arrange toplevel_ws_arrange(const struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->workspace == NULL) {
+		return SF_ARRANGE_STACKING;
+	}
+	return sf_workspace_arrange(toplevel->workspace);
+}
+
 void sf_toplevel_set_max_edges(struct sf_toplevel *toplevel, bool want) {
 	if (toplevel == NULL || !xdg_surface_ready(toplevel)) {
 		return;
 	}
+	/* Tiling: break out + raise so the strip cannot cover it. Remember
+	 * whether this was a tile so unmax can rejoin; prior floats stay out. */
+	if (want && toplevel->arrange_managed) {
+		sf_arrange_break_out(toplevel);
+		toplevel->arrange_max_edges_rejoin = true;
+	}
+	if (want) {
+		toplevel->arrange_floating = true;
+	}
+	if (want && sf_layout_sm_is_max_edges(&toplevel->layout)) {
+		/* Already edged (QT show): re-apply usable box + chrome. */
+		struct sf_layout_ev ev = {.kind = SF_LAYOUT_EV_REAPPLY};
+		layout_dispatch(toplevel, &ev, NULL);
+		sf_toplevel_raise(toplevel);
+		return;
+	}
 	struct sf_layout_ev ev = {.kind = SF_LAYOUT_EV_SET_MAX_EDGES, .want = want};
 	layout_dispatch(toplevel, &ev, NULL);
+	if (want) {
+		sf_toplevel_raise(toplevel);
+	} else if (toplevel->arrange_max_edges_rejoin && toplevel->workspace != NULL &&
+		   sf_arrange_is_tiling(toplevel_ws_arrange(toplevel))) {
+		toplevel->arrange_max_edges_rejoin = false;
+		toplevel->arrange_floating = false;
+		sf_arrange_join_toplevel(toplevel);
+		sf_arrange_schedule(toplevel->workspace);
+		sf_decor_refresh_border(toplevel);
+	} else {
+		toplevel->arrange_max_edges_rejoin = false;
+	}
 }
 
 void sf_toplevel_toggle_max_edges(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || !xdg_surface_ready(toplevel)) {
 		return;
 	}
-	struct sf_layout_ev ev = {.kind = SF_LAYOUT_EV_TOGGLE_MAX_EDGES};
-	layout_dispatch(toplevel, &ev, NULL);
+	if (sf_layout_sm_is_max_edges(&toplevel->layout)) {
+		sf_toplevel_set_max_edges(toplevel, false);
+	} else {
+		sf_toplevel_set_max_edges(toplevel, true);
+	}
 }
 
 void sf_toplevel_set_fullscreen(struct sf_toplevel *toplevel, bool want, struct wlr_output *hint) {
@@ -432,16 +473,48 @@ void sf_toplevel_set_max_gaps(struct sf_toplevel *toplevel, bool want) {
 	if (toplevel == NULL || !xdg_surface_ready(toplevel)) {
 		return;
 	}
+	enum sf_arrange kind = toplevel_ws_arrange(toplevel);
+	/* Monocle already fills usable — gap-max is a no-op. */
+	if (want && kind == SF_ARRANGE_MONOCLE) {
+		return;
+	}
+	/* Columns: widen this column to usable (still tiled). Not layout_sm. */
+	if (kind == SF_ARRANGE_COLUMNS && toplevel->arrange_managed) {
+		toplevel->arrange_column_max = want;
+		sf_arrange_schedule(toplevel->workspace);
+		return;
+	}
+	/*
+	 * Master/dwindle: temporary layout overlay above the pack; focus leave
+	 * demotes. Stacking: normal gap-max.
+	 */
 	struct sf_layout_ev ev = {.kind = SF_LAYOUT_EV_SET_MAX_GAPS, .want = want};
 	layout_dispatch(toplevel, &ev, NULL);
+	if (want) {
+		sf_toplevel_raise(toplevel);
+	}
+	if (toplevel->workspace != NULL && sf_arrange_is_tiling(kind)) {
+		sf_arrange_schedule(toplevel->workspace);
+	}
 }
 
 void sf_toplevel_toggle_max_gaps(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || !xdg_surface_ready(toplevel)) {
 		return;
 	}
-	struct sf_layout_ev ev = {.kind = SF_LAYOUT_EV_TOGGLE_MAX_GAPS};
-	layout_dispatch(toplevel, &ev, NULL);
+	enum sf_arrange kind = toplevel_ws_arrange(toplevel);
+	if (kind == SF_ARRANGE_COLUMNS && toplevel->arrange_managed) {
+		sf_toplevel_set_max_gaps(toplevel, !toplevel->arrange_column_max);
+		return;
+	}
+	if (kind == SF_ARRANGE_MONOCLE) {
+		return;
+	}
+	if (sf_layout_sm_is_max_gaps(&toplevel->layout)) {
+		sf_toplevel_set_max_gaps(toplevel, false);
+	} else {
+		sf_toplevel_set_max_gaps(toplevel, true);
+	}
 }
 
 void sf_toplevel_snap_in(struct sf_toplevel *toplevel, enum sf_snap edge,
@@ -488,6 +561,10 @@ void sf_toplevel_layout_observe_box(struct sf_toplevel *toplevel, const struct w
 
 void sf_toplevel_layout_observe(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->scene_tree == NULL) {
+		return;
+	}
+	/* Hidden scratch/LIFO: ignore commits until shown again. */
+	if (toplevel->minimized) {
 		return;
 	}
 	struct wlr_box cur;
@@ -1037,6 +1114,13 @@ void sf_toplevel_apply_shown(struct sf_toplevel *toplevel, bool activate) {
 		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
 		sf_anim_start_show(toplevel);
 		sf_foreign_toplevel_on_state_change(toplevel);
+		/* Tiling: non-floats must rejoin the strip (umbriel: layout
+		 * cannot hold a hidden tile under the columns). */
+		if (toplevel->workspace != NULL && !toplevel->arrange_floating &&
+		    sf_arrange_is_tiling(sf_workspace_arrange(toplevel->workspace))) {
+			sf_arrange_join_toplevel(toplevel);
+			sf_arrange_schedule(toplevel->workspace);
+		}
 	}
 	if (activate) {
 		sf_focus_toplevel(toplevel);
@@ -1147,6 +1231,15 @@ void sf_focus_toplevel(struct sf_toplevel *toplevel) {
 					break;
 				}
 			}
+		}
+	}
+	/* Master/dwindle gap-max overlay only: leaving focus tiles it back.
+	 * Columns column-max stays widened across Tab. */
+	if (prev_toplevel != NULL && prev_toplevel != toplevel && prev_toplevel->arrange_managed &&
+	    sf_layout_sm_is_max_gaps(&prev_toplevel->layout)) {
+		enum sf_arrange pk = toplevel_ws_arrange(prev_toplevel);
+		if (pk == SF_ARRANGE_MASTER || pk == SF_ARRANGE_DWINDLE) {
+			sf_toplevel_set_max_gaps(prev_toplevel, false);
 		}
 	}
 	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);

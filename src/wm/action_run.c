@@ -237,7 +237,7 @@ static void action_toggle_float(struct sf_action_ctx *ctx) {
 	if (ctx->win == NULL) {
 		return;
 	}
-	if (ctx->win->arrange_managed ||
+	if (ctx->win->arrange_managed || ctx->win->arrange_floating ||
 	    (ctx->win->workspace != NULL &&
 	     sf_arrange_is_tiling(sf_workspace_arrange(ctx->win->workspace)))) {
 		sf_arrange_toggle_float(ctx->win);
@@ -247,6 +247,24 @@ static void action_toggle_float(struct sf_action_ctx *ctx) {
 	if (sf_layout_sm_is_edged(&ctx->win->layout)) {
 		sf_toplevel_layout_float(ctx->win, false);
 	}
+}
+
+static void action_float(struct sf_action_ctx *ctx) {
+	if (ctx->win == NULL) {
+		return;
+	}
+	sf_arrange_float(ctx->win);
+}
+
+static void action_unfloat(struct sf_action_ctx *ctx) {
+	if (ctx->win == NULL) {
+		return;
+	}
+	sf_arrange_unfloat(ctx->win);
+}
+
+static void action_consume(struct sf_action_ctx *ctx) {
+	sf_arrange_consume(ctx->server, ctx->cmd);
 }
 
 static void action_arrange_rotate(struct sf_action_ctx *ctx) {
@@ -305,6 +323,9 @@ static const struct sf_action_slot sf_action_slots[SF_ACTION_COUNT] = {
 	[SF_ACTION_ARRANGE_SET] = {SF_ACTION_F_CMD, action_arrange_set},
 	[SF_ACTION_FOCUS_DIR] = {SF_ACTION_F_CMD, action_focus_dir},
 	[SF_ACTION_TOGGLE_FLOAT] = {SF_ACTION_F_WIN, action_toggle_float},
+	[SF_ACTION_FLOAT] = {SF_ACTION_F_WIN, action_float},
+	[SF_ACTION_UNFLOAT] = {SF_ACTION_F_WIN, action_unfloat},
+	[SF_ACTION_CONSUME] = {0, action_consume},
 	[SF_ACTION_ARRANGE_ROTATE] = {0, action_arrange_rotate},
 };
 

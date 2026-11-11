@@ -65,7 +65,8 @@ struct sf_layout_ctx {
 	struct wlr_box snap_bottom;
 	/* Boxes match within this many px per edge (≤0 → default 2). */
 	int tol;
-	/* Skip FLOAT→edged regain (arrange-managed / post break-out hold). */
+	/* Skip FLOAT→edged regain and edged→FLOAT demotion (arrange-managed,
+	 * scratch/slide, post break-out hold). */
 	bool no_geom_regain;
 };
 

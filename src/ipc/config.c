@@ -109,6 +109,12 @@ static void emit_options(struct json_buf *b, const struct sf_config *cfg) {
 	json_key(b, "border_urgent");
 	json_rgba(b, &cfg->border_urgent);
 	json_byte(b, ',');
+	json_key(b, "border_float_active");
+	json_rgba(b, &cfg->border_float_active);
+	json_byte(b, ',');
+	json_key(b, "border_float_inactive");
+	json_rgba(b, &cfg->border_float_inactive);
+	json_byte(b, ',');
 	json_key(b, "shadow_color");
 	json_rgba(b, &cfg->shadow_color);
 	json_byte(b, ',');

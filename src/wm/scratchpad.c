@@ -13,6 +13,7 @@
 #include "config/config.h"
 #include "log/log.h"
 #include "server/server.h"
+#include "wm/layout_sm.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
@@ -110,6 +111,11 @@ static void scratch_show(struct sf_toplevel *toplevel) {
 	}
 	/* apply_shown + focus via focus_toplevel. */
 	sf_toplevel_apply_shown(toplevel, true);
+	/* QT is edge-max on claim; reassert after hide so CSD/size commits
+	 * during the slide cannot leave a float chrome pose. */
+	if (sf_layout_sm_is_max_edges(&toplevel->layout)) {
+		sf_toplevel_set_max_edges(toplevel, true);
+	}
 }
 
 static void scratch_claim(struct sf_scratch_slot *slot, struct sf_toplevel *toplevel) {

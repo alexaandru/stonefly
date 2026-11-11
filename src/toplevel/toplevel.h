@@ -69,6 +69,18 @@ struct sf_toplevel {
 	struct sf_place_sm place;
 	/* Workspace arrange engine owns this window's box. */
 	bool arrange_managed;
+	/* Explicit float (toggle_float / float / max-edges break-out). Tiling
+	 * layouts rejoin every other eligible window so nothing sits under the
+	 * strip. */
+	bool arrange_floating;
+	/* Set when max-edges broke a tile out; unmax rejoins. Cleared when the
+	 * window was already an explicit float before max-edges. */
+	bool arrange_max_edges_rejoin;
+	/* Columns: column index while managed (-1 when not). Multi-window
+	 * columns share an index (consume stacks into a neighbor). */
+	int arrange_column;
+	/* Columns only: this column is full-usable wide (Super+m); stays tiled. */
+	bool arrange_column_max;
 	/* After break-out: suppress GEOM regain until box leaves hold. */
 	bool geom_regain_hold;
 	struct wlr_box geom_regain_box;

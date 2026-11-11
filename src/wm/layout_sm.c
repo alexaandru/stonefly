@@ -285,6 +285,14 @@ static void reconcile_geom(struct sf_layout_result *out, struct sf_layout_sm *s,
 		if (s->mode == SF_LAYOUT_MODE_FULLSCREEN) {
 			return;
 		}
+		/* Scratch slide / tiling overlay: keep edged until explicit
+		 * leave. Mid-slide or CSD-size commits must not demote
+		 * edge-max → float (QT borders/CSD on show). */
+		if (ctx->no_geom_regain &&
+		    (s->mode == SF_LAYOUT_MODE_MAX_EDGES || s->mode == SF_LAYOUT_MODE_MAX_GAPS ||
+		     s->mode == SF_LAYOUT_MODE_SNAP)) {
+			return;
+		}
 		/* Geometry left the arranged box → float. */
 		to_float_keep_geom(out, s, false);
 		return;

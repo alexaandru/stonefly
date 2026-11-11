@@ -358,15 +358,16 @@ void sf_workspace_assign(struct sf_toplevel *toplevel, struct sf_workspace *ws) 
 		sf_workspace_compact(old_output);
 	}
 	sf_workspace_compact(ws->output);
-	if (sf_arrange_is_tiling(sf_workspace_arrange(ws)) &&
+	if (sf_arrange_is_tiling(sf_workspace_arrange(ws)) && !toplevel->arrange_floating &&
 	    !sf_layout_sm_is_fixed(&toplevel->layout) &&
 	    (toplevel->xdg_toplevel == NULL || toplevel->xdg_toplevel->parent == NULL)) {
-		/* Enroll this window only — join_workspace would re-tile Super+v
-		 * floaters when a new client maps. */
+		/* Enroll this window only — explicit floats (arrange_floating)
+		 * stay out; everything else joins the strip. */
 		sf_arrange_join_toplevel(toplevel);
 		sf_arrange_schedule(ws);
-	} else if (old_ws != ws) {
+	} else if (old_ws != ws && !toplevel->arrange_floating) {
 		toplevel->arrange_managed = false;
+		toplevel->arrange_column = -1;
 	}
 	if (old_ws != NULL && old_ws != ws) {
 		sf_arrange_schedule(old_ws);

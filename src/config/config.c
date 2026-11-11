@@ -208,6 +208,9 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 	sf_rgba_set(&cfg->border_active, 0.10f, 0.75f, 1.00f, 1.00f);
 	sf_rgba_set(&cfg->border_inactive, 0.22f, 0.22f, 0.24f, 1.00f);
 	sf_rgba_set(&cfg->border_urgent, 1.00f, 0.45f, 0.10f, 1.00f);
+	/* Explicit floats: pink / dimmed pink. */
+	sf_rgba_set(&cfg->border_float_active, 1.00f, 0.35f, 0.70f, 1.00f);
+	sf_rgba_set(&cfg->border_float_inactive, 0.55f, 0.32f, 0.42f, 1.00f);
 	sf_rgba_set(&cfg->shadow_color, 0.0f, 0.0f, 0.0f, 0.55f);
 	cfg->window_blur = true;
 	/* false: blur real backdrop including other clients (hypr/niri-ish). */
@@ -225,7 +228,7 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 	cfg->snap_preview_opacity = 0.40f;
 	cfg->tap_max_hold_ms = 500;
 	cfg->double_tap_gap_ms = 300;
-	cfg->arrange = SF_ARRANGE_STACKING;
+	cfg->arrange = SF_ARRANGE_COLUMNS;
 	cfg->master_pos = SF_MASTER_LEFT;
 	cfg->master_factor = 0.55f;
 	cfg->dwindle_factor = 0.5f;
@@ -278,6 +281,10 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 		{SF_SUPER, XKB_KEY_Down, 0, SF_ACTION_FOCUS_DIR, "down", SF_ARRANGE_TILING},
 		{SF_SUPER, XKB_KEY_u, 0, SF_ACTION_UNSNAP, NULL, SF_ARRANGE_STACKING},
 		{SF_SUPER, XKB_KEY_v, 0, SF_ACTION_TOGGLE_FLOAT, NULL, SF_ARRANGE_TILING},
+		{SF_SUPER | SF_SHIFT, XKB_KEY_v, 0, SF_ACTION_FLOAT, NULL, SF_ARRANGE_TILING},
+		{SF_SUPER | SF_CTRL, XKB_KEY_v, 0, SF_ACTION_UNFLOAT, NULL, SF_ARRANGE_TILING},
+		{SF_SUPER, XKB_KEY_comma, 0, SF_ACTION_CONSUME, "left", SF_ARRANGE_COLUMNS},
+		{SF_SUPER, XKB_KEY_period, 0, SF_ACTION_CONSUME, "right", SF_ARRANGE_COLUMNS},
 		{SF_SUPER, XKB_KEY_c, 0, SF_ACTION_ARRANGE_ROTATE, "cw", SF_ARRANGE_TILING},
 		{SF_SUPER | SF_SHIFT, XKB_KEY_c, 0, SF_ACTION_ARRANGE_ROTATE, "ccw",
 		 SF_ARRANGE_TILING},

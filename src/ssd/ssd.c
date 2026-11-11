@@ -192,9 +192,18 @@ void sf_ssd_update(struct sf_toplevel *toplevel) {
 	bool show = sf_ssd_should_show(toplevel);
 	if (toplevel->decoration != NULL && toplevel->decoration->toplevel != NULL &&
 	    toplevel->decoration->toplevel->base->initialized) {
+		/*
+		 * Edge-max / fullscreen: keep SERVER_SIDE even with our SSD
+		 * hidden. CLIENT_SIDE here makes Ghostty draw CSD under a
+		 * maximized surface (QT hide/show fringe + border crescent).
+		 * Only ask for CSD when we are actually floating without SSD.
+		 */
 		enum wlr_xdg_toplevel_decoration_v1_mode set_mode =
-			show ? WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE
-			     : WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
+			WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE;
+		if (!show && !sf_layout_sm_is_max_edges(&toplevel->layout) &&
+		    !sf_layout_sm_is_fullscreen(&toplevel->layout)) {
+			set_mode = WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
+		}
 		if (toplevel->ssd_set_mode != (int)set_mode) {
 			wlr_xdg_toplevel_decoration_v1_set_mode(toplevel->decoration, set_mode);
 			toplevel->ssd_set_mode = (int)set_mode;

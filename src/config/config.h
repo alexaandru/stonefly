@@ -94,6 +94,10 @@ enum sf_action {
 	SF_ACTION_FOCUS_DIR,
 	/* Tiling: leave/rejoin the tile set. Stacking: no-op unless edged→float. */
 	SF_ACTION_TOGGLE_FLOAT,
+	SF_ACTION_FLOAT,
+	SF_ACTION_UNFLOAT,
+	/* Columns: cmd = left|right — stack focused into neighbor column. */
+	SF_ACTION_CONSUME,
 	/* cmd = next|cw|prev|ccw (default next). Rotate tile order; focus stays put.
 	 * next/cw: last→first (columns: last becomes 1st, others shift right). */
 	SF_ACTION_ARRANGE_ROTATE,
@@ -205,6 +209,9 @@ struct sf_config {
 	struct sf_rgba border_active;
 	struct sf_rgba border_inactive;
 	struct sf_rgba border_urgent;
+	/* Explicit floats (arrange_floating): pink / dimmed pink. */
+	struct sf_rgba border_float_active;
+	struct sf_rgba border_float_inactive;
 	struct sf_rgba shadow_color;
 	bool window_blur; /* per-window SceneFX blur behind chrome */
 	/* true → blur wallpaper/optimized underlay only (mango xray);

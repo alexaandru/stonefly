@@ -33,15 +33,21 @@ void sf_arrange_set(struct sf_server *server, const char *name);
 /* Join eligible windows into the tile set when entering a tiling arrange. */
 void sf_arrange_join_workspace(struct sf_workspace *ws);
 
-/* Enroll one window into its workspace tile set (map / send / toggle rejoin).
- * Does not touch peers — Super+v float must survive a new client mapping. */
+/* Enroll one window into its workspace tile set (map / send / unfloat).
+ * Skips arrange_floating windows. */
 void sf_arrange_join_toplevel(struct sf_toplevel *toplevel);
 
-/* Leave the tile set (explicit float / rule). Arms geom-regain hold. */
+/* Leave the tile set as an explicit float. Arms geom-regain hold. */
 void sf_arrange_break_out(struct sf_toplevel *toplevel);
 
+void sf_arrange_float(struct sf_toplevel *toplevel);
+void sf_arrange_unfloat(struct sf_toplevel *toplevel);
 /* Toggle tile membership: tiled→float, or float→rejoin on a tiling workspace. */
 void sf_arrange_toggle_float(struct sf_toplevel *toplevel);
+
+/* Columns: stack focused into neighbor column, or expel from a multi-window
+ * column when no neighbor exists (umbriel consume-or-expel). dir: left|right. */
+void sf_arrange_consume(struct sf_server *server, const char *dir);
 
 /* Drop from the workspace tile-order list (unmap / destroy / leave). */
 void sf_arrange_unlink(struct sf_toplevel *toplevel);

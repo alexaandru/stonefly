@@ -101,25 +101,6 @@ void sf_arrange_unlink(struct sf_toplevel *toplevel) {
 	arrange_tiles_unlink(toplevel);
 }
 
-void sf_arrange_break_out(struct sf_toplevel *toplevel) {
-	if (toplevel == NULL || !toplevel->arrange_managed) {
-		return;
-	}
-	sf_toplevel_layout_geom(toplevel, &toplevel->geom_regain_box);
-	toplevel->geom_regain_hold = true;
-	toplevel->arrange_managed = false;
-	arrange_tiles_unlink(toplevel);
-	/* New float pose becomes the stacking restore target. */
-	toplevel->arrange_float_box = toplevel->geom_regain_box;
-	toplevel->arrange_float_saved = true;
-	if (toplevel->xdg_toplevel != NULL && toplevel->xdg_toplevel->base->initialized) {
-		wlr_xdg_toplevel_set_tiled(toplevel->xdg_toplevel, 0);
-	}
-	if (toplevel->workspace != NULL) {
-		sf_arrange_schedule(toplevel->workspace);
-	}
-}
-
 static void save_float_if_needed(struct sf_toplevel *t) {
 	if (t->arrange_float_saved) {
 		return;
@@ -138,9 +119,102 @@ static void demote_edged_for_join(struct sf_toplevel *t) {
 	sf_toplevel_layout_float(t, false);
 }
 
+static int columns_focus_column(struct sf_workspace *ws) {
+	if (ws == NULL || ws->output == NULL || ws->output->server == NULL) {
+		return -1;
+	}
+	struct sf_toplevel *focus = sf_focused_toplevel(ws->output->server);
+	if (focus == NULL || focus->workspace != ws || !focus->arrange_managed) {
+		return -1;
+	}
+	return focus->arrange_column;
+}
+
+/* Insert as a new column immediately after the focused column (umbriel). */
+static void columns_assign_new(struct sf_toplevel *toplevel) {
+	struct sf_workspace *ws = toplevel->workspace;
+	int after = columns_focus_column(ws);
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &ws->arrange_tiles, arrange_link) {
+		if (t->arrange_managed && t->arrange_column > after) {
+			t->arrange_column++;
+		}
+	}
+	toplevel->arrange_column = after + 1;
+}
+
+static void columns_compact_ids(struct sf_workspace *ws) {
+	if (ws == NULL) {
+		return;
+	}
+	int map_from[SF_ARRANGE_MAX];
+	int map_to[SF_ARRANGE_MAX];
+	size_t nmap = 0;
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &ws->arrange_tiles, arrange_link) {
+		if (!t->arrange_managed || t->arrange_column < 0) {
+			continue;
+		}
+		bool seen = false;
+		for (size_t i = 0; i < nmap; i++) {
+			if (map_from[i] == t->arrange_column) {
+				seen = true;
+				break;
+			}
+		}
+		if (!seen && nmap < SF_ARRANGE_MAX) {
+			map_from[nmap] = t->arrange_column;
+			map_to[nmap] = (int)nmap;
+			nmap++;
+		}
+	}
+	wl_list_for_each(t, &ws->arrange_tiles, arrange_link) {
+		if (!t->arrange_managed) {
+			continue;
+		}
+		for (size_t i = 0; i < nmap; i++) {
+			if (map_from[i] == t->arrange_column) {
+				t->arrange_column = map_to[i];
+				break;
+			}
+		}
+	}
+}
+
+void sf_arrange_break_out(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || !toplevel->arrange_managed) {
+		/* Still mark explicit float so strays are not auto-rejoined. */
+		if (toplevel != NULL) {
+			toplevel->arrange_floating = true;
+			toplevel->arrange_column = -1;
+			toplevel->arrange_column_max = false;
+			toplevel->arrange_max_edges_rejoin = false;
+		}
+		return;
+	}
+	sf_toplevel_layout_geom(toplevel, &toplevel->geom_regain_box);
+	toplevel->geom_regain_hold = true;
+	toplevel->arrange_managed = false;
+	toplevel->arrange_floating = true;
+	toplevel->arrange_column = -1;
+	toplevel->arrange_column_max = false;
+	toplevel->arrange_max_edges_rejoin = false;
+	arrange_tiles_unlink(toplevel);
+	/* New float pose becomes the stacking restore target. */
+	toplevel->arrange_float_box = toplevel->geom_regain_box;
+	toplevel->arrange_float_saved = true;
+	if (toplevel->xdg_toplevel != NULL && toplevel->xdg_toplevel->base->initialized) {
+		wlr_xdg_toplevel_set_tiled(toplevel->xdg_toplevel, 0);
+	}
+	if (toplevel->workspace != NULL) {
+		columns_compact_ids(toplevel->workspace);
+		sf_arrange_schedule(toplevel->workspace);
+	}
+}
+
 void sf_arrange_join_toplevel(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->workspace == NULL || toplevel->minimized ||
-	    sf_toplevel_is_scratchpad(toplevel)) {
+	    sf_toplevel_is_scratchpad(toplevel) || toplevel->arrange_floating) {
 		return;
 	}
 	if (sf_layout_sm_is_fullscreen(&toplevel->layout)) {
@@ -154,10 +228,19 @@ void sf_arrange_join_toplevel(struct sf_toplevel *toplevel) {
 		return;
 	}
 	struct sf_workspace *ws = toplevel->workspace;
+	bool was_managed = toplevel->arrange_managed;
 	save_float_if_needed(toplevel);
 	toplevel->arrange_managed = true;
+	toplevel->arrange_floating = false;
 	toplevel->geom_regain_hold = false;
-	arrange_tiles_link(ws, toplevel);
+	if (!was_managed || wl_list_empty(&toplevel->arrange_link)) {
+		if (sf_workspace_arrange(ws) == SF_ARRANGE_COLUMNS) {
+			columns_assign_new(toplevel);
+		} else {
+			toplevel->arrange_column = 0;
+		}
+		arrange_tiles_link(ws, toplevel);
+	}
 	if (toplevel->scene_tree != NULL && !toplevel->scene_tree->node.enabled) {
 		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
 	}
@@ -170,11 +253,65 @@ void sf_arrange_join_workspace(struct sf_workspace *ws) {
 	struct sf_server *server = ws->output->server;
 	struct sf_toplevel *t;
 	wl_list_for_each(t, &server->toplevels, link) {
-		if (t->workspace != ws) {
+		if (t->workspace != ws || t->arrange_floating) {
 			continue;
 		}
 		sf_arrange_join_toplevel(t);
 	}
+}
+
+/* Visible non-floats on a tiling workspace must be in the tile set. */
+static void rejoin_strays(struct sf_workspace *ws) {
+	if (ws == NULL || ws->output == NULL || ws->output->server == NULL) {
+		return;
+	}
+	if (!sf_arrange_is_tiling(sf_workspace_arrange(ws))) {
+		return;
+	}
+	struct sf_server *server = ws->output->server;
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &server->toplevels, link) {
+		if (t->workspace != ws || t->arrange_managed || t->arrange_floating ||
+		    t->minimized) {
+			continue;
+		}
+		sf_arrange_join_toplevel(t);
+	}
+}
+
+void sf_arrange_float(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->minimized || sf_toplevel_is_scratchpad(toplevel)) {
+		return;
+	}
+	if (sf_layout_sm_is_fullscreen(&toplevel->layout)) {
+		return;
+	}
+	if (toplevel->arrange_managed) {
+		sf_arrange_break_out(toplevel);
+	} else {
+		toplevel->arrange_floating = true;
+		toplevel->arrange_max_edges_rejoin = false;
+	}
+	sf_decor_refresh_border(toplevel);
+}
+
+void sf_arrange_unfloat(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->minimized || sf_toplevel_is_scratchpad(toplevel)) {
+		return;
+	}
+	struct sf_workspace *ws = toplevel->workspace;
+	if (ws == NULL || !sf_arrange_is_tiling(sf_workspace_arrange(ws))) {
+		return;
+	}
+	toplevel->arrange_floating = false;
+	toplevel->arrange_max_edges_rejoin = false;
+	if (sf_layout_sm_is_max_edges(&toplevel->layout) ||
+	    sf_layout_sm_is_max_gaps(&toplevel->layout)) {
+		sf_toplevel_layout_float(toplevel, false);
+	}
+	sf_arrange_join_toplevel(toplevel);
+	sf_arrange_schedule(ws);
+	sf_decor_refresh_border(toplevel);
 }
 
 void sf_arrange_toggle_float(struct sf_toplevel *toplevel) {
@@ -184,16 +321,11 @@ void sf_arrange_toggle_float(struct sf_toplevel *toplevel) {
 	if (sf_layout_sm_is_fullscreen(&toplevel->layout)) {
 		return;
 	}
-	if (toplevel->arrange_managed) {
-		sf_arrange_break_out(toplevel);
+	if (toplevel->arrange_managed && !toplevel->arrange_floating) {
+		sf_arrange_float(toplevel);
 		return;
 	}
-	struct sf_workspace *ws = toplevel->workspace;
-	if (ws == NULL || !sf_arrange_is_tiling(sf_workspace_arrange(ws))) {
-		return;
-	}
-	sf_arrange_join_toplevel(toplevel);
-	sf_arrange_schedule(ws);
+	sf_arrange_unfloat(toplevel);
 }
 
 static void leave_tiling(struct sf_workspace *ws) {
@@ -207,6 +339,10 @@ static void leave_tiling(struct sf_workspace *ws) {
 			continue;
 		}
 		t->arrange_managed = false;
+		t->arrange_column = -1;
+		t->arrange_column_max = false;
+		t->arrange_max_edges_rejoin = false;
+		/* Keep arrange_floating: explicit floats stay out on re-enter. */
 		arrange_tiles_unlink(t);
 		if (t->xdg_toplevel != NULL && t->xdg_toplevel->base->initialized) {
 			wlr_xdg_toplevel_set_tiled(t->xdg_toplevel, 0);
@@ -245,6 +381,39 @@ static size_t collect_managed(struct sf_workspace *ws, struct sf_toplevel **out,
 	return n;
 }
 
+/* Tab ring: tile order, then edge-max break-outs on this workspace. */
+static size_t collect_focus_tiles(struct sf_workspace *ws, struct sf_toplevel **out, size_t cap) {
+	if (ws == NULL || ws->output == NULL || ws->output->server == NULL) {
+		return 0;
+	}
+	size_t n = 0;
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &ws->arrange_tiles, arrange_link) {
+		if (!sf_arrange_toplevel_managed(t)) {
+			continue;
+		}
+		if (n < cap) {
+			out[n] = t;
+		}
+		n++;
+	}
+	/* Super+f break-outs: still reachable with Tab (after the tile ring). */
+	wl_list_for_each(t, &ws->output->server->toplevels, link) {
+		if (t->workspace != ws || t->minimized || t->arrange_managed ||
+		    sf_toplevel_is_scratchpad(t)) {
+			continue;
+		}
+		if (!sf_layout_sm_is_max_edges(&t->layout)) {
+			continue;
+		}
+		if (n < cap) {
+			out[n] = t;
+		}
+		n++;
+	}
+	return n;
+}
+
 static size_t focus_index(struct sf_toplevel **wins, size_t n, struct sf_toplevel *focus) {
 	if (focus == NULL) {
 		return 0;
@@ -257,24 +426,131 @@ static size_t focus_index(struct sf_toplevel **wins, size_t n, struct sf_topleve
 	return 0;
 }
 
-static void columns_scroll_to_focus(struct sf_workspace *ws, const struct wlr_box *usable, size_t n,
-				    size_t focus_idx, int col_w, int gap) {
-	if (n == 0 || usable == NULL) {
-		return;
+/* Columns may hold several stacked windows (consume). Pack by arrange_column. */
+static bool columns_apply(struct sf_workspace *ws, const struct wlr_box *usable,
+			  struct sf_toplevel **wins, size_t n, size_t focus_idx, int base_w,
+			  int gap, struct wlr_box *boxes) {
+	if (usable == NULL || wins == NULL || boxes == NULL || n == 0) {
+		return false;
 	}
-	int stride = col_w + gap;
-	int col_x = usable->x + (int)focus_idx * stride - ws->columns_view_offset;
-	int col_r = col_x + col_w;
-	int view_l = usable->x;
-	int view_r = usable->x + usable->width;
-	if (col_x < view_l) {
-		ws->columns_view_offset -= view_l - col_x;
-	} else if (col_r > view_r) {
-		ws->columns_view_offset += col_r - view_r;
+	if (base_w < 1) {
+		base_w = 1;
 	}
-	if (ws->columns_view_offset < 0) {
-		ws->columns_view_offset = 0;
+	if (gap < 0) {
+		gap = 0;
 	}
+	if (focus_idx >= n) {
+		focus_idx = 0;
+	}
+	columns_compact_ids(ws);
+
+	int col_ids[SF_ARRANGE_MAX];
+	size_t ncol = 0;
+	for (size_t i = 0; i < n; i++) {
+		int c = wins[i]->arrange_column;
+		if (c < 0) {
+			wins[i]->arrange_column = (int)ncol;
+			c = (int)ncol;
+		}
+		bool seen = false;
+		for (size_t k = 0; k < ncol; k++) {
+			if (col_ids[k] == c) {
+				seen = true;
+				break;
+			}
+		}
+		if (!seen && ncol < SF_ARRANGE_MAX) {
+			col_ids[ncol++] = c;
+		}
+	}
+
+	int col_w[SF_ARRANGE_MAX];
+	int col_left[SF_ARRANGE_MAX];
+	bool col_max[SF_ARRANGE_MAX];
+	int x = 0;
+	for (size_t k = 0; k < ncol; k++) {
+		col_max[k] = false;
+		for (size_t i = 0; i < n; i++) {
+			if (wins[i]->arrange_column == col_ids[k] && wins[i]->arrange_column_max) {
+				col_max[k] = true;
+				break;
+			}
+		}
+		col_w[k] = col_max[k] ? usable->width : base_w;
+		if (col_w[k] < 1) {
+			col_w[k] = 1;
+		}
+		col_left[k] = x;
+		x += col_w[k] + (k + 1 < ncol ? gap : 0);
+	}
+
+	int focus_col = wins[focus_idx]->arrange_column;
+	size_t fk = 0;
+	for (size_t k = 0; k < ncol; k++) {
+		if (col_ids[k] == focus_col) {
+			fk = k;
+			break;
+		}
+	}
+	int fw = col_w[fk];
+	int fl = col_left[fk];
+	int offset = fl + fw / 2 - usable->width / 2;
+	if (offset < 0) {
+		offset = 0;
+	}
+	int max_off = x > usable->width ? x - usable->width : 0;
+	if (offset > max_off) {
+		offset = max_off;
+	}
+	ws->columns_view_offset = offset;
+
+	for (size_t k = 0; k < ncol; k++) {
+		struct sf_toplevel *rows[SF_ARRANGE_MAX];
+		size_t nrows = 0;
+		for (size_t i = 0; i < n; i++) {
+			if (wins[i]->arrange_column == col_ids[k] && nrows < SF_ARRANGE_MAX) {
+				rows[nrows++] = wins[i];
+			}
+		}
+		struct wlr_box col_box = {
+			.x = usable->x + col_left[k] - offset,
+			.y = usable->y,
+			.width = col_w[k],
+			.height = usable->height,
+		};
+		struct wlr_box row_boxes[SF_ARRANGE_MAX];
+		if (nrows == 1) {
+			row_boxes[0] = col_box;
+		} else {
+			/* Equal vertical stack inside the column (umbriel rows). */
+			int content = col_box.height - (int)(nrows - 1) * gap;
+			if (content < (int)nrows) {
+				content = (int)nrows;
+			}
+			int base = content / (int)nrows;
+			int rem = content % (int)nrows;
+			int y = col_box.y;
+			for (size_t r = 0; r < nrows; r++) {
+				int h = base + (r + 1 == nrows ? rem : 0);
+				row_boxes[r] = (struct wlr_box){
+					.x = col_box.x,
+					.y = y,
+					.width = col_box.width,
+					.height = h,
+				};
+				y += h + gap;
+			}
+		}
+		for (size_t r = 0; r < nrows; r++) {
+			for (size_t i = 0; i < n; i++) {
+				if (wins[i] == rows[r]) {
+					boxes[i] = row_boxes[r];
+					break;
+				}
+			}
+		}
+	}
+	return true;
 }
 
 static void reenable_managed(struct sf_toplevel **wins, size_t n) {
@@ -325,6 +601,8 @@ void sf_workspace_apply_arrange(struct sf_workspace *ws) {
 	    server->grabbed_toplevel->workspace == ws) {
 		return;
 	}
+	/* Hide/show / max leftovers must not sit under the strip. */
+	rejoin_strays(ws);
 
 	struct wlr_box usable;
 	if (!sf_output_usable_box(ws->output, &usable) || usable.width <= 0 || usable.height <= 0) {
@@ -364,14 +642,8 @@ void sf_workspace_apply_arrange(struct sf_workspace *ws) {
 					    cfg->master_count, gap, boxes);
 		break;
 	case SF_ARRANGE_COLUMNS: {
-		double ratio = cfg->column_ratio;
-		int col_w = (int)(usable.width * ratio);
-		if (col_w < 1) {
-			col_w = 1;
-		}
-		columns_scroll_to_focus(ws, &usable, n, fi, col_w, gap);
-		ok = sf_arrange_math_columns(&usable, n, ratio, gap, ws->columns_view_offset,
-					     boxes);
+		int col_w = (int)(usable.width * (double)cfg->column_ratio);
+		ok = columns_apply(ws, &usable, wins, n, fi, col_w, gap, boxes);
 		break;
 	}
 	case SF_ARRANGE_DWINDLE:
@@ -399,6 +671,15 @@ void sf_workspace_apply_arrange(struct sf_workspace *ws) {
 	/* Instant reflow while Super+RMB factor-dragging; morph otherwise. */
 	bool morph = server->cursor_mode != SF_CURSOR_ARRANGE_RESIZE;
 	apply_boxes(wins, boxes, n, kind, morph);
+	/* Explicit floats stay above the packed strip. */
+	struct sf_toplevel *ft;
+	wl_list_for_each(ft, &server->toplevels, link) {
+		if (ft->workspace == ws && ft->arrange_floating && !ft->minimized &&
+		    ft->scene_tree != NULL) {
+			wlr_scene_node_raise_to_top(&ft->scene_tree->node);
+		}
+	}
+	sf_pinned_restack(server);
 }
 
 static void arrange_idle_cb(void *data) {
@@ -474,6 +755,73 @@ void sf_arrange_cycle(struct sf_server *server, int delta) {
 		idx = (idx + n - 1) % n;
 	}
 	sf_arrange_set(server, sf_arrange_name(arrange_cycle_order[idx]));
+}
+
+void sf_arrange_consume(struct sf_server *server, const char *dir) {
+	if (server == NULL || dir == NULL) {
+		return;
+	}
+	int delta = 0;
+	if (strcasecmp(dir, "left") == 0) {
+		delta = -1;
+	} else if (strcasecmp(dir, "right") == 0) {
+		delta = 1;
+	} else {
+		return;
+	}
+	struct sf_toplevel *focus = sf_focused_toplevel(server);
+	if (focus == NULL || !focus->arrange_managed || focus->workspace == NULL) {
+		return;
+	}
+	struct sf_workspace *ws = focus->workspace;
+	if (sf_workspace_arrange(ws) != SF_ARRANGE_COLUMNS) {
+		return;
+	}
+	int src = focus->arrange_column;
+	if (src < 0) {
+		return;
+	}
+	int dst = src + delta;
+	bool dst_exists = false;
+	size_t src_count = 0;
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &ws->arrange_tiles, arrange_link) {
+		if (!t->arrange_managed) {
+			continue;
+		}
+		if (t->arrange_column == src) {
+			src_count++;
+		}
+		if (dst >= 0 && t->arrange_column == dst) {
+			dst_exists = true;
+		}
+	}
+	if (dst_exists) {
+		/* Stack into neighbor column (umbriel window-consume-*). */
+		focus->arrange_column = dst;
+	} else if (src_count > 1) {
+		/* No neighbor: expel out of a multi-window column
+		 * (umbriel consume-or-expel). */
+		if (delta < 0) {
+			wl_list_for_each(t, &ws->arrange_tiles, arrange_link) {
+				if (t != focus && t->arrange_managed && t->arrange_column >= src) {
+					t->arrange_column++;
+				}
+			}
+			focus->arrange_column = src;
+		} else {
+			wl_list_for_each(t, &ws->arrange_tiles, arrange_link) {
+				if (t->arrange_managed && t->arrange_column > src) {
+					t->arrange_column++;
+				}
+			}
+			focus->arrange_column = src + 1;
+		}
+	} else {
+		return;
+	}
+	columns_compact_ids(ws);
+	sf_arrange_schedule(ws);
 }
 
 void sf_arrange_rotate(struct sf_server *server, int delta) {
@@ -655,7 +1003,7 @@ bool sf_arrange_focus_cycle(struct sf_server *server, bool backward) {
 	}
 
 	struct sf_toplevel *wins[SF_ARRANGE_MAX];
-	size_t n = collect_managed(ws, wins, SF_ARRANGE_MAX);
+	size_t n = collect_focus_tiles(ws, wins, SF_ARRANGE_MAX);
 	if (n > SF_ARRANGE_MAX) {
 		n = SF_ARRANGE_MAX;
 	}
@@ -663,17 +1011,12 @@ bool sf_arrange_focus_cycle(struct sf_server *server, bool backward) {
 		return false;
 	}
 
-	size_t next;
 	size_t fi = focus_index(wins, n, focus);
 	if (focus == NULL || wins[fi] != focus) {
-		/* Floater / no focus: land on first (forward) or last (backward). */
-		next = backward ? n - 1 : 0;
-	} else if (backward) {
-		next = (fi + n - 1) % n;
-	} else {
-		/* Clockwise = next in arrange_tiles (same ring as arrange_rotate). */
-		next = (fi + 1) % n;
+		/* Unrelated floater: fall back to MRU. */
+		return false;
 	}
+	size_t next = backward ? (fi + n - 1) % n : (fi + 1) % n;
 	sf_focus_toplevel(wins[next]);
 	sf_pointer_follow_focus(server);
 	return true;

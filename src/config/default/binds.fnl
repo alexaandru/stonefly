@@ -33,6 +33,11 @@
   ["Super+u" {:action :unsnap :arrange "stacking"}]
   ;; tiling: leave/rejoin the tile set (Super+LMB drag swaps tiles instead)
   ["Super+v" {:action :toggle_float :arrange "tiling"}]
+  ["Super+Shift+v" {:action :float :arrange "tiling"}]
+  ["Super+Ctrl+v" {:action :unfloat :arrange "tiling"}]
+  ;; columns: consume into neighbor, or expel if stacked with no neighbor
+  ["Super+comma" {:action :consume :cmd "left" :arrange "columns"}]
+  ["Super+period" {:action :consume :cmd "right" :arrange "columns"}]
   ;; tiling: rotate tile order (cw = last→first; columns push others right)
   ["Super+c" {:action :arrange_rotate :cmd "cw" :arrange "tiling"}]
   ["Super+Shift+c" {:action :arrange_rotate :cmd "ccw" :arrange "tiling"}]
