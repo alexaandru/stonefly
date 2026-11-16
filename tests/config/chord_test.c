@@ -2,6 +2,7 @@
 #include "sf_test.h"
 #include "config/chord.h"
 
+#include <linux/input-event-codes.h>
 #include <wlr/types/wlr_keyboard.h>
 
 #define SF_SUPER ((uint32_t)WLR_MODIFIER_LOGO)
@@ -85,11 +86,41 @@ static void test_parse_mods(void) {
 	SF_TEST_EQ_INT(sf_chord_parse_mods("Super", NULL), -1);
 }
 
+static void test_parse_mouse(void) {
+	uint32_t mods = 0;
+	uint32_t button = 0;
+
+	SF_TEST_EQ_INT(sf_chord_parse_mouse("Super+LMB", &mods, &button), 0);
+	SF_TEST_EQ_INT((int)mods, (int)SF_SUPER);
+	SF_TEST_EQ_INT((int)button, (int)BTN_LEFT);
+
+	SF_TEST_EQ_INT(sf_chord_parse_mouse("Super+Shift+RMB", &mods, &button), 0);
+	SF_TEST_EQ_INT((int)mods, (int)(SF_SUPER | SF_SHIFT));
+	SF_TEST_EQ_INT((int)button, (int)BTN_RIGHT);
+
+	SF_TEST_EQ_INT(sf_chord_parse_mouse("BTN_MIDDLE", &mods, &button), 0);
+	SF_TEST_EQ_INT((int)mods, 0);
+	SF_TEST_EQ_INT((int)button, (int)BTN_MIDDLE);
+
+	SF_TEST_EQ_INT(sf_chord_parse_mouse("MouseLeft", &mods, &button), 0);
+	SF_TEST_EQ_INT((int)button, (int)BTN_LEFT);
+
+	SF_TEST_EQ_INT(sf_chord_parse_mouse("mouse:272", &mods, &button), 0);
+	SF_TEST_EQ_INT((int)button, 272);
+
+	/* Bare Left/Right stay arrow keys — not mouse aliases. */
+	SF_TEST_EQ_INT(sf_chord_parse_mouse("Super+Left", &mods, &button), -1);
+	SF_TEST_EQ_INT(sf_chord_parse_mouse("Super+w", &mods, &button), -1);
+	SF_TEST_TRUE(sf_chord_is_mouse_button("LMB"));
+	SF_TEST_TRUE(!sf_chord_is_mouse_button("Left"));
+}
+
 static const struct sf_test tests[] = {
 	{"sf_chord_parse", test_chord_parse},
 	{"sf_chord_tap_tab", test_tap_mod_and_tab_alt},
 	{"sf_chord_lookup_keysym", test_lookup_keysym},
 	{"sf_chord_parse_mods", test_parse_mods},
+	{"sf_chord_parse_mouse", test_parse_mouse},
 };
 
 int main(void) {

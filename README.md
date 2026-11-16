@@ -52,8 +52,8 @@ Layer-shell (`wlr-layer-shell-unstable-v1` v5) is implemented for
 external clients (bars, OSD, wallpapers): exclusive zones shrink the
 usable area used by maximize/snap/cascade.
 
-Super tap / double-tap (peeble `bind_tap`): single →
-`noctalia msg panel-toggle launcher`; double → named scratchpad `term`
+Super N-tap (`sf.tap` `:count`, peeble `bind_tap`): count 1 →
+`noctalia msg panel-toggle launcher`; count 2 → named scratchpad `term`
 (`ghostty --class=stonefly.scratch.term`). Super+t claims the focused
 window onto that pad. Named pads are omitted from Super+Tab. Visible
 pads with `auto_hide` (default) slide away when focus moves to another

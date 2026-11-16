@@ -28,6 +28,7 @@
 #include <wlr/util/edges.h>
 
 #include "config/config.h"
+#include "config/mousebind.h"
 #include "log/log.h"
 #include "output/output.h"
 #include "session/session.h"
@@ -38,6 +39,7 @@
 #include "wm/geom.h"
 #include "wm/snap_preview.h"
 #include "wm/wm.h"
+#include "wm/workspace.h"
 #include "xdg/xdg.h"
 
 static void process_cursor_motion(struct sf_server *server, uint32_t time);
@@ -777,7 +779,7 @@ static uint32_t seat_keyboard_mods(struct sf_server *server) {
 }
 
 /* Resize from the edges nearest the pointer (sway/i3-style). */
-static uint32_t resize_edges_at(struct sf_toplevel *toplevel, double lx, double ly) {
+uint32_t sf_resize_edges_at(struct sf_toplevel *toplevel, double lx, double ly) {
 	struct wlr_box geom;
 	sf_toplevel_layout_geom(toplevel, &geom);
 	uint32_t edges = 0;
@@ -1070,39 +1072,20 @@ void server_cursor_button(struct wl_listener *listener, void *data) {
 		return;
 	}
 
-	/* Super+LMB move, Super+RMB edge resize, Super+Shift+RMB center-lock. */
+	/* sf.bind mouse chords (default Super+LMB/RMB / Super+Shift+RMB). */
 	if (!sf_session_locked(server)) {
 		uint32_t mods = seat_keyboard_mods(server) & (uint32_t)SF_MOD_MASK;
-		if (event->button == BTN_RIGHT && mods == (SF_SUPER | SF_SHIFT)) {
-			sf_tap_disarm(server);
-			double sx, sy;
-			struct wlr_surface *surface = NULL;
-			struct sf_toplevel *toplevel = sf_desktop_toplevel_at(
-				server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
-			if (toplevel != NULL) {
-				sf_focus_toplevel(toplevel);
-				sf_begin_interactive(toplevel, SF_CURSOR_RESIZE_CENTER, 0);
-				return;
-			}
+		enum sf_arrange cur = SF_ARRANGE_STACKING;
+		struct sf_output *out = sf_output_at_cursor(server);
+		if (out != NULL && out->active != NULL) {
+			cur = sf_workspace_arrange(out->active);
 		}
-		if (mods == SF_SUPER && (event->button == BTN_LEFT || event->button == BTN_RIGHT)) {
+		const struct sf_mousebind *mb =
+			sf_mousebind_match(sf_cfg(server), mods, event->button, cur);
+		if (mb != NULL && mb->n_steps > 0) {
 			sf_tap_disarm(server);
-			double sx, sy;
-			struct wlr_surface *surface = NULL;
-			struct sf_toplevel *toplevel = sf_desktop_toplevel_at(
-				server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
-			if (toplevel != NULL) {
-				sf_focus_toplevel(toplevel);
-				if (event->button == BTN_LEFT) {
-					sf_begin_interactive(toplevel, SF_CURSOR_MOVE, 0);
-				} else {
-					sf_begin_interactive(toplevel, SF_CURSOR_RESIZE,
-							     resize_edges_at(toplevel,
-									     server->cursor->x,
-									     server->cursor->y));
-				}
-				return;
-			}
+			sf_run_actions(server, NULL, mb->steps, mb->n_steps);
+			return;
 		}
 	}
 

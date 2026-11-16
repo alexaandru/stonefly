@@ -43,39 +43,71 @@ void tap_clear_timer(struct sf_server *server) {
 	}
 }
 
-static int tap_double_timer(void *data) {
-	struct sf_server *server = data;
-	server->tap.timer = NULL;
-	if (server->tap.taps != 1) {
-		return 0;
-	}
-	const struct sf_action_step *steps = server->tap.single_steps;
-	size_t n = server->tap.n_single_steps;
-	server->tap.taps = 0;
-	sf_run_actions(server, NULL, steps, n);
-	return 0;
-}
-
-static void tap_finish(struct sf_server *server, const struct sf_action_step *steps, size_t n) {
+void sf_tap_reset(struct sf_server *server) {
+	sf_tap_disarm(server);
 	tap_clear_timer(server);
 	server->tap.taps = 0;
-	sf_run_actions(server, NULL, steps, n);
+	server->tap.bind = NULL;
+}
+
+static unsigned tap_max_count(const struct sf_tapbind *bind) {
+	unsigned max = 0;
+	if (bind == NULL) {
+		return 0;
+	}
+	for (size_t i = 0; i < bind->n_levels; i++) {
+		if (bind->levels[i].count > max) {
+			max = bind->levels[i].count;
+		}
+	}
+	return max;
+}
+
+static const struct sf_tap_level *tap_level_at(const struct sf_tapbind *bind, unsigned count) {
+	if (bind == NULL) {
+		return NULL;
+	}
+	for (size_t i = 0; i < bind->n_levels; i++) {
+		if (bind->levels[i].count == count) {
+			return &bind->levels[i];
+		}
+	}
+	return NULL;
+}
+
+static void tap_fire(struct sf_server *server, unsigned count) {
+	const struct sf_tapbind *bind = server->tap.bind;
+	tap_clear_timer(server);
+	server->tap.taps = 0;
+	server->tap.bind = NULL;
+	const struct sf_tap_level *lv = tap_level_at(bind, count);
+	if (lv != NULL) {
+		sf_run_actions(server, NULL, lv->steps, lv->n_steps);
+	}
+}
+
+static int tap_gap_timer(void *data) {
+	struct sf_server *server = data;
+	server->tap.timer = NULL;
+	unsigned n = (unsigned)server->tap.taps;
+	if (n == 0) {
+		return 0;
+	}
+	tap_fire(server, n);
+	return 0;
 }
 
 static void tap_on_press(struct sf_server *server, const struct sf_tapbind *bind) {
 	server->tap.armed = true;
 	clock_gettime(CLOCK_MONOTONIC, &server->tap.since);
-	/* Config lives for process lifetime; pointers into cfg are stable. */
-	server->tap.single_steps = bind->single_steps;
-	server->tap.n_single_steps = bind->n_single_steps;
-	server->tap.double_steps = bind->double_steps;
-	server->tap.n_double_steps = bind->n_double_steps;
+	/* Config lives until reload; pointer into cfg is stable across the gap. */
+	server->tap.bind = bind;
 }
 
 static void tap_on_release(struct sf_server *server) {
 	bool armed = server->tap.armed;
 	server->tap.armed = false;
-	if (!armed) {
+	if (!armed || server->tap.bind == NULL) {
 		return;
 	}
 	const struct sf_config *cfg = sf_cfg(server);
@@ -83,21 +115,23 @@ static void tap_on_release(struct sf_server *server) {
 		return;
 	}
 
-	if (server->tap.n_double_steps == 0) {
-		tap_finish(server, server->tap.single_steps, server->tap.n_single_steps);
+	unsigned max = tap_max_count(server->tap.bind);
+	if (max == 0) {
 		return;
 	}
 
 	server->tap.taps++;
-	if (server->tap.taps >= 2) {
-		tap_finish(server, server->tap.double_steps, server->tap.n_double_steps);
+	unsigned n = (unsigned)server->tap.taps;
+	if (n >= max) {
+		/* Highest bound count reached — fire now. */
+		tap_fire(server, n);
 		return;
 	}
 
-	/* First tap: wait for a second before firing single. */
+	/* Wait for another tap before committing this count. */
 	tap_clear_timer(server);
 	struct wl_event_loop *loop = wl_display_get_event_loop(server->wl_display);
-	server->tap.timer = wl_event_loop_add_timer(loop, tap_double_timer, server);
+	server->tap.timer = wl_event_loop_add_timer(loop, tap_gap_timer, server);
 	wl_event_source_timer_update(server->tap.timer, cfg->double_tap_gap_ms);
 }
 

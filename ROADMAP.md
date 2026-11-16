@@ -23,7 +23,7 @@ the detail rows. When an item ships, check it off here and move the row to
 | 5 | Workspace switch animation | ✅ | Shipped (vertical strip slide; Super+Page / 1–9 + IPC + swipe share `sf_workspace_switch`) |
 | 6 | Real `inputs.fnl` API | ✅ | Shipped (`sf.input` + libinput apply; tap/natural/accel + left_handed/dwt/repeat) |
 | 7 | Configurable pointer gestures | ✅ | Shipped (`sf.gesture` swipe + pinch; default 3-finger V/H; pinch→max opt-in in `gestures.fnl`) |
-| 8 | **Hardcoded → config / Lua audit** | ❌ | **Next.** Sweep C for knobs and *policy* stuck in the compositor that belong in opts, binds, or Lua. Goal: C owns primitives + events; Lua composes behavior — keeping policy in C starves the runtime we want. Full border contract: [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md). Seed list below |
+| 8 | **Hardcoded → config / Lua audit** | 🚧 | **Next.** Mouse grabs ✅ (`sf.bind` + grab verbs). Remaining seed: SSD buttons, focus/insert, maximize matrix, … Goal: C owns primitives + events; Lua composes behavior. Contract: [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) |
 | 9 | Live config reload (binds + opts first) | ✅ | Shipped: staging Lua re-run, inotify watch, `:reload` / `sf.reload` / IPC; keep previous on failure |
 | 10 | Dim-inactive / spotlight polish | 🚧 | Opacity knobs exist; stronger dim or overlay so focus reads at a glance |
 | 11 | Popin / popout appear+close | ❌ | Umbriel-style scale+fade; see §2. Slide ships (tiled = right inter-gap; scratch closest) |
@@ -33,8 +33,8 @@ Seed findings for **#8** (not exhaustive — audit while implementing):
 
 | Kind | Where today | Push toward |
 |---|---|---|
-| Gesture policy | ✅ `sf.gesture` (swipe); pinch still forward-only | done (#7) |
-| Mouse grabs | `pointer.c` Super+LMB move, Super+RMB resize, Super+Shift+RMB center-lock; border LMB resize | `sf.bind` mouse chords / actions |
+| Gesture policy | ✅ `sf.gesture` swipe + pinch | done (#7) |
+| Mouse grabs | ✅ `sf.bind` Super+LMB/RMB / Super+Shift+RMB → `move_window` / `resize_window` / `resize_center`; border LMB still hit-test | done (first #8 cut); border → opt later |
 | Column cell-drag | `arrange.c` Super+LMB swap/insert; Super+RMB `width_frac`; `SF_COLUMN_DROP_SEAM` 0.15 | binds + opts |
 | Focus cycle policy | tiling = clockwise atan2; stacking = MRU | opt or Lua |
 | New-tile insert | always after focused column | opt / Lua |

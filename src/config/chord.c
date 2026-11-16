@@ -53,22 +53,19 @@ int sf_chord_lookup_button(const char *key, uint32_t *out) {
 	if (key == NULL || out == NULL || key[0] == '\0') {
 		return -1;
 	}
-	/* Do not alias bare Left/Right — those are arrow keysyms for Super+Left. */
+	/* Prefer LMB/RMB/MMB in defaults/docs. Do not alias bare Left/Right —
+	 * those are arrow keysyms for Super+Left. Umbriel MouseLeft accepted. */
 	static const struct {
 		const char *name;
 		uint32_t button;
 	} buttons[] = {
-		{"BTN_LEFT", BTN_LEFT},
-		{"BTN_RIGHT", BTN_RIGHT},
-		{"BTN_MIDDLE", BTN_MIDDLE},
-		{"BTN_SIDE", BTN_SIDE},
-		{"BTN_EXTRA", BTN_EXTRA},
-		{"LMB", BTN_LEFT},
-		{"RMB", BTN_RIGHT},
-		{"MMB", BTN_MIDDLE},
-		{"mouse_left", BTN_LEFT},
-		{"mouse_right", BTN_RIGHT},
-		{"mouse_middle", BTN_MIDDLE},
+		{"LMB", BTN_LEFT},	     {"RMB", BTN_RIGHT},
+		{"MMB", BTN_MIDDLE},	     {"BTN_LEFT", BTN_LEFT},
+		{"BTN_RIGHT", BTN_RIGHT},    {"BTN_MIDDLE", BTN_MIDDLE},
+		{"BTN_SIDE", BTN_SIDE},	     {"BTN_EXTRA", BTN_EXTRA},
+		{"MouseLeft", BTN_LEFT},     {"MouseRight", BTN_RIGHT},
+		{"MouseMiddle", BTN_MIDDLE}, {"mouse_left", BTN_LEFT},
+		{"mouse_right", BTN_RIGHT},  {"mouse_middle", BTN_MIDDLE},
 	};
 	for (size_t i = 0; i < sizeof buttons / sizeof buttons[0]; i++) {
 		if (strcasecmp(key, buttons[i].name) == 0) {

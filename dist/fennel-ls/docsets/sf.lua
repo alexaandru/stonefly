@@ -363,7 +363,7 @@ return {
       metadata = {
         ["fls/itemKind"] = "Function",
         ["fnl/arglist"] = {"…steps"},
-        ["fnl/docstring"] = "Compose action steps for :action / :single / :double.\n  (sf.chain \"maximize\")\n  (sf.chain {:action \"exec\" :cmd \"…\"} \"maximize_to_edges\")\nEach arg is an action name string or {:action :cmd} table. Returns a value passable as :action.",
+        ["fnl/docstring"] = "Compose action steps for :action (bind/tap/gesture/rule).\n  (sf.chain \"maximize\")\n  (sf.chain {:action \"exec\" :cmd \"…\"} \"maximize_to_edges\")\nEach arg is an action name string or {:action :cmd} table. Returns a value passable as :action.",
       },
     },
     ["bind"] = {
@@ -371,7 +371,7 @@ return {
       metadata = {
         ["fls/itemKind"] = "Function",
         ["fnl/arglist"] = {"chord-or-opts", "?opts"},
-        ["fnl/docstring"] = "Register a keybind.\n  (sf.bind \"Super+w\" {:action \"exec\" :cmd \"…\"})\n  (sf.bind {:key \"Super+Shift+Tab\" :action \"focus_prev\"})\nOptional :key_alt. Shift+Tab auto-adds ISO_Left_Tab.\nAction names: none quit close focus_next focus_prev focus_next_all focus_prev_all maximize maximize_to_edges unmaximize toggle_maximize toggle_maximize_to_edges minimize unminimize snap_left snap_right snap_top snap_bottom unsnap exec (needs :cmd) scratch_toggle scratch_claim (cmd = pad name) workspace_next workspace_prev workspace_switch (cmd = N) move_to_workspace_next move_to_workspace_prev move_to_workspace (cmd = N) pointer_center focus_monitor send_to_monitor (cmd = left|right|up|down|next|prev|connector) nudge resize_edge (cmd = left|right|up|down) toggle_always_on_top always_on_top (cmd = true|false) set_fullscreen unset_fullscreen toggle_fullscreen arrange_cycle (cmd = next|prev) arrange_set (cmd = stacking|columns|master|dwindle|monocle) reload.\n:action may be a string, {:action :cmd} table, or (sf.chain …).",
+        ["fnl/docstring"] = "Register a key or mouse bind.\n  (sf.bind \"Super+w\" {:action \"exec\" :cmd \"…\"})\n  (sf.bind {:key \"Super+Shift+Tab\" :action \"focus_prev\"})\n  (sf.bind \"Super+LMB\" {:action \"move_window\"})\n  (sf.bind \"Super+RMB\" {:action \"resize_window\"})\n  (sf.bind \"Super+Shift+RMB\" {:action \"resize_center\"})\nOptional :key_alt. Shift+Tab auto-adds ISO_Left_Tab.\nMouse tokens: LMB/RMB/MMB (preferred), BTN_*, MouseLeft (Umbriel), mouse:272 (Hyprland). First mouse chord clears C mouse seed only.\nAction names: none quit close focus_next focus_prev focus_next_all focus_prev_all maximize maximize_to_edges unmaximize toggle_maximize toggle_maximize_to_edges minimize unminimize snap_left snap_right snap_top snap_bottom unsnap exec (needs :cmd) scratch_toggle scratch_claim (cmd = pad name) workspace_next workspace_prev workspace_switch (cmd = N) move_to_workspace_next move_to_workspace_prev move_to_workspace (cmd = N) pointer_center focus_monitor send_to_monitor (cmd = left|right|up|down|next|prev|connector) nudge resize_edge (cmd = left|right|up|down) toggle_always_on_top always_on_top (cmd = true|false) set_fullscreen unset_fullscreen toggle_fullscreen arrange_cycle (cmd = next|prev) arrange_set (cmd = stacking|columns|master|dwindle|monocle) reload move_window resize_window resize_center.\n:action may be a string, {:action :cmd} table, or (sf.chain …).",
       },
     },
     ["tap"] = {
@@ -379,7 +379,7 @@ return {
       metadata = {
         ["fls/itemKind"] = "Function",
         ["fnl/arglist"] = {"mod-or-opts", "?opts"},
-        ["fnl/docstring"] = "Register a modifier tap (L+R expanded).\n  (sf.tap \"Super\" {:single \"exec\" :single_cmd \"…\" :double \"scratch_toggle\" :double_cmd \"term\"})\n  (sf.tap {:key \"Super\" :single (sf.chain …)})\nAction names: same vocabulary as sf.bind (including arrange_cycle / arrange_set).\n:action may be a string, {:action :cmd} table, or (sf.chain …).",
+        ["fnl/docstring"] = "Register a modifier N-tap (L+R expanded; gesture-parallel :count).\n  (sf.tap \"Super\" {:count 1 :action \"exec\" :cmd \"…\"})\n  (sf.tap \"Super\" {:count 2 :action \"scratch_toggle\" :cmd \"term\"})\n  (sf.tap {:key \"Super\" :count 3} :close)\n:count defaults to 1 (range 1..9, same as sf.gesture fingers). Same mod merges/replaces that count level.\nGap wait uses sf.opt.double_tap_gap_ms; hold limit tap_max_hold_ms.\nAction: string, {:action :cmd} table, or (sf.chain …).",
       },
     },
     ["scratchpad"] = {

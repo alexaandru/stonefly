@@ -49,6 +49,7 @@ struct lua_runtime {
 	char *rtp[RTP_MAX];
 	size_t n_rtp;
 	bool binds_replaced;
+	bool mousebinds_replaced;
 	bool taps_replaced;
 	bool scratches_replaced;
 	bool rules_replaced;
@@ -213,12 +214,22 @@ static void clear_keybinds(struct sf_config *cfg) {
 	cfg->n_keybinds = 0;
 }
 
+static void clear_mousebinds(struct sf_config *cfg) {
+	for (size_t i = 0; i < cfg->n_mousebinds; i++) {
+		sf_action_steps_free(cfg->mousebinds[i].steps, cfg->mousebinds[i].n_steps);
+	}
+	free(cfg->mousebinds);
+	cfg->mousebinds = NULL;
+	cfg->n_mousebinds = 0;
+}
+
 static void clear_tapbinds(struct sf_config *cfg) {
 	for (size_t i = 0; i < cfg->n_tapbinds; i++) {
-		sf_action_steps_free(cfg->tapbinds[i].single_steps,
-				     cfg->tapbinds[i].n_single_steps);
-		sf_action_steps_free(cfg->tapbinds[i].double_steps,
-				     cfg->tapbinds[i].n_double_steps);
+		for (size_t j = 0; j < cfg->tapbinds[i].n_levels; j++) {
+			sf_action_steps_free(cfg->tapbinds[i].levels[j].steps,
+					     cfg->tapbinds[i].levels[j].n_steps);
+		}
+		free(cfg->tapbinds[i].levels);
 	}
 	free(cfg->tapbinds);
 	cfg->tapbinds = NULL;
@@ -1116,28 +1127,24 @@ static int l_window_rule(lua_State *L) {
  *   bind("Super+w", { action = "exec", cmd = "..." })
  *   bind("Super+x", { action = (sf.chain "maximize" ...) })
  *   bind({ key = "Super+Shift+Tab", action = "focus_prev" })  -- chord-in-key
+ *   bind("Super+LMB", { action = "move_window" })  -- mouse grab (Hyprland bindm)
  * Optional: key_alt. Shift+Tab auto-adds ISO_Left_Tab as key_alt.
  * Legacy :cmd next to a string :action still works (one-step with cmd).
+ * First mouse chord clears C/default mousebinds only (keys stay); first key
+ * chord clears keybinds only (mouse stays) — same replace pattern as gestures.
  */
 static int l_bind(lua_State *L) {
 	if (G == NULL) {
 		return luaL_error(L, "bind: no runtime");
 	}
 	struct sf_config *cfg = &G->server->config;
-	if (!G->binds_replaced) {
-		clear_keybinds(cfg);
-		G->binds_replaced = true;
-	}
 
 	int opts = 0; /* stack index of options table */
-	uint32_t mods = 0;
-	xkb_keysym_t sym = XKB_KEY_NoSymbol;
+	char chord_buf[128];
+	const char *chord = NULL;
 
 	if (lua_type(L, 1) == LUA_TSTRING) {
-		const char *chord = lua_tostring(L, 1);
-		if (sf_chord_parse(chord, &mods, &sym) != 0) {
-			return luaL_error(L, "bind: bad chord %s", chord);
-		}
+		chord = lua_tostring(L, 1);
 		luaL_checktype(L, 2, LUA_TTABLE);
 		opts = 2;
 	} else {
@@ -1145,27 +1152,29 @@ static int l_bind(lua_State *L) {
 		opts = 1;
 		lua_getfield(L, opts, "key");
 		const char *key = lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL;
-		if (key == NULL) {
+		if (key == NULL || key[0] == '\0') {
 			lua_pop(L, 1);
 			return luaL_error(L, "bind: missing key");
 		}
-		if (sf_chord_parse(key, &mods, &sym) != 0) {
+		size_t n = strlen(key);
+		if (n >= sizeof chord_buf) {
 			lua_pop(L, 1);
-			return luaL_error(L, "bind: unknown key %s", key);
+			return luaL_error(L, "bind: chord too long");
 		}
+		memcpy(chord_buf, key, n + 1);
 		lua_pop(L, 1);
+		chord = chord_buf;
 	}
 
-	xkb_keysym_t sym_alt = 0;
-	lua_getfield(L, opts, "key_alt");
-	if (lua_isstring(L, -1)) {
-		const char *alt = lua_tostring(L, -1);
-		if (sf_chord_lookup_keysym(alt, &sym_alt) != 0) {
-			sym_alt = xkb_keysym_from_name(alt, XKB_KEYSYM_CASE_INSENSITIVE);
+	uint32_t mods = 0;
+	uint32_t button = 0;
+	bool is_mouse = sf_chord_parse_mouse(chord, &mods, &button) == 0;
+	xkb_keysym_t sym = XKB_KEY_NoSymbol;
+	if (!is_mouse) {
+		if (sf_chord_parse(chord, &mods, &sym) != 0) {
+			return luaL_error(L, "bind: bad chord %s", chord);
 		}
 	}
-	lua_pop(L, 1);
-	sf_chord_maybe_tab_alt(mods, sym, &sym_alt);
 
 	struct sf_action_step *steps = NULL;
 	size_t n_steps = 0;
@@ -1182,6 +1191,55 @@ static int l_bind(lua_State *L) {
 		lua_pop(L, 1);
 	}
 
+	enum sf_arrange arrange = SF_ARRANGE_UNSET;
+	lua_getfield(L, opts, "arrange");
+	if (lua_isstring(L, -1)) {
+		arrange = sf_arrange_parse(lua_tostring(L, -1));
+	}
+	lua_pop(L, 1);
+
+	if (is_mouse) {
+		if (!G->mousebinds_replaced) {
+			clear_mousebinds(cfg);
+			G->mousebinds_replaced = true;
+		}
+		if (cfg->n_mousebinds >= SF_MOUSEBIND_MAX) {
+			sf_action_steps_free(steps, n_steps);
+			return luaL_error(L, "bind: max %d mouse binds", SF_MOUSEBIND_MAX);
+		}
+		struct sf_mousebind *nb =
+			realloc(cfg->mousebinds, (cfg->n_mousebinds + 1) * sizeof *nb);
+		if (nb == NULL) {
+			sf_action_steps_free(steps, n_steps);
+			return luaL_error(L, "bind: OOM");
+		}
+		cfg->mousebinds = nb;
+		struct sf_mousebind *b = &cfg->mousebinds[cfg->n_mousebinds++];
+		memset(b, 0, sizeof *b);
+		b->mods = mods;
+		b->button = button;
+		b->arrange = arrange;
+		b->steps = steps;
+		b->n_steps = n_steps;
+		return 0;
+	}
+
+	if (!G->binds_replaced) {
+		clear_keybinds(cfg);
+		G->binds_replaced = true;
+	}
+
+	xkb_keysym_t sym_alt = 0;
+	lua_getfield(L, opts, "key_alt");
+	if (lua_isstring(L, -1)) {
+		const char *alt = lua_tostring(L, -1);
+		if (sf_chord_lookup_keysym(alt, &sym_alt) != 0) {
+			sym_alt = xkb_keysym_from_name(alt, XKB_KEYSYM_CASE_INSENSITIVE);
+		}
+	}
+	lua_pop(L, 1);
+	sf_chord_maybe_tab_alt(mods, sym, &sym_alt);
+
 	struct sf_keybind *nb = realloc(cfg->keybinds, (cfg->n_keybinds + 1) * sizeof *nb);
 	if (nb == NULL) {
 		sf_action_steps_free(steps, n_steps);
@@ -1193,22 +1251,19 @@ static int l_bind(lua_State *L) {
 	b->mods = mods;
 	b->sym = sym;
 	b->sym_alt = sym_alt;
-	b->arrange = SF_ARRANGE_UNSET;
-	lua_getfield(L, opts, "arrange");
-	if (lua_isstring(L, -1)) {
-		b->arrange = sf_arrange_parse(lua_tostring(L, -1));
-	}
-	lua_pop(L, 1);
+	b->arrange = arrange;
 	b->steps = steps;
 	b->n_steps = n_steps;
 	return 0;
 }
 
 /*
- * tap forms (modifier name only; L+R via parse_tap_mod):
- *   tap("Super", { single = "exec", single_cmd = "…", double = "scratch_toggle", … })
- *   tap({ key = "Super", single = (sf.chain …), … })
- * :single / :double accept string, step table, or sf.chain (same as :action).
+ * tap forms (gesture-parallel; modifier name only; L+R via parse_tap_mod):
+ *   tap("Super", { count = 1, action = "exec", cmd = "…" })
+ *   tap({ key = "Super", count = 2 }, { action = "scratch_toggle", cmd = "term" })
+ *   tap({ key = "Super", count = 3, action = "close" })
+ * :count defaults to 1; same mod merges/replaces that count level.
+ * Action: string, step table, or sf.chain (same as sf.bind :action).
  */
 static int l_tap(lua_State *L) {
 	if (G == NULL) {
@@ -1220,9 +1275,11 @@ static int l_tap(lua_State *L) {
 		G->taps_replaced = true;
 	}
 
-	int opts = 0;
+	int match = 0;
+	int action_arg = 0; /* 0 = action lives inside match/opts table */
 	xkb_keysym_t sym = XKB_KEY_NoSymbol;
 	xkb_keysym_t sym_alt = 0;
+	unsigned count = 1;
 
 	if (lua_type(L, 1) == LUA_TSTRING) {
 		const char *name = lua_tostring(L, 1);
@@ -1230,54 +1287,122 @@ static int l_tap(lua_State *L) {
 			return luaL_error(L, "tap: expected modifier name, got %s", name);
 		}
 		luaL_checktype(L, 2, LUA_TTABLE);
-		opts = 2;
+		match = 2;
 	} else {
 		luaL_checktype(L, 1, LUA_TTABLE);
-		opts = 1;
-		lua_getfield(L, opts, "key");
-		const char *key = luaL_checkstring(L, -1);
-		lua_pop(L, 1);
+		match = 1;
+		lua_getfield(L, match, "key");
+		const char *key = lua_isstring(L, -1) ? lua_tostring(L, -1) : NULL;
+		if (key == NULL) {
+			lua_pop(L, 1);
+			return luaL_error(L, "tap: missing key");
+		}
 		if (sf_chord_parse_tap_mod(key, &sym, &sym_alt) != 0) {
+			lua_pop(L, 1);
 			return luaL_error(L, "tap: expected modifier name, got %s", key);
 		}
+		lua_pop(L, 1);
+		if (lua_gettop(L) >= 2 && (lua_istable(L, 2) || lua_type(L, 2) == LUA_TSTRING)) {
+			action_arg = 2;
+		}
 	}
 
-	struct sf_action_step *single_steps = NULL;
-	size_t n_single = 0;
-	struct sf_action_step *double_steps = NULL;
-	size_t n_double = 0;
-	parse_action_field(L, opts, "single", &single_steps, &n_single);
-	parse_action_field(L, opts, "double", &double_steps, &n_double);
-	if (n_single == 1 && single_steps[0].cmd == NULL) {
-		lua_getfield(L, opts, "single_cmd");
-		if (lua_isstring(L, -1)) {
-			single_steps[0].cmd = sf_xstrdup(lua_tostring(L, -1));
+	lua_getfield(L, match, "count");
+	if (!lua_isnil(L, -1)) {
+		if (!lua_isnumber(L, -1)) {
+			lua_pop(L, 1);
+			return luaL_error(L, "tap: count must be a number");
 		}
-		lua_pop(L, 1);
+		int c = (int)lua_tonumber(L, -1);
+		if (c < 1 || c > SF_TAP_COUNT_MAX) {
+			lua_pop(L, 1);
+			return luaL_error(L, "tap: count must be 1..%d", SF_TAP_COUNT_MAX);
+		}
+		count = (unsigned)c;
 	}
-	if (n_double == 1 && double_steps != NULL && double_steps[0].cmd == NULL) {
-		lua_getfield(L, opts, "double_cmd");
-		if (lua_isstring(L, -1)) {
-			double_steps[0].cmd = sf_xstrdup(lua_tostring(L, -1));
+	lua_pop(L, 1);
+
+	struct sf_action_step *steps = NULL;
+	size_t n_steps = 0;
+	if (action_arg != 0) {
+		if (lua_type(L, action_arg) == LUA_TSTRING) {
+			enum sf_action action = SF_ACTION_NONE;
+			if (!sf_action_parse_ok(lua_tostring(L, action_arg), &action)) {
+				return luaL_error(L, "tap: unknown action %s",
+						  lua_tostring(L, action_arg));
+			}
+			if (!sf_action_steps_one(action, NULL, &steps, &n_steps)) {
+				return luaL_error(L, "tap: OOM");
+			}
+		} else {
+			lua_newtable(L);
+			lua_pushvalue(L, action_arg);
+			lua_setfield(L, -2, "action");
+			int opts = lua_gettop(L);
+			if (parse_action_field(L, opts, "action", &steps, &n_steps) != 0) {
+				return lua_error(L);
+			}
+			lua_pop(L, 1);
 		}
-		lua_pop(L, 1);
+	} else {
+		parse_action_field(L, match, "action", &steps, &n_steps);
+		if (n_steps == 1 && steps[0].cmd == NULL) {
+			lua_getfield(L, match, "cmd");
+			if (lua_isstring(L, -1)) {
+				steps[0].cmd = sf_xstrdup(lua_tostring(L, -1));
+			}
+			lua_pop(L, 1);
+		}
+	}
+	if (n_steps == 0) {
+		return luaL_error(L, "tap: missing action");
 	}
 
-	struct sf_tapbind *nb = realloc(cfg->tapbinds, (cfg->n_tapbinds + 1) * sizeof *nb);
-	if (nb == NULL) {
-		sf_action_steps_free(single_steps, n_single);
-		sf_action_steps_free(double_steps, n_double);
+	/* Find existing bind for this mod (merge levels). */
+	struct sf_tapbind *t = NULL;
+	for (size_t i = 0; i < cfg->n_tapbinds; i++) {
+		if (cfg->tapbinds[i].sym == sym) {
+			t = &cfg->tapbinds[i];
+			break;
+		}
+	}
+	if (t == NULL) {
+		if (cfg->n_tapbinds >= SF_TAPBIND_MAX) {
+			sf_action_steps_free(steps, n_steps);
+			return luaL_error(L, "tap: max %d", SF_TAPBIND_MAX);
+		}
+		struct sf_tapbind *nb = realloc(cfg->tapbinds, (cfg->n_tapbinds + 1) * sizeof *nb);
+		if (nb == NULL) {
+			sf_action_steps_free(steps, n_steps);
+			return luaL_error(L, "tap: OOM");
+		}
+		cfg->tapbinds = nb;
+		t = &cfg->tapbinds[cfg->n_tapbinds++];
+		memset(t, 0, sizeof *t);
+		t->sym = sym;
+		t->sym_alt = sym_alt;
+	}
+
+	/* Replace same count, else append. */
+	for (size_t i = 0; i < t->n_levels; i++) {
+		if (t->levels[i].count == count) {
+			sf_action_steps_free(t->levels[i].steps, t->levels[i].n_steps);
+			t->levels[i].steps = steps;
+			t->levels[i].n_steps = n_steps;
+			return 0;
+		}
+	}
+	struct sf_tap_level *nl = realloc(t->levels, (t->n_levels + 1) * sizeof *nl);
+	if (nl == NULL) {
+		sf_action_steps_free(steps, n_steps);
 		return luaL_error(L, "tap: OOM");
 	}
-	cfg->tapbinds = nb;
-	struct sf_tapbind *t = &cfg->tapbinds[cfg->n_tapbinds++];
-	memset(t, 0, sizeof *t);
-	t->sym = sym;
-	t->sym_alt = sym_alt;
-	t->single_steps = single_steps;
-	t->n_single_steps = n_single;
-	t->double_steps = double_steps;
-	t->n_double_steps = n_double;
+	t->levels = nl;
+	struct sf_tap_level *lv = &t->levels[t->n_levels++];
+	memset(lv, 0, sizeof *lv);
+	lv->count = count;
+	lv->steps = steps;
+	lv->n_steps = n_steps;
 	return 0;
 }
 
@@ -1821,11 +1946,7 @@ bool sf_config_reload(struct sf_server *server) {
 	in_reload = true;
 
 	/* Drop aliases into the config we are about to replace. */
-	sf_tap_disarm(server);
-	server->tap.single_steps = NULL;
-	server->tap.n_single_steps = 0;
-	server->tap.double_steps = NULL;
-	server->tap.n_double_steps = 0;
+	sf_tap_reset(server);
 
 	struct sf_config old = server->config;
 	memset(&server->config, 0, sizeof server->config);

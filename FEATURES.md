@@ -38,10 +38,10 @@ features Umbriel lacks — neither is a product spec. See `AGENTS.md`.
 | Minimize / unminimize LIFO | Ctrl+Esc — unnamed scratchpad. Shared `apply_hidden`/`apply_shown` (LIFO vs scratch). `xdg request_minimize` → CSD/SSD buttons. Show slide targets `resting_*` (hide parks the scene node off-screen; reading node.x made floats/QT/edge-max recall slide to an off-screen pose — taskbar activate looked focused but invisible) |
 | Keyboard half-snap (arrows) | Super+arrows while stacking — gap math ports `snapBorderBox`. Tiling uses `focus_dir` |
 | Unsnap / restore PreSnap | Super+u |
-| Drag move (Super+LMB) | Stacking: free move + magnetic edge-snap. Columns tiles: cell swap / seam-insert / gap new-col with live make-room (INSERT/NEW_COL use painted indices → structural on apply; home pinned by column pointer; drop targets invalidated on unlink; mid-drag float/arrange-set aborts grab). **Columns floats: free move only** (no magnetic half-snap — floated on purpose). WM xcursor via `sf_seat_apply_grab_cursor` |
-| Tile factor resize (Super+RMB) | Columns: `SF_CURSOR_ARRANGE_RESIZE` adjusts that column’s `width_frac` only (session `column_ratio` stays at config); clears full-width. Stacking: free edge resize unchanged |
-| Drag resize (Super+RMB) | Edges nearest pointer; undragged edges stay put. Layout SM observes the proposed box so max/snap/fs status tracks the live geometry. Moving edge(s) clamped so geometry + SSD titleband + compositor border stay in usable∩gaps. Grab/apply use scene origin as geometry TL (no ±geo.x/y) |
-| Center-lock resize (Super+Shift+RMB) | Grow/shrink around a fixed layout center: propose Δw = 2·Δx, Δh = 2·Δy (min 50). Cap with the same usable box. Scene position follows the *committed* buffer; re-sync on xdg commit. `SF_CURSOR_RESIZE_CENTER` |
+| Drag move (`move_window`, default Super+LMB) | `sf.bind` mouse chord → `SF_ACTION_MOVE_WINDOW`. Stacking: free move + magnetic edge-snap. Columns tiles: cell swap / seam-insert / gap new-col with live make-room (INSERT/NEW_COL use painted indices → structural on apply; home pinned by column pointer; drop targets invalidated on unlink; mid-drag float/arrange-set aborts grab). **Columns floats: free move only** (no magnetic half-snap — floated on purpose). WM xcursor via `sf_seat_apply_grab_cursor` |
+| Tile factor resize (`resize_window`, default Super+RMB) | Columns: `SF_CURSOR_ARRANGE_RESIZE` adjusts that column’s `width_frac` only (session `column_ratio` stays at config); clears full-width. Stacking: free edge resize unchanged |
+| Drag resize (`resize_window`) | Edges nearest pointer; undragged edges stay put. Layout SM observes the proposed box so max/snap/fs status tracks the live geometry. Moving edge(s) clamped so geometry + SSD titleband + compositor border stay in usable∩gaps. Grab/apply use scene origin as geometry TL (no ±geo.x/y) |
+| Center-lock resize (`resize_center`, default Super+Shift+RMB) | Grow/shrink around a fixed layout center: propose Δw = 2·Δx, Δh = 2·Δy (min 50). Cap with the same usable box. Scene position follows the *committed* buffer; re-sync on xdg commit. `SF_CURSOR_RESIZE_CENTER` |
 | Border/corner mouse resize | Hover + LMB on hit band (`resize_border_in` 3 / `resize_border_out` 1); edge cursors. Same usable clamp as Super+RMB. Keep enter/motion on surface in inner band; honor implicit grab until release. Disabled while `arrange_managed`. Leaving the band / titleband clears the WM face (`pointer_wm_cursor`) so the resize glyph cannot stick |
 | Magnetic drag-snap + resistance | `drag_snap.c` — threshold 26, 4× push-through; **disabled under columns** (floats stay free) |
 | Snap preview overlay | SceneFX overlay rects — border 1, fill 40% active |
@@ -159,9 +159,9 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 |---|---|
 | Scriptable config | LuaJIT in-process VM (§10): rtp/packpath, Fennel 1.6.1 shim, Fennel-first embedded default |
 | `--write-config` | C23 `#embed` tree, refuse overwrite. Meson `embed_defaults_stamp.h` so default `*.fnl` edits rebuild `config_embed.c` |
-| Keybind table | `sf.bind("Super+w", …)` / `sf.tap("Super", …)` via `parse_chord` / `parse_tap_mod`. Actions via `sf_action_parse` |
+| Keybind / mousebind table | `sf.bind("Super+w", …)` / `sf.bind("Super+LMB", {:action :move_window})` / `sf.tap("Super", …)`. Mouse tokens: `LMB`/`RMB`/`MMB` (preferred), `BTN_*`, Umbriel `MouseLeft`, Hyprland `mouse:272`. First mouse chord clears C mouse seed only. IPC `config mousebinds`. Actions via `sf_action_parse` |
 | Ctrl+Alt+Fn VT switch | `wlr_session_change_vt` on `XF86Switch_VT_*` |
-| Super tap / double-tap | Launcher / term pad |
+| Super N-tap (`sf.tap` + `:count`) | Default: count 1 → launcher, count 2 → term pad. Same mod merges levels; gap = `double_tap_gap_ms` |
 | Spawn / exec / exec_once | Single helper `sf_spawn_cmd` (`util/spawn.c`): fork + `/bin/sh -c`, child `setsid` + SIGCHLD/mask reset; parent SIGCHLD reaper (`sf_spawn_install_reaper`, not `SIG_IGN`). Used by bind/rule `exec`, `sf.exec`, scratchpad `cmd`, CLI `-s`. Default `execs.fnl`: Slack flatpak. IPC `config execs` |
 | Live config reload | `sf_config_reload`: staging Lua re-run; keep previous on failure + FDO Notify with exact Lua error. Action `:reload` / `sf.reload` / `stonefly reload` / Super+Shift+r. inotify: config dir or nearest existing ancestor (so `--write-config` mid-session arms + reloads). `sf.opt.config_watch`, 150ms debounce. Side effects: scratchpad rebind-by-name, rules/input/decor, `sf.exec {:reload true}` |
 | Config validate | `stonefly validate` — load user init (or embedded) without applying; exact Lua error on stderr; exit 0/1 |
@@ -210,11 +210,12 @@ Former River-fork blockers that stonefly owns in-process:
 | Configurable touchpad gestures (`sf.gesture`) | ✅ Hyprland-shaped `(sf.gesture {:fingers N :axis DIR :mods?} ACTION)`. Swipe built-ins `:workspace` / `:columns_pan`; pinch dirs `pinch`/`pinchin`/`pinchout` fire actions once \|scale−1\| ≥ 0.15. `:mods` exact match (e.g. Super+pinch). Default: 3-finger V/H + Super+pinchout→`maximize_to_edges` / Super+pinchin→`unmaximize` (plain pinch stays with clients). IPC `config gestures`. Unit: `tests/config/gesture_test.c` |
 | 3-finger vertical swipe workspaces | ✅ via `sf.gesture` `:workspace` (default); opts: threshold / natural |
 | 3-finger horizontal swipe columns pan | ✅ via `sf.gesture` `:columns_pan` (default). Live-pan `columns_view_offset` (view only). Axis lock after threshold; natural follows `swipe_workspace_natural`. Focus: keep while mostly on-screen, else centre-most visible cell (continuous; no pointer warp) |
-| Super+LMB/RMB move/resize + magnetic snap + preview | ✅ |
-| Super+Shift+RMB center-lock resize | ✅ |
-| Border/corner LMB resize | ✅ |
+| Configurable mouse grabs (`sf.bind` + `move_window` / `resize_window` / `resize_center`) | ✅ Umbriel-shaped same `sf.bind` table; Hyprland bindm-shaped grab verbs. Default: Super+LMB/RMB / Super+Shift+RMB. Border LMB hit-test stays C/opt. Unit: `tests/config/mousebind_test.c` + chord mouse parse |
+| Super+LMB/RMB move/resize + magnetic snap + preview | ✅ via defaults above |
+| Super+Shift+RMB center-lock resize | ✅ via `resize_center` default |
+| Border/corner LMB resize | ✅ (hit-test / `resize_border_*` opts; not an `sf.bind`) |
 | Ctrl+Esc minimize LIFO | ✅ |
-| Super tap launcher / double-tap term / Super+t claim | ✅ |
+| Super N-tap launcher / double-tap term / Super+t claim | ✅ `sf.tap` `:count` 1..9 (gesture-parallel); defaults count 1→launcher, 2→term |
 | Spawns Ghostty / foot / nautilus / editor / QT | ✅ |
 | Named scratchpads beyond `term` | ✅ via `scratchpads.fnl` (default only `term`) |
 | Fullscreen / SSD | ✅ |

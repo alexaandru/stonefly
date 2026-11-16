@@ -11,6 +11,7 @@
 #include "config/config_embed.h"
 #include "config/config_lua.h"
 #include "config/gesture.h"
+#include "config/mousebind.h"
 #include "log/log.h"
 #include "server/server.h"
 #include "util/color.h"
@@ -159,10 +160,11 @@ void sf_config_finish(struct sf_config *cfg) {
 	}
 	free(cfg->keybinds);
 	for (size_t i = 0; i < cfg->n_tapbinds; i++) {
-		sf_action_steps_free(cfg->tapbinds[i].single_steps,
-				     cfg->tapbinds[i].n_single_steps);
-		sf_action_steps_free(cfg->tapbinds[i].double_steps,
-				     cfg->tapbinds[i].n_double_steps);
+		for (size_t j = 0; j < cfg->tapbinds[i].n_levels; j++) {
+			sf_action_steps_free(cfg->tapbinds[i].levels[j].steps,
+					     cfg->tapbinds[i].levels[j].n_steps);
+		}
+		free(cfg->tapbinds[i].levels);
 	}
 	free(cfg->tapbinds);
 	for (size_t i = 0; i < cfg->n_scratchpads; i++) {
@@ -189,6 +191,10 @@ void sf_config_finish(struct sf_config *cfg) {
 		sf_action_steps_free(cfg->gestures[i].steps, cfg->gestures[i].n_steps);
 	}
 	free(cfg->gestures);
+	for (size_t i = 0; i < cfg->n_mousebinds; i++) {
+		sf_action_steps_free(cfg->mousebinds[i].steps, cfg->mousebinds[i].n_steps);
+	}
+	free(cfg->mousebinds);
 	memset(cfg, 0, sizeof *cfg);
 }
 
@@ -391,22 +397,28 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 	cfg->n_tapbinds = 1;
 	cfg->tapbinds = calloc(1, sizeof *cfg->tapbinds);
 	if (cfg->tapbinds != NULL) {
+		struct sf_tap_level *lv = calloc(2, sizeof *lv);
 		cfg->tapbinds[0].sym = XKB_KEY_Super_L;
 		cfg->tapbinds[0].sym_alt = XKB_KEY_Super_R;
-		if (!sf_action_steps_one(SF_ACTION_EXEC, "noctalia msg panel-toggle launcher",
-					 &cfg->tapbinds[0].single_steps,
-					 &cfg->tapbinds[0].n_single_steps) ||
-		    !sf_action_steps_one(SF_ACTION_SCRATCH_TOGGLE, "term",
-					 &cfg->tapbinds[0].double_steps,
-					 &cfg->tapbinds[0].n_double_steps)) {
+		if (lv == NULL ||
+		    !sf_action_steps_one(SF_ACTION_EXEC, "noctalia msg panel-toggle launcher",
+					 &lv[0].steps, &lv[0].n_steps) ||
+		    !sf_action_steps_one(SF_ACTION_SCRATCH_TOGGLE, "term", &lv[1].steps,
+					 &lv[1].n_steps)) {
 			SF_LOGE("config tap steps OOM");
-			sf_action_steps_free(cfg->tapbinds[0].single_steps,
-					     cfg->tapbinds[0].n_single_steps);
-			sf_action_steps_free(cfg->tapbinds[0].double_steps,
-					     cfg->tapbinds[0].n_double_steps);
+			if (lv != NULL) {
+				sf_action_steps_free(lv[0].steps, lv[0].n_steps);
+				sf_action_steps_free(lv[1].steps, lv[1].n_steps);
+				free(lv);
+			}
 			free(cfg->tapbinds);
 			cfg->tapbinds = NULL;
 			cfg->n_tapbinds = 0;
+		} else {
+			lv[0].count = 1;
+			lv[1].count = 2;
+			cfg->tapbinds[0].levels = lv;
+			cfg->tapbinds[0].n_levels = 2;
 		}
 	} else {
 		cfg->n_tapbinds = 0;
@@ -428,5 +440,12 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 		SF_LOGE("config gestures OOM");
 		cfg->gestures = NULL;
 		cfg->n_gestures = 0;
+	}
+
+	/* Super+LMB/RMB/Shift+RMB grabs; Lua sf.bind mouse chords replace on first call. */
+	if (!sf_mousebind_seed_defaults(cfg)) {
+		SF_LOGE("config mousebinds OOM");
+		cfg->mousebinds = NULL;
+		cfg->n_mousebinds = 0;
 	}
 }

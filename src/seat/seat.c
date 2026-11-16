@@ -149,16 +149,11 @@ void sf_seat_setup(struct sf_server *server) {
 	server->tap.armed = false;
 	server->tap.taps = 0;
 	server->tap.timer = NULL;
-	server->tap.single_steps = NULL;
-	server->tap.n_single_steps = 0;
-	server->tap.double_steps = NULL;
-	server->tap.n_double_steps = 0;
+	server->tap.bind = NULL;
 }
 
 void sf_seat_finish(struct sf_server *server) {
-	tap_clear_timer(server);
-	server->tap.armed = false;
-	server->tap.taps = 0;
+	sf_tap_reset(server);
 	struct sf_pointer *pointer, *tmp;
 	wl_list_for_each_safe(pointer, tmp, &server->pointers, link) {
 		destroy_pointer(pointer);

@@ -32,7 +32,7 @@ Lua: fill tables at load           Lua: live policy + packs
 C:   interpret tables forever      C:   primitives + invariants + Wayland
 
 Config ──compile──► C state        Events ──► Lua ──► actions ──► C
-Hardcoded gestures / mouse         Same surface as sf.bind / sf.gesture
+Hardcoded gestures / mouse         ✅ sf.gesture + sf.bind mouse chords
 Maximize matrix scattered in C     One opt/Lua matrix → C verbs
 ```
 
@@ -110,7 +110,7 @@ Lua; C only runs the chosen verb.
 | Stuck in C today | Push toward |
 |---|---|
 | 3-finger V = workspaces, H = columns pan | ✅ `sf.gesture` swipe + pinch (#7) |
-| Super+LMB/RMB/Shift+RMB; border LMB resize (`pointer.c`) | Mouse `sf.bind` / grab actions |
+| Super+LMB/RMB/Shift+RMB grabs | ✅ `sf.bind` + `move_window` / `resize_window` / `resize_center` (border LMB still hit-test/opt) |
 | Cell-drag seams; `SF_COLUMN_DROP_SEAM` 0.15 | Binds + opts |
 | Focus cycle: tiling atan2 clockwise; stacking MRU | Opt or Lua |
 | New tile always after focused column | Opt / Lua |
@@ -184,8 +184,9 @@ invariant pass) over **replace** for lifecycle.
 Matches ROADMAP TODO NEXT; do not grow new hardcoded policy in parallel.
 
 1. **#7 Configurable gestures** — ✅ `sf.gesture` swipe + pinch (template for mouse/SSD).
-2. **#8 Hardcoded → config/Lua audit** — finish the Tier 1 table; every new UX
-   is bind/opt/Lua-shaped.
+2. **#8 Hardcoded → config/Lua audit** — mouse grabs ✅ (`sf.bind` +
+   `move_window`/`resize_window`/`resize_center`); finish remaining Tier 1
+   (SSD buttons, focus/insert, maximize matrix, …).
 3. **#9 Live reload** — ✅ shipped (re-run Lua init; inotify; keep previous on
    failure). Edit Fennel → session updates without logout.
 4. **`sf.on` + window query API** — Tier 2–3; packs become real.
@@ -218,6 +219,7 @@ not a second shell.
 | `src/config/action.c` | Action name ↔ enum (bind/rule/IPC shared) |
 | `src/wm/action_run.c` | C verb catalog |
 | `src/seat/gestures.c` | Consumes `sf.gesture` swipe + pinch table |
-| `src/seat/pointer.c` | Hardcoded Super+mouse grabs |
+| `src/config/mousebind.c` | Seed + match for `sf.bind` mouse chords |
+| `src/seat/pointer.c` | Dispatches mousebinds → grab actions |
 | `runtime/pack/` | Pack path / fennel-shim |
 | `dist/fennel-ls/docsets/sf.lua` | fennel-ls docset for `sf.*` |

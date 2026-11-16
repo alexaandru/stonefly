@@ -9,7 +9,8 @@
  * Returns 0 on success; -1 on unknown mod/key or empty input. */
 int sf_chord_parse(const char *s, uint32_t *mods_out, xkb_keysym_t *sym_out);
 
-/* Mouse-button chord: "Super+BTN_LEFT", "BTN_RIGHT", "Super+LMB", "mouse:272".
+/* Mouse-button chord: "Super+LMB", "Super+Shift+RMB", "BTN_RIGHT", "mouse:272".
+ * Preferred tokens LMB/RMB/MMB; also BTN_*, MouseLeft, mouse:N.
  * Returns 0 on success; -1 if not a mouse chord / bad token. */
 int sf_chord_parse_mouse(const char *s, uint32_t *mods_out, uint32_t *button_out);
 

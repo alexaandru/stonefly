@@ -18,6 +18,7 @@
 #include "wm/snap.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
+#include "xdg/xdg.h"
 
 struct sf_action_ctx {
 	struct sf_server *server;
@@ -284,6 +285,43 @@ static void action_reload(struct sf_action_ctx *ctx) {
 	}
 }
 
+/* Pointer-grab verbs: hit-test under cursor (not focused), then arm interactive. */
+static struct sf_toplevel *toplevel_under_cursor(struct sf_server *server) {
+	double sx, sy;
+	struct wlr_surface *surface = NULL;
+	return sf_desktop_toplevel_at(server, server->cursor->x, server->cursor->y, &surface, &sx,
+				      &sy);
+}
+
+static void action_move_window(struct sf_action_ctx *ctx) {
+	struct sf_toplevel *toplevel = toplevel_under_cursor(ctx->server);
+	if (toplevel == NULL) {
+		return;
+	}
+	sf_focus_toplevel(toplevel);
+	sf_begin_interactive(toplevel, SF_CURSOR_MOVE, 0);
+}
+
+static void action_resize_window(struct sf_action_ctx *ctx) {
+	struct sf_toplevel *toplevel = toplevel_under_cursor(ctx->server);
+	if (toplevel == NULL) {
+		return;
+	}
+	sf_focus_toplevel(toplevel);
+	uint32_t edges =
+		sf_resize_edges_at(toplevel, ctx->server->cursor->x, ctx->server->cursor->y);
+	sf_begin_interactive(toplevel, SF_CURSOR_RESIZE, edges);
+}
+
+static void action_resize_center(struct sf_action_ctx *ctx) {
+	struct sf_toplevel *toplevel = toplevel_under_cursor(ctx->server);
+	if (toplevel == NULL) {
+		return;
+	}
+	sf_focus_toplevel(toplevel);
+	sf_begin_interactive(toplevel, SF_CURSOR_RESIZE_CENTER, 0);
+}
+
 /*
  * Verb catalog: one slot per enum value. Flags encode the shared protocol
  * (need window / need cmd) so arms stay free of duplicated guards.
@@ -336,6 +374,9 @@ static const struct sf_action_slot sf_action_slots[SF_ACTION_COUNT] = {
 	[SF_ACTION_CONSUME] = {0, action_consume},
 	[SF_ACTION_ARRANGE_ROTATE] = {0, action_arrange_rotate},
 	[SF_ACTION_RELOAD] = {0, action_reload},
+	[SF_ACTION_MOVE_WINDOW] = {0, action_move_window},
+	[SF_ACTION_RESIZE_WINDOW] = {0, action_resize_window},
+	[SF_ACTION_RESIZE_CENTER] = {0, action_resize_center},
 };
 
 _Static_assert(sizeof(sf_action_slots) / sizeof(sf_action_slots[0]) == (size_t)SF_ACTION_COUNT,

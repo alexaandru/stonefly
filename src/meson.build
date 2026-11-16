@@ -23,6 +23,7 @@ sf_src = files(
   'config/action.c',
   'config/chord.c',
   'config/gesture.c',
+  'config/mousebind.c',
   'server/server.c',
   'output/output.c',
   'layer/layer.c',

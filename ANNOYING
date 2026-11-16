@@ -1,0 +1,4 @@
+So, slack is max to edges, fine. And float. Fine. And floats sit above tiled, fine. So if I focus another window, it recalls it (if hidden, etc.) and places it BEHIND Slack window. What good does that do to me?!??!
+I need a good UX, for one thing, it makes sense for floats to sit on top (mostly). But OTOH, recalling a window I cannot see is kinda... dumb? :-) How does Umbriel handle this? What about other WMs?
+I guess, on a related not: creat foot, create foot, create foot, make it float. So I have 2 foot tiled and one float. focus next cycles tiles exclusively, and while the float is on my face AND ON TOP OF THEM, I cannot focus it from the keyboard. How fucked up is that too?
+The whole tile vs float experience needs some serious polishing.

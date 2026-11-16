@@ -28,8 +28,14 @@ void sf_reset_cursor_mode(struct sf_server *server);
 /* Cancel an armed Super tap (combination chord or Super+click). */
 void sf_tap_disarm(struct sf_server *server);
 
+/* Full tap reset: disarm, drop gap timer, clear count (reload / teardown). */
+void sf_tap_reset(struct sf_server *server);
+
 /* Xcursor name for resize edges (n-resize, se-resize, …). */
 const char *sf_resize_xcursor_name(uint32_t edges);
+
+/* Nearest-edge bitflags for a pointer at layout (lx, ly) on toplevel. */
+uint32_t sf_resize_edges_at(struct sf_toplevel *toplevel, double lx, double ly);
 
 /* Apply compositor face for the current MOVE/RESIZE grab (move → grabbing
  * with fallbacks; resize → edge name). Call after entering a grab and on

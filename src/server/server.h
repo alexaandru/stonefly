@@ -249,16 +249,13 @@ struct sf_server {
 	struct sf_config config;
 
 	/* Lone-modifier tap (Super): peeble bind_tap semantics.
-	 * Step pointers alias into live config (stable until reload). */
+	 * bind aliases into live config (stable until reload). */
 	struct {
 		bool armed;
 		struct timespec since;
 		int taps;
 		struct wl_event_source *timer;
-		const struct sf_action_step *single_steps;
-		size_t n_single_steps;
-		const struct sf_action_step *double_steps;
-		size_t n_double_steps;
+		const struct sf_tapbind *bind;
 	} tap;
 
 	/* ext-session-lock-v1 (Noctalia auto-lock). */

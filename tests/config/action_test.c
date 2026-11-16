@@ -7,7 +7,7 @@
 
 static void test_count_matches_name_table(void) {
 	SF_TEST_EQ_INT((int)sf_action_name_table_len(), (int)SF_ACTION_COUNT);
-	SF_TEST_EQ_INT((int)SF_ACTION_RELOAD, (int)SF_ACTION_COUNT - 1);
+	SF_TEST_EQ_INT((int)SF_ACTION_RESIZE_CENTER, (int)SF_ACTION_COUNT - 1);
 	SF_TEST_EQ_INT((int)SF_ACTION_NONE, 0);
 }
 
@@ -75,6 +75,12 @@ static void test_parse_name_roundtrip(void) {
 	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_ARRANGE_ROTATE);
 	SF_TEST_TRUE(sf_action_parse_ok("reload", &a));
 	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_RELOAD);
+	SF_TEST_TRUE(sf_action_parse_ok("move_window", &a));
+	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_MOVE_WINDOW);
+	SF_TEST_TRUE(sf_action_parse_ok("resize_window", &a));
+	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_RESIZE_WINDOW);
+	SF_TEST_TRUE(sf_action_parse_ok("resize_center", &a));
+	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_RESIZE_CENTER);
 
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_QUIT), "quit");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_SCRATCH_TOGGLE), "scratch_toggle");
@@ -98,6 +104,9 @@ static void test_parse_name_roundtrip(void) {
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_CONSUME), "consume");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_ARRANGE_ROTATE), "arrange_rotate");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_RELOAD), "reload");
+	SF_TEST_STREQ(sf_action_name(SF_ACTION_MOVE_WINDOW), "move_window");
+	SF_TEST_STREQ(sf_action_name(SF_ACTION_RESIZE_WINDOW), "resize_window");
+	SF_TEST_STREQ(sf_action_name(SF_ACTION_RESIZE_CENTER), "resize_center");
 	SF_TEST_STREQ(sf_action_name((enum sf_action)9999), "unknown");
 }
 

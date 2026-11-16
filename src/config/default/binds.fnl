@@ -1,9 +1,15 @@
-;; Day-zero keybinds + Super tap (peeble-style "Super+w" chords).
+;; Day-zero keybinds + mouse grabs + Super tap (peeble-style "Super+w" chords).
+;; Mouse: Super+LMB/RMB / Super+Shift+RMB (first mouse chord replaces C seed).
 (fn noctalia [msg]
   (.. "noctalia msg " msg))
 
 (fn bind [chord opts]
   (sf.bind chord opts))
+
+;; Pointer grabs (Hyprland bindm-shaped). LMB/RMB preferred; BTN_* / mouse:N ok.
+(bind "Super+LMB" {:action :move_window})
+(bind "Super+RMB" {:action :resize_window})
+(bind "Super+Shift+RMB" {:action :resize_center})
 
 (local binds [;; bar toggle
               ["Alt+Space"
@@ -142,8 +148,10 @@
 (each [_ b (ipairs binds)]
   (bind (. b 1) (. b 2)))
 
-;; Super tap → launcher; double-tap → scratchpad term.
-(sf.tap "Super" {:single :exec
-                 :single_cmd "noctalia msg panel-toggle launcher"
-                 :double :scratch_toggle
-                 :double_cmd "term"})
+;; Super tap counts (gesture-parallel :count; same mod merges levels).
+(sf.tap "Super" {:count 1
+                 :action :exec
+                 :cmd "noctalia msg panel-toggle launcher"})
+(sf.tap "Super" {:count 2
+                 :action :scratch_toggle
+                 :cmd "term"})

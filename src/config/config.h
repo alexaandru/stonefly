@@ -31,6 +31,8 @@ struct sf_server;
 #define SF_INPUT_RULE_MAX 64
 #define SF_GESTURE_MAX 32
 #define SF_MOUSEBIND_MAX 16
+#define SF_TAPBIND_MAX 8
+#define SF_TAP_COUNT_MAX 9 /* same range as sf.gesture fingers */
 
 /* libinput accel profile for sf.input; UNSET = leave device default. */
 enum sf_input_accel {
@@ -160,14 +162,19 @@ struct sf_mousebind {
 	size_t n_steps;
 };
 
-/* Lone-modifier tap: press+release without other keys. Double waits the gap. */
+/* One N-tap level (count 1 = single, 2 = double, …). */
+struct sf_tap_level {
+	unsigned count; /* 1..SF_TAP_COUNT_MAX */
+	struct sf_action_step *steps;
+	size_t n_steps;
+};
+
+/* Lone-modifier tap: press+release without other keys. Gap waits for more taps. */
 struct sf_tapbind {
 	xkb_keysym_t sym;
 	xkb_keysym_t sym_alt; /* e.g. Super_R; 0 = none */
-	struct sf_action_step *single_steps;
-	size_t n_single_steps;
-	struct sf_action_step *double_steps; /* NULL / 0 = single-only */
-	size_t n_double_steps;
+	struct sf_tap_level *levels;
+	size_t n_levels;
 };
 
 struct sf_scratchpad_spec {
