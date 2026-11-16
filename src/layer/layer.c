@@ -9,6 +9,7 @@
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/box.h>
 
+#include "config/config.h"
 #include "decor/decor.h"
 #include "layer/layer.h"
 #include "log/log.h"
@@ -26,6 +27,138 @@ static void layer_maybe_dirty_blur(struct sf_layer_surface *layer) {
 	if (z == ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND || z == ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM) {
 		sf_decor_mark_blur_dirty(layer->server);
 	}
+}
+
+struct layer_blur_mask_ctx {
+	struct wlr_surface *surface;
+	struct wlr_scene_buffer *buffer;
+};
+
+static void layer_blur_mask_iter(struct wlr_scene_buffer *buffer, int sx, int sy, void *data) {
+	(void)sx;
+	(void)sy;
+	struct layer_blur_mask_ctx *ctx = data;
+	if (ctx->buffer != NULL) {
+		return;
+	}
+	struct wlr_scene_surface *ss = wlr_scene_surface_try_from_buffer(buffer);
+	if (ss != NULL && ss->surface == ctx->surface) {
+		ctx->buffer = buffer;
+	}
+}
+
+static struct wlr_scene_buffer *layer_find_surface_buffer(struct sf_layer_surface *layer) {
+	if (layer->scene == NULL || layer->layer_surface == NULL) {
+		return NULL;
+	}
+	struct layer_blur_mask_ctx ctx = {
+		.surface = layer->layer_surface->surface,
+		.buffer = NULL,
+	};
+	wlr_scene_node_for_each_buffer(&layer->scene->node, layer_blur_mask_iter, &ctx);
+	return ctx.buffer;
+}
+
+/* Alpine SceneFX 0.5 has no ignore_alpha. Clip to exclusive_zone so the
+ * Noctalia soft-shadow strip (surface taller than the reserved edge) stays clear. */
+static void layer_blur_box(struct wlr_layer_surface_v1 *ls, int surf_w, int surf_h, int *bx,
+			   int *by, int *bw, int *bh) {
+	*bx = 0;
+	*by = 0;
+	*bw = surf_w;
+	*bh = surf_h;
+	int32_t ex = ls->current.exclusive_zone;
+	if (ex <= 0 || surf_w <= 0 || surf_h <= 0) {
+		return;
+	}
+	uint32_t anchor = (uint32_t)ls->current.anchor;
+	bool top = (anchor & (uint32_t)ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP) != 0;
+	bool bottom = (anchor & (uint32_t)ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM) != 0;
+	bool left = (anchor & (uint32_t)ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT) != 0;
+	bool right = (anchor & (uint32_t)ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT) != 0;
+	if (top && !bottom) {
+		*bh = ex < surf_h ? ex : surf_h;
+	} else if (bottom && !top) {
+		*bh = ex < surf_h ? ex : surf_h;
+		*by = surf_h - *bh;
+	} else if (left && !right) {
+		*bw = ex < surf_w ? ex : surf_w;
+	} else if (right && !left) {
+		*bw = ex < surf_w ? ex : surf_w;
+		*bx = surf_w - *bw;
+	}
+}
+
+static void layer_blur_node_destroy(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct sf_layer_surface *layer = wl_container_of(listener, layer, blur_destroy);
+	/* Parent scene_layer tree tears the blur down first on layer destroy. */
+	layer->blur = NULL;
+	wl_list_remove(&layer->blur_destroy.link);
+	wl_list_init(&layer->blur_destroy.link);
+}
+
+void sf_layer_refresh_blur(struct sf_layer_surface *layer) {
+	if (layer == NULL || layer->blur == NULL) {
+		return;
+	}
+	bool on = layer->client_blur && layer->layer_surface != NULL &&
+		  layer->layer_surface->surface->mapped;
+	wlr_scene_node_set_enabled(&layer->blur->node, on);
+	if (!on || layer->layer_surface == NULL) {
+		return;
+	}
+	struct wlr_layer_surface_v1 *ls = layer->layer_surface;
+	struct wlr_surface *surf = ls->surface;
+	int w = surf->current.width;
+	int h = surf->current.height;
+	if (w <= 0 || h <= 0) {
+		wlr_scene_node_set_enabled(&layer->blur->node, false);
+		return;
+	}
+	int bx, by, bw, bh;
+	layer_blur_box(ls, w, h, &bx, &by, &bw, &bh);
+	if (bw <= 0 || bh <= 0) {
+		wlr_scene_node_set_enabled(&layer->blur->node, false);
+		return;
+	}
+	wlr_scene_blur_set_size(layer->blur, bw, bh);
+	wlr_scene_node_set_position(&layer->blur->node, bx, by);
+	wlr_scene_blur_set_should_only_blur_bottom_layer(layer->blur,
+							 sf_cfg(layer->server)->blur_xray);
+	struct wlr_scene_buffer *mask = layer_find_surface_buffer(layer);
+	if (mask != NULL && wlr_scene_blur_get_transparency_mask_source(layer->blur) != mask) {
+		wlr_scene_blur_set_transparency_mask_source(layer->blur, mask);
+	}
+	wlr_scene_node_lower_to_bottom(&layer->blur->node);
+}
+
+void sf_layer_set_client_blur(struct sf_layer_surface *layer, bool want) {
+	if (layer == NULL) {
+		return;
+	}
+	if (layer->client_blur == want) {
+		sf_layer_refresh_blur(layer);
+		return;
+	}
+	layer->client_blur = want;
+	if (want) {
+		if (layer->blur == NULL && layer->scene != NULL) {
+			layer->blur = wlr_scene_blur_create(layer->scene, 0, 0);
+			if (layer->blur == NULL) {
+				layer->client_blur = false;
+				return;
+			}
+			wlr_scene_blur_set_corner_radii(layer->blur, corner_radii_none());
+			layer->blur_destroy.notify = layer_blur_node_destroy;
+			wl_signal_add(&layer->blur->node.events.destroy, &layer->blur_destroy);
+			wlr_scene_node_lower_to_bottom(&layer->blur->node);
+		}
+	} else if (layer->blur != NULL) {
+		/* blur_destroy listener nulls layer->blur. */
+		wlr_scene_node_destroy(&layer->blur->node);
+	}
+	sf_layer_refresh_blur(layer);
 }
 
 #define SF_LAYER_SHELL_VERSION 5
@@ -196,6 +329,7 @@ static void layer_surface_map(struct wl_listener *listener, void *data) {
 		sf_layer_arrange_output(layer->output);
 	}
 	layer_maybe_dirty_blur(layer);
+	sf_layer_refresh_blur(layer);
 }
 
 static void layer_surface_unmap(struct wl_listener *listener, void *data) {
@@ -213,6 +347,7 @@ static void layer_surface_unmap(struct wl_listener *listener, void *data) {
 		sf_focus_top(server);
 	}
 	layer_maybe_dirty_blur(layer);
+	sf_layer_refresh_blur(layer);
 }
 
 static void layer_surface_commit(struct wl_listener *listener, void *data) {
@@ -249,6 +384,9 @@ static void layer_surface_commit(struct wl_listener *listener, void *data) {
 	if (ls->current.committed != 0 || ls->initial_commit ||
 	    ls->surface->current.committed != 0) {
 		layer_maybe_dirty_blur(layer);
+	}
+	if (layer->client_blur) {
+		sf_layer_refresh_blur(layer);
 	}
 }
 
@@ -287,7 +425,13 @@ static void layer_surface_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&layer->new_popup.link);
 	wl_list_remove(&layer->destroy.link);
 
-	/* scene_layer tree is destroyed with the wlr_layer_surface. */
+	/* scene_layer (and our blur child) are already freed: wlroots registers
+	 * its destroy listener before ours on layer_surface->events.destroy. */
+	if (layer->blur != NULL) {
+		wl_list_remove(&layer->blur_destroy.link);
+		wl_list_init(&layer->blur_destroy.link);
+		layer->blur = NULL;
+	}
 	wlr_scene_node_destroy(&layer->popups->node);
 	free(layer);
 
@@ -349,6 +493,7 @@ static void server_new_layer_surface(struct wl_listener *listener, void *data) {
 	layer->output = output;
 	layer->layer_surface = ls;
 	ls->data = layer;
+	wl_list_init(&layer->blur_destroy.link);
 
 	layer->scene_layer = wlr_scene_layer_surface_v1_create(parent, ls);
 	layer->scene = layer->scene_layer->tree;

@@ -80,12 +80,12 @@ features Umbriel lacks — neither is a product spec. See `AGENTS.md`.
 | Workspace switch slide | Vertical strip slide on Super+Page / 1–9, IPC `workspace`, and 3-finger swipe. Next: content up (new from below); prev: opposite. Focus + pointer follow at start. Duration `slide_duration_ms` (0 = instant). Mid-flight interrupt lands then retargets |
 | Scratchpad / minimize slides | Mid-flight reverse. Edge-max reassert runs while still hidden so REAPPLY cannot cancel the show slide |
 | Vsync-capped animation pacing | Own scene / frame loop |
-| Backdrop / window blur | Per-window SceneFX blur (`window_blur`) or client `ext-background-effect-v1` (`client_blur`). Gate: `(window_blur or client_blur) and not fullscreen`. Default `blur_xray false` |
+| Backdrop / window blur | Per-window SceneFX blur (`window_blur`) or client `ext-background-effect-v1` (`client_blur`). Gate: `(window_blur or client_blur) and not fullscreen`. Default `blur_xray false`. **Layer-shell** (Noctalia `compositor_blur`): same protocol → SceneFX plate under the layer buffer (`sf_layer_set_client_blur`); clip to `exclusive_zone` (skips bar shadow strip; Alpine SceneFX 0.5 has no `ignore_alpha`) + transparency mask; follows `blur_xray` |
 | Soft rounded corners (opaque) | `corner_radius` 12 = CSD/hole/buffer; outer rim = `corner_radius + border_thickness` |
 | Drop shadows | SceneFX |
 | Compositor border (focus/idle/urgent) | Neon / charcoal inactive / amber. Static `SF_BORDER_*` float arrays (not compound literals). Hole+buffer use `corner_radius`; outer = radius+border |
 | Layer z-order vs windows | Scene trees background→bottom→blur→toplevel→overview→top→fullscreen→overlay→lock; normal xdg under workspace trees in `layers.toplevel`; fullscreen xdg reparented to `layers.fullscreen`; overview filmstrip above windows / below the bar |
-| Workspace overview | Umbriel-shaped vertical filmstrip (thin v1). Actions `overview_toggle` / `open` / `close` / **`overview_confirm`** / **`overview_scroll`**; default **Super+o**. Continuous **4-finger** vertical swipe via `sf.gesture` `:overview` (natural: finger up opens). While open: **3-finger** V/H `:overview_pan` outranks workspace/columns_pan; bare Wheel / Shift+Wheel (`:arrange "overview"`); Enter/Space confirm focused card + close; Escape close. Live root-surface cards; click card → focus + close; empty click closes. Hides scratchpads; dims backdrop; `sf.opt.overview_zoom` (0.5), `overview_scroll_factor` (1.0). No card-drag / shortcut badges (deferred). `wm/overview.c` |
+| Workspace overview | Umbriel-shaped vertical filmstrip (thin v1). Actions `overview_toggle` / `open` / `close` / **`overview_confirm`** / **`overview_scroll`**; default **Super+o**. Continuous **4-finger** vertical swipe via `sf.gesture` `:overview` (natural: finger up opens). While open: **3-finger** V/H `:overview_pan` outranks workspace/columns_pan; bare Wheel / Shift+Wheel (`:arrange "overview"`); **selection** highlights the window that had seat focus at open (seat cleared so clients do not eat keys); **Super+Tab / Super+Shift+Tab** cycle cards across all workspaces (spatial order) and scroll the filmstrip; Enter/Space confirm selection + close; Escape close. Live root-surface cards (stack tiled→floating→fullscreen like Umbriel); click card → focus + close; empty click closes. Hides scratchpads; dims backdrop; `sf.opt.overview_zoom` (0.5), `overview_scroll_factor` (1.0). No card-drag / shortcut badges (deferred). `wm/overview.c` |
 | Window previews / destination size | Noctalia switcher via `ext-foreign-toplevel-list` + image-capture-source + image-copy-capture (`ext_capture.c`) |
 | Urgency / xdg-activation | Amber until focus; never steals focus. IPC `windows.urgent` + `set-urgent` / `unset-urgent` |
 | System bell | 200ms amber flash (`bell_flash_ms`); does not stick urgency |
@@ -145,13 +145,13 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 | Foreign-toplevel management | `zwlr_foreign_toplevel_management_v1` v3 + `ext-foreign-toplevel-list-v1` |
 | xdg-activation (urgency) | Amber until focus; IPC set/unset |
 | xdg-system-bell | Visual flash only (`bell_flash_ms`) |
-| xdg_wm_dialog_v1 | Tracks `toplevel->modal`; placement keys off parent |
+| xdg_wm_dialog_v1 | Tracks `toplevel->modal`; placement keys off parent (modal focus/trap still ROADMAP §5) |
 | Idle-inhibit / idle-notify / session-lock / output-power | `session/session.c` |
 | Gamma control | `zwlr_gamma_control_v1` + SceneFX hook |
 | ext-workspace-v1 | Per-output group + per-workspace handle |
 | xdg-toplevel-tag | Stored on toplevel; IPC `windows` (`tag` / `description`) |
 | xdg-toplevel-icon-v1 | Preferred sizes 16–64; IPC `icon_name` |
-| ext-background-effect-v1 | Hand protocol + `src/effect/background_effect.c`; capability `blur` |
+| ext-background-effect-v1 | Hand protocol + `src/effect/background_effect.c`; capability `blur`; xdg toplevels + layer-shell (Noctalia bar/panels). Non-empty region → full-surface SceneFX (region mask still ROADMAP) |
 | Touch / gestures / virtual-keyboard | `seat/`: touch, `pointer_gestures_v1` + `sf.gesture` swipe binds, `zwp_virtual_keyboard_v1`, relative-pointer + constraints; `sf.input` libinput apply on new keyboard/pointer/touch |
 | Presentation-time | `wp_presentation` via `wlr_presentation_create`. Tearing control advertised (hint log only) |
 

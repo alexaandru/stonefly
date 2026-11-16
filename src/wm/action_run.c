@@ -45,6 +45,10 @@ static void action_close(struct sf_action_ctx *ctx) {
 }
 
 static void action_focus_next(struct sf_action_ctx *ctx) {
+	if (sf_overview_interactive(ctx->server)) {
+		sf_overview_focus_cycle(ctx->server, false);
+		return;
+	}
 	/* Tiling: walk columns→rows. Stacking: MRU list. */
 	if (!sf_arrange_focus_cycle(ctx->server, false)) {
 		sf_focus_cycle(ctx->server, false, false);
@@ -52,16 +56,28 @@ static void action_focus_next(struct sf_action_ctx *ctx) {
 }
 
 static void action_focus_prev(struct sf_action_ctx *ctx) {
+	if (sf_overview_interactive(ctx->server)) {
+		sf_overview_focus_cycle(ctx->server, true);
+		return;
+	}
 	if (!sf_arrange_focus_cycle(ctx->server, true)) {
 		sf_focus_cycle(ctx->server, true, false);
 	}
 }
 
 static void action_focus_next_all(struct sf_action_ctx *ctx) {
+	if (sf_overview_interactive(ctx->server)) {
+		sf_overview_focus_cycle(ctx->server, false);
+		return;
+	}
 	sf_focus_cycle(ctx->server, false, true);
 }
 
 static void action_focus_prev_all(struct sf_action_ctx *ctx) {
+	if (sf_overview_interactive(ctx->server)) {
+		sf_overview_focus_cycle(ctx->server, true);
+		return;
+	}
 	sf_focus_cycle(ctx->server, true, true);
 }
 

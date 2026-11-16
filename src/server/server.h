@@ -333,7 +333,9 @@ struct sf_server {
 		struct wlr_scene_tree *tree; /* == layers.overview */
 		struct wl_list cards;
 		struct wl_list dims;
-		struct sf_toplevel *pending_focus;
+		struct sf_toplevel *pending_focus; /* window to focus on close (click/confirm) */
+		/* Highlighted card while open; seat focus is cleared so clients do not eat keys. */
+		struct sf_toplevel *selection;
 		/* Filmstrip pan: scroll_y in workspace-index units; scroll_x layout px. */
 		double scroll_y;
 		double scroll_x;

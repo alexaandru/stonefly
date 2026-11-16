@@ -10,6 +10,8 @@
 
 struct sf_output;
 
+struct wlr_scene_blur;
+
 struct sf_layer_surface {
 	enum sf_node_kind kind; /* SF_NODE_LAYER */
 	struct wl_list link;
@@ -19,6 +21,11 @@ struct sf_layer_surface {
 	struct wlr_scene_layer_surface_v1 *scene_layer;
 	struct wlr_scene_tree *scene;
 	struct wlr_scene_tree *popups;
+	/* ext-background-effect-v1: SceneFX plate under the layer buffer.
+	 * Owned by layer->scene (destroyed with wlr_scene_layer_surface). */
+	struct wlr_scene_blur *blur;
+	bool client_blur;
+	struct wl_listener blur_destroy;
 	struct wl_listener map;
 	struct wl_listener unmap;
 	struct wl_listener commit;
@@ -28,6 +35,10 @@ struct sf_layer_surface {
 
 void sf_layer_setup(struct sf_server *server);
 void sf_layer_finish(struct sf_server *server);
+
+/* Client blur region from ext-background-effect-v1 (Noctalia compositor_blur). */
+void sf_layer_set_client_blur(struct sf_layer_surface *layer, bool want);
+void sf_layer_refresh_blur(struct sf_layer_surface *layer);
 
 /* Scene tree for a zwlr_layer_shell_v1 layer enum value. */
 struct wlr_scene_tree *sf_layer_tree(struct sf_server *server,

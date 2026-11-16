@@ -36,6 +36,8 @@ void sf_overview_pan(struct sf_server *server, double dx, double dy);
 void sf_overview_scroll(struct sf_server *server, const char *dir);
 /* Focus the highlighted window and close. */
 void sf_overview_confirm(struct sf_server *server);
+/* Cycle card selection across all workspaces (Super+Tab while overview open). */
+void sf_overview_focus_cycle(struct sf_server *server, bool backward);
 
 /* Pointer: left-click card → focus + close; empty → close. Returns true if consumed. */
 bool sf_overview_handle_button(struct sf_server *server, uint32_t button, bool pressed, double lx,

@@ -3,11 +3,13 @@
 #include <wayland-server-core.h>
 #include <scenefx/types/wlr_scene.h>
 #include <wlr/types/wlr_compositor.h>
+#include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/addon.h>
 
 #include "decor/decor.h"
 #include "effect/background_effect.h"
+#include "layer/layer.h"
 #include "log/log.h"
 #include "server/server.h"
 #include "toplevel/toplevel.h"
@@ -51,29 +53,69 @@ static struct sf_toplevel *toplevel_for_surface(struct sf_server *server,
 	return t;
 }
 
+/* Noctalia bar/panels: compositor_blur → ext-background-effect on layer-shell. */
+static struct sf_layer_surface *layer_for_surface(struct sf_server *server,
+						  struct wlr_surface *surface) {
+	(void)server;
+	if (surface == NULL) {
+		return NULL;
+	}
+	struct wlr_surface *root = wlr_surface_get_root_surface(surface);
+	struct wlr_layer_surface_v1 *ls = wlr_layer_surface_v1_try_from_wlr_surface(root);
+	if (ls == NULL || ls->data == NULL) {
+		return NULL;
+	}
+	struct sf_layer_surface *layer = ls->data;
+	if (layer->kind != SF_NODE_LAYER) {
+		return NULL;
+	}
+	return layer;
+}
+
 static void effect_apply_client_blur(struct sf_background_effect *effect) {
 	bool want = pixman_region32_not_empty(&effect->current);
 	struct sf_toplevel *toplevel = toplevel_for_surface(effect->server, effect->surface);
-	if (toplevel == NULL) {
+	if (toplevel != NULL) {
+		if (toplevel->client_blur == want) {
+			return;
+		}
+		toplevel->client_blur = want;
+		sf_decor_update_geom(toplevel);
+		sf_decor_refresh_blur(toplevel);
+		SF_LOGI("client blur", sf_i64("id", (int64_t)toplevel->id), sf_bool("on", want));
 		return;
 	}
-	if (toplevel->client_blur == want) {
+	struct sf_layer_surface *layer = layer_for_surface(effect->server, effect->surface);
+	if (layer == NULL) {
 		return;
 	}
-	toplevel->client_blur = want;
-	sf_decor_update_geom(toplevel);
-	sf_decor_refresh_blur(toplevel);
-	SF_LOGI("client blur", sf_i64("id", (int64_t)toplevel->id), sf_bool("on", want));
+	bool was = layer->client_blur;
+	sf_layer_set_client_blur(layer, want);
+	if (was != layer->client_blur) {
+		SF_LOGI("layer blur",
+			sf_str("namespace", layer->layer_surface->namespace != NULL
+						    ? layer->layer_surface->namespace
+						    : ""),
+			sf_bool("on", layer->client_blur));
+	}
 }
 
 static void effect_clear_client_blur(struct sf_background_effect *effect) {
 	struct sf_toplevel *toplevel = toplevel_for_surface(effect->server, effect->surface);
-	if (toplevel == NULL || !toplevel->client_blur) {
+	if (toplevel != NULL) {
+		if (!toplevel->client_blur) {
+			return;
+		}
+		toplevel->client_blur = false;
+		sf_decor_update_geom(toplevel);
+		sf_decor_refresh_blur(toplevel);
 		return;
 	}
-	toplevel->client_blur = false;
-	sf_decor_update_geom(toplevel);
-	sf_decor_refresh_blur(toplevel);
+	struct sf_layer_surface *layer = layer_for_surface(effect->server, effect->surface);
+	if (layer == NULL || !layer->client_blur) {
+		return;
+	}
+	sf_layer_set_client_blur(layer, false);
 }
 
 static void effect_finish_body(struct sf_background_effect *effect) {

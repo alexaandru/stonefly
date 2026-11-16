@@ -298,9 +298,10 @@ Day-zero truth is `src/config/default/*.fnl`. C seeds exist for
 
 Do not invent more one-off C branches for pack-shaped policy:
 
-1. `sf.on(event, handler)` — map / unmap / focus / arrange / workspace / fullscreen / output
+1. `sf.on(event, handler)` — map / unmap / focus / arrange / layout / workspace / fullscreen / output
 2. `sf.wins()` / focused / safe setters through existing verbs
 3. SoftPlace / scratchpad catcher / dim-spotlight packs live in Fennel
+4. Derived screen policy example: Noctalia bar opacity from “any visible edge-max on output” (recompute on layout/unmap/workspace — never toggle on a single max/unmax)
 
 ### 9.6 Forever C
 

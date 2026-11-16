@@ -22,6 +22,7 @@
 #include "util/color.h"
 #include "util/math.h"
 #include "util/time.h"
+#include "wm/layout_sm.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
@@ -236,21 +237,42 @@ static void overview_build_dims(struct sf_server *server) {
 	}
 }
 
+/* Umbriel populateCards: tiled → floating → fullscreen so overlapping cards
+ * stack like the live scene (floats above tiles). Within a pass, oldest first
+ * (reverse MRU) so later raise-to-top matches desktop stacking. */
+static int overview_card_layer(struct sf_toplevel *toplevel) {
+	if (sf_layout_sm_is_fullscreen(&toplevel->layout)) {
+		return 2;
+	}
+	if (toplevel->arrange_floating) {
+		return 1;
+	}
+	return 0;
+}
+
+static bool overview_card_eligible(struct sf_toplevel *toplevel) {
+	if (toplevel->minimized || sf_toplevel_is_scratchpad(toplevel)) {
+		return false;
+	}
+	if (toplevel->xdg_toplevel == NULL || !toplevel->xdg_toplevel->base->surface->mapped) {
+		return false;
+	}
+	return toplevel->workspace != NULL;
+}
+
 static void overview_build_cards(struct sf_server *server) {
 	overview_clear_cards(server);
-	struct sf_toplevel *toplevel;
-	wl_list_for_each(toplevel, &server->toplevels, link) {
-		if (toplevel->minimized || sf_toplevel_is_scratchpad(toplevel)) {
-			continue;
+	for (int pass = 0; pass < 3; pass++) {
+		struct sf_toplevel *toplevel;
+		wl_list_for_each_reverse(toplevel, &server->toplevels, link) {
+			if (!overview_card_eligible(toplevel)) {
+				continue;
+			}
+			if (overview_card_layer(toplevel) != pass) {
+				continue;
+			}
+			(void)card_create(server, toplevel);
 		}
-		if (toplevel->xdg_toplevel == NULL ||
-		    !toplevel->xdg_toplevel->base->surface->mapped) {
-			continue;
-		}
-		if (toplevel->workspace == NULL) {
-			continue;
-		}
-		(void)card_create(server, toplevel);
 	}
 }
 
@@ -261,7 +283,7 @@ static void overview_layout(struct sf_server *server) {
 
 	double progress = server->overview.progress;
 	double zoom = overview_zoom_at(server, progress);
-	struct sf_toplevel *live = sf_focused_toplevel(server);
+	struct sf_toplevel *sel = server->overview.selection;
 
 	/* Dim alpha follows open progress. */
 	struct sf_overview_dim *dim;
@@ -341,13 +363,13 @@ static void overview_layout(struct sf_server *server) {
 			card->buffer, corner_radii_all((int)lround(
 					      (double)sf_cfg(server)->corner_radius * zoom)));
 
-		bool focused = card->toplevel == live;
+		bool selected = card->toplevel == sel;
 		if (card->border != NULL) {
-			int bw = 2;
+			int bw = selected ? 3 : 2;
 			wlr_scene_rect_set_size(card->border, card_w + 2 * bw, card_h + 2 * bw);
 			wlr_scene_node_set_position(&card->border->node, -bw, -bw);
 			struct sf_rgba col;
-			if (focused) {
+			if (selected) {
 				sf_rgba_copy(&col, &sf_cfg(server)->border_active);
 				col.a = (float)sf_clamp01(progress);
 			} else {
@@ -400,6 +422,7 @@ static void overview_restore_desktop(struct sf_server *server) {
 static void overview_teardown(struct sf_server *server) {
 	struct sf_toplevel *focus = server->overview.pending_focus;
 	server->overview.pending_focus = NULL;
+	server->overview.selection = NULL;
 	server->overview.anim_active = false;
 	server->overview.closing = false;
 	server->overview.progress = 0.0;
@@ -439,6 +462,8 @@ static bool overview_begin(struct sf_server *server) {
 	}
 
 	sf_reset_cursor_mode(server);
+	/* Capture before scratchpad hide / seat clear — selection owns highlight. */
+	struct sf_toplevel *was_focused = sf_focused_toplevel(server);
 	sf_scratchpad_hide_all(server);
 
 	/* Finish in-flight workspace slides so cards start from a settled strip. */
@@ -460,12 +485,37 @@ static bool overview_begin(struct sf_server *server) {
 	server->overview.closing = false;
 	server->overview.progress = 0.0;
 	server->overview.pending_focus = NULL;
+	server->overview.selection = NULL;
 	server->overview.anim_active = false;
 	server->overview.scroll_x = 0.0;
 	{
 		struct sf_output *at = sf_output_at_cursor(server);
 		server->overview.scroll_y =
 			(at != NULL && at->active != NULL) ? (double)at->active->index : 0.0;
+	}
+
+	if (was_focused != NULL && !was_focused->minimized &&
+	    !sf_toplevel_is_scratchpad(was_focused) && was_focused->workspace != NULL) {
+		server->overview.selection = was_focused;
+		server->overview.scroll_y = (double)was_focused->workspace->index;
+	} else {
+		/* Prefer a card on the scrolled-to workspace. */
+		struct sf_overview_card *card;
+		wl_list_for_each(card, &server->overview.cards, link) {
+			if (card->toplevel != NULL &&
+			    (double)card->workspace_index == server->overview.scroll_y) {
+				server->overview.selection = card->toplevel;
+				break;
+			}
+		}
+		if (server->overview.selection == NULL) {
+			wl_list_for_each(card, &server->overview.cards, link) {
+				if (card->toplevel != NULL) {
+					server->overview.selection = card->toplevel;
+					break;
+				}
+			}
+		}
 	}
 
 	if (server->layers.toplevel != NULL) {
@@ -476,7 +526,7 @@ static bool overview_begin(struct sf_server *server) {
 	}
 	wlr_scene_node_set_enabled(&server->overview.tree->node, true);
 
-	/* Drop seat focus so clients do not eat keys; Tab cycle still sets focus. */
+	/* Drop seat focus so clients do not eat keys; selection owns Tab/confirm. */
 	wlr_seat_keyboard_notify_clear_focus(server->seat);
 	wlr_seat_pointer_clear_focus(server->seat);
 
@@ -595,6 +645,7 @@ bool sf_overview_handle_button(struct sf_server *server, uint32_t button, bool p
 
 	struct sf_overview_card *card = card_at(server, lx, ly);
 	if (card != NULL && card->toplevel != NULL) {
+		server->overview.selection = card->toplevel;
 		server->overview.pending_focus = card->toplevel;
 		if (card->workspace != NULL && card->workspace->output != NULL &&
 		    card->workspace->output->active != card->workspace) {
@@ -703,11 +754,106 @@ void sf_overview_scroll(struct sf_server *server, const char *dir) {
 	sf_anim_schedule(server);
 }
 
+/* Spatial order: workspace index, then x, then y, then id. */
+static int overview_card_cmp(const struct sf_overview_card *ca, const struct sf_overview_card *cb) {
+	if (ca->workspace_index != cb->workspace_index) {
+		return ca->workspace_index - cb->workspace_index;
+	}
+	if (ca->world.x != cb->world.x) {
+		return ca->world.x - cb->world.x;
+	}
+	if (ca->world.y != cb->world.y) {
+		return ca->world.y - cb->world.y;
+	}
+	uint64_t ida = ca->toplevel != NULL ? ca->toplevel->id : 0;
+	uint64_t idb = cb->toplevel != NULL ? cb->toplevel->id : 0;
+	if (ida < idb) {
+		return -1;
+	}
+	if (ida > idb) {
+		return 1;
+	}
+	return 0;
+}
+
+static void overview_card_refresh_keys(struct sf_overview_card *card) {
+	if (card->toplevel != NULL && card->toplevel->scene_tree != NULL) {
+		sf_toplevel_layout_geom(card->toplevel, &card->world);
+	}
+	if (card->workspace != NULL) {
+		card->workspace_index = card->workspace->index;
+	}
+}
+
+static void overview_select(struct sf_server *server, struct sf_toplevel *toplevel) {
+	server->overview.selection = toplevel;
+	if (toplevel != NULL && toplevel->workspace != NULL) {
+		server->overview.scroll_y = (double)toplevel->workspace->index;
+		overview_clamp_scroll(server);
+	}
+	overview_layout(server);
+	sf_anim_schedule(server);
+}
+
+void sf_overview_focus_cycle(struct sf_server *server, bool backward) {
+	if (server == NULL || !sf_overview_interactive(server)) {
+		return;
+	}
+	struct sf_overview_card *card;
+	struct sf_overview_card *cur = NULL;
+	struct sf_overview_card *best = NULL;
+	struct sf_overview_card *wrap = NULL;
+
+	wl_list_for_each(card, &server->overview.cards, link) {
+		if (card->toplevel == NULL) {
+			continue;
+		}
+		overview_card_refresh_keys(card);
+		if (card->toplevel == server->overview.selection) {
+			cur = card;
+		}
+	}
+
+	wl_list_for_each(card, &server->overview.cards, link) {
+		if (card->toplevel == NULL || card == cur) {
+			continue;
+		}
+		/* Wrap candidate: min (forward) or max (backward) among all others. */
+		if (wrap == NULL || (backward ? overview_card_cmp(card, wrap) > 0
+					      : overview_card_cmp(card, wrap) < 0)) {
+			wrap = card;
+		}
+		if (cur == NULL) {
+			continue;
+		}
+		/* Next after cur: least card > cur (forward) or greatest < cur. */
+		if (backward) {
+			if (overview_card_cmp(card, cur) < 0 &&
+			    (best == NULL || overview_card_cmp(card, best) > 0)) {
+				best = card;
+			}
+		} else if (overview_card_cmp(card, cur) > 0 &&
+			   (best == NULL || overview_card_cmp(card, best) < 0)) {
+			best = card;
+		}
+	}
+
+	if (best == NULL) {
+		best = wrap;
+	}
+	if (best == NULL && cur != NULL) {
+		best = cur; /* sole card */
+	}
+	if (best != NULL) {
+		overview_select(server, best->toplevel);
+	}
+}
+
 void sf_overview_confirm(struct sf_server *server) {
 	if (server == NULL || !sf_overview_interactive(server)) {
 		return;
 	}
-	struct sf_toplevel *focus = sf_focused_toplevel(server);
+	struct sf_toplevel *focus = server->overview.selection;
 	if (focus != NULL && !focus->minimized && !sf_toplevel_is_scratchpad(focus)) {
 		server->overview.pending_focus = focus;
 	} else {
@@ -760,14 +906,28 @@ void sf_overview_on_toplevel_unmapped(struct sf_toplevel *toplevel) {
 	}
 	struct sf_overview_card *card, *tmp;
 	wl_list_for_each_safe(card, tmp, &server->overview.cards, link) {
-		if (card->toplevel == toplevel) {
-			if (server->overview.pending_focus == toplevel) {
-				server->overview.pending_focus = NULL;
-			}
-			card_destroy(card);
-			overview_layout(server);
-			return;
+		if (card->toplevel != toplevel) {
+			continue;
 		}
+		if (server->overview.pending_focus == toplevel) {
+			server->overview.pending_focus = NULL;
+		}
+		/* Pick a replacement before destroy — clang-analyzer does not
+		 * model wl_list_remove and flags a post-free list walk. */
+		struct sf_toplevel *next_sel = NULL;
+		if (server->overview.selection == toplevel) {
+			struct sf_overview_card *pick;
+			wl_list_for_each(pick, &server->overview.cards, link) {
+				if (pick != card && pick->toplevel != NULL) {
+					next_sel = pick->toplevel;
+					break;
+				}
+			}
+			server->overview.selection = next_sel;
+		}
+		card_destroy(card);
+		overview_layout(server);
+		return;
 	}
 }
 

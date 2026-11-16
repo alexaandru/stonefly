@@ -27,12 +27,13 @@ from the previous stack plus high-value leftovers and low-hanging fruit.
 | 7 | **Scratchpad claim → xdg-activation** | 🚧 | Fake `app_id` avoids steal but breaks taskbar icons; startup token is the real fix |
 | 8 | **Predictability Medium leftovers** | 🚧 | FS unFS→pack; snap↔max one “normal” box; document transient tile edge-max; pan-focus opt |
 | 9 | **IME *or* Xwayland** | ❌ | Pick by apps: fcitx/CJK/OSK → IME; Steam/legacy → Xwayland — real projects |
-| 10 | **`sf.on` + window query** | ❌ | Tier 2–3 Neovim leap ([`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9.5); packs react to map/focus/arrange |
+| 10 | **`sf.on` + window query** | ❌ | Tier 2–3 Neovim leap ([`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9.5). Packs subscribe to map/unmap/focus/arrange/layout/workspace and **recompute** from `sf.wins()` — not one-shot max/unmax. Example: Noctalia bar opaque iff any visible edge-max on that output (`noctalia msg config-set bar.default.background_opacity`); naive bind-side toggle breaks with 2+ maxed windows |
 
 **After this stack (not numbered):** IPC `action` allowlist; APK flip to release
-buildtype when ASan hunting ends; `--write-config-lua`; tablet; `wp_fifo_v1`;
-full color-mgmt; geometry persist / tag rules; scratchpad click-outside catcher;
-winmenu (or Noctalia).
+buildtype when ASan hunting ends; `--write-config-lua`; protocol hollow-ads
+(tearing flips, blur region/popup, dialog modal); tag/icon consumers; full-output
+screencopy blanking; tablet; `wp_fifo_v1`; full color-mgmt; geometry persist;
+scratchpad click-outside catcher; winmenu (or Noctalia).
 
 ---
 
@@ -97,7 +98,7 @@ windows. High-severity gaps are fixed (see FEATURES).
 | Popin / popout (scale + fade) | ❌ | TODO NEXT #3. Umbriel `windows_in`/`windows_out`; v1 = morph + buffer opacity. Tiled popin; scratch keeps edge slide |
 | Umbriel-shaped `sf.opt.anim` | ❌ | TODO NEXT #4. Per-op `enabled` / `duration_ms` / `style` + master |
 | WM-settable per-window opacity | 🚧 | TODO NEXT #6. Global knobs only |
-| Blur region mask | 🚧 | Non-empty blur region → full-window SceneFX |
+| Blur region mask / popup blur | 🚧 | `ext-background-effect-v1` accepts a region but SceneFX is still a **full-surface** plate for toplevels. Layers clip to `exclusive_zone` + transparency mask (no Alpine `ignore_alpha`). True region geometry and layer popup blur still open |
 
 ---
 
@@ -112,7 +113,6 @@ windows. High-severity gaps are fixed (see FEATURES).
 | Color picker | ❌ | |
 | Dock with magnification | ❌ | |
 | Desktop widgets | ❌ | |
-| Blur behind bar/OSD | 🚧 | SceneFX can; chrome is external |
 | In-process wallpaper engine | ❌ | Layer-shell wallpaper clients OK |
 
 Bar / launcher / OSD / notifier / control center stay **🌙 Noctalia**.
@@ -132,18 +132,28 @@ Bar / launcher / OSD / notifier / control center stay **🌙 Noctalia**.
 
 ## 5. Protocols & I/O
 
+**Advertise ≠ full effect** (same class as the old layer-blur hole). Shipped
+wire + known gaps:
+
 | Feature | Status | Notes |
 |---|---|---|
-| Screencast / capture_sessions UI | ❌ | Screencopy + ext-image-copy-capture shipped |
-| Full-output screencopy blanking | ❌ | Per-window capture privacy shipped |
-| Xwayland | ❌ | TODO NEXT #9 |
-| text-input / IME | ❌ | TODO NEXT #9 — `zwp_text_input_v3` + `zwp_input_method_v2`; seat relay + popup + IM client |
-| `wp_fifo_v1` | ❌ | Presentation-time ✅; no fifo helper |
-| `wp_tearing_control_v1` async flip | 🚧 | Advertised; hint log only |
-| Tablet | ❌ | Touch / gestures / VK / constraints shipped |
-| Full color-management | ❌ | Gamma LUT shipped |
-| xdg-toplevel-tag consumers | 🚧 | Protocol + IPC stored; no rules/persist consumer |
-| xdg-toplevel-icon buffers in shell | 🚧 | Protocol + IPC `icon_name`; Noctalia unused buffers yet |
+| `wp_tearing_control_v1` | 🚧 | **Hollow ad:** global + `new_object` logs hint only. No async/tearing page-flips (SceneFX commit stays vsynced) |
+| `ext-background-effect-v1` region / popup | 🚧 | Capability `blur` real for toplevel **and** layer (Noctalia `compositor_blur`). Region geometry ignored → full-surface plate; no layer popup blur (§2) |
+| `xdg_wm_dialog_v1` modal policy | 🚧 | Stores `toplevel->modal`; placement keys off **parent**, not modal. No modal focus / input trap |
+| `xdg-toplevel-tag` consumers | 🚧 | Protocol + IPC store only; no rules / geometry-persist consumer |
+| `xdg-toplevel-icon-v1` buffers | 🚧 | Preferred sizes + name/buffer ref + IPC `icon_name`; SSD/shell do not paint buffers |
+| Full-output screencopy blanking | ❌ | Per-toplevel `ext-image-capture` reject + IPC `capture_blocked` ship; `zwlr_screencopy` full-output still composites blocked windows |
+| Screencast / capture_sessions UI | ❌ | Screencopy + ext-image-copy-capture wire shipped; portal session UX open |
+| Xwayland | ❌ | TODO NEXT #9 — not advertised |
+| text-input / IME | ❌ | TODO NEXT #9 — `zwp_text_input_v3` + `zwp_input_method_v2` not advertised |
+| `wp_fifo_v1` | ❌ | Not advertised. Presentation-time ships |
+| Tablet (`zwp_tablet_v2`) | ❌ | Not advertised. Touch / gestures / VK / constraints ship |
+| Full color-management | ❌ | Not advertised. Gamma LUT ships |
+
+**Intentional subsets** (documented in FEATURES, not gaps to “finish”):
+`xdg-activation` = urgency / never focus-steal; `xdg-system-bell` = visual
+flash only; layer-shell keyboard auto-focus = **exclusive** only (`on_demand`
+stays click-to-focus); foreign has no URGENT state (IPC urgency instead).
 
 ---
 
@@ -174,6 +184,7 @@ Deferred bind/opt knobs (not TODO NEXT blockers): [`FROM_C_TO_LUA.md`](FROM_C_TO
 | P1 | WM opacity / dim | 🚧 TODO NEXT #1 / #6 |
 | P1 | `sf.on` + window query | ❌ TODO NEXT #10 |
 | P2 | Workspaces polish | ❌ rules / geometry persist |
+| P2 | Protocol hollow-ads (tearing / blur region / dialog modal) | 🚧 §5 |
 | P2 | `wp_fifo_v1` | ❌ |
 | — | Xwayland / IME | ❌ TODO NEXT #9 |
 
@@ -195,11 +206,12 @@ Deferred bind/opt knobs (not TODO NEXT blockers): [`FROM_C_TO_LUA.md`](FROM_C_TO
 Primary queue is **TODO NEXT** at the top (#1–#10). After that stack:
 
 1. IPC action allowlist; APK release buildtype; `--write-config-lua`
-2. Capture: full-output screencopy blanking
-3. Input: tablet
-4. Protocol polish: `wp_fifo_v1`, full color-mgmt
-5. Optional WM: geometry persist / tag rules; overview polish (card drag, multi-surface cards, shortcut badges)
-6. **Bind context redesign** (own chapter below) — after overview/arrange filters feel cramped
+2. Protocol hollow-ads: tearing async flips; blur region/popup; dialog modal policy
+3. Capture: full-output screencopy blanking; tag/icon consumers
+4. Input: tablet
+5. Not-yet-advertised: `wp_fifo_v1`, full color-mgmt
+6. Optional WM: geometry persist / tag rules; overview polish (card drag, multi-surface cards, shortcut badges)
+7. **Bind context redesign** (own chapter below) — after overview/arrange filters feel cramped
 
 Shell/OSD/media stay **🌙 Noctalia**.
 
