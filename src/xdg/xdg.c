@@ -436,9 +436,10 @@ void sf_begin_interactive(struct sf_toplevel *toplevel, enum sf_cursor_mode mode
 		/* Peeble PrepareDrag: float snap/max, keep PreSnap, record origin. */
 		sf_drag_snap_prepare(toplevel);
 	} else if (mode == SF_CURSOR_RESIZE || mode == SF_CURSOR_RESIZE_CENTER) {
-		/* Leave edge-max / gap-max / snap flags alone so chrome and the
-		 * undragged edges stay put; only the grabbed edge moves. */
+		/* User resize leaves edged modes so hide/show keeps the new size
+		 * (chrome flush heuristic covers undragged edges). */
 		sf_toplevel_clear_auto_place(toplevel);
+		sf_toplevel_break_edged_for_user_geom(toplevel);
 	}
 
 	server->grabbed_toplevel = toplevel;

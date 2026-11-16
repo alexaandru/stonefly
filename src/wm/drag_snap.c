@@ -4,6 +4,7 @@
 #include <scenefx/types/wlr_scene.h>
 
 #include "config/config.h"
+#include "decor/decor.h"
 #include "layer/layer.h"
 #include "server/server.h"
 #include "toplevel/toplevel.h"
@@ -142,6 +143,14 @@ void sf_drag_snap_prepare(struct sf_toplevel *toplevel) {
 			sf_toplevel_ensure_on_screen(toplevel);
 		} else {
 			sf_toplevel_layout_float(toplevel, false);
+		}
+		/* Transient tile edge-max the user dragged → sticky float. */
+		if (toplevel->arrange_max_edges_rejoin) {
+			toplevel->arrange_max_edges_rejoin = false;
+			toplevel->arrange_floating = true;
+			sf_arrange_remember_float_box(toplevel);
+			toplevel->arrange_float_custom = true;
+			sf_decor_refresh_border(toplevel);
 		}
 		return;
 	}

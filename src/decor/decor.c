@@ -17,8 +17,9 @@
 #include "util/color.h"
 #include "util/math.h"
 #include "util/time.h"
-#include "wm/wm.h"
 #include "toplevel/toplevel.h"
+#include "wm/layout_sm.h"
+#include "wm/wm.h"
 
 #include <wlr/types/wlr_buffer.h>
 
@@ -81,12 +82,68 @@ void sf_decor_mark_blur_dirty(struct sf_server *server) {
 	wlr_scene_optimized_blur_mark_dirty(server->blur_layer);
 }
 
-/* Border/shadow/corners off for edge-max, fullscreen, and window_rule borderless.
+/* Border/shadow/corners off for edge-max, fullscreen, window_rule borderless,
+ * and floats flush with any usable edge (no room for chrome on all sides).
  * Blur is separate (stays on for edge-max / quick terminal; off only for true
  * fullscreen). */
+bool sf_toplevel_room_for_chrome(const struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->server == NULL || toplevel->scene_tree == NULL ||
+	    toplevel->xdg_toplevel == NULL) {
+		return true;
+	}
+	/* Tiled strip cells keep borders even when a lone column fills usable. */
+	if (toplevel->arrange_managed) {
+		return true;
+	}
+	if (sf_layout_sm_is_max_edges(&toplevel->layout) ||
+	    sf_layout_sm_is_fullscreen(&toplevel->layout)) {
+		return false;
+	}
+	struct wlr_box geom = {
+		.x = toplevel->scene_tree->node.x,
+		.y = toplevel->scene_tree->node.y,
+		.width = toplevel->xdg_toplevel->base->geometry.width,
+		.height = toplevel->xdg_toplevel->base->geometry.height,
+	};
+	if (geom.width <= 0 || geom.height <= 0) {
+		geom.width = toplevel->xdg_toplevel->base->surface->current.width;
+		geom.height = toplevel->xdg_toplevel->base->surface->current.height;
+	}
+	if (geom.width <= 0 || geom.height <= 0) {
+		return true;
+	}
+	double cx = geom.x + geom.width / 2.0;
+	double cy = geom.y + geom.height / 2.0;
+	struct wlr_box usable;
+	if (!sf_layout_usable_at(toplevel->server, cx, cy, &usable) || usable.width <= 0 ||
+	    usable.height <= 0) {
+		return true;
+	}
+	const struct sf_config *cfg = sf_cfg(toplevel->server);
+	int need = cfg->border_thickness;
+	if (need < 1) {
+		need = 1;
+	}
+	const int tol = 2;
+	if (geom.x < usable.x + need - tol) {
+		return false;
+	}
+	if (geom.y < usable.y + need - tol) {
+		return false;
+	}
+	if (geom.x + geom.width > usable.x + usable.width - need + tol) {
+		return false;
+	}
+	if (geom.y + geom.height > usable.y + usable.height - need + tol) {
+		return false;
+	}
+	return true;
+}
+
 static bool decor_chrome_on(const struct sf_toplevel *toplevel) {
 	return !sf_layout_sm_is_max_edges(&toplevel->layout) &&
-	       !sf_layout_sm_is_fullscreen(&toplevel->layout) && !toplevel->borderless;
+	       !sf_layout_sm_is_fullscreen(&toplevel->layout) && !toplevel->borderless &&
+	       sf_toplevel_room_for_chrome(toplevel);
 }
 
 static bool decor_blur_on(const struct sf_toplevel *toplevel) {

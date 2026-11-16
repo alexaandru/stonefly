@@ -108,6 +108,10 @@ bool sf_ssd_should_show(const struct sf_toplevel *toplevel) {
 	    sf_layout_sm_is_max_edges(&toplevel->layout) || toplevel->minimized) {
 		return false;
 	}
+	/* Same all-or-nothing flush rule as border/shadow. */
+	if (!sf_toplevel_room_for_chrome(toplevel)) {
+		return false;
+	}
 	return true;
 }
 

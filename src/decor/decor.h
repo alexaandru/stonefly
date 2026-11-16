@@ -37,6 +37,10 @@ bool sf_decor_present_content_size(struct sf_toplevel *toplevel, int *w, int *h)
  * the next cell. */
 void sf_decor_update_geom(struct sf_toplevel *toplevel);
 
+/* Non-tiled only: true when content clears usable by ≥ border on all four
+ * sides. Flush on any side → no border/shadow/SSD (all-or-nothing). */
+bool sf_toplevel_room_for_chrome(const struct sf_toplevel *toplevel);
+
 /* Re-evaluate SceneFX blur node enable (window_blur / client_blur / fullscreen). */
 void sf_decor_refresh_blur(struct sf_toplevel *toplevel);
 

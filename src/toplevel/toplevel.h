@@ -98,6 +98,9 @@ struct sf_toplevel {
 	 * when returning to stacking. */
 	bool arrange_float_saved;
 	struct wlr_box arrange_float_box;
+	/* True after the user floated and sized a window (unfloat remembers).
+	 * Next Super+v restores arrange_float_box instead of the tile cell. */
+	bool arrange_float_custom;
 	/* Last cell size proposed by columns pack; appear waits until the
 	 * client commits near this (or give-up commits elapse). 0 = none. */
 	int arrange_prop_w;

@@ -81,6 +81,9 @@ void sf_toplevel_unsnap(struct sf_toplevel *toplevel);
 void sf_toplevel_layout_float(struct sf_toplevel *toplevel, bool clear_saved);
 /* window_rule float: layout_float(true). */
 void sf_toplevel_float_for_resize(struct sf_toplevel *toplevel);
+/* User move/resize/nudge left an edged mode: demote to float, keep box.
+ * Hide/show then restores that size instead of REAPPLY-ing full edges. */
+void sf_toplevel_break_edged_for_user_geom(struct sf_toplevel *toplevel);
 
 /* Reconcile layout mode with current geometry (resize / client configure). */
 void sf_toplevel_layout_observe(struct sf_toplevel *toplevel);

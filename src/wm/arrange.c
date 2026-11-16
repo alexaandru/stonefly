@@ -225,10 +225,13 @@ void sf_arrange_break_out(struct sf_toplevel *toplevel, bool keep_current_size) 
 	if (toplevel->xdg_toplevel != NULL && toplevel->xdg_toplevel->base->initialized) {
 		wlr_xdg_toplevel_set_tiled(toplevel->xdg_toplevel, 0);
 	}
-	/* Rule float after lone-column pack: restore pre-tile size. User float
-	 * keeps the slot geom so Super+v does not shrink to cascade size. */
-	if (!keep_current_size && toplevel->arrange_float_saved &&
-	    toplevel->arrange_float_box.width > 0 && toplevel->arrange_float_box.height > 0) {
+	/* Rule float: restore pre-tile size. User float after a prior sized
+	 * float session: restore that box. First user float: keep cell geom. */
+	bool restore_float = toplevel->arrange_float_saved &&
+			     toplevel->arrange_float_box.width > 0 &&
+			     toplevel->arrange_float_box.height > 0 &&
+			     (!keep_current_size || toplevel->arrange_float_custom);
+	if (restore_float) {
 		sf_toplevel_move_resize(toplevel, &toplevel->arrange_float_box, false);
 	} else {
 		toplevel->arrange_float_box = cur;
@@ -367,6 +370,9 @@ void sf_arrange_unfloat(struct sf_toplevel *toplevel) {
 	if (ws == NULL || !sf_arrange_is_tiling(sf_workspace_arrange(ws))) {
 		return;
 	}
+	/* Remember the float box the user left so the next float restores it. */
+	sf_arrange_remember_float_box(toplevel);
+	toplevel->arrange_float_custom = true;
 	toplevel->arrange_floating = false;
 	toplevel->arrange_max_edges_rejoin = false;
 	if (sf_layout_sm_is_max_edges(&toplevel->layout) ||
@@ -424,6 +430,7 @@ static void leave_tiling(struct sf_workspace *ws) {
 		if (!sf_layout_sm_is_fixed(&t->layout) && t->arrange_float_saved) {
 			sf_toplevel_move_resize(t, &t->arrange_float_box, true);
 			t->arrange_float_saved = false;
+			t->arrange_float_custom = false;
 		}
 		sf_decor_update_geom(t);
 	}

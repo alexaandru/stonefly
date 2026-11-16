@@ -224,6 +224,11 @@ void sf_toplevel_sync_scene_layer(struct sf_toplevel *toplevel) {
 	bool fs = sf_layout_sm_is_fullscreen(&toplevel->layout);
 	if (fs) {
 		want = toplevel->server->layers.fullscreen;
+		/* Overview disables this tree while open; entering FS must not
+		 * park the window under a disabled parent (looks like a no-op). */
+		if (want != NULL && !toplevel->server->overview.active) {
+			wlr_scene_node_set_enabled(&want->node, true);
+		}
 	} else if (toplevel->workspace != NULL && toplevel->workspace->tree != NULL) {
 		want = toplevel->workspace->tree;
 	} else {
@@ -315,13 +320,42 @@ static void layout_dispatch_usable(struct sf_toplevel *toplevel, const struct sf
 static bool toplevel_full_output_box(struct sf_toplevel *toplevel, struct wlr_output *hint,
 				     struct wlr_box *box) {
 	struct sf_server *server = toplevel->server;
+	struct sf_output *sf_out = NULL;
+	/*
+	 * Prefer cached output->full via workspace / sf_output_for_toplevel.
+	 * Geom-centre layout lookup fails when columns scroll a cell off-usable
+	 * (F11 no-op) and can miss floating Chrome too — mode then goes FS
+	 * without APPLY_BOX, leaving the old ~90% window (Netflix symptom).
+	 */
+	if (hint != NULL) {
+		struct sf_output *o;
+		wl_list_for_each(o, &server->outputs, link) {
+			if (o->wlr_output == hint) {
+				sf_out = o;
+				break;
+			}
+		}
+	}
+	if (sf_out == NULL) {
+		sf_out = sf_output_for_toplevel(toplevel);
+	}
+	if (sf_out == NULL) {
+		sf_out = sf_output_at_cursor(server);
+	}
+	if (sf_out != NULL && sf_out->full.width > 0 && sf_out->full.height > 0) {
+		*box = sf_out->full;
+		return true;
+	}
 	struct wlr_output *wlr_output = hint;
+	if (wlr_output == NULL && sf_out != NULL) {
+		wlr_output = sf_out->wlr_output;
+	}
 	if (wlr_output == NULL) {
 		struct wlr_box geom;
 		sf_toplevel_layout_geom(toplevel, &geom);
-		double cx = geom.x + geom.width / 2.0;
-		double cy = geom.y + geom.height / 2.0;
-		wlr_output = wlr_output_layout_output_at(server->output_layout, cx, cy);
+		wlr_output = wlr_output_layout_output_at(server->output_layout,
+							 geom.x + geom.width / 2.0,
+							 geom.y + geom.height / 2.0);
 		if (wlr_output == NULL) {
 			wlr_output = wlr_output_layout_output_at(
 				server->output_layout, server->cursor->x, server->cursor->y);
@@ -332,6 +366,26 @@ static bool toplevel_full_output_box(struct sf_toplevel *toplevel, struct wlr_ou
 	}
 	wlr_output_layout_get_box(server->output_layout, wlr_output, box);
 	return box->width > 0 && box->height > 0;
+}
+
+/* After FS enter: if APPLY_BOX was skipped (empty target), force output->full. */
+static void fullscreen_ensure_box(struct sf_toplevel *toplevel, struct wlr_output *hint) {
+	if (toplevel == NULL || !sf_layout_sm_is_fullscreen(&toplevel->layout)) {
+		return;
+	}
+	struct wlr_box want;
+	if (!toplevel_full_output_box(toplevel, hint, &want)) {
+		SF_LOGW("fullscreen: no output box", sf_i64("id", (int64_t)toplevel->id));
+		return;
+	}
+	struct wlr_box cur;
+	sf_toplevel_layout_geom(toplevel, &cur);
+	if (sf_layout_sm_box_near(&cur, &want, 2)) {
+		return;
+	}
+	sf_toplevel_apply_box(toplevel, &want);
+	sf_decor_update_geom(toplevel);
+	sf_toplevel_sync_scene_layer(toplevel);
 }
 
 void sf_toplevel_restore_saved(struct sf_toplevel *toplevel) {
@@ -413,6 +467,25 @@ void sf_toplevel_layout_float(struct sf_toplevel *toplevel, bool clear_saved) {
 
 void sf_toplevel_float_for_resize(struct sf_toplevel *toplevel) {
 	sf_toplevel_layout_float(toplevel, true);
+}
+
+void sf_toplevel_break_edged_for_user_geom(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || !xdg_surface_ready(toplevel)) {
+		return;
+	}
+	/* Keep PreMax so an explicit unmax/toggle can still restore. */
+	if (sf_layout_sm_is_edged(&toplevel->layout)) {
+		sf_toplevel_layout_float(toplevel, false);
+	}
+	if (toplevel->arrange_max_edges_rejoin) {
+		/* Transient tile overlay the user resized → sticky float at the
+		 * new size (do not rejoin on focus / hide-show). */
+		toplevel->arrange_max_edges_rejoin = false;
+		toplevel->arrange_floating = true;
+		sf_arrange_remember_float_box(toplevel);
+		toplevel->arrange_float_custom = true;
+		sf_decor_refresh_border(toplevel);
+	}
 }
 
 static enum sf_arrange toplevel_ws_arrange(const struct sf_toplevel *toplevel) {
@@ -622,6 +695,9 @@ void sf_toplevel_set_fullscreen(struct sf_toplevel *toplevel, bool want, struct 
 	}
 	struct sf_layout_ev ev = {.kind = SF_LAYOUT_EV_SET_FULLSCREEN, .want = want};
 	layout_dispatch(toplevel, &ev, hint);
+	if (want) {
+		fullscreen_ensure_box(toplevel, hint);
+	}
 }
 
 void sf_toplevel_toggle_fullscreen(struct sf_toplevel *toplevel) {
@@ -633,6 +709,7 @@ void sf_toplevel_toggle_fullscreen(struct sf_toplevel *toplevel) {
 	}
 	struct sf_layout_ev ev = {.kind = SF_LAYOUT_EV_TOGGLE_FULLSCREEN};
 	layout_dispatch(toplevel, &ev, NULL);
+	fullscreen_ensure_box(toplevel, NULL);
 }
 
 void sf_toplevel_set_max_gaps(struct sf_toplevel *toplevel, bool want) {

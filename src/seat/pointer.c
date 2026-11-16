@@ -30,6 +30,7 @@
 #include "config/config.h"
 #include "config/mousebind.h"
 #include "config/wheelbind.h"
+#include "decor/decor.h"
 #include "log/log.h"
 #include "output/output.h"
 #include "session/session.h"
@@ -246,6 +247,11 @@ void sf_reset_cursor_mode(struct sf_server *server) {
 	if (was_grab != NULL &&
 	    (was_mode == SF_CURSOR_RESIZE || was_mode == SF_CURSOR_RESIZE_CENTER)) {
 		sf_toplevel_layout_observe(was_grab);
+		/* Keep float restore box current across unfloat → float. */
+		if (was_grab->arrange_floating) {
+			sf_arrange_remember_float_box(was_grab);
+			was_grab->arrange_float_custom = true;
+		}
 	}
 	if ((was_mode == SF_CURSOR_ARRANGE_SWAP || was_mode == SF_CURSOR_ARRANGE_RESIZE) &&
 	    was_grab != NULL && was_grab->workspace != NULL) {
@@ -894,7 +900,8 @@ static void toplevel_frame_box(struct sf_toplevel *toplevel, struct wlr_box *fra
 
 static int toplevel_chrome_border(struct sf_toplevel *toplevel) {
 	if (sf_layout_sm_is_fullscreen(&toplevel->layout) ||
-	    sf_layout_sm_is_max_edges(&toplevel->layout) || toplevel->borderless) {
+	    sf_layout_sm_is_max_edges(&toplevel->layout) || toplevel->borderless ||
+	    !sf_toplevel_room_for_chrome(toplevel)) {
 		return 0;
 	}
 	return sf_cfg(toplevel->server)->border_thickness;

@@ -98,6 +98,7 @@ void sf_toplevel_nudge(struct sf_toplevel *toplevel, const char *dir) {
 		break;
 	}
 	sf_toplevel_clear_auto_place(toplevel);
+	sf_toplevel_break_edged_for_user_geom(toplevel);
 	apply_box_instant(toplevel, &geom);
 	sf_toplevel_ensure_on_screen(toplevel);
 }
@@ -135,6 +136,7 @@ void sf_toplevel_resize_edge(struct sf_toplevel *toplevel, const char *dir) {
 		geom.height = SF_NUDGE_MIN_SIZE;
 	}
 	sf_toplevel_clear_auto_place(toplevel);
+	sf_toplevel_break_edged_for_user_geom(toplevel);
 	apply_box_instant(toplevel, &geom);
 	sf_toplevel_layout_observe_box(toplevel, &geom);
 	sf_toplevel_ensure_on_screen(toplevel);

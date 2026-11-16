@@ -54,8 +54,9 @@ void sf_arrange_slot_remember(struct sf_toplevel *toplevel);
 void sf_arrange_slot_clear(struct sf_toplevel *toplevel);
 
 /* Leave the tile set as an explicit float. Arms geom-regain hold.
- * keep_current_size: true = user float (keep slot geom); false = prefer
- * arrange_float_box saved at join/place (rule float after lone-column pack). */
+ * keep_current_size: true = user float (restore arrange_float_custom box, else
+ * keep slot geom); false = prefer arrange_float_box saved at join/place
+ * (rule float after lone-column pack). */
 void sf_arrange_break_out(struct sf_toplevel *toplevel, bool keep_current_size);
 
 void sf_arrange_float(struct sf_toplevel *toplevel);

@@ -113,13 +113,12 @@ static void scratch_show(struct sf_toplevel *toplevel) {
 		return;
 	}
 	/*
-	 * QT edge-max is sticky and layout-independent. Reassert while still
-	 * hidden so apply_box updates resting/size without cancelling the show
-	 * slide that apply_shown starts next (a post-show REAPPLY snapped
-	 * on-screen). Always force max-edges — claim from a tiled window may
-	 * still be cell-sized until this runs.
+	 * Only reassert edge-max when the pad is still edged. User resize /
+	 * nudge demotes to float and must survive hide/show with that size
+	 * (fresh spawn/claim still forces max-edges). Reassert while hidden so
+	 * apply_box updates resting without cancelling the show slide.
 	 */
-	if (toplevel->minimized) {
+	if (toplevel->minimized && sf_layout_sm_is_max_edges(&toplevel->layout)) {
 		sf_toplevel_set_max_edges(toplevel, true);
 	}
 	/* apply_shown + focus via focus_toplevel. */
