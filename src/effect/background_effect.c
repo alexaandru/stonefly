@@ -53,7 +53,7 @@ static struct sf_toplevel *toplevel_for_surface(struct sf_server *server,
 	return t;
 }
 
-/* Noctalia bar/panels: compositor_blur → ext-background-effect on layer-shell. */
+/* Layer-shell clients (bars, launchers, panels) via ext-background-effect. */
 static struct sf_layer_surface *layer_for_surface(struct sf_server *server,
 						  struct wlr_surface *surface) {
 	(void)server;
@@ -90,7 +90,7 @@ static void effect_apply_client_blur(struct sf_background_effect *effect) {
 		return;
 	}
 	bool was = layer->client_blur;
-	sf_layer_set_client_blur(layer, want);
+	sf_layer_set_client_blur(layer, want ? &effect->current : NULL);
 	if (was != layer->client_blur) {
 		SF_LOGI("layer blur",
 			sf_str("namespace", layer->layer_surface->namespace != NULL
@@ -115,7 +115,7 @@ static void effect_clear_client_blur(struct sf_background_effect *effect) {
 	if (layer == NULL || !layer->client_blur) {
 		return;
 	}
-	sf_layer_set_client_blur(layer, false);
+	sf_layer_set_client_blur(layer, NULL);
 }
 
 static void effect_finish_body(struct sf_background_effect *effect) {

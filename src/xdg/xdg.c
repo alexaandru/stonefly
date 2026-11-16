@@ -598,27 +598,101 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	wl_signal_add(&xdg_toplevel->events.set_parent, &toplevel->set_parent);
 }
 
+/*
+ * Keep menus on-screen. Box is in the root parent surface's coordinate
+ * system (wlroots walks nested popups). Prefer output usable so popups stay
+ * clear of exclusive zones (bar).
+ */
+void sf_xdg_popup_unconstrain(struct sf_server *server, struct wlr_xdg_popup *xdg_popup) {
+	if (server == NULL || xdg_popup == NULL) {
+		return;
+	}
+	struct wlr_surface *parent = xdg_popup->parent;
+	if (parent == NULL) {
+		return;
+	}
+
+	struct sf_toplevel *toplevel = toplevel_from_surface(server, parent);
+	if (toplevel != NULL && toplevel->scene_tree != NULL && toplevel->xdg_toplevel != NULL) {
+		struct wlr_box usable;
+		if (!sf_toplevel_output_box(toplevel, &usable)) {
+			return;
+		}
+		int lx = 0, ly = 0;
+		if (!wlr_scene_node_coords(&toplevel->scene_tree->node, &lx, &ly)) {
+			return;
+		}
+		struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
+		int geo_x = geo->width > 0 ? geo->x : 0;
+		int geo_y = geo->height > 0 ? geo->y : 0;
+		/* Geometry TL is at scene node; surface origin is geo offset back. */
+		struct wlr_box box = {
+			.x = usable.x - (lx - geo_x),
+			.y = usable.y - (ly - geo_y),
+			.width = usable.width,
+			.height = usable.height,
+		};
+		wlr_xdg_popup_unconstrain_from_box(xdg_popup, &box);
+		return;
+	}
+
+	struct wlr_surface *root = wlr_surface_get_root_surface(parent);
+	struct wlr_layer_surface_v1 *ls = wlr_layer_surface_v1_try_from_wlr_surface(root);
+	if (ls == NULL || ls->data == NULL) {
+		return;
+	}
+	struct sf_layer_surface *layer = ls->data;
+	if (layer->kind != SF_NODE_LAYER || layer->scene == NULL) {
+		return;
+	}
+	struct wlr_box usable;
+	if (layer->output != NULL && sf_output_usable_box(layer->output, &usable)) {
+		/* ok */
+	} else if (ls->output != NULL && ls->output->data != NULL) {
+		if (!sf_output_usable_box(ls->output->data, &usable)) {
+			return;
+		}
+	} else {
+		return;
+	}
+	int lx = 0, ly = 0;
+	if (!wlr_scene_node_coords(&layer->scene->node, &lx, &ly)) {
+		return;
+	}
+	struct wlr_box box = {
+		.x = usable.x - lx,
+		.y = usable.y - ly,
+		.width = usable.width,
+		.height = usable.height,
+	};
+	wlr_xdg_popup_unconstrain_from_box(xdg_popup, &box);
+}
+
 static void xdg_popup_commit(struct wl_listener *listener, void *data) {
 	(void)data;
-	/* Called when a new surface state is committed. */
 	struct sf_popup *popup = wl_container_of(listener, popup, commit);
 
 	if (popup->xdg_popup->base->initial_commit) {
-		/* When an xdg_surface performs an initial commit, the compositor must
-		 * reply with a configure so the client can map the surface.
-		 * sf sends an empty configure. A more sophisticated compositor
-		 * might change an xdg_popup's geometry to ensure it's not positioned
-		 * off-screen, for example. */
+		sf_xdg_popup_unconstrain(popup->server, popup->xdg_popup);
+		/* Unconstrain schedules a configure when it adjusts; always
+		 * ensure one so the client can map. */
 		wlr_xdg_surface_schedule_configure(popup->xdg_popup->base);
 	}
 }
 
+static void xdg_popup_reposition(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct sf_popup *popup = wl_container_of(listener, popup, reposition);
+	sf_xdg_popup_unconstrain(popup->server, popup->xdg_popup);
+	wlr_xdg_surface_schedule_configure(popup->xdg_popup->base);
+}
+
 static void xdg_popup_destroy(struct wl_listener *listener, void *data) {
 	(void)data;
-	/* Called when the xdg_popup is destroyed. */
 	struct sf_popup *popup = wl_container_of(listener, popup, destroy);
 
 	wl_list_remove(&popup->commit.link);
+	wl_list_remove(&popup->reposition.link);
 	wl_list_remove(&popup->destroy.link);
 
 	free(popup);
@@ -685,13 +759,15 @@ static void server_new_xdg_popup(struct wl_listener *listener, void *data) {
 				       xdg_popup);
 		return;
 	}
+	popup->server = server;
 	popup->xdg_popup = xdg_popup;
 
 	xdg_popup->base->data = wlr_scene_xdg_surface_create(parent_tree, xdg_popup->base);
 
 	popup->commit.notify = xdg_popup_commit;
 	wl_signal_add(&xdg_popup->base->surface->events.commit, &popup->commit);
-
+	popup->reposition.notify = xdg_popup_reposition;
+	wl_signal_add(&xdg_popup->events.reposition, &popup->reposition);
 	popup->destroy.notify = xdg_popup_destroy;
 	wl_signal_add(&xdg_popup->events.destroy, &popup->destroy);
 }

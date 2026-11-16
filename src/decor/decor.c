@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <wayland-server-core.h>
+#include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_xdg_shell.h>
@@ -9,6 +10,7 @@
 #include "anim/anim.h"
 #include "config/config.h"
 #include "decor/decor.h"
+#include "layer/layer.h"
 #include "log/log.h"
 #include "server/server.h"
 #include "ssd/ssd.h"
@@ -726,7 +728,18 @@ void sf_ghost_tick(struct sf_server *server, const struct timespec *now) {
 		int x = sf_lerp_i(ghost->anim_from_x, ghost->anim_to_x, p);
 		int y = sf_lerp_i(ghost->anim_from_y, ghost->anim_to_y, p);
 		wlr_scene_node_set_position(&ghost->tree->node, x, y);
-		if (t >= 1.0) {
+
+		/* Drop as soon as the buffer clears usable — ease-out can crawl
+		 * with a sliver on-screen if frames stall near t=1. */
+		struct wlr_box usable;
+		bool clear = false;
+		if (sf_layout_usable_at(server, (double)x + (double)ghost->width / 2.0,
+					(double)y + (double)ghost->height / 2.0, &usable) ||
+		    sf_layout_usable_at(server, server->cursor->x, server->cursor->y, &usable)) {
+			clear = x + ghost->width <= usable.x || x >= usable.x + usable.width ||
+				y + ghost->height <= usable.y || y >= usable.y + usable.height;
+		}
+		if (t >= 1.0 || clear) {
 			ghost->anim_active = false;
 			ghost_destroy(ghost);
 		}

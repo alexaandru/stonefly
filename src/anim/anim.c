@@ -106,25 +106,39 @@ static enum sf_slide_dir closest_dir(int x, int y, int w, int h, const struct wl
 	return dir;
 }
 
+/* Border + shadow sit past the content TL; pad so a slide-to-edge cannot leave
+ * a chrome/content strip inside usable (Super+q hide finish). */
+static int slide_chrome_pad(struct sf_server *server) {
+	const struct sf_config *cfg = sf_cfg(server);
+	int pad = cfg->border_thickness;
+	int sigma = (int)(cfg->shadow_blur_sigma + 0.5f);
+	if (sigma > 0) {
+		pad += sigma;
+	}
+	return pad;
+}
+
 /* Peeble OffscreenPos: clear past the usable area along dir. */
-static void offscreen_pos(enum sf_slide_dir dir, int resting_x, int resting_y, int w, int h,
-			  const struct wlr_box *area, int *ox, int *oy) {
+static void offscreen_pos(struct sf_server *server, enum sf_slide_dir dir, int resting_x,
+			  int resting_y, int w, int h, const struct wlr_box *area, int *ox,
+			  int *oy) {
 	*ox = resting_x;
 	*oy = resting_y;
+	int pad = slide_chrome_pad(server);
 
 	if (area == NULL || area->width <= 0 || area->height <= 0) {
 		switch (dir) {
 		case SF_SLIDE_DOWN:
-			*oy = resting_y - h;
+			*oy = resting_y - h - pad;
 			break;
 		case SF_SLIDE_UP:
-			*oy = resting_y + h;
+			*oy = resting_y + h + pad;
 			break;
 		case SF_SLIDE_LEFT:
-			*ox = resting_x + w;
+			*ox = resting_x + w + pad;
 			break;
 		case SF_SLIDE_RIGHT:
-			*ox = resting_x - w;
+			*ox = resting_x - w - pad;
 			break;
 		}
 		return;
@@ -132,26 +146,26 @@ static void offscreen_pos(enum sf_slide_dir dir, int resting_x, int resting_y, i
 
 	switch (dir) {
 	case SF_SLIDE_DOWN: {
-		int y = area->y - h;
-		int alt = resting_y - h;
+		int y = area->y - h - pad;
+		int alt = resting_y - h - pad;
 		*oy = alt < y ? alt : y;
 		break;
 	}
 	case SF_SLIDE_UP: {
-		int y = area->y + area->height;
-		int alt = resting_y + h;
+		int y = area->y + area->height + pad;
+		int alt = resting_y + h + pad;
 		*oy = alt > y ? alt : y;
 		break;
 	}
 	case SF_SLIDE_LEFT: {
-		int x = area->x + area->width;
-		int alt = resting_x + w;
+		int x = area->x + area->width + pad;
+		int alt = resting_x + w + pad;
 		*ox = alt > x ? alt : x;
 		break;
 	}
 	case SF_SLIDE_RIGHT: {
-		int x = area->x - w;
-		int alt = resting_x - w;
+		int x = area->x - w - pad;
+		int alt = resting_x - w - pad;
 		*ox = alt < x ? alt : x;
 		break;
 	}
@@ -237,8 +251,19 @@ static void slide_offscreen(struct sf_server *server, bool strip_column, int res
 			    int resting_y, int w, int h, const struct wlr_box *area, int *ox,
 			    int *oy) {
 	if (strip_column) {
+		/* Right inter-gap peel, but never short of clearing usable —
+		 * left-column Super+q used to stop mid-screen with a remnant. */
 		*ox = resting_x + w;
 		*oy = resting_y;
+		int pad = slide_chrome_pad(server);
+		if (area != NULL && area->width > 0) {
+			int clear = area->x + area->width + pad;
+			if (clear > *ox) {
+				*ox = clear;
+			}
+		} else {
+			*ox += pad;
+		}
 		return;
 	}
 	enum sf_slide_dir dir = SF_SLIDE_DOWN;
@@ -246,7 +271,7 @@ static void slide_offscreen(struct sf_server *server, bool strip_column, int res
 	    area->height > 0) {
 		dir = closest_dir(resting_x, resting_y, w, h, area);
 	}
-	offscreen_pos(dir, resting_x, resting_y, w, h, area, ox, oy);
+	offscreen_pos(server, dir, resting_x, resting_y, w, h, area, ox, oy);
 }
 
 static bool toplevel_strip_column(const struct sf_toplevel *toplevel) {
@@ -647,6 +672,11 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now) {
 			morph_finish(t, true);
 		} else if (!was_hide) {
 			set_visual_pos(t, t->resting_x, t->resting_y);
+		} else if (t->scene_tree != NULL) {
+			/* Hide done: disable until unmap. Offscreen TL alone can
+			 * leave border/shadow/blur past usable; client close is
+			 * async after close_after_hide. */
+			wlr_scene_node_set_enabled(&t->scene_tree->node, false);
 		}
 		if (on_done != NULL) {
 			on_done(t);

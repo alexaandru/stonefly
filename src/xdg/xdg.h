@@ -9,12 +9,17 @@
 struct wlr_xdg_popup;
 
 struct sf_popup {
+	struct sf_server *server;
 	struct wlr_xdg_popup *xdg_popup;
 	struct wl_listener commit;
+	struct wl_listener reposition;
 	struct wl_listener destroy;
 };
 
 void sf_xdg_setup(struct sf_server *server);
+
+/* Flip/slide/resize an xdg_popup into the parent's output usable box. */
+void sf_xdg_popup_unconstrain(struct sf_server *server, struct wlr_xdg_popup *popup);
 
 /* Used by seat for interactive move/resize. */
 void sf_begin_interactive(struct sf_toplevel *toplevel, enum sf_cursor_mode mode, uint32_t edges);

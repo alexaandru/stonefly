@@ -74,13 +74,13 @@ features Umbriel lacks — neither is a product spec. See `AGENTS.md`.
 | Feature | Notes |
 |---|---|
 | Appear / map slide | 200ms ease_out. **Tiled columns:** pack cell first (`sf_arrange_flush`), hold appear until the client commits near that size (give up after 1 post-propose commit — terminals rarely match exact cell height), then slide at final height. Same-size re-pack must not reset `arrange_prop_waits` (or the scene stays disabled forever while foreign/taskbar still list the window). Appear peels with the strip: glue to the **next** column’s current left (pushed right), else previous column’s right; neighbors morph on the **same clock** (`sf_anim_sync_clock`). `arrange_appear_pending` is set on join / before the arm_appear flush so neighbors cannot morph into the gap first. Commit tries appear on pending+disabled, not only SoftPlace hold. Mid-slide arrange retargets only. Hide/close still exit to the column’s right inter-gap. `join_toplevel` must not enable the scene. Park off-screen before scene enable. Floats/scratchpads keep closest-edge + short-axis when `slide_dir_closest`. SoftPlace appear-hold via `place_sm`; mid-slide retarget; morph if SoftPlace centers after slide. GEOM observe uses resting/morph target mid-slide so edge-max scratch show does not demote to float |
-| Close slide (WM-initiated) | Shared `slide_offscreen` with appear/scratch/close-ghost: tiled → right inter-gap; floats → `closest_dir`. Tiled WM close unlinks + `sf_arrange_flush` before hide so survivors morph while the closer slides out |
+| Close slide (WM-initiated) | Shared `slide_offscreen` with appear/scratch/close-ghost: tiled → right inter-gap (floored past usable + border/shadow pad); floats → `closest_dir`. Scene disabled on hide finish (no chrome strip while awaiting client unmap). Tiled WM close unlinks + `sf_arrange_flush` before hide so survivors morph while the closer slides out |
 | Close slide (client Ctrl+W / CSD) | Cached last-frame ghost (`close_snap`); unmap slides via `sf_anim_offscreen_for_box` with **strip_column** (right inter-gap, not closest/top). Survivors `sf_arrange_flush` on the same unmap so morph runs with the ghost. Skipped when WM hide already ran |
 | Snap / unsnap / max morph | Live peeble-style morph (`morph_duration_ms`); mid-flight retarget. Fullscreen stays instant |
 | Workspace switch slide | Vertical strip slide on Super+Page / 1–9, IPC `workspace`, and 3-finger swipe. Next: content up (new from below); prev: opposite. Focus + pointer follow at start. Duration `slide_duration_ms` (0 = instant). Mid-flight interrupt lands then retargets |
 | Scratchpad / minimize slides | Mid-flight reverse. Edge-max reassert runs while still hidden so REAPPLY cannot cancel the show slide |
 | Vsync-capped animation pacing | Own scene / frame loop |
-| Backdrop / window blur | Per-window SceneFX blur (`window_blur`) or client `ext-background-effect-v1` (`client_blur`). Gate: `(window_blur or client_blur) and not fullscreen`. Default `blur_xray false`. **Layer-shell** (Noctalia `compositor_blur`): same protocol → SceneFX plate under the layer buffer (`sf_layer_set_client_blur`); clip to `exclusive_zone` (skips bar shadow strip; Alpine SceneFX 0.5 has no `ignore_alpha`) + transparency mask; follows `blur_xray` |
+| Backdrop / window blur | Per-window SceneFX blur (`window_blur`) or client `ext-background-effect-v1` (`client_blur`). Gate: `(window_blur or client_blur) and not fullscreen`. Default `blur_xray false`. **Layer-shell** (any client; Noctalia bar/launcher/panels via `compositor_blur`): protocol region → SceneFX plate (`sf_layer_set_client_blur`); plate sized from effect region / exclusive_zone / input_region (shadow-safe; Alpine SceneFX 0.5 has no `ignore_alpha`) + transparency mask; follows `blur_xray` |
 | Soft rounded corners (opaque) | `corner_radius` 12 = CSD/hole/buffer; outer rim = `corner_radius + border_thickness` |
 | Drop shadows | SceneFX |
 | Compositor border (focus/idle/urgent) | Neon / charcoal inactive / amber. Static `SF_BORDER_*` float arrays (not compound literals). Hole+buffer use `corner_radius`; outer = radius+border |
@@ -133,7 +133,7 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 
 | Feature | Notes |
 |---|---|
-| xdg-shell toplevels / popups | `request_minimize` → minimize / unminimize |
+| xdg-shell toplevels / popups | `request_minimize` → minimize / unminimize. Popups `wlr_xdg_popup_unconstrain_from_box` into parent output **usable** (flip/slide/resize); layer `get_popup` re-constrains after parent attach |
 | wlr-layer-shell | v5 server; exclusive zones → usable. `set_exclusive_edge` via wlroots scene configure |
 | wp_fractional_scale + viewporter | DRM: scale 1.5 (`SF_OUTPUT_SCALE`). Nested/headless: scale 1.0 |
 | zxdg_output_v1 | Logical size for Noctalia floating-panel margins under fractional scale |
@@ -151,7 +151,7 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 | ext-workspace-v1 | Per-output group + per-workspace handle |
 | xdg-toplevel-tag | Stored on toplevel; IPC `windows` (`tag` / `description`) |
 | xdg-toplevel-icon-v1 | Preferred sizes 16–64; IPC `icon_name` |
-| ext-background-effect-v1 | Hand protocol + `src/effect/background_effect.c`; capability `blur`; xdg toplevels + layer-shell (Noctalia bar/panels). Non-empty region → full-surface SceneFX (region mask still ROADMAP) |
+| ext-background-effect-v1 | Hand protocol + `src/effect/background_effect.c`; capability `blur`; xdg toplevels + all layer-shell surfaces. Layers use region extents (plus exclusive/input fallbacks); toplevels still full-surface plate when region non-empty (true region mask ROADMAP) |
 | Touch / gestures / virtual-keyboard | `seat/`: touch, `pointer_gestures_v1` + `sf.gesture` swipe binds, `zwp_virtual_keyboard_v1`, relative-pointer + constraints; `sf.input` libinput apply on new keyboard/pointer/touch |
 | Presentation-time | `wp_presentation` via `wlr_presentation_create`. Tearing control advertised (hint log only) |
 

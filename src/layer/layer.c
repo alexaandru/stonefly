@@ -17,6 +17,7 @@
 #include "session/session.h"
 #include "wm/wm.h"
 #include "toplevel/toplevel.h"
+#include "xdg/xdg.h"
 
 /* Optimized blur caches wallpaper/bottom; refresh when those layers change. */
 static void layer_maybe_dirty_blur(struct sf_layer_surface *layer) {
@@ -59,18 +60,59 @@ static struct wlr_scene_buffer *layer_find_surface_buffer(struct sf_layer_surfac
 	return ctx.buffer;
 }
 
-/* Alpine SceneFX 0.5 has no ignore_alpha. Clip to exclusive_zone so the
- * Noctalia soft-shadow strip (surface taller than the reserved edge) stays clear. */
-static void layer_blur_box(struct wlr_layer_surface_v1 *ls, int surf_w, int surf_h, int *bx,
-			   int *by, int *bw, int *bh) {
+static void layer_blur_clamp(int surf_w, int surf_h, int *bx, int *by, int *bw, int *bh) {
+	if (*bx < 0) {
+		*bw += *bx;
+		*bx = 0;
+	}
+	if (*by < 0) {
+		*bh += *by;
+		*by = 0;
+	}
+	if (*bx + *bw > surf_w) {
+		*bw = surf_w - *bx;
+	}
+	if (*by + *bh > surf_h) {
+		*bh = surf_h - *by;
+	}
+	if (*bw < 0) {
+		*bw = 0;
+	}
+	if (*bh < 0) {
+		*bh = 0;
+	}
+}
+
+static bool layer_blur_box_from_region(const pixman_region32_t *region, int surf_w, int surf_h,
+				       int *bx, int *by, int *bw, int *bh) {
+	if (region == NULL || !pixman_region32_not_empty(region)) {
+		return false;
+	}
+	pixman_box32_t *e = pixman_region32_extents(region);
+	*bx = e->x1;
+	*by = e->y1;
+	*bw = e->x2 - e->x1;
+	*bh = e->y2 - e->y1;
+	layer_blur_clamp(surf_w, surf_h, bx, by, bw, bh);
+	return *bw > 0 && *bh > 0;
+}
+
+static bool layer_blur_region_is_full(int bx, int by, int bw, int bh, int surf_w, int surf_h) {
+	return bx <= 0 && by <= 0 && bw >= surf_w && bh >= surf_h;
+}
+
+/* Exclusive-edge shells (bars): zone is the opaque strip; buffer often taller
+ * for a soft shadow. Alpine SceneFX 0.5 has no ignore_alpha. */
+static bool layer_blur_box_exclusive(struct wlr_layer_surface_v1 *ls, int surf_w, int surf_h,
+				     int *bx, int *by, int *bw, int *bh) {
+	int32_t ex = ls->current.exclusive_zone;
+	if (ex <= 0 || surf_w <= 0 || surf_h <= 0) {
+		return false;
+	}
 	*bx = 0;
 	*by = 0;
 	*bw = surf_w;
 	*bh = surf_h;
-	int32_t ex = ls->current.exclusive_zone;
-	if (ex <= 0 || surf_w <= 0 || surf_h <= 0) {
-		return;
-	}
 	uint32_t anchor = (uint32_t)ls->current.anchor;
 	bool top = (anchor & (uint32_t)ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP) != 0;
 	bool bottom = (anchor & (uint32_t)ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM) != 0;
@@ -86,6 +128,54 @@ static void layer_blur_box(struct wlr_layer_surface_v1 *ls, int surf_w, int surf
 	} else if (right && !left) {
 		*bw = ex < surf_w ? ex : surf_w;
 		*bx = surf_w - *bw;
+	} else {
+		return false;
+	}
+	return *bw > 0 && *bh > 0 && !layer_blur_region_is_full(*bx, *by, *bw, *bh, surf_w, surf_h);
+}
+
+/* Input region often excludes drop-shadow; empty means "whole surface" in wlroots. */
+static bool layer_blur_box_input(struct wlr_surface *surf, int surf_w, int surf_h, int *bx, int *by,
+				 int *bw, int *bh) {
+	if (!pixman_region32_not_empty(&surf->input_region)) {
+		return false;
+	}
+	if (!layer_blur_box_from_region(&surf->input_region, surf_w, surf_h, bx, by, bw, bh)) {
+		return false;
+	}
+	return !layer_blur_region_is_full(*bx, *by, *bw, *bh, surf_w, surf_h);
+}
+
+/*
+ * Plate geometry for any layer-shell client blur:
+ * 1) ext-background-effect region extents (when tighter than the buffer)
+ * 2) exclusive_zone on a single edge (bars)
+ * 3) input_region extents (panels/launcher shadows)
+ * 4) full surface + transparency mask
+ */
+static void layer_blur_box(struct sf_layer_surface *layer, int surf_w, int surf_h, int *bx, int *by,
+			   int *bw, int *bh) {
+	*bx = 0;
+	*by = 0;
+	*bw = surf_w;
+	*bh = surf_h;
+	if (surf_w <= 0 || surf_h <= 0) {
+		return;
+	}
+	int rx, ry, rw, rh;
+	if (layer_blur_box_from_region(&layer->blur_region, surf_w, surf_h, &rx, &ry, &rw, &rh) &&
+	    !layer_blur_region_is_full(rx, ry, rw, rh, surf_w, surf_h)) {
+		*bx = rx;
+		*by = ry;
+		*bw = rw;
+		*bh = rh;
+		return;
+	}
+	if (layer_blur_box_exclusive(layer->layer_surface, surf_w, surf_h, bx, by, bw, bh)) {
+		return;
+	}
+	if (layer_blur_box_input(layer->layer_surface->surface, surf_w, surf_h, bx, by, bw, bh)) {
+		return;
 	}
 }
 
@@ -108,8 +198,7 @@ void sf_layer_refresh_blur(struct sf_layer_surface *layer) {
 	if (!on || layer->layer_surface == NULL) {
 		return;
 	}
-	struct wlr_layer_surface_v1 *ls = layer->layer_surface;
-	struct wlr_surface *surf = ls->surface;
+	struct wlr_surface *surf = layer->layer_surface->surface;
 	int w = surf->current.width;
 	int h = surf->current.height;
 	if (w <= 0 || h <= 0) {
@@ -117,7 +206,7 @@ void sf_layer_refresh_blur(struct sf_layer_surface *layer) {
 		return;
 	}
 	int bx, by, bw, bh;
-	layer_blur_box(ls, w, h, &bx, &by, &bw, &bh);
+	layer_blur_box(layer, w, h, &bx, &by, &bw, &bh);
 	if (bw <= 0 || bh <= 0) {
 		wlr_scene_node_set_enabled(&layer->blur->node, false);
 		return;
@@ -133,9 +222,15 @@ void sf_layer_refresh_blur(struct sf_layer_surface *layer) {
 	wlr_scene_node_lower_to_bottom(&layer->blur->node);
 }
 
-void sf_layer_set_client_blur(struct sf_layer_surface *layer, bool want) {
+void sf_layer_set_client_blur(struct sf_layer_surface *layer, const pixman_region32_t *region) {
 	if (layer == NULL) {
 		return;
+	}
+	bool want = region != NULL && pixman_region32_not_empty(region);
+	if (want) {
+		pixman_region32_copy(&layer->blur_region, region);
+	} else {
+		pixman_region32_clear(&layer->blur_region);
 	}
 	if (layer->client_blur == want) {
 		sf_layer_refresh_blur(layer);
@@ -147,6 +242,7 @@ void sf_layer_set_client_blur(struct sf_layer_surface *layer, bool want) {
 			layer->blur = wlr_scene_blur_create(layer->scene, 0, 0);
 			if (layer->blur == NULL) {
 				layer->client_blur = false;
+				pixman_region32_clear(&layer->blur_region);
 				return;
 			}
 			wlr_scene_blur_set_corner_radii(layer->blur, corner_radii_none());
@@ -403,6 +499,12 @@ static void layer_surface_new_popup(struct wl_listener *listener, void *data) {
 	if (tree != NULL) {
 		wlr_scene_node_reparent(&tree->node, layer->popups);
 	}
+	/* Parent was often NULL at xdg new_popup; constrain now that the layer
+	 * owns it (and again if the client already did its initial commit). */
+	sf_xdg_popup_unconstrain(layer->server, xdg_popup);
+	if (xdg_popup->base != NULL) {
+		wlr_xdg_surface_schedule_configure(xdg_popup->base);
+	}
 }
 
 static void layer_surface_destroy(struct wl_listener *listener, void *data) {
@@ -432,6 +534,7 @@ static void layer_surface_destroy(struct wl_listener *listener, void *data) {
 		wl_list_init(&layer->blur_destroy.link);
 		layer->blur = NULL;
 	}
+	pixman_region32_fini(&layer->blur_region);
 	wlr_scene_node_destroy(&layer->popups->node);
 	free(layer);
 
@@ -493,6 +596,7 @@ static void server_new_layer_surface(struct wl_listener *listener, void *data) {
 	layer->output = output;
 	layer->layer_surface = ls;
 	ls->data = layer;
+	pixman_region32_init(&layer->blur_region);
 	wl_list_init(&layer->blur_destroy.link);
 
 	layer->scene_layer = wlr_scene_layer_surface_v1_create(parent, ls);

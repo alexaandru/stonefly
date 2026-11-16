@@ -1,6 +1,7 @@
 #ifndef SF_LAYER_H
 #define SF_LAYER_H
 
+#include <pixman.h>
 #include <stdbool.h>
 #include <wayland-server-core.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
@@ -25,6 +26,7 @@ struct sf_layer_surface {
 	 * Owned by layer->scene (destroyed with wlr_scene_layer_surface). */
 	struct wlr_scene_blur *blur;
 	bool client_blur;
+	pixman_region32_t blur_region; /* surface-local; empty when off */
 	struct wl_listener blur_destroy;
 	struct wl_listener map;
 	struct wl_listener unmap;
@@ -36,8 +38,8 @@ struct sf_layer_surface {
 void sf_layer_setup(struct sf_server *server);
 void sf_layer_finish(struct sf_server *server);
 
-/* Client blur region from ext-background-effect-v1 (Noctalia compositor_blur). */
-void sf_layer_set_client_blur(struct sf_layer_surface *layer, bool want);
+/* ext-background-effect-v1 blur region (any layer-shell client). NULL/empty clears. */
+void sf_layer_set_client_blur(struct sf_layer_surface *layer, const pixman_region32_t *region);
 void sf_layer_refresh_blur(struct sf_layer_surface *layer);
 
 /* Scene tree for a zwlr_layer_shell_v1 layer enum value. */
