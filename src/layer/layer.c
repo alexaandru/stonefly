@@ -630,10 +630,10 @@ static void layer_surface_destroy(struct wl_listener *listener, void *data) {
 	 * registers its destroy listener before ours on layer_surface destroy.
 	 * Plate destroy notifies should have emptied blur_plates; detach any
 	 * stragglers without touching scene nodes. */
-	while (!wl_list_empty(&layer->blur_plates)) {
-		struct sf_layer_blur_plate *plate =
-			wl_container_of(layer->blur_plates.next, plate, link);
+	struct sf_layer_blur_plate *plate, *plate_tmp;
+	wl_list_for_each_safe(plate, plate_tmp, &layer->blur_plates, link) {
 		wl_list_remove(&plate->destroy.link);
+		wl_list_init(&plate->destroy.link);
 		wl_list_remove(&plate->link);
 		free(plate);
 	}
