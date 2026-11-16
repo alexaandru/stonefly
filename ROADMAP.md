@@ -198,13 +198,74 @@ Primary queue is **TODO NEXT** at the top (#1–#10). After that stack:
 2. Capture: full-output screencopy blanking
 3. Input: tablet
 4. Protocol polish: `wp_fifo_v1`, full color-mgmt
-5. Optional WM: geometry persist / tag rules; overview polish (card drag, filmstrip scroll, multi-surface cards)
+5. Optional WM: geometry persist / tag rules; overview polish (card drag, multi-surface cards, shortcut badges)
+6. **Bind context redesign** (own chapter below) — after overview/arrange filters feel cramped
 
 Shell/OSD/media stay **🌙 Noctalia**.
 
 ---
 
-## 10. Testing — open
+## 10. Bind context (own chapter)
+
+**Status:** 📋 Preferential `:arrange` filter ships today (including `"overview"`).
+A generalized context / `:when` / submap surface needs a careful redesign — do
+not grow more boolean axes onto `sf.bind` ad hoc.
+
+### What ships now
+
+- `sf.bind` optional `:arrange` — `stacking` / `tiling` (any tile engine) /
+  exact engine / **`overview`**. Match prefers arrange-specific over unset
+  (`sf_arrange_bind_matches` + keyboard/mouse/wheel loops).
+- Overview interactive forces context via `sf_bind_context_arrange` →
+  `SF_ARRANGE_OVERVIEW`, so tiling-only binds stay dormant and Escape /
+  Return / Space / bare Wheel can be overview-only without eating normal
+  client input when the filmstrip is closed.
+- Gestures use a parallel rule: `:overview_pan` is skipped when closed and
+  score-boosted when open (same fingers as workspace / columns_pan).
+
+### Why a redesign
+
+`:arrange` is a layout/engine tag overloaded as a modal UI gate. That works
+for stacking↔tiling and for overview, but it does not compose cleanly with
+session lock, move/resize grabs, confirmation dialogs, scratchpad catchers,
+or user-defined modal layers (screenshot chords, resize-chord submaps).
+
+### Peer models (steal from)
+
+| Peer | Model | Notes for stonefly |
+|---|---|---|
+| **Umbriel** | Explicit **submaps** (`submap name` / `submap reset`); overview keeps normal keybinds active + Escape/shortcut badges | Best reference for modal layers. Overview is *not* a submap — actions adapt in-place |
+| **Hyprland** | Submaps (enter/reset); binds can be submap-scoped | Same shape as Umbriel; widely known pack pattern |
+| **Sway / i3** | Named `mode` with mode-local binds; Escape → default | Classic; modes replace the whole bind set while active |
+| **niri** | Mostly global binds; overview / actions no-op or hardcode Escape | Simpler; less pack power |
+
+Stonefly should steal Umbriel/Hyprland submaps for *user* modal layers, and
+keep overview as a first-class context (like today) rather than forcing packs
+to enter a submap on Super+o.
+
+### Design sketch (when picked up)
+
+1. **Contexts as a small enum / bitset owned by C** — at least: default,
+   overview, session-lock, grab (move/resize), maybe confirm. Lua reads via
+   something like `sf.context` / bind `:when`.
+2. **Preferential match** stays (specific context beats unset) — same
+   keyboard loop shape as `:arrange` today.
+3. **User submaps** as a Lua/pack layer on top (enter/reset action +
+   `submap[name],` prefix or `:submap` field), not as more arrange enums.
+4. **Do not** make every layout engine a full bind namespace forever — keep
+   `:arrange "tiling"` as the coarse filter; exact engines stay optional.
+5. Gesture match already takes `overview_open`; generalize only if a second
+   gesture context appears (unlikely soon).
+
+### Non-goals for the first cut
+
+- Full i3-style mode replacement of the entire bind table
+- Per-window or per-app bind contexts (window rules already cover actions)
+- Replacing `:arrange` before packs depend on overview filters
+
+---
+
+## 11. Testing — open
 
 | Suite | Status | Scope | Gate |
 |---|---|---|---|

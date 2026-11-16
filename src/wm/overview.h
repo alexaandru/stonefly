@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include <time.h>
 
+#include "wm/arrange_math.h"
+
 struct sf_server;
 struct sf_toplevel;
 struct sf_workspace;
@@ -28,11 +30,19 @@ void sf_overview_force_close(struct sf_server *server);
 void sf_overview_gesture_update(struct sf_server *server, double progress);
 void sf_overview_gesture_end(struct sf_server *server, bool commit_open);
 
+/* Continuous filmstrip pan (dx/dy layout px; natural applied by caller). */
+void sf_overview_pan(struct sf_server *server, double dx, double dy);
+/* Discrete step: up|down|left|right (workspace row or ~80 px sideways). */
+void sf_overview_scroll(struct sf_server *server, const char *dir);
+/* Focus the highlighted window and close. */
+void sf_overview_confirm(struct sf_server *server);
+
 /* Pointer: left-click card → focus + close; empty → close. Returns true if consumed. */
 bool sf_overview_handle_button(struct sf_server *server, uint32_t button, bool pressed, double lx,
 			       double ly);
-/* Escape while interactive. */
-bool sf_overview_handle_key(struct sf_server *server, uint32_t keysym);
+
+/* Bind/gesture filter context: OVERVIEW while interactive, else workspace arrange. */
+enum sf_arrange sf_bind_context_arrange(struct sf_server *server);
 
 /* Keep cards in sync when windows appear/leave while open. */
 void sf_overview_on_toplevel_mapped(struct sf_toplevel *toplevel);

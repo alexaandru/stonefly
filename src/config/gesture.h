@@ -19,10 +19,12 @@ const char *sf_gesture_kind_name(enum sf_gesture_kind kind);
  * Pick the best swipe gesture for fingers + locked axis (H or V) + primary
  * travel (dx when H, dy when V). Prefer exact left/right/up/down over
  * horizontal/vertical over swipe. Ties keep the first listed bind.
+ * When overview_open, overview_pan outranks workspace/columns_pan; when
+ * closed, overview_pan binds are skipped.
  */
 const struct sf_gesture *sf_gesture_match(const struct sf_config *cfg, uint32_t fingers,
-					  uint32_t mods, enum sf_gesture_dir locked,
-					  double primary);
+					  uint32_t mods, enum sf_gesture_dir locked, double primary,
+					  bool overview_open);
 
 /*
  * Pick the best pinch gesture. scale is libinput's cumulative scale (1.0 at
@@ -31,7 +33,7 @@ const struct sf_gesture *sf_gesture_match(const struct sf_config *cfg, uint32_t 
 const struct sf_gesture *sf_gesture_match_pinch(const struct sf_config *cfg, uint32_t fingers,
 						uint32_t mods, double scale);
 
-/* Seed day-zero 3-finger V=workspace / H=columns_pan + 4-finger overview. */
+/* Seed 3-finger workspace/columns_pan/overview_pan + 4-finger overview. */
 bool sf_gesture_seed_defaults(struct sf_config *cfg);
 
 #endif

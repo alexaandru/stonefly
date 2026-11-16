@@ -334,7 +334,10 @@ struct sf_server {
 		struct wl_list cards;
 		struct wl_list dims;
 		struct sf_toplevel *pending_focus;
-		/* 4-finger gesture tracking (gestures.c). */
+		/* Filmstrip pan: scroll_y in workspace-index units; scroll_x layout px. */
+		double scroll_y;
+		double scroll_x;
+		/* 4-finger open/close gesture tracking (gestures.c). */
 		bool gesture_active;
 		bool gesture_was_open;
 		double gesture_accum;

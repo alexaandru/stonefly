@@ -64,6 +64,8 @@ static const struct sf_action_entry sf_actions[] = {
 	{"overview_toggle", SF_ACTION_OVERVIEW_TOGGLE},
 	{"overview_open", SF_ACTION_OVERVIEW_OPEN},
 	{"overview_close", SF_ACTION_OVERVIEW_CLOSE},
+	{"overview_confirm", SF_ACTION_OVERVIEW_CONFIRM},
+	{"overview_scroll", SF_ACTION_OVERVIEW_SCROLL},
 };
 
 size_t sf_action_name_table_len(void) {

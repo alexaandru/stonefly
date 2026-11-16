@@ -12,8 +12,6 @@
 #include <wlr/types/wlr_xdg_shell.h>
 #include <scenefx/types/fx/clipped_region.h>
 #include <scenefx/types/wlr_scene.h>
-#include <xkbcommon/xkbcommon.h>
-
 #include "anim/anim.h"
 #include "config/config.h"
 #include "log/log.h"
@@ -313,10 +311,10 @@ static void overview_layout(struct sf_server *server) {
 		int gap = (int)lround(sf_overview_row_gap_frac * (double)out_box.height * zoom);
 		int base_x = out_box.x + (out_box.width - preview_w) / 2;
 		int base_y = out_box.y + (out_box.height - preview_h) / 2;
-		double row_scroll = output->active != NULL ? (double)output->active->index : 0.0;
+		double row_scroll = server->overview.scroll_y;
 		int preview_y = base_y + (int)lround(((double)card->workspace_index - row_scroll) *
 						     (double)(preview_h + gap));
-		int preview_x = base_x;
+		int preview_x = base_x - (int)lround(server->overview.scroll_x);
 
 		double rel_x = (double)(card->world.x - out_box.x);
 		double rel_y = (double)(card->world.y - out_box.y);
@@ -463,6 +461,12 @@ static bool overview_begin(struct sf_server *server) {
 	server->overview.progress = 0.0;
 	server->overview.pending_focus = NULL;
 	server->overview.anim_active = false;
+	server->overview.scroll_x = 0.0;
+	{
+		struct sf_output *at = sf_output_at_cursor(server);
+		server->overview.scroll_y =
+			(at != NULL && at->active != NULL) ? (double)at->active->index : 0.0;
+	}
 
 	if (server->layers.toplevel != NULL) {
 		wlr_scene_node_set_enabled(&server->layers.toplevel->node, false);
@@ -472,6 +476,7 @@ static bool overview_begin(struct sf_server *server) {
 	}
 	wlr_scene_node_set_enabled(&server->overview.tree->node, true);
 
+	/* Drop seat focus so clients do not eat keys; Tab cycle still sets focus. */
 	wlr_seat_keyboard_notify_clear_focus(server->seat);
 	wlr_seat_pointer_clear_focus(server->seat);
 
@@ -603,20 +608,122 @@ bool sf_overview_handle_button(struct sf_server *server, uint32_t button, bool p
 	return true;
 }
 
-bool sf_overview_handle_key(struct sf_server *server, uint32_t keysym) {
-	if (!sf_overview_interactive(server)) {
-		return false;
+enum sf_arrange sf_bind_context_arrange(struct sf_server *server) {
+	if (sf_overview_interactive(server)) {
+		return SF_ARRANGE_OVERVIEW;
 	}
-	if (keysym == XKB_KEY_Escape) {
-		sf_overview_close(server);
-		return true;
+	struct sf_output *out = sf_output_at_cursor(server);
+	if (out != NULL && out->active != NULL) {
+		return sf_workspace_arrange(out->active);
 	}
-	return false;
+	return SF_ARRANGE_STACKING;
+}
+
+static void overview_clamp_scroll(struct sf_server *server) {
+	int max_idx = 0;
+	struct sf_output *output;
+	wl_list_for_each(output, &server->outputs, link) {
+		struct sf_workspace *ws;
+		wl_list_for_each(ws, &output->workspaces, link) {
+			if (ws->index > max_idx) {
+				max_idx = ws->index;
+			}
+		}
+	}
+	if (server->overview.scroll_y < 0.0) {
+		server->overview.scroll_y = 0.0;
+	}
+	if (server->overview.scroll_y > (double)max_idx) {
+		server->overview.scroll_y = (double)max_idx;
+	}
+	/* Side pan: keep within roughly one output width. */
+	struct sf_output *at = sf_output_at_cursor(server);
+	double max_x = 400.0;
+	if (at != NULL) {
+		struct wlr_box box;
+		wlr_output_layout_get_box(server->output_layout, at->wlr_output, &box);
+		if (box.width > 0) {
+			max_x = (double)box.width * 0.5;
+		}
+	}
+	if (server->overview.scroll_x < -max_x) {
+		server->overview.scroll_x = -max_x;
+	}
+	if (server->overview.scroll_x > max_x) {
+		server->overview.scroll_x = max_x;
+	}
+}
+
+void sf_overview_pan(struct sf_server *server, double dx, double dy) {
+	if (server == NULL || !sf_overview_interactive(server)) {
+		return;
+	}
+	/* dy in layout px → workspace-index units via current zoom row step. */
+	struct sf_output *at = sf_output_at_cursor(server);
+	double step = 300.0;
+	if (at != NULL) {
+		struct wlr_box box;
+		wlr_output_layout_get_box(server->output_layout, at->wlr_output, &box);
+		double zoom = overview_zoom_at(server, server->overview.progress);
+		int preview_h = (int)lround((double)box.height * zoom);
+		int gap = (int)lround(sf_overview_row_gap_frac * (double)box.height * zoom);
+		step = (double)(preview_h + gap);
+		if (step < 1.0) {
+			step = 1.0;
+		}
+	}
+	server->overview.scroll_y += dy / step;
+	server->overview.scroll_x += dx;
+	overview_clamp_scroll(server);
+	overview_layout(server);
+	sf_anim_schedule(server);
+}
+
+void sf_overview_scroll(struct sf_server *server, const char *dir) {
+	if (server == NULL || !sf_overview_interactive(server) || dir == NULL) {
+		return;
+	}
+	double factor = (double)sf_cfg(server)->overview_scroll_factor;
+	if (factor < 0.05) {
+		factor = 0.05;
+	}
+	if (strcmp(dir, "up") == 0) {
+		server->overview.scroll_y -= 1.0 * factor;
+	} else if (strcmp(dir, "down") == 0) {
+		server->overview.scroll_y += 1.0 * factor;
+	} else if (strcmp(dir, "left") == 0) {
+		server->overview.scroll_x -= 80.0 * factor;
+	} else if (strcmp(dir, "right") == 0) {
+		server->overview.scroll_x += 80.0 * factor;
+	} else {
+		return;
+	}
+	overview_clamp_scroll(server);
+	overview_layout(server);
+	sf_anim_schedule(server);
+}
+
+void sf_overview_confirm(struct sf_server *server) {
+	if (server == NULL || !sf_overview_interactive(server)) {
+		return;
+	}
+	struct sf_toplevel *focus = sf_focused_toplevel(server);
+	if (focus != NULL && !focus->minimized && !sf_toplevel_is_scratchpad(focus)) {
+		server->overview.pending_focus = focus;
+	} else {
+		server->overview.pending_focus = NULL;
+	}
+	overview_start_anim(server, 0.0, true);
 }
 
 void sf_overview_relayout(struct sf_server *server) {
 	if (server == NULL || !server->overview.active) {
 		return;
+	}
+	/* Workspace switch while open: snap the filmstrip to the new active. */
+	struct sf_output *at = sf_output_at_cursor(server);
+	if (at != NULL && at->active != NULL) {
+		server->overview.scroll_y = (double)at->active->index;
 	}
 	overview_layout(server);
 	sf_anim_schedule(server);

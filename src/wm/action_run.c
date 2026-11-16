@@ -336,6 +336,14 @@ static void action_overview_close(struct sf_action_ctx *ctx) {
 	sf_overview_close(ctx->server);
 }
 
+static void action_overview_confirm(struct sf_action_ctx *ctx) {
+	sf_overview_confirm(ctx->server);
+}
+
+static void action_overview_scroll(struct sf_action_ctx *ctx) {
+	sf_overview_scroll(ctx->server, ctx->cmd);
+}
+
 /*
  * Verb catalog: one slot per enum value. Flags encode the shared protocol
  * (need window / need cmd) so arms stay free of duplicated guards.
@@ -394,6 +402,8 @@ static const struct sf_action_slot sf_action_slots[SF_ACTION_COUNT] = {
 	[SF_ACTION_OVERVIEW_TOGGLE] = {0, action_overview_toggle},
 	[SF_ACTION_OVERVIEW_OPEN] = {0, action_overview_open},
 	[SF_ACTION_OVERVIEW_CLOSE] = {0, action_overview_close},
+	[SF_ACTION_OVERVIEW_CONFIRM] = {0, action_overview_confirm},
+	[SF_ACTION_OVERVIEW_SCROLL] = {SF_ACTION_F_CMD, action_overview_scroll},
 };
 
 _Static_assert(sizeof(sf_action_slots) / sizeof(sf_action_slots[0]) == (size_t)SF_ACTION_COUNT,

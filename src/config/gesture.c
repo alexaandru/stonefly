@@ -77,6 +77,10 @@ bool sf_gesture_kind_parse(const char *name, enum sf_gesture_kind *out) {
 		*out = SF_GESTURE_KIND_OVERVIEW;
 		return true;
 	}
+	if (strcmp(name, "overview_pan") == 0) {
+		*out = SF_GESTURE_KIND_OVERVIEW_PAN;
+		return true;
+	}
 	return false;
 }
 
@@ -88,6 +92,8 @@ const char *sf_gesture_kind_name(enum sf_gesture_kind kind) {
 		return "columns_pan";
 	case SF_GESTURE_KIND_OVERVIEW:
 		return "overview";
+	case SF_GESTURE_KIND_OVERVIEW_PAN:
+		return "overview_pan";
 	case SF_GESTURE_KIND_ACTION:
 		return "action";
 	}
@@ -141,8 +147,8 @@ static int pinch_score(enum sf_gesture_dir want, double scale) {
 }
 
 const struct sf_gesture *sf_gesture_match(const struct sf_config *cfg, uint32_t fingers,
-					  uint32_t mods, enum sf_gesture_dir locked,
-					  double primary) {
+					  uint32_t mods, enum sf_gesture_dir locked, double primary,
+					  bool overview_open) {
 	if (cfg == NULL || cfg->gestures == NULL || cfg->n_gestures == 0) {
 		return NULL;
 	}
@@ -157,7 +163,16 @@ const struct sf_gesture *sf_gesture_match(const struct sf_config *cfg, uint32_t 
 		if (g->fingers != (int)fingers || g->mods != mods) {
 			continue;
 		}
+		if (g->kind == SF_GESTURE_KIND_OVERVIEW_PAN && !overview_open) {
+			continue;
+		}
 		int score = dir_score(g->dir, locked, primary);
+		if (score <= 0) {
+			continue;
+		}
+		if (g->kind == SF_GESTURE_KIND_OVERVIEW_PAN && overview_open) {
+			score += 10;
+		}
 		if (score > best_score) {
 			best_score = score;
 			best = g;
@@ -192,7 +207,7 @@ bool sf_gesture_seed_defaults(struct sf_config *cfg) {
 	if (cfg == NULL) {
 		return false;
 	}
-	struct sf_gesture *g = calloc(3, sizeof *g);
+	struct sf_gesture *g = calloc(5, sizeof *g);
 	if (g == NULL) {
 		return false;
 	}
@@ -205,7 +220,13 @@ bool sf_gesture_seed_defaults(struct sf_config *cfg) {
 	g[2].fingers = 4;
 	g[2].dir = SF_GESTURE_DIR_VERTICAL;
 	g[2].kind = SF_GESTURE_KIND_OVERVIEW;
+	g[3].fingers = 3;
+	g[3].dir = SF_GESTURE_DIR_VERTICAL;
+	g[3].kind = SF_GESTURE_KIND_OVERVIEW_PAN;
+	g[4].fingers = 3;
+	g[4].dir = SF_GESTURE_DIR_HORIZONTAL;
+	g[4].kind = SF_GESTURE_KIND_OVERVIEW_PAN;
 	cfg->gestures = g;
-	cfg->n_gestures = 3;
+	cfg->n_gestures = 5;
 	return true;
 }

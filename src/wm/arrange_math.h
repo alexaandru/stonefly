@@ -8,6 +8,8 @@
 /* Workspace packing engines (distinct from per-window layout_sm).
  * Product set is stacking + columns only (umbriel polish over breadth). */
 enum sf_arrange {
+	/* Bind filter only: overview interactive (not a real workspace mode). */
+	SF_ARRANGE_OVERVIEW = -3,
 	/* Bind filter only: match any tiling engine (not a real workspace mode). */
 	SF_ARRANGE_TILING = -2,
 	SF_ARRANGE_UNSET = -1,

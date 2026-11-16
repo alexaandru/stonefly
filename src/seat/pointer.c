@@ -1085,11 +1085,7 @@ void server_cursor_button(struct wl_listener *listener, void *data) {
 	/* sf.bind mouse chords (default Super+LMB/RMB / Super+Shift+RMB). */
 	if (!sf_session_locked(server)) {
 		uint32_t mods = seat_keyboard_mods(server) & (uint32_t)SF_MOD_MASK;
-		enum sf_arrange cur = SF_ARRANGE_STACKING;
-		struct sf_output *out = sf_output_at_cursor(server);
-		if (out != NULL && out->active != NULL) {
-			cur = sf_workspace_arrange(out->active);
-		}
+		enum sf_arrange cur = sf_bind_context_arrange(server);
 		const struct sf_mousebind *mb =
 			sf_mousebind_match(sf_cfg(server), mods, event->button, cur);
 		if (mb != NULL && mb->n_steps > 0) {
@@ -1139,10 +1135,12 @@ void server_cursor_axis(struct wl_listener *listener, void *data) {
 	sf_session_notify_activity(server);
 
 	/* Mod+Wheel binds (default Super+Wheel workspace / Super+Shift focus_dir).
-	 * Bare wheel (mods==0) always reaches the client. Match consumes the axis. */
+	 * Bare wheel reaches clients unless overview is interactive (filmstrip). */
 	if (server->cursor_mode == SF_CURSOR_PASSTHROUGH && !sf_session_locked(server)) {
 		uint32_t mods = seat_keyboard_mods(server) & (uint32_t)SF_MOD_MASK;
-		if (mods != 0) {
+		enum sf_arrange cur = sf_bind_context_arrange(server);
+		bool try_wheel = mods != 0 || cur == SF_ARRANGE_OVERVIEW;
+		if (try_wheel) {
 			enum sf_wheel_dir dir = SF_WHEEL_UP;
 			bool have_dir = false;
 			int32_t discrete = event->delta_discrete;
@@ -1165,11 +1163,6 @@ void server_cursor_axis(struct wl_listener *listener, void *data) {
 				}
 			}
 			if (have_dir) {
-				enum sf_arrange cur = SF_ARRANGE_STACKING;
-				struct sf_output *out = sf_output_at_cursor(server);
-				if (out != NULL && out->active != NULL) {
-					cur = sf_workspace_arrange(out->active);
-				}
 				const struct sf_config *cfg = sf_cfg(server);
 				const struct sf_wheelbind *wb =
 					sf_wheelbind_match(cfg, mods, dir, cur);

@@ -12,6 +12,9 @@ static bool arrange_ok(enum sf_arrange filter, enum sf_arrange current) {
 		return true;
 	}
 	if (filter == SF_ARRANGE_TILING) {
+		if (current == SF_ARRANGE_OVERVIEW) {
+			return false;
+		}
 		return sf_arrange_is_tiling(current);
 	}
 	return filter == current;

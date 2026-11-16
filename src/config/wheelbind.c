@@ -25,6 +25,9 @@ static bool arrange_ok(enum sf_arrange filter, enum sf_arrange current) {
 		return true;
 	}
 	if (filter == SF_ARRANGE_TILING) {
+		if (current == SF_ARRANGE_OVERVIEW) {
+			return false;
+		}
 		return sf_arrange_is_tiling(current);
 	}
 	return filter == current;
@@ -36,7 +39,8 @@ const struct sf_wheelbind *sf_wheelbind_match(const struct sf_config *cfg, uint3
 		return NULL;
 	}
 	mods &= (uint32_t)SF_MOD_MASK;
-	if (mods == 0) {
+	/* Bare wheel only while overview (filmstrip scroll); else clients own it. */
+	if (mods == 0 && cur != SF_ARRANGE_OVERVIEW) {
 		return NULL;
 	}
 	const struct sf_wheelbind *fallback = NULL;

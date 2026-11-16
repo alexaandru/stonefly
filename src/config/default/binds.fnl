@@ -31,6 +31,16 @@
               ["Super+q" {:action :close}]
               ;; workspace overview (Umbriel Mod+O; 4-finger swipe also)
               ["Super+o" {:action :overview_toggle}]
+              ;; overview-only (:arrange overview — see bind context)
+              ["Escape" {:action :overview_close :arrange "overview"}]
+              ["Return" {:action :overview_confirm :arrange "overview"}]
+              ["space" {:action :overview_confirm :arrange "overview"}]
+              ["WheelUp" {:action :overview_scroll :cmd "up" :arrange "overview"}]
+              ["WheelDown" {:action :overview_scroll :cmd "down" :arrange "overview"}]
+              ["Shift+WheelUp"
+               {:action :overview_scroll :cmd "left" :arrange "overview"}]
+              ["Shift+WheelDown"
+               {:action :overview_scroll :cmd "right" :arrange "overview"}]
               ;; focus
               ["Super+Tab" {:action :focus_next}]
               ["Super+Shift+Tab" {:action :focus_prev}]

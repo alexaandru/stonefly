@@ -155,9 +155,9 @@ static void pointer_swipe_update(struct wl_listener *listener, void *data) {
 							     : SF_GESTURE_DIR_VERTICAL;
 			double primary = server->swipe.axis == SF_SWIPE_AXIS_H ? server->swipe.dx
 									       : server->swipe.dy;
-			const struct sf_gesture *g =
-				sf_gesture_match(sf_cfg(server), server->swipe.fingers,
-						 seat_mods(server), locked, primary);
+			const struct sf_gesture *g = sf_gesture_match(
+				sf_cfg(server), server->swipe.fingers, seat_mods(server), locked,
+				primary, sf_overview_interactive(server));
 			if (g != NULL) {
 				server->swipe.match_idx = (int)(g - sf_cfg(server)->gestures);
 			}
@@ -230,6 +230,19 @@ static void pointer_swipe_update(struct wl_listener *listener, void *data) {
 			server->swipe.dx = 0;
 			server->swipe.dy = 0;
 		}
+	}
+
+	/* Filmstrip pan while overview is open (3-finger V/H by default). */
+	if (eligible && g != NULL && g->kind == SF_GESTURE_KIND_OVERVIEW_PAN &&
+	    sf_overview_interactive(server)) {
+		double dx = event->dx;
+		double dy = event->dy;
+		if (sf_cfg(server)->swipe_workspace_natural) {
+			dx = -dx;
+			dy = -dy;
+		}
+		sf_overview_pan(server, dx, dy);
+		server->swipe.consumed = true;
 	}
 
 	/* Continuous overview open/close (Umbriel 4-finger). Natural: finger

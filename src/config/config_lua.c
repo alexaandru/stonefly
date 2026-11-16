@@ -1177,10 +1177,18 @@ static int l_bind(lua_State *L) {
 		chord = chord_buf;
 	}
 
+	enum sf_arrange arrange = SF_ARRANGE_UNSET;
+	lua_getfield(L, opts, "arrange");
+	if (lua_isstring(L, -1)) {
+		arrange = sf_arrange_parse(lua_tostring(L, -1));
+	}
+	lua_pop(L, 1);
+
 	uint32_t mods = 0;
 	uint32_t button = 0;
 	enum sf_wheel_dir wheel_dir = SF_WHEEL_UP;
-	bool is_wheel = sf_chord_parse_wheel(chord, &mods, &wheel_dir) == 0;
+	bool allow_bare_wheel = arrange == SF_ARRANGE_OVERVIEW;
+	bool is_wheel = sf_chord_parse_wheel_ex(chord, &mods, &wheel_dir, allow_bare_wheel) == 0;
 	bool is_mouse = !is_wheel && sf_chord_parse_mouse(chord, &mods, &button) == 0;
 	xkb_keysym_t sym = XKB_KEY_NoSymbol;
 	if (!is_wheel && !is_mouse) {
@@ -1203,13 +1211,6 @@ static int l_bind(lua_State *L) {
 		}
 		lua_pop(L, 1);
 	}
-
-	enum sf_arrange arrange = SF_ARRANGE_UNSET;
-	lua_getfield(L, opts, "arrange");
-	if (lua_isstring(L, -1)) {
-		arrange = sf_arrange_parse(lua_tostring(L, -1));
-	}
-	lua_pop(L, 1);
 
 	if (is_wheel) {
 		if (!G->wheelbinds_replaced) {
@@ -1553,6 +1554,8 @@ static const struct opt_num opt_numbers[] = {
 	{"swipe_workspace_threshold", OPT_NUM_INT,
 	 offsetof(struct sf_config, swipe_workspace_threshold), NULL},
 	{"overview_zoom", OPT_NUM_FLOAT, offsetof(struct sf_config, overview_zoom), NULL},
+	{"overview_scroll_factor", OPT_NUM_FLOAT,
+	 offsetof(struct sf_config, overview_scroll_factor), NULL},
 	{"nudge_step", OPT_NUM_INT, offsetof(struct sf_config, nudge_step), NULL},
 	{"ssd_height", OPT_NUM_FN, 0, opt_set_ssd_height},
 	{"ssd_font_size", OPT_NUM_FN, 0, opt_set_ssd_font_size},

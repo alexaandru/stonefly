@@ -559,11 +559,16 @@ enum sf_arrange sf_arrange_parse(const char *s) {
 	if (strcmp(s, "tiling") == 0) {
 		return SF_ARRANGE_TILING;
 	}
+	if (strcmp(s, "overview") == 0) {
+		return SF_ARRANGE_OVERVIEW;
+	}
 	return SF_ARRANGE_STACKING;
 }
 
 const char *sf_arrange_name(enum sf_arrange arrange) {
 	switch (arrange) {
+	case SF_ARRANGE_OVERVIEW:
+		return "overview";
 	case SF_ARRANGE_TILING:
 		return "tiling";
 	case SF_ARRANGE_UNSET:

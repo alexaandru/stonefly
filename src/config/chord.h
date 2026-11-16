@@ -29,8 +29,10 @@ int sf_chord_lookup_button(const char *key, uint32_t *out);
 bool sf_chord_is_mouse_button(const char *key);
 
 /* Wheel chord: "Super+WheelUp", "Super+Shift+WheelDown", "mouse_up" (Hyprland).
- * Requires at least one modifier (bare wheel stays with clients). Returns 0 / -1. */
+ * Bare wheel rejected unless allow_bare (overview :arrange binds). Returns 0 / -1. */
 int sf_chord_parse_wheel(const char *s, uint32_t *mods_out, enum sf_wheel_dir *dir_out);
+int sf_chord_parse_wheel_ex(const char *s, uint32_t *mods_out, enum sf_wheel_dir *dir_out,
+			    bool allow_bare);
 
 /* Resolve WheelUp/Down/Left/Right (+ Hyprland mouse_up/down). Returns 0 / -1. */
 int sf_chord_lookup_wheel(const char *key, enum sf_wheel_dir *out);

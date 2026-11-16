@@ -80,6 +80,11 @@ int sf_chord_lookup_wheel(const char *key, enum sf_wheel_dir *out) {
 }
 
 int sf_chord_parse_wheel(const char *s, uint32_t *mods_out, enum sf_wheel_dir *dir_out) {
+	return sf_chord_parse_wheel_ex(s, mods_out, dir_out, false);
+}
+
+int sf_chord_parse_wheel_ex(const char *s, uint32_t *mods_out, enum sf_wheel_dir *dir_out,
+			    bool allow_bare) {
 	if (s == NULL || mods_out == NULL || dir_out == NULL) {
 		return -1;
 	}
@@ -94,29 +99,33 @@ int sf_chord_parse_wheel(const char *s, uint32_t *mods_out, enum sf_wheel_dir *d
 	char *key;
 	uint32_t mods = 0;
 	if (last_plus == NULL) {
-		/* Bare WheelUp would steal client scroll — reject. */
-		return -1;
-	}
-	*last_plus = '\0';
-	key = trim_inplace(last_plus + 1);
-	char *p = buf;
-	while (p != NULL && *p != '\0') {
-		char *plus = strchr(p, '+');
-		if (plus != NULL) {
-			*plus = '\0';
+		if (!allow_bare) {
+			/* Bare WheelUp would steal client scroll — reject. */
+			return -1;
 		}
-		char *tok = trim_inplace(p);
-		if (*tok != '\0') {
-			uint32_t bit = parse_mod(tok);
-			if (bit == 0) {
-				return -1;
+		key = trim_inplace(buf);
+	} else {
+		*last_plus = '\0';
+		key = trim_inplace(last_plus + 1);
+		char *p = buf;
+		while (p != NULL && *p != '\0') {
+			char *plus = strchr(p, '+');
+			if (plus != NULL) {
+				*plus = '\0';
 			}
-			mods |= bit;
+			char *tok = trim_inplace(p);
+			if (*tok != '\0') {
+				uint32_t bit = parse_mod(tok);
+				if (bit == 0) {
+					return -1;
+				}
+				mods |= bit;
+			}
+			p = plus != NULL ? plus + 1 : NULL;
 		}
-		p = plus != NULL ? plus + 1 : NULL;
-	}
-	if (mods == 0) {
-		return -1;
+		if (mods == 0) {
+			return -1;
+		}
 	}
 	enum sf_wheel_dir dir = SF_WHEEL_UP;
 	if (sf_chord_lookup_wheel(key, &dir) != 0) {

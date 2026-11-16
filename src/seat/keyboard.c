@@ -177,16 +177,9 @@ static bool handle_keybinding(struct sf_server *server, uint32_t modifiers, xkb_
 	if (sf_session_locked(server)) {
 		return false;
 	}
-	if (sf_overview_handle_key(server, sym)) {
-		return true;
-	}
 	uint32_t mods = modifiers & (uint32_t)SF_MOD_MASK;
 	const struct sf_config *cfg = sf_cfg(server);
-	enum sf_arrange cur = SF_ARRANGE_STACKING;
-	struct sf_output *out = sf_output_at_cursor(server);
-	if (out != NULL && out->active != NULL) {
-		cur = sf_workspace_arrange(out->active);
-	}
+	enum sf_arrange cur = sf_bind_context_arrange(server);
 
 	/* Prefer arrange-specific binds over :arrange unset (any). */
 	const struct sf_keybind *fallback = NULL;

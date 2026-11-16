@@ -76,6 +76,7 @@ enum sf_gesture_kind {
 	SF_GESTURE_KIND_WORKSPACE = 0, /* threshold step → workspace next/prev */
 	SF_GESTURE_KIND_COLUMNS_PAN,   /* continuous strip pan */
 	SF_GESTURE_KIND_OVERVIEW,      /* continuous 4-finger open/close progress */
+	SF_GESTURE_KIND_OVERVIEW_PAN,  /* continuous filmstrip pan while overview open */
 	SF_GESTURE_KIND_ACTION,	       /* fire steps once past threshold */
 };
 
@@ -152,6 +153,10 @@ enum sf_action {
 	SF_ACTION_OVERVIEW_TOGGLE,
 	SF_ACTION_OVERVIEW_OPEN,
 	SF_ACTION_OVERVIEW_CLOSE,
+	/* Focus highlighted window + close (Enter / Space while overview). */
+	SF_ACTION_OVERVIEW_CONFIRM,
+	/* cmd = up|down|left|right — pan the overview filmstrip. */
+	SF_ACTION_OVERVIEW_SCROLL,
 
 	/* One past the last real action — table sizes / completeness checks. */
 	SF_ACTION_COUNT,
@@ -335,6 +340,8 @@ struct sf_config {
 	bool swipe_workspace_natural;
 	/* Overview filmstrip scale when fully open (0.1–0.75; Umbriel default 0.5). */
 	float overview_zoom;
+	/* Overview wheel / discrete scroll sensitivity (default 1.0). */
+	float overview_scroll_factor;
 
 	/* Warp pointer into the newly focused window on keyboard focus cycle
 	 * and workspace switch (click-to-focus does not warp). */
