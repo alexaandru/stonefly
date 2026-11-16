@@ -7,10 +7,10 @@ This note is the border contract: what lives where **today**, what must stay in
 C, and what to push into the Lua runtime so the WM stays flexible without
 becoming surprising or unsafe.
 
-Related: [`ROADMAP.md`](ROADMAP.md) TODO NEXT #8 (hardcoded → Lua audit);
+Related: [`ROADMAP.md`](ROADMAP.md) TODO NEXT #8 ✅ (hardcoded → Lua audit);
 #7 gestures ✅ (incl. Mod+Wheel); #9 live reload ✅; [`LESSONS.md`](LESSONS.md);
 Predictability audit in the roadmap (round-trips stay boring even when Lua
-decides). **Living leftover inventory:** §9 below.
+decides). **Deferred knobs + Tier 2–3:** §9 below (no longer blocks TODO NEXT).
 
 ---
 
@@ -106,48 +106,26 @@ Ordered by leverage. Each tier assumes the one above is honest (no new
 hardcoded policy while a bind/opt/Lua surface exists). Full file-level
 inventory: **§9**.
 
-### Tier 1 — bind/opt-shaped policy (TODO NEXT #8)
+### Tier 1 — bind/opt-shaped policy (TODO NEXT #8 ✅)
 
 Same smell as the old hardcoded Super+LMB and 3-finger swipe. Expose as data or
-thin Lua; C only runs the chosen verb.
+thin Lua; C only runs the chosen verb. **#8 closed** on the surfaces below;
+smaller knobs stay deferred in §9.2.
 
-| Stuck in C today | Push toward | Status |
-|---|---|---|
-| 3-finger V = workspaces, H = columns pan | `sf.gesture` swipe + pinch | ✅ #7 |
-| Super+Wheel / Super+Shift+Wheel | `sf.bind` wheel chords; `wheel_bind_cooldown_ms` | ✅ #7 follow-on |
-| Super+LMB/RMB/Shift+RMB grabs | `sf.bind` + `move_window` / `resize_window` / `resize_center` | ✅ first #8 cut |
-| Border LMB resize (hit-test; sizes already opts) | `sf.opt.border_resize` bool, or bare-mod mousebind | open |
-| Cell-drag seam `SF_COLUMN_DROP_SEAM` 0.15 | `sf.opt.column_drop_seam` | open |
-| Tiled `move_window`→swap / resize→`width_frac` remap | Separate verbs or opt (`swap_window` / `column_resize`) | open |
-| Focus cycle: tiling atan2 clockwise; stacking MRU | `sf.opt.focus_cycle` (`spatial` / `mru` / `strip`) | open |
-| New tile always after focused column | `sf.opt.tile_insert` (`after_focus` / `end` / `begin`) | open |
-| `arrange_cycle_order[]` stacking↔columns | `sf.opt.arrange_cycle` list | open |
-| Appear give-up after **1** post-propose commit | `sf.opt.appear_give_up_commits` | open |
-| SSD title buttons → close / min / **gap-max** | Declarative SSD actions + maximize matrix | open |
-| SSD title double-click (400ms) → gap-max | Same matrix + `ssd_dblclick_ms` | open (wired in C) |
-| Maximize entry matrix (below) | `sf.opt.client_maximize` (`gaps` default = Super+m; `edges` = zen). Super+f/m stay two binds | ✅ |
-| Unminimize → active WS | `sf.opt.unminimize_workspace` (`active` default / `home`) | ✅ |
-| Pinch scale threshold 0.15 | `sf.opt.pinch_scale_threshold` | open |
-| Tiled appear/hide always slide from right | `sf.opt.tiled_slide` / Umbriel `sf.opt.anim` | open |
-| IPC `toggle-quick-terminal` → pad `"term"` | Opt or IPC arg | open |
-
-**Maximize entry matrix (Medium predictability)** — two intentional WM verbs;
-several chrome/protocol callers still pick between them in C:
-
-| Verb (keep both binds) | Meaning | Default bind |
-|---|---|---|
-| **edge-max** (`maximize_to_edges`) | Zen / usable-fill, gapless | Super+f |
-| **gap-max** / columns **full_width** (`maximize`) | Maximize column / gap-inset max | Super+m |
-
-| Caller today | Lands on |
+| Shipped | Surface |
 |---|---|
-| Super+f / rule `:maximize_to_edges` / foreign taskbar `set_maximized` / **CSD** `request_maximize` / default Super+pinchout | edge-max |
-| Super+m / **SSD** maximize button / **SSD title double-click** | gap-max / full_width |
+| 3-finger V/H + Super+pinch | `sf.gesture` (#7) |
+| Super+Wheel / Super+Shift+Wheel | `sf.bind` wheel + `wheel_bind_cooldown_ms` |
+| Super+LMB/RMB/Shift+RMB grabs | `sf.bind` + `move_window` / `resize_window` / `resize_center` |
+| Chrome/protocol maximize | `sf.opt.client_maximize` (default `gaps` = Super+m) |
+| Unminimize workspace | `sf.opt.unminimize_workspace` (default `active`) |
 
-Do **not** collapse Super+f and Super+m. Chrome/protocol “maximize” follows
-`sf.opt.client_maximize` (default **`gaps`**, same as Super+m): CSD
-`request_maximize`, SSD max button + title double-click, foreign taskbar.
-Super+f / `:maximize_to_edges` / pinchout stay edge-max zen.
+**Maximize verbs (keep both binds):**
+
+| Verb | Meaning | Default bind / callers |
+|---|---|---|
+| **edge-max** | Zen / usable-fill, gapless | Super+f, `:maximize_to_edges`, Super+pinchout |
+| **gap-max** / columns **full_width** | Column / gap-inset max | Super+m; CSD / SSD max+dblclick / foreign follow `client_maximize` (default `gaps`) |
 
 ### Tier 2 — event runtime (`sf.on`) — the real leap
 
@@ -206,14 +184,13 @@ Matches ROADMAP TODO NEXT; do not grow new hardcoded policy in parallel.
 
 1. **#7 Configurable gestures** — ✅ `sf.gesture` swipe + pinch; Mod+Wheel ✅
    via `sf.bind`.
-2. **#8 Hardcoded → config/Lua audit** — mouse grabs ✅; **next cuts from §9.2**
-   (maximize matrix, SSD chrome, focus/insert, drop seam, tiled grab remap,
-   unminimize WS, border LMB, …).
+2. **#8 Hardcoded → config/Lua audit** — ✅ closed (gestures/mouse/wheel,
+   `client_maximize`, `unminimize_workspace`, contract). Deferred knobs §9.2.
 3. **#9 Live reload** — ✅ shipped (re-run Lua init; inotify; keep previous on
    failure). Edit Fennel → session updates without logout.
-4. **`sf.on` + window query API** — Tier 2–3; packs become real.
-5. **Medium predictability knobs** — maximize matrix, unminimize→home vs active
-   WS — as opts/Lua once the surface exists (overlap with #8).
+4. **`sf.on` + window query API** — Tier 2–3; packs become real (next big leap).
+5. **Deferred Tier 1 knobs** — pick from §9.2 when pain shows (focus/insert,
+   drop seam, border LMB, anim table, …).
 
 Shell UI (bar, launcher, OSD) stays **Noctalia**. Compositor Lua is WM policy,
 not a second shell.
@@ -222,13 +199,16 @@ not a second shell.
 
 ## 7. Done when
 
-- A user can change focus cycle, insert policy, gestures, mouse/wheel grabs,
-  SSD chrome actions, and maximize mapping **without a C patch**.
-- A Fennel pack can subscribe to map/focus/arrange and call documented
-  primitives safely.
-- Live reload updates binds/opts without dropping the session.
+**#8 bar (met):** gestures, mouse/wheel grabs, chrome maximize mapping, and
+unminimize WS policy are opts/binds; contract + inventory exist; live reload
+updates them without dropping the session.
+
+**Full Neovim-WM bar (still open):**
+- Focus cycle / insert / SSD close-min map / drop seam / … without a C patch
+  (§9.2 deferred).
+- A Fennel pack can subscribe to map/focus/arrange (`sf.on`) and call
+  documented primitives (`sf.wins`) safely.
 - C still guarantees boring round-trips (Predictability audit High stays green).
-- §9.2 backlog is empty or explicitly deferred with a Stay-in-C rationale.
 
 ---
 
@@ -253,50 +233,48 @@ not a second shell.
 
 ---
 
-## 9. Audit inventory (TODO NEXT #8) — living table
+## 9. Deferred inventory (after TODO NEXT #8 ✅)
 
-Re-audit when closing #8 cuts. Rule: **other than §2 primitives, nothing UX-
-disputed should stay hardcoded.** Prefer opts/binds before inventing `sf.on`.
+#8 shipped the bind/opt surfaces and this contract. Items below are **optional
+follow-ups** — document here, pick when pain shows. Prefer opts/binds before
+`sf.on`. Rule unchanged: other than §2 primitives, UX-disputed policy should
+not grow new C hardcoding.
 
-### 9.1 Shipped bind/opt (do not re-litigate)
+### 9.1 Shipped with #8 (do not re-litigate)
 
 | Surface | Notes |
 |---|---|
-| `sf.opt` chrome / gaps / snap / tap / wheel cooldown / swipe / SSD size / resize hitband / opacity / blur / `cursor_follows_focus` / `config_watch` | `options.fnl` + `sf_config_set_defaults` |
-| `sf.bind` keys | `binds.fnl`; C key seed is recovery-only (see §9.4) |
-| `sf.bind` mouse grabs | Super+LMB/RMB / Super+Shift+RMB |
-| `sf.bind` Mod+Wheel | Super+Wheel workspace; Super+Shift+Wheel `focus_dir` (tiling); mods required |
+| `sf.opt` chrome / gaps / snap / tap / wheel cooldown / swipe / SSD size / resize hitband / opacity / blur / `cursor_follows_focus` / `config_watch` / `client_maximize` / `unminimize_workspace` | `options.fnl` + C defaults |
+| `sf.bind` keys / mouse / Mod+Wheel | `binds.fnl`; C seeds recovery-only (§9.4) |
 | `sf.gesture` | 3-finger V/H + Super+pinch → max/unmax |
 | `sf.tap` / scratchpads / rules / inputs / execs / live reload | default tree |
 
-### 9.2 Tier 1 backlog (opt/bind; no `sf.on` required)
+### 9.2 Deferred Tier 1 knobs (opt/bind; no `sf.on` required)
 
-| ID | Where | Default today | Proposed surface | Status |
+| ID | Where | Default today | Proposed surface | Priority |
 |---|---|---|---|---|
-| `column_drop_seam` | `wm/arrange.c` `SF_COLUMN_DROP_SEAM` | 0.15 (mid=swap, fringe=insert, outer=new col) | `sf.opt.column_drop_seam` | open |
-| `tiled_grab_remap` | `xdg/xdg.c` `sf_begin_interactive` | tiled move→`ARRANGE_SWAP`; tiled resize→`width_frac` | verbs (`swap_window` / `column_resize`) or opt | open |
-| `border_lmb` | `seat/pointer.c` | bare LMB on hitband → resize (sizes already opts; disabled when both 0) | `sf.opt.border_resize` bool, or mousebind with mods==0 | open |
-| `focus_cycle` | `arrange.c` atan2 ring; `wm.c` MRU | tiling=spatial clockwise; stacking=MRU | `sf.opt.focus_cycle` = `spatial`\|`mru`\|`strip` (per-arrange ok) | open |
-| `tile_insert` | `arrange.c` join `after + 1` | always after focused column | `sf.opt.tile_insert` = `after_focus`\|`end`\|`begin` | open |
-| `arrange_cycle` | `arrange.c` `arrange_cycle_order[]` | stacking ↔ columns | `sf.opt.arrange_cycle` list | open |
-| `appear_give_up` | `wm/wm.c` `arrange_prop_waits >= 1` | 1 post-propose commit (tol 2px) | `sf.opt.appear_give_up_commits` (+ optional tol) | open |
-| `ssd_buttons` | `ssd/ssd.c` release switch | close / min hardcoded; max → `client_maximize` | declarative close/min map still open; max ✅ | open (close/min) |
-| `ssd_dblclick` | `ssd/ssd.c` title bar | 400ms → `toggle_client_maximize` | `ssd_dblclick_ms` / custom action still open; verb ✅ | open (timing) |
-| `maximize_matrix` | xdg / foreign / SSD | `sf.opt.client_maximize` default `gaps` (= Super+m) | shipped | ✅ |
-| `unminimize_ws` | `wm/wm.c` `apply_shown` | `sf.opt.unminimize_workspace` default `active` | shipped | ✅ |
-| `pinch_threshold` | `seat/gestures.c` `SF_PINCH_SCALE_THRESHOLD_X100` | 0.15 | `sf.opt.pinch_scale_threshold` | open |
-| `tiled_slide` | `anim/anim.c` | tiled appear/hide always from/to **right** inter-gap; floats use `slide_dir_closest` | `sf.opt.tiled_slide` / Umbriel `sf.opt.anim` | open |
-| `anim_ease` | `util/math.h` `sf_ease_out_cubic` | sole curve for slide/morph/WS | per-op style in `sf.opt.anim` | open |
-| `ipc_quick_term` | `ipc/ipc.c` | `toggle-quick-terminal` → pad `"term"` | opt or IPC arg | open |
-| `config_watch_debounce` | `config_watch.c` | 150ms fixed | `sf.opt.config_watch_debounce_ms` | open (low) |
-| `column_min_frac` | arrange_math / column | 0.05 floor | `sf.opt.column_min_frac` | open (low) |
-| `resize_center_min` | `pointer.c` `SF_RESIZE_CENTER_MIN` | 50 | `sf.opt.resize_center_min` | open (low) |
-| `snap_resist_mul` | `drag_snap.c` | push = 4 × `snap_threshold` | fold into snap opts | open (low) |
-| `ssd_chrome_layout` | `ssd_layout.c` | fixed button boxes; always min+max+close | button set / layout opts | open (low) |
-| `pan_focus` | `arrange.c` columns pan | retarget centre-most visible cell; no warp | opt: keep / warp / under-pointer | open (low) |
-| `focus_on` | `pointer.c` button path | click-to-focus only | `sf.opt.focus_on` = `click`\|`sloppy` | open (needs careful enter) |
-| `map_focus` | `xdg/xdg.c` map | always `sf_focus_toplevel` | opt, or Tier 2 `sf.on("map")` | open |
-| `transient_edge_max` | focus / Tab release | tile edge-max overlay is transient | document; sticky = float+rule. Opt only if packs disagree | document / maybe Stay |
+| `column_drop_seam` | `wm/arrange.c` `SF_COLUMN_DROP_SEAM` | 0.15 (mid=swap, fringe=insert, outer=new col) | `sf.opt.column_drop_seam` | high |
+| `tiled_grab_remap` | `xdg/xdg.c` `sf_begin_interactive` | tiled move→`ARRANGE_SWAP`; tiled resize→`width_frac` | verbs (`swap_window` / `column_resize`) or opt | high |
+| `border_lmb` | `seat/pointer.c` | bare LMB on hitband → resize (sizes already opts; both 0 disables) | `sf.opt.border_resize` bool, or mousebind mods==0 | high |
+| `focus_cycle` | `arrange.c` atan2; `wm.c` MRU | tiling=spatial; stacking=MRU | `sf.opt.focus_cycle` = `spatial`\|`mru`\|`strip` | high |
+| `tile_insert` | `arrange.c` join `after + 1` | after focused column | `sf.opt.tile_insert` = `after_focus`\|`end`\|`begin` | high |
+| `arrange_cycle` | `arrange.c` `arrange_cycle_order[]` | stacking ↔ columns | `sf.opt.arrange_cycle` list | med |
+| `appear_give_up` | `wm/wm.c` `arrange_prop_waits >= 1` | 1 post-propose commit (tol 2px) | `sf.opt.appear_give_up_commits` | med |
+| `pinch_threshold` | `seat/gestures.c` | 0.15 | `sf.opt.pinch_scale_threshold` | med |
+| `ssd_buttons` | `ssd/ssd.c` | close / min hardcoded; max → `client_maximize` | declarative close/min → action | med |
+| `ssd_dblclick` | `ssd/ssd.c` | 400ms → `toggle_client_maximize` | `sf.opt.ssd_dblclick_ms` / custom action | low |
+| `tiled_slide` | `anim/anim.c` | tiled appear/hide always **right** inter-gap | `sf.opt.tiled_slide` / Umbriel `sf.opt.anim` | med |
+| `anim_ease` | `util/math.h` | `sf_ease_out_cubic` only | per-op style in `sf.opt.anim` | low |
+| `ipc_quick_term` | `ipc/ipc.c` | pad `"term"` | opt or IPC arg | low |
+| `config_watch_debounce` | `config_watch.c` | 150ms | `sf.opt.config_watch_debounce_ms` | low |
+| `column_min_frac` | arrange_math / column | 0.05 floor | `sf.opt.column_min_frac` | low |
+| `resize_center_min` | `pointer.c` | 50 | `sf.opt.resize_center_min` | low |
+| `snap_resist_mul` | `drag_snap.c` | 4 × `snap_threshold` | fold into snap opts | low |
+| `ssd_chrome_layout` | `ssd_layout.c` | fixed min+max+close boxes | button set / layout opts | low |
+| `pan_focus` | `arrange.c` columns pan | centre-most visible; no warp | keep / warp / under-pointer | low |
+| `focus_on` | `pointer.c` | click-to-focus | `click`\|`sloppy` (careful enter) | low |
+| `map_focus` | `xdg/xdg.c` map | always focus new map | opt, or Tier 2 `sf.on("map")` | low |
+| `transient_edge_max` | focus / Tab | tile edge-max is transient | document; sticky = float+rule | docs / Stay |
 
 ### 9.3 Predictability Medium knobs (same opt pass as #8)
 
@@ -319,9 +297,9 @@ Day-zero truth is `src/config/default/*.fnl`. C seeds exist for
 | C numeric defaults (opacity 0.96, corner 12, …) differ from `options.fnl` (0.90 / 8, …) | Align C with Fennel **or** document NOCONFIG as “minimal recovery”, not day-zero chrome |
 | Legacy `master_*` / `dwindle_*` still in `sf.opt` | Dormant while product arrange is stacking+columns; drop when unused |
 
-### 9.5 Tier 2–3 gate
+### 9.5 Tier 2–3 gate (next big leap; not TODO NEXT #8)
 
-Do not invent more one-off C branches for pack-shaped policy. After Tier 1 opts:
+Do not invent more one-off C branches for pack-shaped policy:
 
 1. `sf.on(event, handler)` — map / unmap / focus / arrange / workspace / fullscreen / output
 2. `sf.wins()` / focused / safe setters through existing verbs

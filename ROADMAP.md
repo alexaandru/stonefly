@@ -23,29 +23,17 @@ the detail rows. When an item ships, check it off here and move the row to
 | 5 | Workspace switch animation | ✅ | Shipped (vertical strip slide; Super+Page / 1–9 + IPC + swipe share `sf_workspace_switch`) |
 | 6 | Real `inputs.fnl` API | ✅ | Shipped (`sf.input` + libinput apply; tap/natural/accel + left_handed/dwt/repeat) |
 | 7 | Configurable pointer gestures | ✅ | Shipped (`sf.gesture` swipe + pinch; default 3-finger V/H; pinch→max opt-in in `gestures.fnl`). Follow-on: Mod+Wheel via `sf.bind` ✅ |
-| 8 | **Hardcoded → config / Lua audit** | 🚧 | **Next.** Gestures/mouse/wheel ✅; `client_maximize` + `unminimize_workspace` ✅. Remaining Tier 1: focus/insert, drop seam, tiled grab remap, border LMB, SSD close/min map, … Living inventory: [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9 |
+| 8 | Hardcoded → config / Lua audit | ✅ | Shipped: gestures/mouse/wheel binds, `client_maximize`, `unminimize_workspace`, contract + inventory. Deferred knobs: [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9.2. Next QoL: **#10** |
 | 9 | Live config reload (binds + opts first) | ✅ | Shipped: staging Lua re-run, inotify watch, `:reload` / `sf.reload` / IPC; keep previous on failure |
-| 10 | Dim-inactive / spotlight polish | 🚧 | Opacity knobs exist; stronger dim or overlay so focus reads at a glance |
+| 10 | Dim-inactive / spotlight polish | 🚧 | **Next.** Opacity knobs exist; stronger dim or overlay so focus reads at a glance |
 | 11 | Popin / popout appear+close | ❌ | Umbriel-style scale+fade; see §2. Slide ships (tiled = right inter-gap; scratch closest) |
 | 12 | IME **or** Xwayland (pick by apps) | ❌ | fcitx/CJK/OSK → IME; Steam/legacy → Xwayland — real projects, not afternoon bites |
 
-Seed findings for **#8** — full living table in [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9:
-
-| Kind | Where today | Push toward |
-|---|---|---|
-| Gesture policy | ✅ `sf.gesture` swipe + pinch | done (#7) |
-| Mod+Wheel | ✅ `sf.bind` Super+Wheel workspace / Super+Shift+Wheel `focus_dir` (tiling); mods required; cooldown 150ms | done (#7 follow-on) |
-| Mouse grabs | ✅ `sf.bind` Super+LMB/RMB / Super+Shift+RMB → `move_window` / `resize_window` / `resize_center` | done (first #8 cut) |
-| Border LMB resize | hit-test in `pointer.c` (sizes already `resize_border_*` opts) | bool opt / bare-mod mousebind |
-| Column cell-drag | tiled grab remap + `SF_COLUMN_DROP_SEAM` 0.15 | verbs/opts |
-| Focus cycle policy | tiling = clockwise atan2; stacking = MRU | opt |
-| New-tile insert | always after focused column | opt |
-| Arrange cycle set | `arrange_cycle_order[]` stacking↔columns only | opt list |
-| Appear wait | give-up after **1** post-propose commit (`arrange_prop_waits`) | opt |
-| SSD title buttons + dblclick | close / min / **gap-max**; dblclick 400ms → gap-max | actions + maximize matrix |
-| Maximize matrix | ✅ `sf.opt.client_maximize` default `gaps` (= Super+m); CSD/SSD/foreign follow it. Super+f stays zen/edges | done |
-| Unminimize WS | ✅ `sf.opt.unminimize_workspace` default `active` (carry); `home` stays on hide WS | done |
-| Event hooks | load-time declarative only | `sf.on` (Tier 2) |
+**#8 closed.** Shipped bind/opt surfaces + border contract. Leftover UX knobs
+(focus cycle, tile insert, drop seam, tiled grab remap, border LMB on/off,
+appear give-up, pinch threshold, SSD close/min map, anim table, …) and Tier 2
+`sf.on` live as deferred backlog in [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9 —
+pick from there when useful; they no longer block TODO NEXT.
 
 ---
 
@@ -93,7 +81,7 @@ One “maximize” word, several entry points — unify or document before more 
 |---|---|
 | Empty column shells after FS-only column | FS skipped in pack → `visible_count==0`; strip omits column while membership kept — OK; watch empty-shell leaks |
 | Scratchpad claim vs taskbar icons | §1 / FEATURES: fake `app_id` avoids steal; proper fix = xdg-activation / startup token |
-| Insert-after-focus for brand-new maps | Predictable once known; slot restore covers return paths; opt/Lua later (TODO NEXT #8) |
+| Insert-after-focus for brand-new maps | Predictable once known; slot restore covers return paths; deferred opt in [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9.2 `tile_insert` |
 | SoftPlace late title / app_id float | Mostly fixed; watch apps that change identity after map |
 | Output disconnect / refuge | `workspace_clear` unlinks + clears slots — expected on teardown |
 | Foreign unset_maximized while SSD “max” was gap-max | Taskbar may think window is maximized (edges) while SSD toggled full_width — state bits can disagree until matrix is unified |
@@ -213,7 +201,7 @@ product asks for in-process chrome again.
 | Pri | Item | Status |
 |---|---|---|
 | P1 | Configurable gestures | ✅ `sf.gesture` swipe + pinch |
-| P1 | Hardcoded → Lua/config audit | 🚧 TODO NEXT #8 — inventory [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9 |
+| P1 | Hardcoded → Lua/config audit | ✅ TODO NEXT #8; deferred knobs [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9.2 |
 | P1 | WM opacity | 🚧 global focused + inactive; no per-window API (TODO NEXT #10) |
 | P2 | Workspaces polish | ❌ rules / geometry persist (switch slide ✅) |
 | P2 | `wp_fifo_v1` | ❌ |
@@ -241,7 +229,7 @@ Primary queue is **TODO NEXT** at the top (QoL #1–#12). After that stack:
 1. Config leftovers (§10) — validate CLI, outputs API, `--write-config-lua`
 2. Optional WM: tiling engines, geometry persist / tag-based rules, overview (niri/mango-scale — large)
 3. Capture: full-output screencopy blanking; shell UI for privacy optional
-4. Input: tablet (IME is TODO NEXT #12; gestures ✅ #7; hardcoded→Lua audit #8)
+4. Input: tablet (IME is TODO NEXT #12; gestures ✅ #7; hardcoded→Lua audit ✅ #8)
 5. IPC: action allowlist
 6. Packaging: flip APK back to release buildtype when ASan hunting ends
 7. Protocol polish: `wp_fifo_v1`, full color-mgmt
@@ -255,7 +243,7 @@ Shell/OSD/media stay **🌙 Noctalia**.
 | Open | Status | Notes |
 |---|---|---|
 | Configurable pointer gestures | ✅ | `sf.gesture` swipe + pinch. [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) |
-| Hardcoded → config / Lua audit | 🚧 | TODO NEXT #8. Gestures/mouse/wheel ✅; remaining inventory [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9. `sf.on` = Tier 2 |
+| Hardcoded → config / Lua audit | ✅ | TODO NEXT #8. Deferred knobs + `sf.on` (Tier 2): [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9 |
 | Live reload mid-session | ✅ | Shipped (`sf_config_reload` + inotify; `sf.exec {:reload true}` runs on success) |
 | Config validate CLI | ✅ | `stonefly validate` — exact Lua error on stderr; exit 0/1 |
 | `--write-config-lua` | ❌ | Offload compiled/plain Lua instead of `.fnl` |

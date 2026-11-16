@@ -160,6 +160,7 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 | Feature | Notes |
 |---|---|
 | Scriptable config | LuaJIT in-process VM (§10): rtp/packpath, Fennel 1.6.1 shim, Fennel-first embedded default |
+| C↔Lua border / hardcoded→config audit | ✅ TODO NEXT #8. C owns primitives; Lua/opts own policy. Contract + deferred knobs: [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) (§9.2 leftovers, Tier 2 `sf.on` still open) |
 | `--write-config` | C23 `#embed` tree, refuse overwrite. Meson `embed_defaults_stamp.h` so default `*.fnl` edits rebuild `config_embed.c` |
 | Keybind / mousebind / wheelbind table | `sf.bind("Super+w", …)` / `sf.bind("Super+LMB", {:action :move_window})` / `sf.bind("Super+WheelUp", …)` / `sf.tap("Super", …)`. Mouse tokens: `LMB`/`RMB`/`MMB` (preferred), `BTN_*`, Umbriel `MouseLeft`, Hyprland `mouse:272`. Wheel: `WheelUp`/`Down`/`Left`/`Right` (+ Hyprland `mouse_up`/`mouse_down`); **mods required** (bare wheel stays with clients). First mouse/wheel chord clears that C seed only. IPC `config mousebinds` / `wheelbinds`. Cooldown: `wheel_bind_cooldown_ms` (default 150). Actions via `sf_action_parse` |
 | Ctrl+Alt+Fn VT switch | `wlr_session_change_vt` on `XF86Switch_VT_*` |
