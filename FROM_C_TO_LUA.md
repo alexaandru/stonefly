@@ -72,6 +72,7 @@ session brain.
 |---|---|
 | `sf.opt` | Numbers / bools / colors / enums → `struct sf_config` |
 | `sf.bind` / `sf.tap` / `sf.chain` | Chords → `sf_action_step[]` |
+| `sf.gesture` | Touchpad swipe match → workspace / columns_pan / actions |
 | `sf.window_rule` | Match + declarative chrome/float/size + WM actions |
 | `sf.scratchpad` | Named pads |
 | `sf.input` | Libinput / keyboard device rules |
@@ -83,7 +84,7 @@ session brain.
 
 - `sf.on` / autocmd-style event handlers
 - Querying or mutating windows from Lua during the session
-- Gestures or mouse chords as first-class binds
+- Mouse chords as first-class binds (swipes: `sf.gesture`)
 - Replacing focus / insert / maximize policy with Lua functions
 - Packs that react to map / focus / arrange without new C
 
@@ -108,7 +109,7 @@ Lua; C only runs the chosen verb.
 
 | Stuck in C today | Push toward |
 |---|---|
-| 3-finger V = workspaces, H = columns pan (`gestures.c`) | `sf.gesture` (fingers, axis, action) — #7 |
+| 3-finger V = workspaces, H = columns pan | ✅ `sf.gesture` swipe + pinch (#7) |
 | Super+LMB/RMB/Shift+RMB; border LMB resize (`pointer.c`) | Mouse `sf.bind` / grab actions |
 | Cell-drag seams; `SF_COLUMN_DROP_SEAM` 0.15 | Binds + opts |
 | Focus cycle: tiling atan2 clockwise; stacking MRU | Opt or Lua |
@@ -182,8 +183,7 @@ invariant pass) over **replace** for lifecycle.
 
 Matches ROADMAP TODO NEXT; do not grow new hardcoded policy in parallel.
 
-1. **#7 Configurable gestures** — retire hardcoded 3-finger paths; shape is the
-   template for mouse/SSD.
+1. **#7 Configurable gestures** — ✅ `sf.gesture` swipe + pinch (template for mouse/SSD).
 2. **#8 Hardcoded → config/Lua audit** — finish the Tier 1 table; every new UX
    is bind/opt/Lua-shaped.
 3. **#9 Live reload** — ✅ shipped (re-run Lua init; inotify; keep previous on
@@ -217,7 +217,7 @@ not a second shell.
 | `src/config/default/*.fnl` | Embedded Fennel defaults |
 | `src/config/action.c` | Action name ↔ enum (bind/rule/IPC shared) |
 | `src/wm/action_run.c` | C verb catalog |
-| `src/seat/gestures.c` | Hardcoded 3-finger swipe (→ #7) |
+| `src/seat/gestures.c` | Consumes `sf.gesture` swipe + pinch table |
 | `src/seat/pointer.c` | Hardcoded Super+mouse grabs |
 | `runtime/pack/` | Pack path / fennel-shim |
 | `dist/fennel-ls/docsets/sf.lua` | fennel-ls docset for `sf.*` |

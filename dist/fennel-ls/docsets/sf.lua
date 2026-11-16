@@ -414,6 +414,14 @@ return {
         ["fnl/docstring"] = "Libinput / key-repeat rule for devices matching match.\n  (sf.input \"touchpad\" {:tap_to_click true :natural_scroll true :dwt true})\n  (sf.input \"keyboard\" {:repeat_rate 40 :repeat_delay 250})\nmatch: \"keyboard\"|\"pointer\"|\"mouse\"|\"touchpad\"|\"touch\" or a case-insensitive device-name substring.\nopts bools: :tap_to_click :natural_scroll :left_handed :dwt\nopts accel: :accel_speed (-1..1) :accel_profile (\"none\"|\"flat\"|\"adaptive\")\nopts keyboard: :repeat_rate (keys/sec) :repeat_delay (ms)\nLater rules override earlier ones for the same key. Applied on device add and on live config reload.",
       },
     },
+    ["gesture"] = {
+      binding = "sf.gesture",
+      metadata = {
+        ["fls/itemKind"] = "Function",
+        ["fnl/arglist"] = {"match", "action"},
+        ["fnl/docstring"] = "Touchpad swipe/pinch bind (Hyprland-shaped).\n  (sf.gesture {:fingers 3 :axis :vertical} :workspace)\n  (sf.gesture {:fingers 2 :axis :pinchout :mods :Super} :maximize_to_edges)\n  (sf.gesture {:fingers 2 :axis :pinchin :mods :Super} :unmaximize)\nmatch keys: :fingers (1..9), :axis or :direction (swipe|any|horizontal|vertical|left|right|up|down|pinch|pinchin|pinchout), optional :mods (\"Super\", \"Super+Shift\", … — exact mask like keybinds).\nBuilt-in swipe actions: :workspace (threshold step), :columns_pan (continuous).\nPinch fires normal bind actions once |scale-1| ≥ 0.15. Super+pinch leaves plain pinch for browser zoom.\nFirst call clears C/default gestures. Threshold/natural still sf.opt.swipe_workspace_*.",
+      },
+    },
     ["reload"] = {
       binding = "sf.reload",
       metadata = {
@@ -446,12 +454,29 @@ return {
         ["fnl/docstring"] = "Load pack from data/pack/dist/opt/<name> or data/pack/opt/<name> (also system datadir). Adds to rtp and runs plugin/*.lua. Builtin: fennel-shim.",
       },
     },
-    ["_fs_mtime"] = {
-      binding = "sf._fs_mtime",
+    ["fs"] = {
+      binding = "sf.fs",
       metadata = {
-        ["fls/itemKind"] = "Function",
-        ["fnl/arglist"] = {"path"},
-        ["fnl/docstring"] = "Internal: unix mtime of path, or nil if missing. Used by fennel-shim compile cache.",
+        ["fls/itemKind"] = "Module",
+        ["fnl/docstring"] = "In-process filesystem helpers (C; no shell-out).",
+      },
+      fields = {
+      ["mkdir_p"] = {
+        binding = "sf.fs.mkdir_p",
+        metadata = {
+          ["fls/itemKind"] = "Function",
+          ["fnl/arglist"] = {"path"},
+          ["fnl/docstring"] = "Recursive mkdir (0755), like mkdir -p. Returns true, or false and an errno string.",
+        },
+      },
+      ["mtime"] = {
+        binding = "sf.fs.mtime",
+        metadata = {
+          ["fls/itemKind"] = "Function",
+          ["fnl/arglist"] = {"path"},
+          ["fnl/docstring"] = "Unix mtime of path, or nil if missing. Used by fennel-shim compile cache.",
+        },
+      },
       },
     },
     },

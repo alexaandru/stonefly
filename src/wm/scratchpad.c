@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
@@ -13,6 +12,7 @@
 #include "config/config.h"
 #include "log/log.h"
 #include "server/server.h"
+#include "util/spawn.h"
 #include "wm/layout_sm.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
@@ -165,11 +165,7 @@ static void scratch_spawn(struct sf_server *server, struct sf_scratch_slot *slot
 
 	SF_LOGI("scratchpad spawn", sf_str("name", slot->spec->name),
 		sf_str("cmd", slot->spec->cmd));
-
-	if (fork() == 0) {
-		execl("/bin/sh", "/bin/sh", "-c", slot->spec->cmd, (void *)NULL);
-		_exit(1);
-	}
+	sf_spawn_cmd(slot->spec->cmd);
 }
 
 void sf_scratchpad_init(struct sf_server *server) {

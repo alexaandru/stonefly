@@ -4,6 +4,7 @@ sf.packadd("fennel-shim")
 
 require("options")
 require("binds")
+require("gestures")
 require("scratchpads")
 require("rules")
 require("execs")

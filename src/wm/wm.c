@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_output.h>
@@ -1613,13 +1612,6 @@ void sf_close_toplevel(struct sf_toplevel *toplevel) {
 		return;
 	}
 	wlr_xdg_toplevel_send_close(toplevel->xdg_toplevel);
-}
-
-void sf_spawn_cmd(const char *cmd) {
-	if (fork() == 0) {
-		execl("/bin/sh", "/bin/sh", "-c", cmd, (void *)NULL);
-		_exit(1);
-	}
 }
 
 static bool focus_cycle_eligible(struct sf_toplevel *t, bool include_minimized) {

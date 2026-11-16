@@ -38,6 +38,7 @@
 #include "server/server.h"
 #include "session/session.h"
 #include "ssd/ssd.h"
+#include "util/spawn.h"
 #include "toplevel/ext_capture.h"
 #include "toplevel/foreign.h"
 #include "wm/drag_snap.h"
@@ -55,6 +56,8 @@ static void tearing_new_object(struct wl_listener *listener, void *data) {
 
 bool sf_server_init(struct sf_server *server) {
 	sf_config_set_defaults(&server->config);
+	server->swipe.match_idx = -1;
+	server->pinch.match_idx = -1;
 
 	server->wl_display = wl_display_create();
 	server->session = NULL;
@@ -181,10 +184,7 @@ int sf_server_run(struct sf_server *server, const char *startup_cmd) {
 	/* sf.exec session spawns (once + {:reload true}); before -s. */
 	sf_config_run_execs(server, false);
 	if (startup_cmd != NULL) {
-		if (fork() == 0) {
-			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, (void *)NULL);
-			_exit(1);
-		}
+		sf_spawn_cmd(startup_cmd);
 	}
 	/* After -s so Noctalia can claim org.freedesktop.Notifications. */
 	sf_dbus_notify_config_warn(server);

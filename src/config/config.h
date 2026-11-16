@@ -29,6 +29,8 @@ struct sf_server;
 #define SF_WINDOW_RULE_MAX 64
 #define SF_EXEC_MAX 64
 #define SF_INPUT_RULE_MAX 64
+#define SF_GESTURE_MAX 32
+#define SF_MOUSEBIND_MAX 16
 
 /* libinput accel profile for sf.input; UNSET = leave device default. */
 enum sf_input_accel {
@@ -36,6 +38,27 @@ enum sf_input_accel {
 	SF_INPUT_ACCEL_NONE,
 	SF_INPUT_ACCEL_FLAT,
 	SF_INPUT_ACCEL_ADAPTIVE,
+};
+
+/* sf.gesture match direction (Hyprland-shaped). */
+enum sf_gesture_dir {
+	SF_GESTURE_DIR_SWIPE = 0, /* any swipe axis */
+	SF_GESTURE_DIR_HORIZONTAL,
+	SF_GESTURE_DIR_VERTICAL,
+	SF_GESTURE_DIR_LEFT,
+	SF_GESTURE_DIR_RIGHT,
+	SF_GESTURE_DIR_UP,
+	SF_GESTURE_DIR_DOWN,
+	SF_GESTURE_DIR_PINCH,	  /* any pinch */
+	SF_GESTURE_DIR_PINCH_IN,  /* scale < 1 */
+	SF_GESTURE_DIR_PINCH_OUT, /* scale > 1 */
+};
+
+/* Built-in continuous/step verbs, or a normal action fire. */
+enum sf_gesture_kind {
+	SF_GESTURE_KIND_WORKSPACE = 0, /* threshold step → workspace next/prev */
+	SF_GESTURE_KIND_COLUMNS_PAN,   /* continuous strip pan */
+	SF_GESTURE_KIND_ACTION,	       /* fire steps once past threshold */
 };
 
 enum sf_action {
@@ -59,7 +82,7 @@ enum sf_action {
 	SF_ACTION_SNAP_TOP,
 	SF_ACTION_SNAP_BOTTOM,
 	SF_ACTION_UNSNAP,
-	/* Run keybind.cmd via /bin/sh -c (spawn, noctalia msg, etc.). */
+	/* Run keybind.cmd via sf_spawn_cmd (spawn, noctalia msg, etc.). */
 	SF_ACTION_EXEC,
 	/* Named scratchpad; cmd holds pad name (default "term"). */
 	SF_ACTION_SCRATCH_TOGGLE,
@@ -103,6 +126,10 @@ enum sf_action {
 	SF_ACTION_ARRANGE_ROTATE,
 	/* Re-run Lua/Fennel init into a staging config; keep previous on failure. */
 	SF_ACTION_RELOAD,
+	/* Pointer grabs (sf.bind mouse chords). Arm interactive under cursor. */
+	SF_ACTION_MOVE_WINDOW,
+	SF_ACTION_RESIZE_WINDOW,
+	SF_ACTION_RESIZE_CENTER,
 
 	/* One past the last real action — table sizes / completeness checks. */
 	SF_ACTION_COUNT,
@@ -119,6 +146,15 @@ struct sf_keybind {
 	xkb_keysym_t sym;
 	xkb_keysym_t sym_alt; /* optional second sym (e.g. ISO_Left_Tab); 0 = none */
 	/* SF_ARRANGE_UNSET = any; SF_ARRANGE_TILING = any tiling engine; else exact. */
+	enum sf_arrange arrange;
+	struct sf_action_step *steps;
+	size_t n_steps;
+};
+
+/* sf.bind "Super+BTN_LEFT" — pointer button + mods (Hyprland bindm-shaped). */
+struct sf_mousebind {
+	uint32_t mods;
+	uint32_t button; /* linux BTN_* */
 	enum sf_arrange arrange;
 	struct sf_action_step *steps;
 	size_t n_steps;
@@ -166,6 +202,17 @@ struct sf_input_rule {
 	int repeat_rate; /* keys/sec */
 	bool repeat_delay_set;
 	int repeat_delay; /* ms before first repeat */
+};
+
+/* sf.gesture({fingers, axis|direction, mods?}, action). action is :workspace,
+ * :columns_pan, or a normal bind action / chain. */
+struct sf_gesture {
+	int fingers; /* typically 3–4; 2 is often scroll/pinch, not swipe */
+	enum sf_gesture_dir dir;
+	uint32_t mods; /* exact SF_MOD_MASK match (0 = no modifiers) */
+	enum sf_gesture_kind kind;
+	struct sf_action_step *steps; /* KIND_ACTION only */
+	size_t n_steps;
 };
 
 /* Fennel window_rule(match, actions [, parent]). Parent merge baked in.
@@ -273,6 +320,8 @@ struct sf_config {
 
 	struct sf_keybind *keybinds;
 	size_t n_keybinds;
+	struct sf_mousebind *mousebinds;
+	size_t n_mousebinds;
 	struct sf_tapbind *tapbinds;
 	size_t n_tapbinds;
 	struct sf_scratchpad_spec *scratchpads;
@@ -283,6 +332,8 @@ struct sf_config {
 	size_t n_execs;
 	struct sf_input_rule *input_rules;
 	size_t n_input_rules;
+	struct sf_gesture *gestures;
+	size_t n_gestures;
 
 	/* LuaJIT state; NULL when SF_NOCONFIG or before load. */
 	void *lua; /* lua_State * — opaque here to avoid forcing luajit.h on all TUs */

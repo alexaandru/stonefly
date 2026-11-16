@@ -6,13 +6,15 @@ diagnosing stonefly.
 ## Scope
 
 - **Product code lives in `./src`** (and root Meson/`protocol/`/`runtime/`/
-  `dist/`). That is what you change.
+  `dist/`). That is what you change. Do not edit `umbriel/` or `peeble/`.
+- **Arrange set is stacking + columns only.** Umbriel remains the behavior
+  reference for columns; do not chase Umbriel’s full layout/overview/HDR
+  sandwich (master/dwindle/monocle are gone; parse aliases → columns).
 - **`umbriel/` is the reference compositor** — Noctalia’s C++/wlroots sibling
   (cloned under `./umbriel`). Prefer its docs, action catalog, layouts,
   scratchpads, foreign UX, and effects model when shaping stonefly. Steal
-  abstractions and behavior from Umbriel first; do not treat it as code to
-  edit, and do not import Umbriel C++ style into `./src` (house style stays
-  wlroots/tinywl C below).
+  abstractions and behavior from Umbriel first; do not import Umbriel C++
+  style into `./src` (house style stays wlroots/tinywl C below).
 - **`peeble/` is secondary reference only** — the old Go/River companion.
   Use it **only for features Umbriel does not cover** (e.g. in-process bar,
   launcher plugins, services, other peeble-only shell/helpers). Never prefer
@@ -21,6 +23,17 @@ diagnosing stonefly.
 - Shell UI (bar, launcher, OSD, wallpaper chrome) is day-zero **Noctalia**,
   not an in-process peeble-style shell. Prefer compositor/protocol work in
   `./src` over reinventing shell features.
+- **Steal first, then implement.** Short Umbriel (then niri/mango only if
+  Umbriel lacks it) read → ship. Reject long formal design-doc /
+  write-review loops when a peer already solved it.
+- **Predictability is a product value.** Arrange switch, float/unfloat,
+  max/unmax, fullscreen, hide/show, workspace/monitor send must round-trip
+  without silent demotion, forgotten cells, or focus onto covered windows.
+  See ROADMAP Predictability audit and [`LESSONS.md`](LESSONS.md).
+- **C ↔ Lua border:** C owns Wayland/scene/lifecycle/geometry kernels/action
+  primitives/invariants; Lua owns policy, UX composition, and packs. Rule of
+  thumb: user/pack disagreement → Lua/opts; scene/Wayland corruption risk →
+  C. Contract: [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md).
 - Peer lessons and traps: [`LESSONS.md`](LESSONS.md) (Umbriel first).
 
 ## Style
@@ -61,7 +74,7 @@ or Go conventions.
 - Public compositor API: `sf_*` functions, `struct sf_*`, `enum sf_*`,
   `SF_*` constants (same prefix as `SF_LOG*` / `sf_str` in `src/log/`).
 - Lua/Fennel global: `sf` (`sf.opt`, `sf.bind`, `sf.tap`, `sf.scratchpad`,
-  `sf.window_rule`, `sf.stdpath`, `sf.packadd`, …).
+  `sf.window_rule`, `sf.stdpath`, `sf.fs`, `sf.packadd`, …).
 - Product / process / env stay `stonefly` / `STONEFLY_*`: binary name,
   datadir paths, socket `stonefly-*.sock`, env `STONEFLY_CONFIG` /
   `STONEFLY_SOCKET` / `STONEFLY_NOCONFIG`, scratchpad app_ids like
@@ -89,10 +102,11 @@ predictable:
   protocol adapter. Window state is `toplevel/toplevel.h`; `xdg/` sets up
   xdg-shell and fills that type. Consumers that only need the window type
   include `toplevel/toplevel.h`.
-- **Shared helpers:** cross-module math/string/time/JSON live under
-  `src/util/` (`math.h`, `str.c`/`str.h`, `time.h`, `json.c`/`json.h`). Do
-  not copy static `clamp01` / `xstrdup` / timespec helpers into new files —
-  extend `util/` instead.
+- **Shared helpers:** cross-module math/string/time/JSON/path/spawn live under
+  `src/util/` (`math.h`, `str.c`/`str.h`, `time.h`, `json.c`/`json.h`,
+  `path.c`, `spawn.c`, `shell_quote.c`). Do not copy static `clamp01` /
+  `xstrdup` / timespec / fork+`execl` helpers into new files — extend `util/`
+  instead.
 - **`struct sf_server`:** nest related protocol/state blobs
   (`lock`, `idle`, `foreign`, `constraints`, `tap`, `swipe`, …). Keep DRM
   `session` and scene `layers.lock` distinct from session-lock state.
@@ -111,6 +125,12 @@ predictable:
   name) over new specialized enum values for each app or pad.
 - Drop deprecated shims and legacy config forms once defaults and docs use
   the current API — do not keep parallel parse paths “just in case.”
+- Prefer concrete pain (bugs, hard features, navigation while editing) over
+  house-style file-shape refactors. Renaming a switch into a “handler table”
+  is cleanup, not a substitute for fixing membership/scroll/float policy.
+- The compositor is **single-threaded** on the Wayland `wl_event_loop`. No
+  pthreads in product code; only fork+exec for user commands. IPC, D-Bus,
+  idle arrange, and anims use the main loop.
 
 ### Lint / analyzer
 
@@ -149,16 +169,21 @@ Workarounds:
 
 ## Build environment
 
+**The user owns packaging and compile verification.** Agent work is edit +
+(when useful) host unit tests (`make test` / `tests/drive.py`). Do **not**
+run `make apk`, `abuild`, `ninja -C output`, `meson compile`, host `cc` for
+the compositor, `abuild-keygen`, or invent signing-key workarounds unless the
+user **explicitly asks to build in that turn**.
+
 **Do not look up libraries, headers, or pkg-config on the host.**
 
 1. Agents almost always run in a sandbox without the compositor deps.
-2. The real build is **abuild** (`make apk`): clang, Meson, wlroots, SceneFX,
-   and friends exist inside that environment, not on the host.
-
-Verify compile via `make apk` / abuild, not ad-hoc host `cc` against missing
-system roots. If a symbol or `.pc` file is unclear, read Meson/`APKBUILD`
-makedepends and vendored headers under `protocol/` — do not probe `/usr` on
-the host.
+2. The real package build is **abuild** (`make apk`): clang, Meson, wlroots,
+   SceneFX, and friends exist inside that environment, not on the host.
+3. If a symbol or `.pc` file is unclear, read Meson/`APKBUILD` makedepends and
+   vendored headers under `protocol/` — do not probe `/usr` on the host.
+4. When the user pastes `@dist/alpine/build.log` or says “reread,” read that
+   log for Alpine `check()` / tidy status; do not relaunch abuild to “confirm.”
 
 ## Prefer in-process C
 
@@ -168,9 +193,9 @@ belongs in the compositor.
 
 - Session bus / notifications / activation environment: `src/dbus/dbus.c`
   (sd-bus / elogind).
-- Directories: recursive mkdir in C (already shared helpers).
-- Allowed `execl("/bin/sh", ...)` uses are **user-configured spawn** only
-  (`-s` startup, scratchpad `cmd`, action spawn) — not internal plumbing.
+- Directories: recursive mkdir in C (`sf_mkdir_p` / Lua `sf.fs.mkdir_p`).
+- Allowed `/bin/sh -c` spawn is **user-configured only** via `sf_spawn_cmd`
+  (`-s`, `sf.exec`, scratchpad `cmd`, `EXEC` actions) — not internal plumbing.
 
 When adding a dependency, prefer libraries already in `makedepends` (or a
 thin C API over an optional static C++ helper). Keep the compositor C-first.
@@ -182,15 +207,33 @@ thin C API over an optional static C++ helper). Keep the compositor C-first.
   Users must not need clang to install/run the APK.
 - **Do not bump `pkgrel` / `pkgver`** unless the user explicitly asks.
   Build/source fixes are fine; revision numbering is the user’s call.
+- **Do not edit or revert** root `Makefile` or `dist/alpine/APKBUILD` unless
+  the user explicitly asks. Do not run `abuild checksum` (dirties `APKBUILD`).
+- **Never generate abuild signing keypairs** in the sandbox. Missing keys →
+  stop and hand off; signing belongs on the host with the user’s keys.
 
-## FEATURES.md / ROADMAP.md / LESSONS.md
+## Docs to keep current
 
 Shipped work lives in [`FEATURES.md`](FEATURES.md); open and partial work in
-[`ROADMAP.md`](ROADMAP.md). Peer-compositor UX notes and hard-won traps live in
-[`LESSONS.md`](LESSONS.md) (start with Umbriel columns / foreign / float). After
-a change, fix, feature, or notable diagnosis, update the matching rows **in the
-same turn**. When something ships, move it from the roadmap into features (and
-drop or shrink the open row). Capture durable peer lessons in `LESSONS.md`.
+[`ROADMAP.md`](ROADMAP.md) (TODO NEXT pick-queue stays titled **TODO NEXT**).
+Peer-compositor UX notes and hard-won traps live in [`LESSONS.md`](LESSONS.md)
+(start with Umbriel columns / foreign / float). C↔Lua border:
+[`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md). After a change, fix, feature, or
+notable diagnosis, update the matching rows **in the same turn**. When
+something ships, move it from the roadmap into features (and drop or shrink
+the open row). Capture durable peer lessons in `LESSONS.md`.
+
+## Workflow
+
+- Answer every outstanding user prompt in the turn; do not skip earlier items
+  when a later one arrives.
+- Prefer implementing over drafting long design docs when Umbriel/LESSONS
+  already define the abstraction.
+- Host unit tests (`make test`, owned C harness under `tests/`) are fine when
+  they help; packaging/`make apk` remains the user’s job.
+- Do not run `make fmt` unless the user asks — formatting is their call.
+- When changing `.clang-tidy`, keep useful checks; silence only known narrow
+  false positives and document them here (see Lint / analyzer above).
 
 ## Done checklist
 
@@ -198,10 +241,14 @@ Before calling work finished:
 
 1. Code matches wlroots/tinywl style (`.clang-format` / neighboring `./src`),
    including module layout and `util/` reuse above.
-2. No host library/pkg-config probing; verify via abuild (`make apk`).
-3. No new internal shell-outs.
-4. `FEATURES.md` / `ROADMAP.md` rows for the touched feature are current
-   (shipped items moved to features).
-5. `pkgrel` / `pkgver` untouched unless requested.
-6. Do not run `make fmt` unless the user asks — formatting is their call.
-7. New sources are listed in `src/meson.build` when applicable.
+2. No host library/pkg-config probing; no unsolicited `make apk` / abuild /
+   keygen / packaging-file edits.
+3. No new internal shell-outs (user-configured spawn goes through
+   `sf_spawn_cmd`).
+4. `FEATURES.md` / `ROADMAP.md` / `LESSONS.md` rows for the touched feature
+   are current (shipped items moved to features).
+5. `pkgrel` / `pkgver`, root `Makefile`, and `dist/alpine/APKBUILD` untouched
+   unless requested.
+6. New sources are listed in `src/meson.build` when applicable.
+7. Behavior stays predictable: round-trips for the touched WM path still hold
+   (or gaps are filed on the Predictability audit).

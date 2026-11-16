@@ -4,7 +4,7 @@
 (local fennel (require :fennel))
 
 (local cache-dir (.. (sf.stdpath :cache) :/fennel))
-(os.execute (.. "mkdir -p '" (cache-dir:gsub "'" "'\\''") "'"))
+(assert (sf.fs.mkdir_p cache-dir))
 
 (local cache {:cache {}})
 
@@ -55,7 +55,7 @@
     data))
 
 (fn cache.fetch-or-set [file]
-  (let [sec (or (sf._fs_mtime file) 0)
+  (let [sec (or (sf.fs.mtime file) 0)
         mem (cache.fetch file)]
     (if (and mem (not (< mem.sec sec)))
         (values mem.data :hit)

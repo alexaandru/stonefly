@@ -10,6 +10,7 @@
 #include "config/config.h"
 #include "log/log.h"
 #include "seat/seat.h"
+#include "util/spawn.h"
 #include "wm/arrange.h"
 #include "wm/internal.h"
 #include "wm/layout_sm.h"

@@ -57,7 +57,7 @@ features Umbriel lacks — neither is a product spec. See `AGENTS.md`.
 | SSD titlebars | `ssd_mode` (`auto`/`prefer_ssd`/`always`/`never`) + `ssd_height` (28) + `ssd_font_size` (17, fcft). Honors client `request_mode` within policy; hide on fullscreen/edge-max; TopInset in ensure-on-screen / cascade / gap-max / snap. Defer `set_mode` until `xdg_surface` initialized. Outer `corner_radii_top` on SSD; border hole punches content+SSD |
 | Transient / dialog placement | Center on visible `set_parent` (+ stack above); late parent/size re-place while `place` is managed. No size-based dialog heuristic. Cleared on move/resize/max/snap |
 | Window rules (app-id/title) | `sf.window_rule(match, actions [, parent])`. Match patterns via Lua `string.find`. Declarative `center`/`float`/`width`/`height`/`ssd`/`borderless`; `:float true` = sticky `arrange_floating` (stays out of columns; **does not inherit lone-column full usable** — SoftPlace keeps soft + defers tile join while float *or* center still possible; late identity still `rules_apply` after soft drop; rule float restores pre-tile size). WM `:action` shared with binds. SoftPlace appear-hold for late title (center or float). Defaults float gcr-prompter, dosbox, Chrome `^Google Chrome$`. IPC `stonefly config window_rules` |
-| Workspaces | Dynamic per-output strip (`workspace.c`): trailing empty, compact on empty, Super+Page/1–9 + Shift move-follow, IPC `workspaces`/`workspace`/`move-to-workspace`, windows `{output,workspace}`. `ext-workspace-v1` sync. 3-finger swipe: **vertical** = workspace switch; **horizontal** under columns = pan the strip view (`sf_arrange_columns_pan`; threshold axis-lock; `swipe_workspace_natural`). Vertical switch slide (shared by keybind / IPC / swipe; `slide_duration_ms`, 0 = instant). `xdg-toplevel-tag` stored + IPC |
+| Workspaces | Dynamic per-output strip (`workspace.c`): trailing empty, compact on empty, Super+Page/1–9 + Shift move-follow, IPC `workspaces`/`workspace`/`move-to-workspace`, windows `{output,workspace}`. `ext-workspace-v1` sync. Default 3-finger swipe via `sf.gesture`: **vertical** = workspace switch; **horizontal** under columns = pan (`sf_arrange_columns_pan`; threshold axis-lock; `swipe_workspace_natural`). Vertical switch slide (shared by keybind / IPC / swipe; `slide_duration_ms`, 0 = instant). `xdg-toplevel-tag` stored + IPC |
 | Cursor follows focus / pointer center | `sf.opt.cursor_follows_focus` (default true): warp pointer to window center on Super+Tab / workspace switch / move-follow. Click-to-focus does not warp. Action `pointer_center` warps on demand (ignores the opt). Skips MOVE/RESIZE grabs and locked pointer constraints |
 | Multi-monitor focus / send | Actions `focus_monitor` / `send_to_monitor` with `:cmd` target: `left`\|`right`\|`up`\|`down`, `next`\|`prev`, or connector name (`eDP-1`). Focus warps to head center then top window (+ cursor_follows_focus). Send assigns to the target's active workspace, re-fits max/fullscreen, centers floaters, focuses + `pointer_center`. Defaults: Super+Ctrl+arrows focus, Super+Shift+arrows send |
 | Keyboard nudge move / resize | Actions `nudge` / `resize_edge` with `:cmd` `left`\|`right`\|`up`\|`down`. Step from `sf.opt.nudge_step` (default 25). Resize: right/down grow, left/up shrink (top-left anchored, min 50px). No-op when max/snap/fullscreen. Defaults: Alt+arrows move, Alt+Shift+arrows resize |
@@ -148,7 +148,7 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 | xdg-toplevel-tag | Stored on toplevel; IPC `windows` (`tag` / `description`) |
 | xdg-toplevel-icon-v1 | Preferred sizes 16–64; IPC `icon_name` |
 | ext-background-effect-v1 | Hand protocol + `src/effect/background_effect.c`; capability `blur` |
-| Touch / gestures / virtual-keyboard | `seat/`: touch, `pointer_gestures_v1` + workspace swipe, `zwp_virtual_keyboard_v1`, relative-pointer + constraints; `sf.input` libinput apply on new keyboard/pointer/touch |
+| Touch / gestures / virtual-keyboard | `seat/`: touch, `pointer_gestures_v1` + `sf.gesture` swipe binds, `zwp_virtual_keyboard_v1`, relative-pointer + constraints; `sf.input` libinput apply on new keyboard/pointer/touch |
 | Presentation-time | `wp_presentation` via `wlr_presentation_create`. Tearing control advertised (hint log only) |
 
 ---
@@ -162,7 +162,7 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 | Keybind table | `sf.bind("Super+w", …)` / `sf.tap("Super", …)` via `parse_chord` / `parse_tap_mod`. Actions via `sf_action_parse` |
 | Ctrl+Alt+Fn VT switch | `wlr_session_change_vt` on `XF86Switch_VT_*` |
 | Super tap / double-tap | Launcher / term pad |
-| Spawn / exec / exec_once | Bind/rule `exec` + `cmd`; session `sf.exec` (variadic, optional `{:reload bool}`). Default `execs.fnl`: Slack flatpak. IPC `config execs`. CLI `-s` |
+| Spawn / exec / exec_once | Single helper `sf_spawn_cmd` (`util/spawn.c`): fork + `/bin/sh -c`, child `setsid` + SIGCHLD/mask reset; parent SIGCHLD reaper (`sf_spawn_install_reaper`, not `SIG_IGN`). Used by bind/rule `exec`, `sf.exec`, scratchpad `cmd`, CLI `-s`. Default `execs.fnl`: Slack flatpak. IPC `config execs` |
 | Live config reload | `sf_config_reload`: staging Lua re-run; keep previous on failure + FDO Notify with exact Lua error. Action `:reload` / `sf.reload` / `stonefly reload` / Super+Shift+r. inotify: config dir or nearest existing ancestor (so `--write-config` mid-session arms + reloads). `sf.opt.config_watch`, 150ms debounce. Side effects: scratchpad rebind-by-name, rules/input/decor, `sf.exec {:reload true}` |
 | Config validate | `stonefly validate` — load user init (or embedded) without applying; exact Lua error on stderr; exit 0/1 |
 | IPC `windows` [--json] | Peeble wire shape |
@@ -207,8 +207,9 @@ Former River-fork blockers that stonefly owns in-process:
 | Super+f / Super+m max | ✅ |
 | Super+arrows snap + Super+u | ✅ |
 | Super+Page / Super+1–9 workspaces; Shift moves follow | ✅ |
-| 3-finger vertical swipe workspaces | ✅ hardcoded in `seat/gestures.c` (opts: threshold / natural). **Configurable gestures → ROADMAP TODO NEXT #7** |
-| 3-finger horizontal swipe columns pan | ✅ live-pan `columns_view_offset` (view only; does not reorder). Axis lock after threshold; natural follows `swipe_workspace_natural`. Focus: keep while mostly on-screen, else centre-most visible cell (continuous; no pointer warp). Same hardcoded path; **TODO NEXT #7** |
+| Configurable touchpad gestures (`sf.gesture`) | ✅ Hyprland-shaped `(sf.gesture {:fingers N :axis DIR :mods?} ACTION)`. Swipe built-ins `:workspace` / `:columns_pan`; pinch dirs `pinch`/`pinchin`/`pinchout` fire actions once \|scale−1\| ≥ 0.15. `:mods` exact match (e.g. Super+pinch). Default: 3-finger V/H + Super+pinchout→`maximize_to_edges` / Super+pinchin→`unmaximize` (plain pinch stays with clients). IPC `config gestures`. Unit: `tests/config/gesture_test.c` |
+| 3-finger vertical swipe workspaces | ✅ via `sf.gesture` `:workspace` (default); opts: threshold / natural |
+| 3-finger horizontal swipe columns pan | ✅ via `sf.gesture` `:columns_pan` (default). Live-pan `columns_view_offset` (view only). Axis lock after threshold; natural follows `swipe_workspace_natural`. Focus: keep while mostly on-screen, else centre-most visible cell (continuous; no pointer warp) |
 | Super+LMB/RMB move/resize + magnetic snap + preview | ✅ |
 | Super+Shift+RMB center-lock resize | ✅ |
 | Border/corner LMB resize | ✅ |
@@ -258,13 +259,15 @@ C23 `#embed` of Fennel-first default tree (`src/config/default/`); missing user
 `init.lua` → embedded default; broken user init → log + fall back + FDO
 `Notify` after display up; `stonefly --write-config`; builtin pack
 `fennel-shim` (Fennel 1.6.1); `sf.*` API (`opt` / `bind` / `tap` /
-`scratchpad` / `window_rule` / `packadd` / `stdpath` / `exec` / `input` /
-`chain` / `reload`); chord/tap strings via libxkbcommon; action names shared
-with IPC via `config/action.h`; `opt` setters table-driven (incl.
-`config_watch`); live reload + ancestor inotify (`config_watch.c`);
-`stonefly validate`; IPC `stonefly config [section]` / `stonefly reload`;
-consumers read `sf_cfg(server)`. fennel-ls docset
-`dist/fennel-ls/docsets/sf.lua` + default `flsproject.fnl`.
+`scratchpad` / `window_rule` / `packadd` / `stdpath` / `fs` / `exec` /
+`input` / `chain` / `reload`); `sf.fs.mkdir_p` / `sf.fs.mtime` wrap C
+`sf_mkdir_p` / `stat` (fennel-shim cache dir uses `mkdir_p`, no
+`os.execute`); chord/tap strings via libxkbcommon; action names shared with
+IPC via `config/action.h`; `opt` setters table-driven (incl. `config_watch`);
+live reload + ancestor inotify (`config_watch.c`); `stonefly validate`; IPC
+`stonefly config [section]` / `stonefly reload`; consumers read
+`sf_cfg(server)`. fennel-ls docset `dist/fennel-ls/docsets/sf.lua` + default
+`flsproject.fnl`.
 
 Entry points: `src/config/`, `runtime/pack/dist/opt/fennel-shim/`,
 `stonefly --write-config`, `stonefly validate`, `stonefly config`,

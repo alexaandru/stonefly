@@ -71,10 +71,25 @@ static void test_lookup_keysym(void) {
 	SF_TEST_EQ_INT(sf_chord_lookup_keysym("NopeKey", &sym), -1);
 }
 
+static void test_parse_mods(void) {
+	uint32_t mods = 99;
+	SF_TEST_EQ_INT(sf_chord_parse_mods(NULL, &mods), 0);
+	SF_TEST_EQ_INT((int)mods, 0);
+	SF_TEST_EQ_INT(sf_chord_parse_mods("", &mods), 0);
+	SF_TEST_EQ_INT((int)mods, 0);
+	SF_TEST_EQ_INT(sf_chord_parse_mods("Super", &mods), 0);
+	SF_TEST_EQ_INT((int)mods, (int)SF_SUPER);
+	SF_TEST_EQ_INT(sf_chord_parse_mods("Super+Shift", &mods), 0);
+	SF_TEST_EQ_INT((int)mods, (int)(SF_SUPER | SF_SHIFT));
+	SF_TEST_EQ_INT(sf_chord_parse_mods("nope", &mods), -1);
+	SF_TEST_EQ_INT(sf_chord_parse_mods("Super", NULL), -1);
+}
+
 static const struct sf_test tests[] = {
 	{"sf_chord_parse", test_chord_parse},
 	{"sf_chord_tap_tab", test_tap_mod_and_tab_alt},
 	{"sf_chord_lookup_keysym", test_lookup_keysym},
+	{"sf_chord_parse_mods", test_parse_mods},
 };
 
 int main(void) {

@@ -294,15 +294,29 @@ struct sf_server {
 	/* Forward unused touchpad gestures to clients. */
 	struct wlr_pointer_gestures_v1 *pointer_gestures;
 
-	/* In-progress 3-finger swipe (vertical = workspaces, horizontal = columns pan). */
+	/* In-progress touchpad swipe (matched against sf.gesture binds). */
 	struct {
 		bool active;
 		bool consumed;
-		/* 0 = undecided, 1 = horizontal columns pan, 2 = vertical workspace. */
+		/* 0 = undecided, 1 = horizontal, 2 = vertical. */
 		int axis;
 		uint32_t fingers;
 		double dx, dy;
+		/* Index into config->gestures once axis locks; -1 = none. */
+		int match_idx;
+		/* workspace / action already fired this gesture. */
+		bool stepped;
 	} swipe;
+
+	/* In-progress pinch (sf.gesture pinchin/pinchout/pinch). */
+	struct {
+		bool active;
+		bool consumed;
+		uint32_t fingers;
+		double scale; /* libinput cumulative; 1.0 at begin */
+		int match_idx;
+		bool stepped;
+	} pinch;
 
 	/* Pointer devices with gesture listeners attached. */
 	struct wl_list pointers;

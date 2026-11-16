@@ -1,5 +1,4 @@
 #include <getopt.h>
-#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -7,6 +6,7 @@
 #include "ipc/ipc.h"
 #include "log/log.h"
 #include "server/server.h"
+#include "util/spawn.h"
 
 static void usage(const char *argv0) {
 	printf("Usage:\n");
@@ -50,7 +50,7 @@ static int run_compositor(int argc, char *argv[]) {
 	}
 
 	sf_log_init(SF_LOG_DEBUG);
-	signal(SIGCHLD, SIG_IGN);
+	sf_spawn_install_reaper();
 
 	struct sf_server server = {0};
 	if (!sf_server_init(&server)) {

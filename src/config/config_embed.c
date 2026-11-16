@@ -13,6 +13,9 @@ static const unsigned char emb_options_fnl[] = {
 static const unsigned char emb_binds_fnl[] = {
 #embed "default/binds.fnl"
 };
+static const unsigned char emb_gestures_fnl[] = {
+#embed "default/gestures.fnl"
+};
 static const unsigned char emb_scratchpads_fnl[] = {
 #embed "default/scratchpads.fnl"
 };
@@ -36,6 +39,7 @@ const struct sf_embed_file sf_default_files[] = {
 	{"init.lua", emb_init_lua, sizeof emb_init_lua},
 	{"options.fnl", emb_options_fnl, sizeof emb_options_fnl},
 	{"binds.fnl", emb_binds_fnl, sizeof emb_binds_fnl},
+	{"gestures.fnl", emb_gestures_fnl, sizeof emb_gestures_fnl},
 	{"scratchpads.fnl", emb_scratchpads_fnl, sizeof emb_scratchpads_fnl},
 	{"rules.fnl", emb_rules_fnl, sizeof emb_rules_fnl},
 	{"execs.fnl", emb_execs_fnl, sizeof emb_execs_fnl},

@@ -6,6 +6,7 @@
 
 #include "config/action.h"
 #include "config/config.h"
+#include "config/gesture.h"
 #include "server/server.h"
 #include "ssd/ssd_policy.h"
 #include "util/color.h"
@@ -367,6 +368,37 @@ static void emit_input_tri(struct json_buf *b, int v) {
 	}
 }
 
+static void emit_gestures(struct json_buf *b, const struct sf_config *cfg) {
+	json_byte(b, '[');
+	for (size_t i = 0; i < cfg->n_gestures; i++) {
+		const struct sf_gesture *g = &cfg->gestures[i];
+		if (i > 0) {
+			json_byte(b, ',');
+		}
+		json_byte(b, '{');
+		json_key(b, "fingers");
+		json_i64(b, g->fingers);
+		json_byte(b, ',');
+		json_key(b, "direction");
+		json_str(b, sf_gesture_dir_name(g->dir));
+		json_byte(b, ',');
+		json_key(b, "mods");
+		json_mods(b, g->mods);
+		json_byte(b, ',');
+		json_key(b, "kind");
+		json_str(b, sf_gesture_kind_name(g->kind));
+		json_byte(b, ',');
+		json_key(b, "action");
+		if (g->kind == SF_GESTURE_KIND_ACTION) {
+			emit_action_steps(b, g->steps, g->n_steps);
+		} else {
+			json_str(b, sf_gesture_kind_name(g->kind));
+		}
+		json_byte(b, '}');
+	}
+	json_byte(b, ']');
+}
+
 static void emit_inputs(struct json_buf *b, const struct sf_config *cfg) {
 	json_byte(b, '[');
 	for (size_t i = 0; i < cfg->n_input_rules; i++) {
@@ -506,7 +538,7 @@ static bool section_ok(const char *section) {
 	       strcmp(section, "binds") == 0 || strcmp(section, "taps") == 0 ||
 	       strcmp(section, "scratchpads") == 0 || strcmp(section, "window_rules") == 0 ||
 	       strcmp(section, "execs") == 0 || strcmp(section, "inputs") == 0 ||
-	       strcmp(section, "outputs") == 0;
+	       strcmp(section, "gestures") == 0 || strcmp(section, "outputs") == 0;
 }
 
 int sf_config_to_json(struct sf_server *server, const char *section, char *buf, size_t cap) {
@@ -589,6 +621,16 @@ int sf_config_to_json(struct sf_server *server, const char *section, char *buf, 
 			json_key(&b, "inputs");
 		}
 		emit_inputs(&b, cfg);
+		need_comma = true;
+	}
+	if (all || strcmp(section, "gestures") == 0) {
+		if (all) {
+			if (need_comma) {
+				json_byte(&b, ',');
+			}
+			json_key(&b, "gestures");
+		}
+		emit_gestures(&b, cfg);
 		need_comma = true;
 	}
 	if (all || strcmp(section, "outputs") == 0) {

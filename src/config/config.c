@@ -10,10 +10,12 @@
 #include "config/action.h"
 #include "config/config_embed.h"
 #include "config/config_lua.h"
+#include "config/gesture.h"
 #include "log/log.h"
 #include "server/server.h"
 #include "util/color.h"
 #include "util/path.h"
+#include "util/spawn.h"
 #include "util/str.h"
 
 static int xdg_join(char *buf, size_t n, const char *env_override, const char *xdg_env,
@@ -141,10 +143,7 @@ void sf_config_run_execs(struct sf_server *server, bool is_reload) {
 		}
 		SF_LOGI("exec", sf_str("cmd", e->cmd), sf_i64("reload", e->reload ? 1 : 0),
 			sf_i64("is_reload", is_reload ? 1 : 0));
-		if (fork() == 0) {
-			execl("/bin/sh", "/bin/sh", "-c", e->cmd, (void *)NULL);
-			_exit(1);
-		}
+		sf_spawn_cmd(e->cmd);
 	}
 }
 
@@ -186,6 +185,10 @@ void sf_config_finish(struct sf_config *cfg) {
 		free(cfg->input_rules[i].match);
 	}
 	free(cfg->input_rules);
+	for (size_t i = 0; i < cfg->n_gestures; i++) {
+		sf_action_steps_free(cfg->gestures[i].steps, cfg->gestures[i].n_steps);
+	}
+	free(cfg->gestures);
 	memset(cfg, 0, sizeof *cfg);
 }
 
@@ -418,5 +421,12 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 		cfg->scratchpads[0].auto_hide = true;
 	} else {
 		cfg->n_scratchpads = 0;
+	}
+
+	/* 3-finger V=workspace / H=columns_pan; Lua sf.gesture replaces on first call. */
+	if (!sf_gesture_seed_defaults(cfg)) {
+		SF_LOGE("config gestures OOM");
+		cfg->gestures = NULL;
+		cfg->n_gestures = 0;
 	}
 }

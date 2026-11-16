@@ -17,6 +17,7 @@
 #include "config/config_embed.h"
 #include "config/config_lua.h"
 #include "config/config_watch.h"
+#include "config/gesture.h"
 #include "dbus/dbus.h"
 #include "decor/decor.h"
 #include "log/log.h"
@@ -26,6 +27,7 @@
 #include "server/server.h"
 #include "ssd/ssd.h"
 #include "ssd/ssd_policy.h"
+#include "util/path.h"
 #include "util/shell_quote.h"
 #include "util/str.h"
 #include "wm/arrange.h"
@@ -52,6 +54,7 @@ struct lua_runtime {
 	bool rules_replaced;
 	bool execs_replaced;
 	bool inputs_replaced;
+	bool gestures_replaced;
 	unsigned rule_seq;
 };
 
@@ -126,6 +129,17 @@ static int l_fs_mtime(lua_State *L) {
 		return 1;
 	}
 	lua_pushinteger(L, (lua_Integer)st.st_mtime);
+	return 1;
+}
+
+static int l_fs_mkdir_p(lua_State *L) {
+	const char *path = luaL_checkstring(L, 1);
+	if (sf_mkdir_p(path) != 0) {
+		lua_pushboolean(L, 0);
+		lua_pushstring(L, strerror(errno));
+		return 2;
+	}
+	lua_pushboolean(L, 1);
 	return 1;
 }
 
@@ -251,11 +265,163 @@ static void clear_input_rules(struct sf_config *cfg) {
 	cfg->n_input_rules = 0;
 }
 
+static void clear_gestures(struct sf_config *cfg) {
+	for (size_t i = 0; i < cfg->n_gestures; i++) {
+		sf_action_steps_free(cfg->gestures[i].steps, cfg->gestures[i].n_steps);
+	}
+	free(cfg->gestures);
+	cfg->gestures = NULL;
+	cfg->n_gestures = 0;
+}
+
 static void parse_input_bool(lua_State *L, const char *key, int *dst) {
 	if (!lua_isboolean(L, -1)) {
 		luaL_error(L, "input: %s must be a boolean", key);
 	}
 	*dst = lua_toboolean(L, -1) ? 1 : 0;
+}
+
+/* Defined later; used by l_gesture / l_bind / l_tap / window_rule. */
+static int parse_action_field(lua_State *L, int opts, const char *field,
+			      struct sf_action_step **out, size_t *out_n);
+
+/*
+ * sf.gesture(match, action)
+ * match: {:fingers N :axis|:direction DIR}
+ *   DIR = swipe|horizontal|vertical|left|right|up|down|
+ *        pinch|pinchin|pinchout (also :any → swipe)
+ * action: "workspace" | "columns_pan" | bind action string/table/chain
+ * Pinch fires actions once |scale-1| ≥ 0.15 (steals client zoom when bound).
+ * First call clears C/default gestures (same replace pattern as sf.bind).
+ */
+static int l_gesture(lua_State *L) {
+	if (G == NULL) {
+		return luaL_error(L, "gesture: no runtime");
+	}
+	struct sf_config *cfg = &G->server->config;
+	if (!G->gestures_replaced) {
+		clear_gestures(cfg);
+		G->gestures_replaced = true;
+	}
+	if (cfg->n_gestures >= SF_GESTURE_MAX) {
+		return luaL_error(L, "gesture: max %d", SF_GESTURE_MAX);
+	}
+
+	luaL_checktype(L, 1, LUA_TTABLE);
+	int match = 1;
+
+	lua_getfield(L, match, "fingers");
+	if (!lua_isnumber(L, -1)) {
+		lua_pop(L, 1);
+		return luaL_error(L, "gesture: fingers must be a number");
+	}
+	int fingers = (int)lua_tonumber(L, -1);
+	lua_pop(L, 1);
+	if (fingers < 1 || fingers > 9) {
+		return luaL_error(L, "gesture: fingers must be 1..9");
+	}
+
+	const char *dir_s = NULL;
+	lua_getfield(L, match, "axis");
+	if (lua_isstring(L, -1)) {
+		dir_s = lua_tostring(L, -1);
+	}
+	lua_pop(L, 1);
+	if (dir_s == NULL) {
+		lua_getfield(L, match, "direction");
+		if (lua_isstring(L, -1)) {
+			dir_s = lua_tostring(L, -1);
+		}
+		lua_pop(L, 1);
+	}
+	if (dir_s == NULL) {
+		return luaL_error(L, "gesture: missing axis/direction");
+	}
+	enum sf_gesture_dir dir = SF_GESTURE_DIR_SWIPE;
+	if (!sf_gesture_dir_parse(dir_s, &dir)) {
+		return luaL_error(L, "gesture: unknown direction %s", dir_s);
+	}
+
+	uint32_t mods = 0;
+	lua_getfield(L, match, "mods");
+	if (!lua_isnil(L, -1)) {
+		if (!lua_isstring(L, -1)) {
+			lua_pop(L, 1);
+			return luaL_error(L, "gesture: mods must be a string");
+		}
+		if (sf_chord_parse_mods(lua_tostring(L, -1), &mods) != 0) {
+			lua_pop(L, 1);
+			return luaL_error(L, "gesture: bad mods");
+		}
+	}
+	lua_pop(L, 1);
+
+	enum sf_gesture_kind kind = SF_GESTURE_KIND_ACTION;
+	struct sf_action_step *steps = NULL;
+	size_t n_steps = 0;
+
+	if (lua_gettop(L) < 2) {
+		return luaL_error(L, "gesture: missing action");
+	}
+	if (lua_type(L, 2) == LUA_TSTRING) {
+		const char *act = lua_tostring(L, 2);
+		if (sf_gesture_kind_parse(act, &kind)) {
+			/* workspace / columns_pan */
+		} else {
+			enum sf_action action = SF_ACTION_NONE;
+			if (!sf_action_parse_ok(act, &action)) {
+				return luaL_error(L, "gesture: unknown action %s", act);
+			}
+			kind = SF_GESTURE_KIND_ACTION;
+			if (!sf_action_steps_one(action, NULL, &steps, &n_steps)) {
+				return luaL_error(L, "gesture: OOM");
+			}
+		}
+	} else if (lua_istable(L, 2)) {
+		/* Built-ins may appear as {:action "workspace"} before bind verbs. */
+		lua_getfield(L, 2, "action");
+		bool builtin = false;
+		if (lua_type(L, -1) == LUA_TSTRING) {
+			builtin = sf_gesture_kind_parse(lua_tostring(L, -1), &kind);
+		}
+		lua_pop(L, 1);
+		if (!builtin) {
+			lua_newtable(L);
+			lua_pushvalue(L, 2);
+			lua_setfield(L, -2, "action");
+			int opts = lua_gettop(L);
+			if (parse_action_field(L, opts, "action", &steps, &n_steps) != 0) {
+				return lua_error(L);
+			}
+			lua_pop(L, 1);
+			if (n_steps == 0) {
+				return luaL_error(L, "gesture: missing action");
+			}
+			kind = SF_GESTURE_KIND_ACTION;
+		}
+	} else {
+		return luaL_error(L, "gesture: action must be a string or table");
+	}
+
+	if (kind == SF_GESTURE_KIND_ACTION && n_steps == 0) {
+		return luaL_error(L, "gesture: missing action steps");
+	}
+
+	struct sf_gesture *nb = realloc(cfg->gestures, (cfg->n_gestures + 1) * sizeof *nb);
+	if (nb == NULL) {
+		sf_action_steps_free(steps, n_steps);
+		return luaL_error(L, "gesture: OOM");
+	}
+	cfg->gestures = nb;
+	struct sf_gesture *g = &cfg->gestures[cfg->n_gestures++];
+	memset(g, 0, sizeof *g);
+	g->fingers = fingers;
+	g->dir = dir;
+	g->mods = mods;
+	g->kind = kind;
+	g->steps = steps;
+	g->n_steps = n_steps;
+	return 0;
 }
 
 /*
@@ -1381,8 +1547,6 @@ static void push_sf_table(struct lua_runtime *rt) {
 	lua_setfield(L, -2, "stdpath");
 	lua_pushcfunction(L, l_runtime_file);
 	lua_setfield(L, -2, "runtime_file");
-	lua_pushcfunction(L, l_fs_mtime);
-	lua_setfield(L, -2, "_fs_mtime");
 	lua_pushcfunction(L, l_packadd);
 	lua_setfield(L, -2, "packadd");
 	lua_pushcfunction(L, l_chain);
@@ -1399,8 +1563,18 @@ static void push_sf_table(struct lua_runtime *rt) {
 	lua_setfield(L, -2, "exec");
 	lua_pushcfunction(L, l_input);
 	lua_setfield(L, -2, "input");
+	lua_pushcfunction(L, l_gesture);
+	lua_setfield(L, -2, "gesture");
 	lua_pushcfunction(L, l_reload);
 	lua_setfield(L, -2, "reload");
+
+	/* sf.fs — in-process path helpers (no shell-out). */
+	lua_newtable(L);
+	lua_pushcfunction(L, l_fs_mkdir_p);
+	lua_setfield(L, -2, "mkdir_p");
+	lua_pushcfunction(L, l_fs_mtime);
+	lua_setfield(L, -2, "mtime");
+	lua_setfield(L, -2, "fs");
 
 	/* sf.opt with __newindex */
 	lua_newtable(L); /* opt */

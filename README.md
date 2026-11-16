@@ -137,7 +137,7 @@ Wire format matches peeble: one JSON object per line, e.g. `{"cmd":"windows"}`,
 | **Super+u** | Unsnap / restore |
 | **Super+Prior/Next** / **Super+1–9** | Workspace prev/next / switch (per-output strip) |
 | **Super+Shift+Prior/Next** / **Super+Shift+1–9** | Move focused window (follow) |
-| **3-finger swipe** | Vertical: workspace next/prev. Horizontal (columns): pan the strip view (`swipe_workspace_natural`) |
+| **Touchpad swipe** | `sf.gesture` binds (default 3-finger V=workspace, H=columns pan). See `gestures.fnl` |
 | **Super+LMB** | Move window (magnetic edge snap + preview) |
 | **Super+RMB** | Resize window (edges nearest pointer) |
 | **Super+Shift+RMB** | Center-lock resize (grow/shrink around fixed center) |

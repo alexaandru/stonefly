@@ -22,8 +22,8 @@ the detail rows. When an item ships, check it off here and move the row to
 | 4 | Always-on-top / pin | ✅ | Shipped (`toggle_always_on_top` / rule / Super+Shift+p) |
 | 5 | Workspace switch animation | ✅ | Shipped (vertical strip slide; Super+Page / 1–9 + IPC + swipe share `sf_workspace_switch`) |
 | 6 | Real `inputs.fnl` API | ✅ | Shipped (`sf.input` + libinput apply; tap/natural/accel + left_handed/dwt/repeat) |
-| 7 | **Configurable pointer gestures** | ❌ | **Next.** 3-finger V=workspaces / H=columns pan are hardcoded in `seat/gestures.c` (only `swipe_workspace_*` opts). Want `sf.bind`/`sf.gesture` (fingers, axis, action) like chords — same class of smell as hardcoding Super+LMB. See [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) |
-| 8 | **Hardcoded → config / Lua audit** | ❌ | **Right after #7.** Sweep C for knobs and *policy* stuck in the compositor that belong in opts, binds, or Lua. Goal: C owns primitives + events; Lua composes behavior — keeping policy in C starves the runtime we want. Full border contract: [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md). Seed list below; expand while doing #7 |
+| 7 | Configurable pointer gestures | ✅ | Shipped (`sf.gesture` swipe + pinch; default 3-finger V/H; pinch→max opt-in in `gestures.fnl`) |
+| 8 | **Hardcoded → config / Lua audit** | ❌ | **Next.** Sweep C for knobs and *policy* stuck in the compositor that belong in opts, binds, or Lua. Goal: C owns primitives + events; Lua composes behavior — keeping policy in C starves the runtime we want. Full border contract: [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md). Seed list below |
 | 9 | Live config reload (binds + opts first) | ✅ | Shipped: staging Lua re-run, inotify watch, `:reload` / `sf.reload` / IPC; keep previous on failure |
 | 10 | Dim-inactive / spotlight polish | 🚧 | Opacity knobs exist; stronger dim or overlay so focus reads at a glance |
 | 11 | Popin / popout appear+close | ❌ | Umbriel-style scale+fade; see §2. Slide ships (tiled = right inter-gap; scratch closest) |
@@ -33,7 +33,7 @@ Seed findings for **#8** (not exhaustive — audit while implementing):
 
 | Kind | Where today | Push toward |
 |---|---|---|
-| Gesture policy | `gestures.c` 3-finger V/H | #7 `sf.gesture` |
+| Gesture policy | ✅ `sf.gesture` (swipe); pinch still forward-only | done (#7) |
 | Mouse grabs | `pointer.c` Super+LMB move, Super+RMB resize, Super+Shift+RMB center-lock; border LMB resize | `sf.bind` mouse chords / actions |
 | Column cell-drag | `arrange.c` Super+LMB swap/insert; Super+RMB `width_frac`; `SF_COLUMN_DROP_SEAM` 0.15 | binds + opts |
 | Focus cycle policy | tiling = clockwise atan2; stacking = MRU | opt or Lua |
@@ -184,7 +184,7 @@ product asks for in-process chrome again.
 | text-input / IME | ❌ | TODO NEXT #12 (pick vs Xwayland by apps). `zwp_text_input_v3` + `zwp_input_method_v2` — wlroots helpers exist; stonefly does not advertise. Needs seat relay + popup placement + IM client |
 | `wp_fifo_v1` | ❌ | Presentation-time ✅; tearing control advertised (hint only); no fifo helper yet |
 | `wp_tearing_control_v1` async flip | 🚧 | Advertised; hint log only |
-| Configurable swipe / pinch binds | ❌ | TODO NEXT #7. Today: hardcoded 3-finger V/H in `gestures.c` |
+| Configurable swipe / pinch binds | ✅ | `sf.gesture` swipe + pinch (`pinchin`/`pinchout`/`pinch`) |
 | Tablet | ❌ | Touch / gestures / virtual-keyboard / constraints shipped |
 | Full color-management | ❌ | Gamma LUT shipped |
 | xdg-toplevel-tag consumers | 🚧 | Protocol + IPC stored; no rules/persist consumer |
@@ -209,7 +209,7 @@ product asks for in-process chrome again.
 
 | Pri | Item | Status |
 |---|---|---|
-| P1 | Configurable gestures | ❌ TODO NEXT #7 (hardcoded 3-finger swipe) |
+| P1 | Configurable gestures | ✅ `sf.gesture` swipe + pinch |
 | P1 | Hardcoded → Lua/config audit | ❌ TODO NEXT #8 (policy in C starves the runtime) |
 | P1 | WM opacity | 🚧 global focused + inactive; no per-window API (TODO NEXT #10) |
 | P2 | Workspaces polish | ❌ rules / geometry persist (switch slide ✅) |
@@ -238,7 +238,7 @@ Primary queue is **TODO NEXT** at the top (QoL #1–#12). After that stack:
 1. Config leftovers (§10) — validate CLI, outputs API, `--write-config-lua`
 2. Optional WM: tiling engines, geometry persist / tag-based rules, overview (niri/mango-scale — large)
 3. Capture: full-output screencopy blanking; shell UI for privacy optional
-4. Input: tablet (IME is TODO NEXT #12; gestures #7; hardcoded→Lua audit #8)
+4. Input: tablet (IME is TODO NEXT #12; gestures ✅ #7; hardcoded→Lua audit #8)
 5. IPC: action allowlist
 6. Packaging: flip APK back to release buildtype when ASan hunting ends
 7. Protocol polish: `wp_fifo_v1`, full color-mgmt
@@ -251,7 +251,7 @@ Shell/OSD/media stay **🌙 Noctalia**.
 
 | Open | Status | Notes |
 |---|---|---|
-| Configurable pointer gestures | ❌ | TODO NEXT #7. `sf.gesture` / bind-shaped swipe+pinch; retire hardcoded 3-finger paths. [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) |
+| Configurable pointer gestures | ✅ | `sf.gesture` swipe + pinch. [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) |
 | Hardcoded → config / Lua audit | ❌ | TODO NEXT #8. Knobs + policy out of C; `sf.on` event hooks; C keeps primitives. [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) |
 | Live reload mid-session | ✅ | Shipped (`sf_config_reload` + inotify; `sf.exec {:reload true}` runs on success) |
 | Config validate CLI | ✅ | `stonefly validate` — exact Lua error on stderr; exit 0/1 |
