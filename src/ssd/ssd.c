@@ -410,7 +410,7 @@ bool sf_ssd_pointer_button(struct sf_server *server, struct sf_toplevel *topleve
 					ssd_ptr.last_bar = NULL;
 					ssd_ptr.press_title = false;
 					ssd_ptr.pressed = SF_SSD_BTN_NONE;
-					sf_toplevel_toggle_max_gaps(toplevel);
+					sf_toplevel_toggle_client_maximize(toplevel);
 					return true;
 				}
 			}
@@ -443,7 +443,7 @@ bool sf_ssd_pointer_button(struct sf_server *server, struct sf_toplevel *topleve
 		sf_toplevel_minimize(toplevel);
 		break;
 	case SF_SSD_BTN_MAXIMIZE:
-		sf_toplevel_toggle_max_gaps(toplevel);
+		sf_toplevel_toggle_client_maximize(toplevel);
 		break;
 	case SF_SSD_BTN_NONE:
 		break;

@@ -29,6 +29,7 @@
 
 #include "config/config.h"
 #include "config/mousebind.h"
+#include "config/wheelbind.h"
 #include "log/log.h"
 #include "output/output.h"
 #include "session/session.h"
@@ -1127,6 +1128,62 @@ void server_cursor_axis(struct wl_listener *listener, void *data) {
 	struct sf_server *server = wl_container_of(listener, server, cursor_axis);
 	struct wlr_pointer_axis_event *event = data;
 	sf_session_notify_activity(server);
+
+	/* Mod+Wheel binds (default Super+Wheel workspace / Super+Shift focus_dir).
+	 * Bare wheel (mods==0) always reaches the client. Match consumes the axis. */
+	if (server->cursor_mode == SF_CURSOR_PASSTHROUGH && !sf_session_locked(server)) {
+		uint32_t mods = seat_keyboard_mods(server) & (uint32_t)SF_MOD_MASK;
+		if (mods != 0) {
+			enum sf_wheel_dir dir = SF_WHEEL_UP;
+			bool have_dir = false;
+			int32_t discrete = event->delta_discrete;
+			double delta = event->delta;
+			if (event->orientation == WL_POINTER_AXIS_VERTICAL_SCROLL) {
+				if (discrete != 0) {
+					dir = discrete < 0 ? SF_WHEEL_UP : SF_WHEEL_DOWN;
+					have_dir = true;
+				} else if (delta != 0.0) {
+					dir = delta < 0.0 ? SF_WHEEL_UP : SF_WHEEL_DOWN;
+					have_dir = true;
+				}
+			} else if (event->orientation == WL_POINTER_AXIS_HORIZONTAL_SCROLL) {
+				if (discrete != 0) {
+					dir = discrete < 0 ? SF_WHEEL_LEFT : SF_WHEEL_RIGHT;
+					have_dir = true;
+				} else if (delta != 0.0) {
+					dir = delta < 0.0 ? SF_WHEEL_LEFT : SF_WHEEL_RIGHT;
+					have_dir = true;
+				}
+			}
+			if (have_dir) {
+				enum sf_arrange cur = SF_ARRANGE_STACKING;
+				struct sf_output *out = sf_output_at_cursor(server);
+				if (out != NULL && out->active != NULL) {
+					cur = sf_workspace_arrange(out->active);
+				}
+				const struct sf_config *cfg = sf_cfg(server);
+				const struct sf_wheelbind *wb =
+					sf_wheelbind_match(cfg, mods, dir, cur);
+				if (wb != NULL && wb->n_steps > 0) {
+					int cd = cfg->wheel_bind_cooldown_ms;
+					if (cd < 0) {
+						cd = 0;
+					}
+					uint32_t now = event->time_msec;
+					uint32_t last = server->last_wheel_bind_msec;
+					bool cooled = last == 0 || now - last >= (uint32_t)cd;
+					if (cooled) {
+						server->last_wheel_bind_msec = now;
+						sf_tap_disarm(server);
+						sf_run_actions(server, NULL, wb->steps,
+							       wb->n_steps);
+					}
+					return;
+				}
+			}
+		}
+	}
+
 	/* Notify the client with pointer focus of the axis event. */
 	wlr_seat_pointer_notify_axis(server->seat, event->time_msec, event->orientation,
 				     event->delta, event->delta_discrete, event->source,

@@ -1,5 +1,6 @@
-;; Day-zero keybinds + mouse grabs + Super tap (peeble-style "Super+w" chords).
+;; Day-zero keybinds + mouse grabs + Mod+Wheel + Super tap.
 ;; Mouse: Super+LMB/RMB / Super+Shift+RMB (first mouse chord replaces C seed).
+;; Wheel: mods required (bare wheel stays with clients); first wheel chord replaces C seed.
 (fn noctalia [msg]
   (.. "noctalia msg " msg))
 
@@ -10,6 +11,12 @@
 (bind "Super+LMB" {:action :move_window})
 (bind "Super+RMB" {:action :resize_window})
 (bind "Super+Shift+RMB" {:action :resize_center})
+
+;; Mod+Wheel (Umbriel WheelUp/Down). Cooldown: sf.opt.wheel_bind_cooldown_ms.
+(bind "Super+WheelUp" {:action :workspace_prev})
+(bind "Super+WheelDown" {:action :workspace_next})
+(bind "Super+Shift+WheelUp" {:action :focus_dir :cmd "left" :arrange "tiling"})
+(bind "Super+Shift+WheelDown" {:action :focus_dir :cmd "right" :arrange "tiling"})
 
 (local binds [;; bar toggle
               ["Alt+Space"

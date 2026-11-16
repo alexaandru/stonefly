@@ -49,6 +49,84 @@ bool sf_chord_is_mouse_button(const char *key) {
 	return key != NULL && sf_chord_lookup_button(key, &button) == 0;
 }
 
+bool sf_chord_is_wheel(const char *key) {
+	enum sf_wheel_dir dir = SF_WHEEL_UP;
+	return key != NULL && sf_chord_lookup_wheel(key, &dir) == 0;
+}
+
+int sf_chord_lookup_wheel(const char *key, enum sf_wheel_dir *out) {
+	if (key == NULL || out == NULL || key[0] == '\0') {
+		return -1;
+	}
+	static const struct {
+		const char *name;
+		enum sf_wheel_dir dir;
+	} wheels[] = {
+		{"WheelUp", SF_WHEEL_UP},
+		{"WheelDown", SF_WHEEL_DOWN},
+		{"WheelLeft", SF_WHEEL_LEFT},
+		{"WheelRight", SF_WHEEL_RIGHT},
+		/* Hyprland vertical only — mouse_left/right stay LMB/RMB button aliases. */
+		{"mouse_up", SF_WHEEL_UP},
+		{"mouse_down", SF_WHEEL_DOWN},
+	};
+	for (size_t i = 0; i < sizeof wheels / sizeof wheels[0]; i++) {
+		if (strcasecmp(key, wheels[i].name) == 0) {
+			*out = wheels[i].dir;
+			return 0;
+		}
+	}
+	return -1;
+}
+
+int sf_chord_parse_wheel(const char *s, uint32_t *mods_out, enum sf_wheel_dir *dir_out) {
+	if (s == NULL || mods_out == NULL || dir_out == NULL) {
+		return -1;
+	}
+	char buf[128];
+	size_t n = strlen(s);
+	if (n == 0 || n >= sizeof buf) {
+		return -1;
+	}
+	memcpy(buf, s, n + 1);
+
+	char *last_plus = strrchr(buf, '+');
+	char *key;
+	uint32_t mods = 0;
+	if (last_plus == NULL) {
+		/* Bare WheelUp would steal client scroll — reject. */
+		return -1;
+	}
+	*last_plus = '\0';
+	key = trim_inplace(last_plus + 1);
+	char *p = buf;
+	while (p != NULL && *p != '\0') {
+		char *plus = strchr(p, '+');
+		if (plus != NULL) {
+			*plus = '\0';
+		}
+		char *tok = trim_inplace(p);
+		if (*tok != '\0') {
+			uint32_t bit = parse_mod(tok);
+			if (bit == 0) {
+				return -1;
+			}
+			mods |= bit;
+		}
+		p = plus != NULL ? plus + 1 : NULL;
+	}
+	if (mods == 0) {
+		return -1;
+	}
+	enum sf_wheel_dir dir = SF_WHEEL_UP;
+	if (sf_chord_lookup_wheel(key, &dir) != 0) {
+		return -1;
+	}
+	*mods_out = mods;
+	*dir_out = dir;
+	return 0;
+}
+
 int sf_chord_lookup_button(const char *key, uint32_t *out) {
 	if (key == NULL || out == NULL || key[0] == '\0') {
 		return -1;

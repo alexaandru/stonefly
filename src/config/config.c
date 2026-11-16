@@ -12,6 +12,7 @@
 #include "config/config_lua.h"
 #include "config/gesture.h"
 #include "config/mousebind.h"
+#include "config/wheelbind.h"
 #include "log/log.h"
 #include "server/server.h"
 #include "util/color.h"
@@ -195,6 +196,10 @@ void sf_config_finish(struct sf_config *cfg) {
 		sf_action_steps_free(cfg->mousebinds[i].steps, cfg->mousebinds[i].n_steps);
 	}
 	free(cfg->mousebinds);
+	for (size_t i = 0; i < cfg->n_wheelbinds; i++) {
+		sf_action_steps_free(cfg->wheelbinds[i].steps, cfg->wheelbinds[i].n_steps);
+	}
+	free(cfg->wheelbinds);
 	memset(cfg, 0, sizeof *cfg);
 }
 
@@ -237,6 +242,7 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 	cfg->snap_preview_opacity = 0.40f;
 	cfg->tap_max_hold_ms = 500;
 	cfg->double_tap_gap_ms = 300;
+	cfg->wheel_bind_cooldown_ms = 150;
 	cfg->arrange = SF_ARRANGE_COLUMNS;
 	cfg->master_pos = SF_MASTER_LEFT;
 	cfg->master_factor = 0.55f;
@@ -250,6 +256,8 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 	cfg->ssd_mode = SF_SSD_AUTO;
 	cfg->ssd_height = 28;
 	cfg->ssd_font_size = 17;
+	cfg->client_maximize = SF_CLIENT_MAXIMIZE_GAPS;
+	cfg->unminimize_workspace = SF_UNMINIMIZE_WS_ACTIVE;
 	cfg->resize_border_in = 3;
 	cfg->resize_border_out = 1;
 	cfg->config_watch = true;
@@ -447,5 +455,12 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 		SF_LOGE("config mousebinds OOM");
 		cfg->mousebinds = NULL;
 		cfg->n_mousebinds = 0;
+	}
+
+	/* Super+Wheel workspace / Super+Shift+Wheel focus_dir; first wheel chord replaces. */
+	if (!sf_wheelbind_seed_defaults(cfg)) {
+		SF_LOGE("config wheelbinds OOM");
+		cfg->wheelbinds = NULL;
+		cfg->n_wheelbinds = 0;
 	}
 }

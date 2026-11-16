@@ -5,6 +5,7 @@
 #include <string.h>
 #include <strings.h>
 #include <wayland-server-core.h>
+#include <wlr/types/wlr_cursor.h>
 
 #include "config/action.h"
 #include "config/config.h"

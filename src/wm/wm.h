@@ -64,6 +64,9 @@ void sf_toplevel_toggle_max_edges(struct sf_toplevel *toplevel);
 void sf_toplevel_release_transient_max_edges(struct sf_toplevel *toplevel);
 void sf_toplevel_set_max_gaps(struct sf_toplevel *toplevel, bool want);
 void sf_toplevel_toggle_max_gaps(struct sf_toplevel *toplevel);
+/* CSD / SSD max / foreign — follows sf.opt.client_maximize (default gaps). */
+void sf_toplevel_set_client_maximized(struct sf_toplevel *toplevel, bool want);
+void sf_toplevel_toggle_client_maximize(struct sf_toplevel *toplevel);
 void sf_toplevel_snap(struct sf_toplevel *toplevel, enum sf_snap edge);
 /* Half-snap into an explicit usable box (drag release uses pointer head). */
 void sf_toplevel_snap_in(struct sf_toplevel *toplevel, enum sf_snap edge,

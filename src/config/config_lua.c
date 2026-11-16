@@ -50,6 +50,7 @@ struct lua_runtime {
 	size_t n_rtp;
 	bool binds_replaced;
 	bool mousebinds_replaced;
+	bool wheelbinds_replaced;
 	bool taps_replaced;
 	bool scratches_replaced;
 	bool rules_replaced;
@@ -221,6 +222,15 @@ static void clear_mousebinds(struct sf_config *cfg) {
 	free(cfg->mousebinds);
 	cfg->mousebinds = NULL;
 	cfg->n_mousebinds = 0;
+}
+
+static void clear_wheelbinds(struct sf_config *cfg) {
+	for (size_t i = 0; i < cfg->n_wheelbinds; i++) {
+		sf_action_steps_free(cfg->wheelbinds[i].steps, cfg->wheelbinds[i].n_steps);
+	}
+	free(cfg->wheelbinds);
+	cfg->wheelbinds = NULL;
+	cfg->n_wheelbinds = 0;
 }
 
 static void clear_tapbinds(struct sf_config *cfg) {
@@ -1128,10 +1138,11 @@ static int l_window_rule(lua_State *L) {
  *   bind("Super+x", { action = (sf.chain "maximize" ...) })
  *   bind({ key = "Super+Shift+Tab", action = "focus_prev" })  -- chord-in-key
  *   bind("Super+LMB", { action = "move_window" })  -- mouse grab (Hyprland bindm)
+ *   bind("Super+WheelUp", { action = "workspace_prev" })  -- Mod+Wheel (mods required)
  * Optional: key_alt. Shift+Tab auto-adds ISO_Left_Tab as key_alt.
  * Legacy :cmd next to a string :action still works (one-step with cmd).
- * First mouse chord clears C/default mousebinds only (keys stay); first key
- * chord clears keybinds only (mouse stays) — same replace pattern as gestures.
+ * First mouse/wheel chord clears that C seed only; first key chord clears
+ * keybinds only — same replace pattern as gestures.
  */
 static int l_bind(lua_State *L) {
 	if (G == NULL) {
@@ -1168,9 +1179,11 @@ static int l_bind(lua_State *L) {
 
 	uint32_t mods = 0;
 	uint32_t button = 0;
-	bool is_mouse = sf_chord_parse_mouse(chord, &mods, &button) == 0;
+	enum sf_wheel_dir wheel_dir = SF_WHEEL_UP;
+	bool is_wheel = sf_chord_parse_wheel(chord, &mods, &wheel_dir) == 0;
+	bool is_mouse = !is_wheel && sf_chord_parse_mouse(chord, &mods, &button) == 0;
 	xkb_keysym_t sym = XKB_KEY_NoSymbol;
-	if (!is_mouse) {
+	if (!is_wheel && !is_mouse) {
 		if (sf_chord_parse(chord, &mods, &sym) != 0) {
 			return luaL_error(L, "bind: bad chord %s", chord);
 		}
@@ -1197,6 +1210,32 @@ static int l_bind(lua_State *L) {
 		arrange = sf_arrange_parse(lua_tostring(L, -1));
 	}
 	lua_pop(L, 1);
+
+	if (is_wheel) {
+		if (!G->wheelbinds_replaced) {
+			clear_wheelbinds(cfg);
+			G->wheelbinds_replaced = true;
+		}
+		if (cfg->n_wheelbinds >= SF_WHEELBIND_MAX) {
+			sf_action_steps_free(steps, n_steps);
+			return luaL_error(L, "bind: max %d wheel binds", SF_WHEELBIND_MAX);
+		}
+		struct sf_wheelbind *nb =
+			realloc(cfg->wheelbinds, (cfg->n_wheelbinds + 1) * sizeof *nb);
+		if (nb == NULL) {
+			sf_action_steps_free(steps, n_steps);
+			return luaL_error(L, "bind: OOM");
+		}
+		cfg->wheelbinds = nb;
+		struct sf_wheelbind *b = &cfg->wheelbinds[cfg->n_wheelbinds++];
+		memset(b, 0, sizeof *b);
+		b->mods = mods;
+		b->dir = wheel_dir;
+		b->arrange = arrange;
+		b->steps = steps;
+		b->n_steps = n_steps;
+		return 0;
+	}
 
 	if (is_mouse) {
 		if (!G->mousebinds_replaced) {
@@ -1509,6 +1548,8 @@ static const struct opt_num opt_numbers[] = {
 	 NULL},
 	{"tap_max_hold_ms", OPT_NUM_INT, offsetof(struct sf_config, tap_max_hold_ms), NULL},
 	{"double_tap_gap_ms", OPT_NUM_INT, offsetof(struct sf_config, double_tap_gap_ms), NULL},
+	{"wheel_bind_cooldown_ms", OPT_NUM_INT, offsetof(struct sf_config, wheel_bind_cooldown_ms),
+	 NULL},
 	{"swipe_workspace_threshold", OPT_NUM_INT,
 	 offsetof(struct sf_config, swipe_workspace_threshold), NULL},
 	{"nudge_step", OPT_NUM_INT, offsetof(struct sf_config, nudge_step), NULL},
@@ -1594,6 +1635,10 @@ static int l_opt_newindex(lua_State *L) {
 			cfg->master_pos = sf_master_pos_parse(s);
 		} else if (strcmp(k, "ssd_mode") == 0) {
 			cfg->ssd_mode = sf_ssd_mode_parse(s);
+		} else if (strcmp(k, "client_maximize") == 0) {
+			cfg->client_maximize = sf_client_maximize_parse(s);
+		} else if (strcmp(k, "unminimize_workspace") == 0) {
+			cfg->unminimize_workspace = sf_unminimize_workspace_parse(s);
 		}
 		return 0;
 	}

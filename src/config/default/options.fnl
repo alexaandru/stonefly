@@ -46,6 +46,8 @@
         :snap_preview_opacity 0.40
         :tap_max_hold_ms 500
         :double_tap_gap_ms 300
+        ;; Suppress repeated Mod+Wheel actions (Umbriel cooldown_ms).
+        :wheel_bind_cooldown_ms 150
         ;; workspaces — 3-finger vertical swipe
         :swipe_workspace_threshold 80
         ;; true = natural (finger up → next / content moves with finger);
@@ -61,6 +63,11 @@
         :ssd_mode "auto"
         :ssd_height 28
         :ssd_font_size 17
+        ;; CSD / SSD max button / taskbar “maximize” → gaps (Super+m) or edges (zen).
+        ;; Super+f stays toggle_maximize_to_edges regardless.
+        :client_maximize "gaps"
+        ;; Unminimize: active = carry to current WS; home = stay on hide WS.
+        :unminimize_workspace "active"
         ;; Border/corner mouse resize hit slop (logical px).
         ;; in = into the window from the content/SSD edge; out = past the drawn border.
         ;; Hover shows edge cursors; LMB drag resizes (Super+RMB still works). Both 0 = off.

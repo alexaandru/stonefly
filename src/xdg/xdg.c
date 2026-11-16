@@ -512,7 +512,7 @@ static void xdg_toplevel_request_maximize(struct wl_listener *listener, void *da
 	if (!toplevel->xdg_toplevel->base->initialized) {
 		return;
 	}
-	sf_toplevel_set_max_edges(toplevel, toplevel->xdg_toplevel->requested.maximized);
+	sf_toplevel_set_client_maximized(toplevel, toplevel->xdg_toplevel->requested.maximized);
 }
 
 static void xdg_toplevel_request_minimize(struct wl_listener *listener, void *data) {

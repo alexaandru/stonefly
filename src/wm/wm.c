@@ -516,6 +516,28 @@ void sf_toplevel_toggle_max_edges(struct sf_toplevel *toplevel) {
 	}
 }
 
+void sf_toplevel_set_client_maximized(struct sf_toplevel *toplevel, bool want) {
+	if (toplevel == NULL || toplevel->server == NULL) {
+		return;
+	}
+	if (sf_cfg(toplevel->server)->client_maximize == SF_CLIENT_MAXIMIZE_EDGES) {
+		sf_toplevel_set_max_edges(toplevel, want);
+	} else {
+		sf_toplevel_set_max_gaps(toplevel, want);
+	}
+}
+
+void sf_toplevel_toggle_client_maximize(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->server == NULL) {
+		return;
+	}
+	if (sf_cfg(toplevel->server)->client_maximize == SF_CLIENT_MAXIMIZE_EDGES) {
+		sf_toplevel_toggle_max_edges(toplevel);
+	} else {
+		sf_toplevel_toggle_max_gaps(toplevel);
+	}
+}
+
 static struct sf_output *toplevel_focus_output(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL) {
 		return NULL;
@@ -1338,8 +1360,10 @@ void sf_toplevel_apply_hidden(struct sf_toplevel *toplevel, enum sf_hide_kind ki
 
 void sf_toplevel_apply_shown(struct sf_toplevel *toplevel, bool activate) {
 	if (toplevel->minimized) {
-		/* LIFO unminimize lands on the output's current active workspace. */
-		if (!sf_toplevel_is_scratchpad(toplevel)) {
+		/* Default active: carry to the output's current workspace (hide on
+		 * WS1, switch, unhide → lands with you). home: stay on hide WS. */
+		if (!sf_toplevel_is_scratchpad(toplevel) && toplevel->server != NULL &&
+		    sf_cfg(toplevel->server)->unminimize_workspace == SF_UNMINIMIZE_WS_ACTIVE) {
 			struct sf_output *out = NULL;
 			if (toplevel->workspace != NULL) {
 				out = toplevel->workspace->output;

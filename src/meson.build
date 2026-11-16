@@ -24,6 +24,8 @@ sf_src = files(
   'config/chord.c',
   'config/gesture.c',
   'config/mousebind.c',
+  'config/wheelbind.c',
+  'config/policy.c',
   'server/server.c',
   'output/output.c',
   'layer/layer.c',

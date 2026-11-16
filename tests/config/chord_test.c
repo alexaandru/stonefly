@@ -115,12 +115,44 @@ static void test_parse_mouse(void) {
 	SF_TEST_TRUE(!sf_chord_is_mouse_button("Left"));
 }
 
+static void test_parse_wheel(void) {
+	uint32_t mods = 0;
+	enum sf_wheel_dir dir = SF_WHEEL_UP;
+
+	SF_TEST_EQ_INT(sf_chord_parse_wheel("Super+WheelUp", &mods, &dir), 0);
+	SF_TEST_EQ_INT((int)mods, (int)SF_SUPER);
+	SF_TEST_EQ_INT((int)dir, (int)SF_WHEEL_UP);
+
+	SF_TEST_EQ_INT(sf_chord_parse_wheel("Super+Shift+WheelDown", &mods, &dir), 0);
+	SF_TEST_EQ_INT((int)mods, (int)(SF_SUPER | SF_SHIFT));
+	SF_TEST_EQ_INT((int)dir, (int)SF_WHEEL_DOWN);
+
+	SF_TEST_EQ_INT(sf_chord_parse_wheel("Super+WheelLeft", &mods, &dir), 0);
+	SF_TEST_EQ_INT((int)dir, (int)SF_WHEEL_LEFT);
+
+	SF_TEST_EQ_INT(sf_chord_parse_wheel("Ctrl+mouse_up", &mods, &dir), 0);
+	SF_TEST_EQ_INT((int)mods, (int)SF_CTRL);
+	SF_TEST_EQ_INT((int)dir, (int)SF_WHEEL_UP);
+
+	/* Bare wheel / no mods would steal client scroll — reject. */
+	SF_TEST_EQ_INT(sf_chord_parse_wheel("WheelUp", &mods, &dir), -1);
+	SF_TEST_EQ_INT(sf_chord_parse_wheel("mouse_down", &mods, &dir), -1);
+	SF_TEST_EQ_INT(sf_chord_parse_wheel("Super+w", &mods, &dir), -1);
+	SF_TEST_EQ_INT(sf_chord_parse_wheel("Super+LMB", &mods, &dir), -1);
+
+	SF_TEST_TRUE(sf_chord_is_wheel("WheelUp"));
+	SF_TEST_TRUE(sf_chord_is_wheel("mouse_down"));
+	SF_TEST_TRUE(!sf_chord_is_wheel("mouse_left"));
+	SF_TEST_TRUE(!sf_chord_is_wheel("LMB"));
+}
+
 static const struct sf_test tests[] = {
 	{"sf_chord_parse", test_chord_parse},
 	{"sf_chord_tap_tab", test_tap_mod_and_tab_alt},
 	{"sf_chord_lookup_keysym", test_lookup_keysym},
 	{"sf_chord_parse_mods", test_parse_mods},
 	{"sf_chord_parse_mouse", test_parse_mouse},
+	{"sf_chord_parse_wheel", test_parse_wheel},
 };
 
 int main(void) {

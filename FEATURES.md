@@ -54,7 +54,9 @@ features Umbriel lacks — neither is a product spec. See `AGENTS.md`.
 | Named scratchpads | `scratchpads.fnl` + `sf.scratchpad` / `scratch_toggle`/`scratch_claim`. Default ships `term` only. Fake `app_id` (`stonefly.scratch.term`) for claim vs normal windows. `auto_hide` (default true) hides when focus moves to another window on the same output. Detach unlinks columns; QT edge-max stays sticky across stacking/columns |
 | Scratchpad claim focused | Super+t |
 | Scratchpad omit from Alt-Tab | Super+Tab too |
-| SSD titlebars | `ssd_mode` (`auto`/`prefer_ssd`/`always`/`never`) + `ssd_height` (28) + `ssd_font_size` (17, fcft). Honors client `request_mode` within policy; hide on fullscreen/edge-max; TopInset in ensure-on-screen / cascade / gap-max / snap. Defer `set_mode` until `xdg_surface` initialized. Outer `corner_radii_top` on SSD; border hole punches content+SSD |
+| SSD titlebars | `ssd_mode` (`auto`/`prefer_ssd`/`always`/`never`) + `ssd_height` (28) + `ssd_font_size` (17, fcft). Honors client `request_mode` within policy; hide on fullscreen/edge-max; TopInset in ensure-on-screen / cascade / gap-max / snap. Defer `set_mode` until `xdg_surface` initialized. Outer `corner_radii_top` on SSD; border hole punches content+SSD. Max button + title double-click follow `client_maximize` |
+| Client maximize policy | `sf.opt.client_maximize` (`gaps` default / `edges`). CSD `request_maximize`, SSD max/dblclick, foreign taskbar → that verb. Super+m = gaps; Super+f = edges (zen) — two binds |
+| Unminimize workspace | `sf.opt.unminimize_workspace` (`active` default = carry to current WS; `home` = stay on hide WS) |
 | Transient / dialog placement | Center on visible `set_parent` (+ stack above); late parent/size re-place while `place` is managed. No size-based dialog heuristic. Cleared on move/resize/max/snap |
 | Window rules (app-id/title) | `sf.window_rule(match, actions [, parent])`. Match patterns via Lua `string.find`. Declarative `center`/`float`/`width`/`height`/`ssd`/`borderless`; `:float true` = sticky `arrange_floating` (stays out of columns; **does not inherit lone-column full usable** — SoftPlace keeps soft + defers tile join while float *or* center still possible; late identity still `rules_apply` after soft drop; rule float restores pre-tile size). WM `:action` shared with binds. SoftPlace appear-hold for late title (center or float). Defaults float gcr-prompter, dosbox, Chrome `^Google Chrome$`. IPC `stonefly config window_rules` |
 | Workspaces | Dynamic per-output strip (`workspace.c`): trailing empty, compact on empty, Super+Page/1–9 + Shift move-follow, IPC `workspaces`/`workspace`/`move-to-workspace`, windows `{output,workspace}`. `ext-workspace-v1` sync. Default 3-finger swipe via `sf.gesture`: **vertical** = workspace switch; **horizontal** under columns = pan (`sf_arrange_columns_pan`; threshold axis-lock; `swipe_workspace_natural`). Vertical switch slide (shared by keybind / IPC / swipe; `slide_duration_ms`, 0 = instant). `xdg-toplevel-tag` stored + IPC |
@@ -159,7 +161,7 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 |---|---|
 | Scriptable config | LuaJIT in-process VM (§10): rtp/packpath, Fennel 1.6.1 shim, Fennel-first embedded default |
 | `--write-config` | C23 `#embed` tree, refuse overwrite. Meson `embed_defaults_stamp.h` so default `*.fnl` edits rebuild `config_embed.c` |
-| Keybind / mousebind table | `sf.bind("Super+w", …)` / `sf.bind("Super+LMB", {:action :move_window})` / `sf.tap("Super", …)`. Mouse tokens: `LMB`/`RMB`/`MMB` (preferred), `BTN_*`, Umbriel `MouseLeft`, Hyprland `mouse:272`. First mouse chord clears C mouse seed only. IPC `config mousebinds`. Actions via `sf_action_parse` |
+| Keybind / mousebind / wheelbind table | `sf.bind("Super+w", …)` / `sf.bind("Super+LMB", {:action :move_window})` / `sf.bind("Super+WheelUp", …)` / `sf.tap("Super", …)`. Mouse tokens: `LMB`/`RMB`/`MMB` (preferred), `BTN_*`, Umbriel `MouseLeft`, Hyprland `mouse:272`. Wheel: `WheelUp`/`Down`/`Left`/`Right` (+ Hyprland `mouse_up`/`mouse_down`); **mods required** (bare wheel stays with clients). First mouse/wheel chord clears that C seed only. IPC `config mousebinds` / `wheelbinds`. Cooldown: `wheel_bind_cooldown_ms` (default 150). Actions via `sf_action_parse` |
 | Ctrl+Alt+Fn VT switch | `wlr_session_change_vt` on `XF86Switch_VT_*` |
 | Super N-tap (`sf.tap` + `:count`) | Default: count 1 → launcher, count 2 → term pad. Same mod merges levels; gap = `double_tap_gap_ms` |
 | Spawn / exec / exec_once | Single helper `sf_spawn_cmd` (`util/spawn.c`): fork + `/bin/sh -c`, child `setsid` + SIGCHLD/mask reset; parent SIGCHLD reaper (`sf_spawn_install_reaper`, not `SIG_IGN`). Used by bind/rule `exec`, `sf.exec`, scratchpad `cmd`, CLI `-s`. Default `execs.fnl`: Slack flatpak. IPC `config execs` |
@@ -171,7 +173,7 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 | IPC toggle-quick-terminal | Toggles scratchpad `"term"` |
 | IPC `reload` | Live config reload (`{"ok":true}` or error) |
 | IPC `exit` / `quit` | `wl_display_terminate` on owning display |
-| IPC `config` [section] | Live dump: options/binds/taps/scratchpads/window_rules/execs/inputs (rules array)/outputs (`{}` until API) |
+| IPC `config` [section] | Live dump: options/binds/mousebinds/wheelbinds/taps/scratchpads/window_rules/execs/inputs (rules array)/gestures/outputs (`{}` until API) |
 | IPC `outputs` | `ipc/outputs.c` |
 | Structured JSON logs | `wm.log` + `wm.last.json` rotate |
 | APK / meson `check` | `check()`: `make style-check` then `OPTS= ./tests/drive.py` (same listing as host `make test`, no coverage). Dist tarball packs `tests/` |
@@ -211,6 +213,7 @@ Former River-fork blockers that stonefly owns in-process:
 | 3-finger vertical swipe workspaces | ✅ via `sf.gesture` `:workspace` (default); opts: threshold / natural |
 | 3-finger horizontal swipe columns pan | ✅ via `sf.gesture` `:columns_pan` (default). Live-pan `columns_view_offset` (view only). Axis lock after threshold; natural follows `swipe_workspace_natural`. Focus: keep while mostly on-screen, else centre-most visible cell (continuous; no pointer warp) |
 | Configurable mouse grabs (`sf.bind` + `move_window` / `resize_window` / `resize_center`) | ✅ Umbriel-shaped same `sf.bind` table; Hyprland bindm-shaped grab verbs. Default: Super+LMB/RMB / Super+Shift+RMB. Border LMB hit-test stays C/opt. Unit: `tests/config/mousebind_test.c` + chord mouse parse |
+| Mod+Wheel binds (`sf.bind` + `WheelUp`/`Down`/`Left`/`Right`) | ✅ Same `sf.bind` table; mods required. Default: Super+Wheel → workspace prev/next; Super+Shift+Wheel → `focus_dir` left/right (tiling). Consume-on-match + `wheel_bind_cooldown_ms` (150). Unit: `tests/config/wheelbind_test.c` + chord wheel parse |
 | Super+LMB/RMB move/resize + magnetic snap + preview | ✅ via defaults above |
 | Super+Shift+RMB center-lock resize | ✅ via `resize_center` default |
 | Border/corner LMB resize | ✅ (hit-test / `resize_border_*` opts; not an `sf.bind`) |

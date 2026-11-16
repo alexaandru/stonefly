@@ -22,27 +22,30 @@ the detail rows. When an item ships, check it off here and move the row to
 | 4 | Always-on-top / pin | ✅ | Shipped (`toggle_always_on_top` / rule / Super+Shift+p) |
 | 5 | Workspace switch animation | ✅ | Shipped (vertical strip slide; Super+Page / 1–9 + IPC + swipe share `sf_workspace_switch`) |
 | 6 | Real `inputs.fnl` API | ✅ | Shipped (`sf.input` + libinput apply; tap/natural/accel + left_handed/dwt/repeat) |
-| 7 | Configurable pointer gestures | ✅ | Shipped (`sf.gesture` swipe + pinch; default 3-finger V/H; pinch→max opt-in in `gestures.fnl`) |
-| 8 | **Hardcoded → config / Lua audit** | 🚧 | **Next.** Mouse grabs ✅ (`sf.bind` + grab verbs). Remaining seed: SSD buttons, focus/insert, maximize matrix, … Goal: C owns primitives + events; Lua composes behavior. Contract: [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) |
+| 7 | Configurable pointer gestures | ✅ | Shipped (`sf.gesture` swipe + pinch; default 3-finger V/H; pinch→max opt-in in `gestures.fnl`). Follow-on: Mod+Wheel via `sf.bind` ✅ |
+| 8 | **Hardcoded → config / Lua audit** | 🚧 | **Next.** Gestures/mouse/wheel ✅; `client_maximize` + `unminimize_workspace` ✅. Remaining Tier 1: focus/insert, drop seam, tiled grab remap, border LMB, SSD close/min map, … Living inventory: [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9 |
 | 9 | Live config reload (binds + opts first) | ✅ | Shipped: staging Lua re-run, inotify watch, `:reload` / `sf.reload` / IPC; keep previous on failure |
 | 10 | Dim-inactive / spotlight polish | 🚧 | Opacity knobs exist; stronger dim or overlay so focus reads at a glance |
 | 11 | Popin / popout appear+close | ❌ | Umbriel-style scale+fade; see §2. Slide ships (tiled = right inter-gap; scratch closest) |
 | 12 | IME **or** Xwayland (pick by apps) | ❌ | fcitx/CJK/OSK → IME; Steam/legacy → Xwayland — real projects, not afternoon bites |
 
-Seed findings for **#8** (not exhaustive — audit while implementing):
+Seed findings for **#8** — full living table in [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9:
 
 | Kind | Where today | Push toward |
 |---|---|---|
 | Gesture policy | ✅ `sf.gesture` swipe + pinch | done (#7) |
-| Mouse grabs | ✅ `sf.bind` Super+LMB/RMB / Super+Shift+RMB → `move_window` / `resize_window` / `resize_center`; border LMB still hit-test | done (first #8 cut); border → opt later |
-| Column cell-drag | `arrange.c` Super+LMB swap/insert; Super+RMB `width_frac`; `SF_COLUMN_DROP_SEAM` 0.15 | binds + opts |
-| Focus cycle policy | tiling = clockwise atan2; stacking = MRU | opt or Lua |
-| New-tile insert | always after focused column | opt / Lua |
+| Mod+Wheel | ✅ `sf.bind` Super+Wheel workspace / Super+Shift+Wheel `focus_dir` (tiling); mods required; cooldown 150ms | done (#7 follow-on) |
+| Mouse grabs | ✅ `sf.bind` Super+LMB/RMB / Super+Shift+RMB → `move_window` / `resize_window` / `resize_center` | done (first #8 cut) |
+| Border LMB resize | hit-test in `pointer.c` (sizes already `resize_border_*` opts) | bool opt / bare-mod mousebind |
+| Column cell-drag | tiled grab remap + `SF_COLUMN_DROP_SEAM` 0.15 | verbs/opts |
+| Focus cycle policy | tiling = clockwise atan2; stacking = MRU | opt |
+| New-tile insert | always after focused column | opt |
 | Arrange cycle set | `arrange_cycle_order[]` stacking↔columns only | opt list |
-| Appear wait | give-up after 3 commits (`arrange_prop_waits`) | opt |
-| SSD title buttons | close / min / max wired in C | actions from Lua / rules |
-| Event hooks | config is load-time declarative only (`bind`/`opt`/`rule`/`scratchpad`) | `sf.on` map/focus/arrange/… callbacks so packs extend WM without new C |
-| Appear wait note | give-up is **1** post-propose commit now (seed row above said 3 — stale) | opt later |
+| Appear wait | give-up after **1** post-propose commit (`arrange_prop_waits`) | opt |
+| SSD title buttons + dblclick | close / min / **gap-max**; dblclick 400ms → gap-max | actions + maximize matrix |
+| Maximize matrix | ✅ `sf.opt.client_maximize` default `gaps` (= Super+m); CSD/SSD/foreign follow it. Super+f stays zen/edges | done |
+| Unminimize WS | ✅ `sf.opt.unminimize_workspace` default `active` (carry); `home` stays on hide WS | done |
+| Event hooks | load-time declarative only | `sf.on` (Tier 2) |
 
 ---
 
@@ -76,9 +79,9 @@ One “maximize” word, several entry points — unify or document before more 
 
 | Gap | What surprises | Direction |
 |---|---|---|
-| **Maximize entry-point matrix** | CSD / taskbar / xdg → edge-max; SSD button / Super+m → gap-max / column full_width. Same icon idea, different geometry | Pick one map (or Umbriel-style `client_maximize = column\|edges` + SSD follows the same policy). Document in defaults until then |
-| **Client maximize vs Super+m** | Same as matrix row: app request ≠ Super+m under columns | Fold into maximize matrix; don’t ship a third meaning |
-| **Unminimize → active WS** | `apply_shown` reassigns to output’s **current** active workspace — hide on WS1, switch to WS2, show → window follows | Opt: stay on home WS vs follow active (both valid; pick one and stick) |
+| **Maximize entry-point matrix** | ✅ `sf.opt.client_maximize` (default `gaps` = Super+m). CSD / SSD / foreign follow it. Super+f stays zen/edges | shipped |
+| **Client maximize vs Super+m** | ✅ same opt; default matches Super+m | shipped |
+| **Unminimize → active WS** | ✅ `sf.opt.unminimize_workspace` default `active` (carry); `home` keeps hide WS | shipped |
 | **Transient tile edge-max** | Focus / Tab releases overlay back to cell — correct for “peek”, surprising if user wanted sticky edge-max on a tile | Keep transient; sticky = float+edge-max or rule (already Slack path). Document in defaults |
 | **FS saved box vs tile cell** | UnFS restores layout_sm **saved** geom; if still column-managed, next pack overwrites — usually OK, race if arrange deferred | After unFS, if `arrange_managed`, skip saved-box morph and pack instead (or pack immediately) |
 | **Snap ↔ max ↔ unmax** | PreMax / PreSnap stacking: which box wins after a chain of toggles | One saved “normal” box; modes are overlays; unmax always returns to that normal |
@@ -94,7 +97,7 @@ One “maximize” word, several entry points — unify or document before more 
 | SoftPlace late title / app_id float | Mostly fixed; watch apps that change identity after map |
 | Output disconnect / refuge | `workspace_clear` unlinks + clears slots — expected on teardown |
 | Foreign unset_maximized while SSD “max” was gap-max | Taskbar may think window is maximized (edges) while SSD toggled full_width — state bits can disagree until matrix is unified |
-| Double-click SSD title → max? | Not implemented; if added, must follow the same maximize matrix as the SSD button |
+| Double-click SSD title → max | Implemented (`ssd.c`, 400ms) → **gap-max** today; must follow the chosen maximize matrix once unified |
 
 ### Done checklist when closing a High / Medium row
 
@@ -125,8 +128,8 @@ Round-trip tests (manual or harness): columns multi-row → stacking → columns
 | Focus cycle policy (MRU vs stack) | 🚧 | Stacking / MRU list front |
 | Picture-in-picture float | ❌ | Related to always-on-top; dedicated PiP policy still open |
 | Dim inactive / spotlight | 🚧 | TODO NEXT #10. Global `client_opacity` / `inactive_opacity` shipped; no black dim-overlay / spotlight; consider stronger default inactive |
-| Maximize policy (CSD / SSD / binds / taskbar) | 🚧 | Predictability audit **Medium**. Today: CSD+foreign+xdg → edge-max; SSD button+Super+m → gap-max/full_width. Unify or opt |
-| Unminimize workspace policy | 📋 | Predictability audit **Medium** — follow active WS vs stay on home |
+| Maximize policy (CSD / SSD / binds / taskbar) | ✅ | `sf.opt.client_maximize` default `gaps` (= Super+m); CSD/SSD/foreign follow it. Super+f stays zen/edges |
+| Unminimize workspace policy | ✅ | `sf.opt.unminimize_workspace` default `active` (carry); `home` keeps hide WS |
 | Scratchpad click-outside catcher | ❌ | `auto_hide` on focus change ships; catcher does not |
 | Scratchpad claim vs icons | 🚧 | Fake `app_id` avoids stealing normal windows (breaks taskbar icons). Proper fix later: xdg-activation / startup token |
 | SSD per-app overrides / winmenu | 🚧 | SSD titlebars ✅; per-app overrides / winmenu open |
@@ -210,7 +213,7 @@ product asks for in-process chrome again.
 | Pri | Item | Status |
 |---|---|---|
 | P1 | Configurable gestures | ✅ `sf.gesture` swipe + pinch |
-| P1 | Hardcoded → Lua/config audit | ❌ TODO NEXT #8 (policy in C starves the runtime) |
+| P1 | Hardcoded → Lua/config audit | 🚧 TODO NEXT #8 — inventory [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9 |
 | P1 | WM opacity | 🚧 global focused + inactive; no per-window API (TODO NEXT #10) |
 | P2 | Workspaces polish | ❌ rules / geometry persist (switch slide ✅) |
 | P2 | `wp_fifo_v1` | ❌ |
@@ -252,7 +255,7 @@ Shell/OSD/media stay **🌙 Noctalia**.
 | Open | Status | Notes |
 |---|---|---|
 | Configurable pointer gestures | ✅ | `sf.gesture` swipe + pinch. [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) |
-| Hardcoded → config / Lua audit | ❌ | TODO NEXT #8. Knobs + policy out of C; `sf.on` event hooks; C keeps primitives. [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) |
+| Hardcoded → config / Lua audit | 🚧 | TODO NEXT #8. Gestures/mouse/wheel ✅; remaining inventory [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9. `sf.on` = Tier 2 |
 | Live reload mid-session | ✅ | Shipped (`sf_config_reload` + inotify; `sf.exec {:reload true}` runs on success) |
 | Config validate CLI | ✅ | `stonefly validate` — exact Lua error on stderr; exit 0/1 |
 | `--write-config-lua` | ❌ | Offload compiled/plain Lua instead of `.fnl` |

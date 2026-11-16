@@ -8,6 +8,7 @@
 #include "config/config.h"
 #include "config/gesture.h"
 #include "config/mousebind.h"
+#include "config/wheelbind.h"
 #include "server/server.h"
 #include "ssd/ssd_policy.h"
 #include "util/color.h"
@@ -163,6 +164,9 @@ static void emit_options(struct json_buf *b, const struct sf_config *cfg) {
 	json_key(b, "double_tap_gap_ms");
 	json_i64(b, cfg->double_tap_gap_ms);
 	json_byte(b, ',');
+	json_key(b, "wheel_bind_cooldown_ms");
+	json_i64(b, cfg->wheel_bind_cooldown_ms);
+	json_byte(b, ',');
 	json_key(b, "arrange");
 	json_str(b, sf_arrange_name(cfg->arrange));
 	json_byte(b, ',');
@@ -195,6 +199,12 @@ static void emit_options(struct json_buf *b, const struct sf_config *cfg) {
 	json_byte(b, ',');
 	json_key(b, "ssd_mode");
 	json_str(b, sf_ssd_mode_name(cfg->ssd_mode));
+	json_byte(b, ',');
+	json_key(b, "client_maximize");
+	json_str(b, sf_client_maximize_name(cfg->client_maximize));
+	json_byte(b, ',');
+	json_key(b, "unminimize_workspace");
+	json_str(b, sf_unminimize_workspace_name(cfg->unminimize_workspace));
 	json_byte(b, ',');
 	json_key(b, "resize_border_in");
 	json_i64(b, cfg->resize_border_in);
@@ -297,6 +307,30 @@ static void emit_mousebinds(struct json_buf *b, const struct sf_config *cfg) {
 		json_byte(b, ',');
 		json_key(b, "action");
 		emit_action_steps(b, m->steps, m->n_steps);
+		json_byte(b, '}');
+	}
+	json_byte(b, ']');
+}
+
+static void emit_wheelbinds(struct json_buf *b, const struct sf_config *cfg) {
+	json_byte(b, '[');
+	for (size_t i = 0; i < cfg->n_wheelbinds; i++) {
+		const struct sf_wheelbind *w = &cfg->wheelbinds[i];
+		if (i > 0) {
+			json_byte(b, ',');
+		}
+		json_byte(b, '{');
+		json_key(b, "mods");
+		json_mods(b, w->mods);
+		json_byte(b, ',');
+		json_key(b, "dir");
+		json_str(b, sf_wheelbind_dir_name(w->dir));
+		json_byte(b, ',');
+		json_key(b, "arrange");
+		json_str(b, sf_arrange_name(w->arrange));
+		json_byte(b, ',');
+		json_key(b, "action");
+		emit_action_steps(b, w->steps, w->n_steps);
 		json_byte(b, '}');
 	}
 	json_byte(b, ']');
@@ -571,10 +605,10 @@ static void emit_window_rules(struct json_buf *b, const struct sf_config *cfg) {
 static bool section_ok(const char *section) {
 	return section == NULL || section[0] == '\0' || strcmp(section, "options") == 0 ||
 	       strcmp(section, "binds") == 0 || strcmp(section, "mousebinds") == 0 ||
-	       strcmp(section, "taps") == 0 || strcmp(section, "scratchpads") == 0 ||
-	       strcmp(section, "window_rules") == 0 || strcmp(section, "execs") == 0 ||
-	       strcmp(section, "inputs") == 0 || strcmp(section, "gestures") == 0 ||
-	       strcmp(section, "outputs") == 0;
+	       strcmp(section, "wheelbinds") == 0 || strcmp(section, "taps") == 0 ||
+	       strcmp(section, "scratchpads") == 0 || strcmp(section, "window_rules") == 0 ||
+	       strcmp(section, "execs") == 0 || strcmp(section, "inputs") == 0 ||
+	       strcmp(section, "gestures") == 0 || strcmp(section, "outputs") == 0;
 }
 
 int sf_config_to_json(struct sf_server *server, const char *section, char *buf, size_t cap) {
@@ -617,6 +651,16 @@ int sf_config_to_json(struct sf_server *server, const char *section, char *buf, 
 			json_key(&b, "mousebinds");
 		}
 		emit_mousebinds(&b, cfg);
+		need_comma = true;
+	}
+	if (all || strcmp(section, "wheelbinds") == 0) {
+		if (all) {
+			if (need_comma) {
+				json_byte(&b, ',');
+			}
+			json_key(&b, "wheelbinds");
+		}
+		emit_wheelbinds(&b, cfg);
 		need_comma = true;
 	}
 	if (all || strcmp(section, "taps") == 0) {

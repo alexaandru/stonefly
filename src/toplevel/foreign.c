@@ -309,7 +309,7 @@ static void foreign_handle_set_maximized(struct wl_client *client, struct wl_res
 	if (toplevel == NULL) {
 		return;
 	}
-	sf_toplevel_set_max_edges(toplevel, true);
+	sf_toplevel_set_client_maximized(toplevel, true);
 }
 
 static void foreign_handle_unset_maximized(struct wl_client *client, struct wl_resource *resource) {
@@ -318,7 +318,7 @@ static void foreign_handle_unset_maximized(struct wl_client *client, struct wl_r
 	if (toplevel == NULL) {
 		return;
 	}
-	sf_toplevel_set_max_edges(toplevel, false);
+	sf_toplevel_set_client_maximized(toplevel, false);
 }
 
 static void foreign_handle_set_minimized(struct wl_client *client, struct wl_resource *resource) {

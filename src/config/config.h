@@ -8,6 +8,7 @@
 #include <xkbcommon/xkbcommon.h>
 #include <wlr/types/wlr_keyboard.h>
 
+#include "config/chord.h"
 #include "ssd/ssd_policy.h"
 #include "util/color.h"
 #include "util/path.h"
@@ -31,6 +32,7 @@ struct sf_server;
 #define SF_INPUT_RULE_MAX 64
 #define SF_GESTURE_MAX 32
 #define SF_MOUSEBIND_MAX 16
+#define SF_WHEELBIND_MAX 16
 #define SF_TAPBIND_MAX 8
 #define SF_TAP_COUNT_MAX 9 /* same range as sf.gesture fingers */
 
@@ -40,6 +42,19 @@ enum sf_input_accel {
 	SF_INPUT_ACCEL_NONE,
 	SF_INPUT_ACCEL_FLAT,
 	SF_INPUT_ACCEL_ADAPTIVE,
+};
+
+/* Chrome/protocol “maximize” (CSD / SSD button / foreign) — not Super+f.
+ * Default gaps matches Super+m (column / gap-inset max). */
+enum sf_client_maximize {
+	SF_CLIENT_MAXIMIZE_GAPS = 0,
+	SF_CLIENT_MAXIMIZE_EDGES,
+};
+
+/* Where unminimize lands the window. Default active = carry to current WS. */
+enum sf_unminimize_workspace {
+	SF_UNMINIMIZE_WS_ACTIVE = 0,
+	SF_UNMINIMIZE_WS_HOME,
 };
 
 /* sf.gesture match direction (Hyprland-shaped). */
@@ -153,10 +168,19 @@ struct sf_keybind {
 	size_t n_steps;
 };
 
-/* sf.bind "Super+BTN_LEFT" — pointer button + mods (Hyprland bindm-shaped). */
+/* sf.bind "Super+LMB" — pointer button + mods (Hyprland bindm-shaped). */
 struct sf_mousebind {
 	uint32_t mods;
 	uint32_t button; /* linux BTN_* */
+	enum sf_arrange arrange;
+	struct sf_action_step *steps;
+	size_t n_steps;
+};
+
+/* sf.bind "Super+WheelUp" — requires mods ≠ 0 (never steal bare client scroll). */
+struct sf_wheelbind {
+	uint32_t mods;
+	enum sf_wheel_dir dir;
 	enum sf_arrange arrange;
 	struct sf_action_step *steps;
 	size_t n_steps;
@@ -286,6 +310,8 @@ struct sf_config {
 	float snap_preview_opacity;
 	int tap_max_hold_ms;
 	int double_tap_gap_ms;
+	/* Suppress repeated Mod+Wheel actions (Umbriel cooldown_ms). Default 150. */
+	int wheel_bind_cooldown_ms;
 
 	/* Global arrange default (workspace → output → global). */
 	enum sf_arrange arrange;
@@ -314,6 +340,11 @@ struct sf_config {
 	int ssd_height;	   /* logical px; default 28 */
 	int ssd_font_size; /* fcft pt; default 17 */
 
+	/* CSD / SSD max button / foreign set_maximized → gaps|edges (default gaps). */
+	enum sf_client_maximize client_maximize;
+	/* Unminimize: active = carry to current WS; home = stay on hide WS. */
+	enum sf_unminimize_workspace unminimize_workspace;
+
 	/* Border/corner resize hit slop (logical px). Inner = into the window from
 	 * the content/SSD edge; outer = past the drawn border. Both 0 disables. */
 	int resize_border_in;  /* default 3 */
@@ -329,6 +360,8 @@ struct sf_config {
 	size_t n_keybinds;
 	struct sf_mousebind *mousebinds;
 	size_t n_mousebinds;
+	struct sf_wheelbind *wheelbinds;
+	size_t n_wheelbinds;
 	struct sf_tapbind *tapbinds;
 	size_t n_tapbinds;
 	struct sf_scratchpad_spec *scratchpads;
@@ -380,5 +413,10 @@ int sf_config_validate(void);
 void sf_config_run_execs(struct sf_server *server, bool is_reload);
 
 const struct sf_config *sf_cfg(const struct sf_server *server);
+
+enum sf_client_maximize sf_client_maximize_parse(const char *s);
+const char *sf_client_maximize_name(enum sf_client_maximize mode);
+enum sf_unminimize_workspace sf_unminimize_workspace_parse(const char *s);
+const char *sf_unminimize_workspace_name(enum sf_unminimize_workspace mode);
 
 #endif /* SF_CONFIG_H */

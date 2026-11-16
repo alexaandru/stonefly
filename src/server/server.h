@@ -258,6 +258,9 @@ struct sf_server {
 		const struct sf_tapbind *bind;
 	} tap;
 
+	/* Last Mod+Wheel action fire (event time_msec); 0 = never. */
+	uint32_t last_wheel_bind_msec;
+
 	/* ext-session-lock-v1 (Noctalia auto-lock). */
 	struct {
 		bool active;
