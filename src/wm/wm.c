@@ -68,15 +68,6 @@ static void box_inset_ssd_top(struct sf_toplevel *toplevel, struct wlr_box *box)
 	box->height -= inset;
 }
 
-static void sf_cover_fractional_gap(struct sf_server *server, struct wlr_box *box) {
-	/* Same class of gap as peeble at non-integer scale: grow 1 logical px. */
-	float scale = sf_output_scale_factor(server);
-	if (scale != (float)(int)scale) {
-		box->width += 1;
-		box->height += 1;
-	}
-}
-
 /* wlroots 0.20 asserts schedule_configure only after the first commit. */
 static bool xdg_surface_ready(struct sf_toplevel *toplevel) {
 	return toplevel->xdg_toplevel->base->initialized;
@@ -166,7 +157,8 @@ static void layout_fill_targets(struct sf_toplevel *toplevel, const struct wlr_b
 	ctx->tol = 2;
 	if (usable != NULL && usable->width > 0 && usable->height > 0) {
 		ctx->max_edges = *usable;
-		sf_cover_fractional_gap(toplevel->server, &ctx->max_edges);
+		sf_box_cover_fractional_gap(&ctx->max_edges,
+					    sf_output_scale_factor(toplevel->server));
 		ctx->max_gaps = *usable;
 		sf_box_inset_gap(&ctx->max_gaps, sf_cfg(toplevel->server)->gap_size);
 		box_inset_ssd_top(toplevel, &ctx->max_gaps);
@@ -344,31 +336,37 @@ static bool toplevel_full_output_box(struct sf_toplevel *toplevel, struct wlr_ou
 	}
 	if (sf_out != NULL && sf_out->full.width > 0 && sf_out->full.height > 0) {
 		*box = sf_out->full;
-		return true;
-	}
-	struct wlr_output *wlr_output = hint;
-	if (wlr_output == NULL && sf_out != NULL) {
-		wlr_output = sf_out->wlr_output;
-	}
-	if (wlr_output == NULL) {
-		struct wlr_box geom;
-		sf_toplevel_layout_geom(toplevel, &geom);
-		wlr_output = wlr_output_layout_output_at(server->output_layout,
-							 geom.x + geom.width / 2.0,
-							 geom.y + geom.height / 2.0);
+	} else {
+		struct wlr_output *wlr_output = hint;
+		if (wlr_output == NULL && sf_out != NULL) {
+			wlr_output = sf_out->wlr_output;
+		}
 		if (wlr_output == NULL) {
-			wlr_output = wlr_output_layout_output_at(
-				server->output_layout, server->cursor->x, server->cursor->y);
+			struct wlr_box geom;
+			sf_toplevel_layout_geom(toplevel, &geom);
+			wlr_output = wlr_output_layout_output_at(server->output_layout,
+								 geom.x + geom.width / 2.0,
+								 geom.y + geom.height / 2.0);
+			if (wlr_output == NULL) {
+				wlr_output = wlr_output_layout_output_at(server->output_layout,
+									 server->cursor->x,
+									 server->cursor->y);
+			}
+		}
+		if (wlr_output == NULL) {
+			return false;
+		}
+		wlr_output_layout_get_box(server->output_layout, wlr_output, box);
+		if (box->width <= 0 || box->height <= 0) {
+			return false;
 		}
 	}
-	if (wlr_output == NULL) {
-		return false;
-	}
-	wlr_output_layout_get_box(server->output_layout, wlr_output, box);
-	return box->width > 0 && box->height > 0;
+	/* Cover fractional-scale hairline the same way max-edges does. */
+	sf_box_cover_fractional_gap(box, sf_output_scale_factor(server));
+	return true;
 }
 
-/* After FS enter: if APPLY_BOX was skipped (empty target), force output->full. */
+/* After FS enter: if APPLY_BOX was skipped (empty target), force output full. */
 static void fullscreen_ensure_box(struct sf_toplevel *toplevel, struct wlr_output *hint) {
 	if (toplevel == NULL || !sf_layout_sm_is_fullscreen(&toplevel->layout)) {
 		return;
@@ -380,9 +378,15 @@ static void fullscreen_ensure_box(struct sf_toplevel *toplevel, struct wlr_outpu
 	}
 	struct wlr_box cur;
 	sf_toplevel_layout_geom(toplevel, &cur);
-	if (sf_layout_sm_box_near(&cur, &want, 2)) {
+	/* Exact match: tol 2 would skip the +1 fractional cover. */
+	if (cur.x == want.x && cur.y == want.y && cur.width == want.width &&
+	    cur.height == want.height) {
+		sf_decor_update_geom(toplevel);
 		return;
 	}
+	SF_LOGI("fullscreen: apply output box", sf_i64("id", (int64_t)toplevel->id),
+		sf_i64("x", want.x), sf_i64("y", want.y), sf_i64("w", want.width),
+		sf_i64("h", want.height));
 	sf_toplevel_apply_box(toplevel, &want);
 	sf_decor_update_geom(toplevel);
 	sf_toplevel_sync_scene_layer(toplevel);

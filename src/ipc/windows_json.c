@@ -69,6 +69,10 @@ int sf_windows_to_json(const struct sf_window_info *infos, size_t n, char *buf, 
 		json_bool(&b, w->maximized_to_edges);
 
 		json_byte(&b, ',');
+		json_key(&b, "fullscreen");
+		json_bool(&b, w->fullscreen);
+
+		json_byte(&b, ',');
 		json_key(&b, "minimized");
 		json_bool(&b, w->minimized);
 
@@ -184,8 +188,9 @@ static bool parse_object(struct json_scan *s, struct sf_window_info *out) {
 			}
 		} else if (strcmp(key, "focused") == 0 || strcmp(key, "floating") == 0 ||
 			   strcmp(key, "maximized_to_edges") == 0 ||
-			   strcmp(key, "minimized") == 0 || strcmp(key, "snapped") == 0 ||
-			   strcmp(key, "urgent") == 0 || strcmp(key, "capture_blocked") == 0 ||
+			   strcmp(key, "fullscreen") == 0 || strcmp(key, "minimized") == 0 ||
+			   strcmp(key, "snapped") == 0 || strcmp(key, "urgent") == 0 ||
+			   strcmp(key, "capture_blocked") == 0 ||
 			   strcmp(key, "always_on_top") == 0) {
 			bool v = false;
 			if (!json_scan_bool(s, &v)) {
@@ -197,6 +202,8 @@ static bool parse_object(struct json_scan *s, struct sf_window_info *out) {
 				out->floating = v;
 			} else if (strcmp(key, "maximized_to_edges") == 0) {
 				out->maximized_to_edges = v;
+			} else if (strcmp(key, "fullscreen") == 0) {
+				out->fullscreen = v;
 			} else if (strcmp(key, "minimized") == 0) {
 				out->minimized = v;
 			} else if (strcmp(key, "snapped") == 0) {

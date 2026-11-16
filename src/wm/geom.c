@@ -1,5 +1,7 @@
 #include "wm/geom.h"
 
+#include <stddef.h>
+
 void sf_box_inset_gap(struct wlr_box *box, int gap) {
 	const int g = gap;
 	if (box->width > 2 * g) {
@@ -10,6 +12,24 @@ void sf_box_inset_gap(struct wlr_box *box, int gap) {
 		box->y += g;
 		box->height -= 2 * g;
 	}
+}
+
+void sf_box_cover_fractional_gap(struct wlr_box *box, float scale) {
+	if (box == NULL) {
+		return;
+	}
+	/* Same class of gap as peeble at non-integer scale: grow 1 logical px. */
+	if (scale != (float)(int)scale) {
+		box->width += 1;
+		box->height += 1;
+	}
+}
+
+int sf_fullscreen_center_offset(int tile, int content) {
+	if (content <= 0) {
+		return 0;
+	}
+	return (tile - content) / 2;
 }
 
 /* Peeble snapBorderBox: gap between two half-snaps is exactly GapSize. */

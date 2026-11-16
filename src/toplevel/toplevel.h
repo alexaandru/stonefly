@@ -42,6 +42,10 @@ struct sf_toplevel {
 	/* Full rect + clipped_region hole (mango). Blur stays off so the underlay
 	 * is not an opaque black plate; hole lets client opacity show the desktop. */
 	struct wlr_scene_rect *border;
+	/* Umbriel-style opaque plate under FS content: hides wallpaper while the
+	 * client buffer catches up to the output size (and covers fractional
+	 * hairlines). Sized to the FS tile; disabled otherwise. */
+	struct wlr_scene_rect *fs_backdrop;
 
 	/* Off-screen duplicate tree for ext-image-capture (Noctalia switcher). */
 	struct wlr_ext_foreign_toplevel_handle_v1 *ext_handle;

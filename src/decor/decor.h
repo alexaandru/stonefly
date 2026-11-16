@@ -30,7 +30,9 @@ bool sf_decor_present_content_size(struct sf_toplevel *toplevel, int *w, int *h)
 
 /* Sync decoration geometry after an xdg commit / resize.
  * Edge-maximize: border/shadow/corners off; blur stays if window_blur
- * or client_blur (ext-background-effect-v1). Fullscreen: blur off too.
+ * or client_blur (ext-background-effect-v1). Fullscreen: blur off, opaque
+ * fs_backdrop sized to the output tile, content centered while the client
+ * buffer is still catching up (umbriel letterbox — hides wallpaper).
  * Border hole/client = corner_radius; outer = corner_radius +
  * border_thickness; hole inset 1px for AA hairlines. Crops an oversized
  * committed buffer to the tile so scrolled-off columns cannot paint under

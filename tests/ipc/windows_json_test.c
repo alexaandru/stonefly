@@ -23,6 +23,7 @@ static void test_roundtrip(void) {
 	in.focused = true;
 	in.floating = true;
 	in.maximized_to_edges = true;
+	in.fullscreen = true;
 	in.minimized = true;
 	in.snapped = true;
 	in.urgent = true;
@@ -48,6 +49,7 @@ static void test_roundtrip(void) {
 	SF_TEST_TRUE(out[0].focused);
 	SF_TEST_TRUE(out[0].floating);
 	SF_TEST_TRUE(out[0].maximized_to_edges);
+	SF_TEST_TRUE(out[0].fullscreen);
 	SF_TEST_TRUE(out[0].minimized);
 	SF_TEST_TRUE(out[0].snapped);
 	SF_TEST_TRUE(out[0].urgent);

@@ -12,14 +12,17 @@
 #include "decor/decor.h"
 #include "layer/layer.h"
 #include "log/log.h"
+#include "output/output.h"
 #include "server/server.h"
 #include "ssd/ssd.h"
 #include "util/color.h"
 #include "util/math.h"
 #include "util/time.h"
 #include "toplevel/toplevel.h"
+#include "wm/geom.h"
 #include "wm/layout_sm.h"
 #include "wm/wm.h"
+#include "wm/workspace.h"
 
 #include <wlr/types/wlr_buffer.h>
 
@@ -313,6 +316,12 @@ void sf_decor_init_toplevel(struct sf_toplevel *toplevel) {
 	wlr_scene_blur_set_corner_radii(toplevel->blur, corner_radii_all(inner));
 	sf_decor_refresh_blur(toplevel);
 
+	/* Opaque FS letterbox plate (umbriel ViewPresentation backdrop). */
+	static const float fs_backdrop_color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+	toplevel->fs_backdrop =
+		wlr_scene_rect_create(toplevel->scene_tree, 0, 0, fs_backdrop_color);
+	wlr_scene_node_set_enabled(&toplevel->fs_backdrop->node, false);
+
 	/* New windows start unfocused until focus_toplevel runs. */
 	float start_opacity = cfg->inactive_opacity;
 	struct sf_rgba inactive;
@@ -336,10 +345,13 @@ void sf_decor_init_toplevel(struct sf_toplevel *toplevel) {
 	wlr_scene_node_set_position(&toplevel->shadow->node, -border - (int)sigma,
 				    -border - (int)sigma);
 
-	/* xdg content on top; blur < shadow < border < xdg. */
+	/* xdg content on top; fs_backdrop < blur < shadow < border < xdg. */
 	wlr_scene_node_lower_to_bottom(&toplevel->border->node);
 	wlr_scene_node_lower_to_bottom(&toplevel->shadow->node);
 	wlr_scene_node_lower_to_bottom(&toplevel->blur->node);
+	if (toplevel->fs_backdrop != NULL) {
+		wlr_scene_node_lower_to_bottom(&toplevel->fs_backdrop->node);
+	}
 }
 
 /* Clip the subsurface tree inside wlr_scene_xdg_surface_create's wrapper.
@@ -441,9 +453,35 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 	/*
 	 * Do NOT shift xdg_scene_tree by -geo. wlr_scene_xdg_surface_create
 	 * already places its subsurface child at (-geo.x,-geo.y) on every
-	 * commit so geometry TL sits at the xdg tree origin.
+	 * commit so geometry TL sits at the xdg tree origin. Fullscreen may
+	 * still offset the xdg tree to letterbox a mid-transition buffer
+	 * (umbriel / xdg-shell: center + opaque plate).
 	 */
-	wlr_scene_node_set_position(&toplevel->xdg_scene_tree->node, 0, 0);
+	int xdg_ox = 0;
+	int xdg_oy = 0;
+	const bool fs = sf_layout_sm_is_fullscreen(&toplevel->layout);
+	if (fs && toplevel->fs_backdrop != NULL) {
+		struct wlr_box tile = {0};
+		struct sf_output *out = sf_output_for_toplevel(toplevel);
+		if (out != NULL && out->full.width > 0 && out->full.height > 0) {
+			tile = out->full;
+			sf_box_cover_fractional_gap(&tile,
+						    sf_output_scale_factor(toplevel->server));
+		}
+		if (tile.width > 0 && tile.height > 0) {
+			wlr_scene_rect_set_size(toplevel->fs_backdrop, tile.width, tile.height);
+			wlr_scene_node_set_position(&toplevel->fs_backdrop->node, 0, 0);
+			wlr_scene_node_set_enabled(&toplevel->fs_backdrop->node, true);
+			wlr_scene_node_lower_to_bottom(&toplevel->fs_backdrop->node);
+			xdg_ox = sf_fullscreen_center_offset(tile.width, geo->width);
+			xdg_oy = sf_fullscreen_center_offset(tile.height, geo->height);
+		} else {
+			wlr_scene_node_set_enabled(&toplevel->fs_backdrop->node, false);
+		}
+	} else if (toplevel->fs_backdrop != NULL) {
+		wlr_scene_node_set_enabled(&toplevel->fs_backdrop->node, false);
+	}
+	wlr_scene_node_set_position(&toplevel->xdg_scene_tree->node, xdg_ox, xdg_oy);
 	decor_clip_xdg_surface(toplevel, &clip);
 
 	if (toplevel->blur != NULL) {
@@ -592,6 +630,7 @@ void sf_decor_finish_toplevel(struct sf_toplevel *toplevel) {
 	toplevel->blur = NULL;
 	toplevel->shadow = NULL;
 	toplevel->border = NULL;
+	toplevel->fs_backdrop = NULL;
 }
 
 /* ---- close ghost (FORK.md last-frame freeze) ---- */

@@ -23,6 +23,7 @@ struct sf_window_info {
 	bool focused;
 	bool floating;
 	bool maximized_to_edges;
+	bool fullscreen;
 	bool minimized;
 	bool snapped;
 	bool urgent;

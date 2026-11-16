@@ -51,12 +51,13 @@ size_t sf_windows_collect(struct sf_server *server, struct sf_window_info *out, 
 		info->h = geom.height;
 		info->focused = toplevel == focused;
 		info->maximized_to_edges = sf_layout_sm_is_max_edges(&toplevel->layout);
+		info->fullscreen = sf_layout_sm_is_fullscreen(&toplevel->layout);
 		info->minimized = toplevel->minimized;
 		info->snapped = sf_layout_sm_snap(&toplevel->layout) != SF_SNAP_NONE;
 		info->urgent = toplevel->urgent;
 		info->capture_blocked = toplevel->capture_blocked;
 		info->always_on_top = toplevel->always_on_top;
-		info->floating = !info->maximized_to_edges &&
+		info->floating = !info->maximized_to_edges && !info->fullscreen &&
 				 !sf_layout_sm_is_max_gaps(&toplevel->layout) && !info->snapped;
 		copy_str(info->snap_dir, sizeof(info->snap_dir),
 			 sf_snap_name(sf_layout_sm_snap(&toplevel->layout)));
