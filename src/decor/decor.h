@@ -24,11 +24,17 @@ void sf_decor_mark_blur_dirty(struct sf_server *server);
 /* Build blur / border / shadow under toplevel->scene_tree (wrapper). */
 void sf_decor_init_toplevel(struct sf_toplevel *toplevel);
 
+/* Tile/morph presented content size (may be smaller than the committed
+ * buffer while the client still redraws). SSD + decor crop to this. */
+bool sf_decor_present_content_size(struct sf_toplevel *toplevel, int *w, int *h);
+
 /* Sync decoration geometry after an xdg commit / resize.
  * Edge-maximize: border/shadow/corners off; blur stays if window_blur
  * or client_blur (ext-background-effect-v1). Fullscreen: blur off too.
  * Border hole/client = corner_radius; outer = corner_radius +
- * border_thickness; hole inset 1px for AA hairlines. */
+ * border_thickness; hole inset 1px for AA hairlines. Crops an oversized
+ * committed buffer to the tile so scrolled-off columns cannot paint under
+ * the next cell. */
 void sf_decor_update_geom(struct sf_toplevel *toplevel);
 
 /* Re-evaluate SceneFX blur node enable (window_blur / client_blur / fullscreen). */

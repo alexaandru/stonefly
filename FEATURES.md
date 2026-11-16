@@ -77,10 +77,11 @@ features Umbriel lacks — neither is a product spec. See `AGENTS.md`.
 | Close slide (WM-initiated) | Shared `slide_offscreen` with appear/scratch/close-ghost: tiled → right inter-gap (floored past usable + border/shadow pad); floats → `closest_dir`. Scene disabled on hide finish (no chrome strip while awaiting client unmap). Tiled WM close unlinks + `sf_arrange_flush` before hide so survivors morph while the closer slides out |
 | Close slide (client Ctrl+W / CSD) | Cached last-frame ghost (`close_snap`); unmap slides via `sf_anim_offscreen_for_box` with **strip_column** (right inter-gap, not closest/top). Survivors `sf_arrange_flush` on the same unmap so morph runs with the ghost. Skipped when WM hide already ran |
 | Snap / unsnap / max morph | Live peeble-style morph (`morph_duration_ms`); mid-flight retarget. Fullscreen stays instant |
+| Tile present-size crop | Border/shadow/SSD/subsurface clip follow the packed cell (`arrange_prop_*`) or morph endpoint while the committed buffer is still larger — scrolled-off columns cannot leave a content chunk under the next cell |
 | Workspace switch slide | Vertical strip slide on Super+Page / 1–9, IPC `workspace`, and 3-finger swipe. Next: content up (new from below); prev: opposite. Focus + pointer follow at start. Duration `slide_duration_ms` (0 = instant). Mid-flight interrupt lands then retargets |
 | Scratchpad / minimize slides | Mid-flight reverse. Edge-max reassert runs while still hidden so REAPPLY cannot cancel the show slide |
 | Vsync-capped animation pacing | Own scene / frame loop |
-| Backdrop / window blur | Per-window SceneFX blur (`window_blur`) or client `ext-background-effect-v1` (`client_blur`). Gate: `(window_blur or client_blur) and not fullscreen`. Default `blur_xray false`. **Layer-shell** (any client; Noctalia bar/launcher/panels via `compositor_blur`): protocol region → SceneFX plate (`sf_layer_set_client_blur`); plate sized from effect region / exclusive_zone / input_region (shadow-safe; Alpine SceneFX 0.5 has no `ignore_alpha`) + transparency mask; follows `blur_xray` |
+| Backdrop / window blur | Per-window SceneFX blur (`window_blur`) or client `ext-background-effect-v1` (`client_blur`). Gate: `(window_blur or client_blur) and not fullscreen`. Default `blur_xray false`. **Layer-shell** (any client; Noctalia bar/launcher/switcher/panels via `compositor_blur`): protocol region → one SceneFX plate per rect (`sf_layer_set_client_blur`; switcher panel+tiles); single full-surface region falls back to tightest exclusive/opaque/input box; transparency mask; follows `blur_xray` |
 | Soft rounded corners (opaque) | `corner_radius` 12 = CSD/hole/buffer; outer rim = `corner_radius + border_thickness` |
 | Drop shadows | SceneFX |
 | Compositor border (focus/idle/urgent) | Neon / charcoal inactive / amber. Static `SF_BORDER_*` float arrays (not compound literals). Hole+buffer use `corner_radius`; outer = radius+border |
@@ -133,7 +134,7 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 
 | Feature | Notes |
 |---|---|
-| xdg-shell toplevels / popups | `request_minimize` → minimize / unminimize. Popups `wlr_xdg_popup_unconstrain_from_box` into parent output **usable** (flip/slide/resize); layer `get_popup` re-constrains after parent attach |
+| xdg-shell toplevels / popups | `request_minimize` → minimize / unminimize. Popups `wlr_xdg_popup_unconstrain_from_box` into parent output **usable** (flip/slide/resize); layer `get_popup` reparents and re-constrains only if `xdg_surface` already initialized (else `xdg_popup_commit` on first commit). Early configure aborted wlroots 0.20 on Noctalia taskbar tooltips |
 | wlr-layer-shell | v5 server; exclusive zones → usable. `set_exclusive_edge` via wlroots scene configure |
 | wp_fractional_scale + viewporter | DRM: scale 1.5 (`SF_OUTPUT_SCALE`). Nested/headless: scale 1.0 |
 | zxdg_output_v1 | Logical size for Noctalia floating-panel margins under fractional scale |
@@ -151,7 +152,7 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 | ext-workspace-v1 | Per-output group + per-workspace handle |
 | xdg-toplevel-tag | Stored on toplevel; IPC `windows` (`tag` / `description`) |
 | xdg-toplevel-icon-v1 | Preferred sizes 16–64; IPC `icon_name` |
-| ext-background-effect-v1 | Hand protocol + `src/effect/background_effect.c`; capability `blur`; xdg toplevels + all layer-shell surfaces. Layers use region extents (plus exclusive/input fallbacks); toplevels still full-surface plate when region non-empty (true region mask ROADMAP) |
+| ext-background-effect-v1 | Hand protocol + `src/effect/background_effect.c`; capability `blur`; xdg toplevels + all layer-shell surfaces. Layers: one plate per effect rect (else exclusive/opaque/input shrink); toplevels still full-surface plate when region non-empty (true region mask ROADMAP) |
 | Touch / gestures / virtual-keyboard | `seat/`: touch, `pointer_gestures_v1` + `sf.gesture` swipe binds, `zwp_virtual_keyboard_v1`, relative-pointer + constraints; `sf.input` libinput apply on new keyboard/pointer/touch |
 | Presentation-time | `wp_presentation` via `wlr_presentation_create`. Tearing control advertised (hint log only) |
 

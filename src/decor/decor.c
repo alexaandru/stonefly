@@ -299,6 +299,43 @@ static void decor_clip_xdg_surface(struct sf_toplevel *toplevel, const struct wl
 	SF_LOGW("decor clip: no subsurface child", sf_i64("id", (int64_t)toplevel->id));
 }
 
+/*
+ * Layout-presented size (umbriel: borders follow the tile even before the
+ * client redraws). An oversized committed buffer at a scrolled-off column
+ * slot used to paint ~100px under the next cell (Super+w×3: natural ~1148
+ * still mapped while pack wanted 1044 at x=-1044).
+ */
+bool sf_decor_present_content_size(struct sf_toplevel *toplevel, int *w, int *h) {
+	if (toplevel == NULL || toplevel->xdg_toplevel == NULL || w == NULL || h == NULL) {
+		return false;
+	}
+	struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
+	int pw = geo->width;
+	int ph = geo->height;
+	if (pw <= 0 || ph <= 0) {
+		struct wlr_surface *surf = toplevel->xdg_toplevel->base->surface;
+		if (surf != NULL) {
+			pw = surf->current.width;
+			ph = surf->current.height;
+		}
+	}
+	if (pw <= 0 || ph <= 0) {
+		return false;
+	}
+	if (toplevel->anim.active && toplevel->anim.morph && toplevel->anim.to_w > 0 &&
+	    toplevel->anim.to_h > 0) {
+		pw = toplevel->anim.to_w;
+		ph = toplevel->anim.to_h;
+	} else if (toplevel->arrange_prop_w > 0 && toplevel->arrange_prop_h > 0 &&
+		   (toplevel->arrange_managed || toplevel->arrange_appear_pending)) {
+		pw = toplevel->arrange_prop_w;
+		ph = toplevel->arrange_prop_h;
+	}
+	*w = pw;
+	*h = ph;
+	return true;
+}
+
 void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 	/* Nested-session output teardown detaches scene chrome while the xdg
 	 * object can still commit; skip until destroy. */
@@ -310,6 +347,28 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 	if (geo->width <= 0 || geo->height <= 0) {
 		return;
 	}
+
+	int present_w;
+	int present_h;
+	if (!sf_decor_present_content_size(toplevel, &present_w, &present_h)) {
+		present_w = geo->width;
+		present_h = geo->height;
+	}
+	/* Crop the live buffer to the tile when the client has not redrawn yet. */
+	int clip_w = geo->width;
+	int clip_h = geo->height;
+	if (present_w < clip_w) {
+		clip_w = present_w;
+	}
+	if (present_h < clip_h) {
+		clip_h = present_h;
+	}
+	struct wlr_box clip = {
+		.x = geo->x,
+		.y = geo->y,
+		.width = clip_w,
+		.height = clip_h,
+	};
 
 	const bool chrome = decor_chrome_on(toplevel);
 	const struct sf_config *cfg = sf_cfg(toplevel->server);
@@ -328,24 +387,24 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 	 * commit so geometry TL sits at the xdg tree origin.
 	 */
 	wlr_scene_node_set_position(&toplevel->xdg_scene_tree->node, 0, 0);
-	decor_clip_xdg_surface(toplevel, geo);
+	decor_clip_xdg_surface(toplevel, &clip);
 
 	if (toplevel->blur != NULL) {
-		wlr_scene_blur_set_size(toplevel->blur, geo->width, geo->height + ssd_h);
+		wlr_scene_blur_set_size(toplevel->blur, present_w, present_h + ssd_h);
 		wlr_scene_node_set_position(&toplevel->blur->node, 0, -ssd_h);
 		wlr_scene_blur_set_corner_radii(toplevel->blur, inner_corners);
 	}
 
-	int border_w = geo->width + 2 * border;
-	int border_h = geo->height + ssd_h + 2 * border;
+	int border_w = present_w + 2 * border;
+	int border_h = present_h + ssd_h + 2 * border;
 	if (toplevel->border != NULL) {
 		/* Inset hole by overlap so the rim covers client AA / scale hairlines.
 		 * Hole punches content + SSD so the rim can sit above the titlebar
 		 * without painting solid border color over it (ssd_update raises
 		 * the border node above the SSD buffer). */
 		int ov = (chrome && border > 0) ? border_overlap_px : 0;
-		int hole_h = geo->height + ssd_h;
-		if (ov * 2 >= geo->width || ov * 2 >= hole_h) {
+		int hole_h = present_h + ssd_h;
+		if (ov * 2 >= present_w || ov * 2 >= hole_h) {
 			ov = 0;
 		}
 		struct clipped_region hole = {
@@ -353,7 +412,7 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 				{
 					.x = border + ov,
 					.y = border + ov,
-					.width = geo->width - 2 * ov,
+					.width = present_w - 2 * ov,
 					.height = hole_h - 2 * ov,
 				},
 			.corners = ov > 0 ? corner_radii_all(inner > ov ? inner - ov : 0)

@@ -22,12 +22,12 @@ struct sf_layer_surface {
 	struct wlr_scene_layer_surface_v1 *scene_layer;
 	struct wlr_scene_tree *scene;
 	struct wlr_scene_tree *popups;
-	/* ext-background-effect-v1: SceneFX plate under the layer buffer.
-	 * Owned by layer->scene (destroyed with wlr_scene_layer_surface). */
-	struct wlr_scene_blur *blur;
+	/* ext-background-effect-v1: SceneFX plates under the layer buffer.
+	 * One plate per protocol rect (Noctalia switcher panel+tiles). Owned by
+	 * layer->scene (destroyed with wlr_scene_layer_surface). */
+	struct wl_list blur_plates; /* sf_layer_blur_plate.link */
 	bool client_blur;
 	pixman_region32_t blur_region; /* surface-local; empty when off */
-	struct wl_listener blur_destroy;
 	struct wl_listener map;
 	struct wl_listener unmap;
 	struct wl_listener commit;

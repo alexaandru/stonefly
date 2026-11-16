@@ -166,22 +166,8 @@ void sf_ssd_destroy(struct sf_toplevel *toplevel) {
 }
 
 static bool ssd_content_size(struct sf_toplevel *toplevel, int *out_w, int *out_h) {
-	struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
-	int w = geo->width;
-	int h = geo->height;
-	if (w <= 0 || h <= 0) {
-		struct wlr_surface *surf = toplevel->xdg_toplevel->base->surface;
-		if (surf != NULL) {
-			w = surf->current.width;
-			h = surf->current.height;
-		}
-	}
-	if (w <= 0 || h <= 0) {
-		return false;
-	}
-	*out_w = w;
-	*out_h = h;
-	return true;
+	/* Match decor: titleband follows the tile while the buffer lags. */
+	return sf_decor_present_content_size(toplevel, out_w, out_h);
 }
 
 void sf_ssd_update(struct sf_toplevel *toplevel) {

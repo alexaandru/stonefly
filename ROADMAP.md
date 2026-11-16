@@ -98,7 +98,7 @@ windows. High-severity gaps are fixed (see FEATURES).
 | Popin / popout (scale + fade) | ❌ | TODO NEXT #3. Umbriel `windows_in`/`windows_out`; v1 = morph + buffer opacity. Tiled popin; scratch keeps edge slide |
 | Umbriel-shaped `sf.opt.anim` | ❌ | TODO NEXT #4. Per-op `enabled` / `duration_ms` / `style` + master |
 | WM-settable per-window opacity | 🚧 | TODO NEXT #6. Global knobs only |
-| Blur region mask / popup blur | 🚧 | Layers size the plate from effect region / exclusive / input (+ transparency mask). Toplevels still treat non-empty region as full-surface bool. Layer popup blur open; no Alpine `ignore_alpha` |
+| Blur region mask / popup blur | 🚧 | Layers: one plate per effect rect; full-region falls back to exclusive/opaque/input (+ transparency mask). Toplevels still treat non-empty region as full-surface bool. Layer popup blur open; no Alpine `ignore_alpha` threshold |
 
 ---
 
@@ -138,7 +138,7 @@ wire + known gaps:
 | Feature | Status | Notes |
 |---|---|---|
 | `wp_tearing_control_v1` | 🚧 | **Hollow ad:** global + `new_object` logs hint only. No async/tearing page-flips (SceneFX commit stays vsynced) |
-| `ext-background-effect-v1` region / popup | 🚧 | Layers consume region extents (+ exclusive/input fallbacks). Toplevels still bool→full plate. No layer popup blur (§2) |
+| `ext-background-effect-v1` region / popup | 🚧 | Layers: per-rect plates + exclusive/opaque/input fallback. Toplevels still bool→full plate. No layer popup blur (§2) |
 | `xdg_wm_dialog_v1` modal policy | 🚧 | Stores `toplevel->modal`; placement keys off **parent**, not modal. No modal focus / input trap |
 | `xdg-toplevel-tag` consumers | 🚧 | Protocol + IPC store only; no rules / geometry-persist consumer |
 | `xdg-toplevel-icon-v1` buffers | 🚧 | Preferred sizes + name/buffer ref + IPC `icon_name`; SSD/shell do not paint buffers |

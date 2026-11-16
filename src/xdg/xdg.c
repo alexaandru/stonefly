@@ -683,6 +683,10 @@ static void xdg_popup_commit(struct wl_listener *listener, void *data) {
 static void xdg_popup_reposition(struct wl_listener *listener, void *data) {
 	(void)data;
 	struct sf_popup *popup = wl_container_of(listener, popup, reposition);
+
+	if (!popup->xdg_popup->base->initialized) {
+		return;
+	}
 	sf_xdg_popup_unconstrain(popup->server, popup->xdg_popup);
 	wlr_xdg_surface_schedule_configure(popup->xdg_popup->base);
 }
