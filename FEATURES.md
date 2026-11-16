@@ -65,6 +65,7 @@ features Umbriel lacks — neither is a product spec. See `AGENTS.md`.
 | Keyboard nudge move / resize | Actions `nudge` / `resize_edge` with `:cmd` `left`\|`right`\|`up`\|`down`. Step from `sf.opt.nudge_step` (default 25). Resize: right/down grow, left/up shrink (top-left anchored, min 50px). No-op when max/snap/fullscreen. Defaults: Alt+arrows move, Alt+Shift+arrows resize |
 | Always-on-top / pin | Flag + restack: pinned windows stay above normal ones after focus/raise; hide slides stay above pins. Actions `toggle_always_on_top` / `always_on_top` (`:cmd` true\|false). Window rule `always_on_top`. IPC `windows[].always_on_top`. Default Super+Shift+p |
 | Input device rules | `sf.input(match, opts)` in `inputs.fnl`. Match type keywords (`keyboard`/`pointer`/`mouse`/`touchpad`/`touch`) or case-insensitive name substring; later rules override. Libinput: `tap_to_click`, `natural_scroll`, `left_handed`, `dwt`, `accel_speed` (−1..1), `accel_profile` (`none`\|`flat`\|`adaptive`). Keyboard: `repeat_rate` / `repeat_delay`. Applied on device add via `seat/input_config.c`. Default: touchpad tap + natural scroll + dwt. IPC `stonefly config inputs` |
+| Predictability (High) | Strip `arrange_slot_*` survives leave_tiling / float / max-edges / WS·monitor send; exclusive FS + focus-obscured (no Tab onto covered); sticky float+edge-max (Slack); arrange switch does not silently demote edged. Open Medium gaps: ROADMAP Predictability |
 
 ---
 
@@ -83,7 +84,8 @@ features Umbriel lacks — neither is a product spec. See `AGENTS.md`.
 | Soft rounded corners (opaque) | `corner_radius` 12 = CSD/hole/buffer; outer rim = `corner_radius + border_thickness` |
 | Drop shadows | SceneFX |
 | Compositor border (focus/idle/urgent) | Neon / charcoal inactive / amber. Static `SF_BORDER_*` float arrays (not compound literals). Hole+buffer use `corner_radius`; outer = radius+border |
-| Layer z-order vs windows | Scene trees background→bottom→blur→toplevel→top→fullscreen→overlay→lock; normal xdg under workspace trees in `layers.toplevel`; fullscreen xdg reparented to `layers.fullscreen` |
+| Layer z-order vs windows | Scene trees background→bottom→blur→toplevel→overview→top→fullscreen→overlay→lock; normal xdg under workspace trees in `layers.toplevel`; fullscreen xdg reparented to `layers.fullscreen`; overview filmstrip above windows / below the bar |
+| Workspace overview | Umbriel-shaped vertical filmstrip (thin v1). Actions `overview_toggle` / `open` / `close`; default **Super+o**. Continuous **4-finger** vertical swipe via `sf.gesture` `:overview` (natural: finger up opens). Live root-surface cards (shared buffer + `dest_size`); click card → focus + close; empty click / Escape → close. Hides scratchpads; dims backdrop; `sf.opt.overview_zoom` (default 0.5). No card-drag / shortcut badges (deferred). `wm/overview.c` |
 | Window previews / destination size | Noctalia switcher via `ext-foreign-toplevel-list` + image-capture-source + image-copy-capture (`ext_capture.c`) |
 | Urgency / xdg-activation | Amber until focus; never steals focus. IPC `windows.urgent` + `set-urgent` / `unset-urgent` |
 | System bell | 200ms amber flash (`bell_flash_ms`); does not stick urgency |
@@ -210,9 +212,10 @@ Former River-fork blockers that stonefly owns in-process:
 | Super+f / Super+m max | ✅ |
 | Super+arrows snap + Super+u | ✅ |
 | Super+Page / Super+1–9 workspaces; Shift moves follow | ✅ |
-| Configurable touchpad gestures (`sf.gesture`) | ✅ Hyprland-shaped `(sf.gesture {:fingers N :axis DIR :mods?} ACTION)`. Swipe built-ins `:workspace` / `:columns_pan`; pinch dirs `pinch`/`pinchin`/`pinchout` fire actions once \|scale−1\| ≥ 0.15. `:mods` exact match (e.g. Super+pinch). Default: 3-finger V/H + Super+pinchout→`maximize_to_edges` / Super+pinchin→`unmaximize` (plain pinch stays with clients). IPC `config gestures`. Unit: `tests/config/gesture_test.c` |
+| Configurable touchpad gestures (`sf.gesture`) | ✅ Hyprland-shaped `(sf.gesture {:fingers N :axis DIR :mods?} ACTION)`. Swipe built-ins `:workspace` / `:columns_pan` / `:overview`; pinch dirs `pinch`/`pinchin`/`pinchout` fire actions once \|scale−1\| ≥ 0.15. `:mods` exact match (e.g. Super+pinch). Default: 3-finger V/H + 4-finger overview + Super+pinchout→`maximize_to_edges` / Super+pinchin→`unmaximize` (plain pinch stays with clients). IPC `config gestures`. Unit: `tests/config/gesture_test.c` |
 | 3-finger vertical swipe workspaces | ✅ via `sf.gesture` `:workspace` (default); opts: threshold / natural |
 | 3-finger horizontal swipe columns pan | ✅ via `sf.gesture` `:columns_pan` (default). Live-pan `columns_view_offset` (view only). Axis lock after threshold; natural follows `swipe_workspace_natural`. Focus: keep while mostly on-screen, else centre-most visible cell (continuous; no pointer warp) |
+| 4-finger vertical swipe overview | ✅ via `sf.gesture` `:overview` (default). Continuous progress (Umbriel ~300 px travel); release commits open/close at 0.5. Natural follows `swipe_workspace_natural` |
 | Configurable mouse grabs (`sf.bind` + `move_window` / `resize_window` / `resize_center`) | ✅ Umbriel-shaped same `sf.bind` table; Hyprland bindm-shaped grab verbs. Default: Super+LMB/RMB / Super+Shift+RMB. Border LMB hit-test stays C/opt. Unit: `tests/config/mousebind_test.c` + chord mouse parse |
 | Mod+Wheel binds (`sf.bind` + `WheelUp`/`Down`/`Left`/`Right`) | ✅ Same `sf.bind` table; mods required. Default: Super+Wheel → workspace prev/next; Super+Shift+Wheel → `focus_dir` left/right (tiling). Consume-on-match + `wheel_bind_cooldown_ms` (150). Unit: `tests/config/wheelbind_test.c` + chord wheel parse |
 | Super+LMB/RMB move/resize + magnetic snap + preview | ✅ via defaults above |

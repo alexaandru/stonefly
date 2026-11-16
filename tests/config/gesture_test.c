@@ -36,14 +36,17 @@ static void test_kind_parse(void) {
 	SF_TEST_EQ_INT((int)k, (int)SF_GESTURE_KIND_WORKSPACE);
 	SF_TEST_TRUE(sf_gesture_kind_parse("columns_pan", &k));
 	SF_TEST_EQ_INT((int)k, (int)SF_GESTURE_KIND_COLUMNS_PAN);
+	SF_TEST_TRUE(sf_gesture_kind_parse("overview", &k));
+	SF_TEST_EQ_INT((int)k, (int)SF_GESTURE_KIND_OVERVIEW);
 	SF_TEST_TRUE(!sf_gesture_kind_parse("close", &k));
 	SF_TEST_STREQ(sf_gesture_kind_name(SF_GESTURE_KIND_WORKSPACE), "workspace");
+	SF_TEST_STREQ(sf_gesture_kind_name(SF_GESTURE_KIND_OVERVIEW), "overview");
 }
 
 static void test_match_specificity(void) {
 	struct sf_config cfg = {0};
 	SF_TEST_TRUE(sf_gesture_seed_defaults(&cfg));
-	SF_TEST_EQ_INT((int)cfg.n_gestures, 2);
+	SF_TEST_EQ_INT((int)cfg.n_gestures, 3);
 
 	const struct sf_gesture *g = sf_gesture_match(&cfg, 3, 0, SF_GESTURE_DIR_VERTICAL, -40.0);
 	SF_TEST_TRUE(g != NULL);
@@ -53,21 +56,25 @@ static void test_match_specificity(void) {
 	SF_TEST_TRUE(g != NULL);
 	SF_TEST_EQ_INT((int)g->kind, (int)SF_GESTURE_KIND_COLUMNS_PAN);
 
+	g = sf_gesture_match(&cfg, 4, 0, SF_GESTURE_DIR_VERTICAL, -40.0);
+	SF_TEST_TRUE(g != NULL);
+	SF_TEST_EQ_INT((int)g->kind, (int)SF_GESTURE_KIND_OVERVIEW);
+
 	/* Wrong finger count → no match. */
-	SF_TEST_TRUE(sf_gesture_match(&cfg, 4, 0, SF_GESTURE_DIR_VERTICAL, -40.0) == NULL);
+	SF_TEST_TRUE(sf_gesture_match(&cfg, 5, 0, SF_GESTURE_DIR_VERTICAL, -40.0) == NULL);
 
 	/* Exact direction beats axis. */
-	struct sf_gesture *extra = realloc(cfg.gestures, 3 * sizeof *extra);
+	struct sf_gesture *extra = realloc(cfg.gestures, 4 * sizeof *extra);
 	SF_TEST_TRUE(extra != NULL);
 	cfg.gestures = extra;
-	cfg.gestures[2] = (struct sf_gesture){
+	cfg.gestures[3] = (struct sf_gesture){
 		.fingers = 3,
 		.dir = SF_GESTURE_DIR_UP,
 		.kind = SF_GESTURE_KIND_ACTION,
 	};
-	SF_TEST_TRUE(sf_action_steps_one(SF_ACTION_CLOSE, NULL, &cfg.gestures[2].steps,
-					 &cfg.gestures[2].n_steps));
-	cfg.n_gestures = 3;
+	SF_TEST_TRUE(sf_action_steps_one(SF_ACTION_CLOSE, NULL, &cfg.gestures[3].steps,
+					 &cfg.gestures[3].n_steps));
+	cfg.n_gestures = 4;
 
 	g = sf_gesture_match(&cfg, 3, 0, SF_GESTURE_DIR_VERTICAL, -40.0);
 	SF_TEST_TRUE(g != NULL);

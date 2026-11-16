@@ -75,6 +75,7 @@ enum sf_gesture_dir {
 enum sf_gesture_kind {
 	SF_GESTURE_KIND_WORKSPACE = 0, /* threshold step → workspace next/prev */
 	SF_GESTURE_KIND_COLUMNS_PAN,   /* continuous strip pan */
+	SF_GESTURE_KIND_OVERVIEW,      /* continuous 4-finger open/close progress */
 	SF_GESTURE_KIND_ACTION,	       /* fire steps once past threshold */
 };
 
@@ -147,6 +148,10 @@ enum sf_action {
 	SF_ACTION_MOVE_WINDOW,
 	SF_ACTION_RESIZE_WINDOW,
 	SF_ACTION_RESIZE_CENTER,
+	/* Workspace overview filmstrip (Umbriel Mod+O / 4-finger). */
+	SF_ACTION_OVERVIEW_TOGGLE,
+	SF_ACTION_OVERVIEW_OPEN,
+	SF_ACTION_OVERVIEW_CLOSE,
 
 	/* One past the last real action — table sizes / completeness checks. */
 	SF_ACTION_COUNT,
@@ -236,7 +241,8 @@ struct sf_input_rule {
 };
 
 /* sf.gesture({fingers, axis|direction, mods?}, action). action is :workspace,
- * :columns_pan, or a normal bind action / chain. */
+ * :columns_pan, :overview (continuous open/close), or a normal bind action /
+ * chain. */
 struct sf_gesture {
 	int fingers; /* typically 3–4; 2 is often scroll/pinch, not swipe */
 	enum sf_gesture_dir dir;
@@ -327,6 +333,8 @@ struct sf_config {
 	/* Natural: finger up moves content up → next; finger down → prev.
 	 * Classic (false): finger points at the destination (down → next). */
 	bool swipe_workspace_natural;
+	/* Overview filmstrip scale when fully open (0.1–0.75; Umbriel default 0.5). */
+	float overview_zoom;
 
 	/* Warp pointer into the newly focused window on keyboard focus cycle
 	 * and workspace switch (click-to-focus does not warp). */

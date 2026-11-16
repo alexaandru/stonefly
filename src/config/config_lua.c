@@ -311,7 +311,7 @@ static int parse_action_field(lua_State *L, int opts, const char *field,
  * match: {:fingers N :axis|:direction DIR}
  *   DIR = swipe|horizontal|vertical|left|right|up|down|
  *        pinch|pinchin|pinchout (also :any → swipe)
- * action: "workspace" | "columns_pan" | bind action string/table/chain
+ * action: "workspace" | "columns_pan" | "overview" | bind action string/table/chain
  * Pinch fires actions once |scale-1| ≥ 0.15 (steals client zoom when bound).
  * First call clears C/default gestures (same replace pattern as sf.bind).
  */
@@ -1552,6 +1552,7 @@ static const struct opt_num opt_numbers[] = {
 	 NULL},
 	{"swipe_workspace_threshold", OPT_NUM_INT,
 	 offsetof(struct sf_config, swipe_workspace_threshold), NULL},
+	{"overview_zoom", OPT_NUM_FLOAT, offsetof(struct sf_config, overview_zoom), NULL},
 	{"nudge_step", OPT_NUM_INT, offsetof(struct sf_config, nudge_step), NULL},
 	{"ssd_height", OPT_NUM_FN, 0, opt_set_ssd_height},
 	{"ssd_font_size", OPT_NUM_FN, 0, opt_set_ssd_font_size},

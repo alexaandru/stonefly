@@ -29,6 +29,8 @@
               ["Super+Esc" {:action :quit}]
               ["Super+Shift+Q" {:action :quit}]
               ["Super+q" {:action :close}]
+              ;; workspace overview (Umbriel Mod+O; 4-finger swipe also)
+              ["Super+o" {:action :overview_toggle}]
               ;; focus
               ["Super+Tab" {:action :focus_next}]
               ["Super+Shift+Tab" {:action :focus_prev}]

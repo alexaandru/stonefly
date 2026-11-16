@@ -91,12 +91,14 @@ struct sf_server {
 	struct wlr_scene *scene;
 	struct wlr_scene_output_layout *scene_layout;
 
-	/* Z-order: background < bottom < blur < toplevel < top <
-	 * fullscreen < overlay < lock. Fullscreen xdg sits above the bar. */
+	/* Z-order: background < bottom < blur < toplevel < overview < top <
+	 * fullscreen < overlay < lock. Fullscreen xdg sits above the bar;
+	 * overview sits above windows (below shell chrome) while open. */
 	struct {
 		struct wlr_scene_tree *background;
 		struct wlr_scene_tree *bottom;
 		struct wlr_scene_tree *toplevel;
+		struct wlr_scene_tree *overview;
 		struct wlr_scene_tree *top;
 		struct wlr_scene_tree *fullscreen;
 		struct wlr_scene_tree *overlay;
@@ -317,6 +319,26 @@ struct sf_server {
 		int match_idx;
 		bool stepped;
 	} pinch;
+
+	/* Workspace overview (Umbriel-shaped filmstrip; thin v1). */
+	struct {
+		bool active;
+		bool closing;
+		double progress; /* 0 = desktop, 1 = fully open */
+		bool anim_active;
+		double anim_from;
+		double anim_to;
+		struct timespec anim_start;
+		int64_t anim_dur_ns;
+		struct wlr_scene_tree *tree; /* == layers.overview */
+		struct wl_list cards;
+		struct wl_list dims;
+		struct sf_toplevel *pending_focus;
+		/* 4-finger gesture tracking (gestures.c). */
+		bool gesture_active;
+		bool gesture_was_open;
+		double gesture_accum;
+	} overview;
 
 	/* Pointer devices with gesture listeners attached. */
 	struct wl_list pointers;

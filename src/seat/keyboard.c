@@ -18,6 +18,7 @@
 #include "session/session.h"
 #include "util/time.h"
 #include "wm/arrange.h"
+#include "wm/overview.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
 
@@ -175,6 +176,9 @@ static bool handle_keybinding(struct sf_server *server, uint32_t modifiers, xkb_
 	/* Session lock owns input; only VT switch escapes. */
 	if (sf_session_locked(server)) {
 		return false;
+	}
+	if (sf_overview_handle_key(server, sym)) {
+		return true;
 	}
 	uint32_t mods = modifiers & (uint32_t)SF_MOD_MASK;
 	const struct sf_config *cfg = sf_cfg(server);

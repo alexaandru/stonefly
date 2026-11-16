@@ -375,6 +375,21 @@ void sf_scratchpad_claim_focused(struct sf_server *server, const char *name) {
 	scratch_show(toplevel);
 }
 
+void sf_scratchpad_hide_all(struct sf_server *server) {
+	(void)server;
+	for (size_t i = 0; i < scratch_nslots; i++) {
+		struct sf_scratch_slot *slot = &scratch_slots[i];
+		struct sf_toplevel *pad = slot->toplevel;
+		if (pad == NULL) {
+			continue;
+		}
+		if (pad->minimized || pad->anim_hide) {
+			continue;
+		}
+		scratch_hide(pad);
+	}
+}
+
 void sf_scratchpad_on_focus_change(struct sf_toplevel *focused) {
 	/*
 	 * Nil focus (exclusive layer, empty desktop) leaves pads shown — same as

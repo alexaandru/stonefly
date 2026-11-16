@@ -15,6 +15,7 @@
 #include "seat/seat.h"
 #include "server/server.h"
 #include "session/session.h"
+#include "wm/overview.h"
 #include "wm/wm.h"
 
 struct sf_lock_surface {
@@ -194,6 +195,7 @@ static void session_new_lock(struct wl_listener *listener, void *data) {
 	server->lock.current = lock;
 	server->lock.active = true;
 	wl_list_init(&server->lock.surfaces);
+	sf_overview_force_close(server);
 
 	if (server->lock.blank != NULL) {
 		/* Cover the whole layout while the locker maps surfaces. */

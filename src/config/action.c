@@ -61,6 +61,9 @@ static const struct sf_action_entry sf_actions[] = {
 	{"move_window", SF_ACTION_MOVE_WINDOW},
 	{"resize_window", SF_ACTION_RESIZE_WINDOW},
 	{"resize_center", SF_ACTION_RESIZE_CENTER},
+	{"overview_toggle", SF_ACTION_OVERVIEW_TOGGLE},
+	{"overview_open", SF_ACTION_OVERVIEW_OPEN},
+	{"overview_close", SF_ACTION_OVERVIEW_CLOSE},
 };
 
 size_t sf_action_name_table_len(void) {

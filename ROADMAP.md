@@ -1,95 +1,63 @@
 # Stonefly roadmap
 
-Open and partial work. Shipped items live in [`FEATURES.md`](FEATURES.md).
-When something ships, move it there in the same turn and drop (or shrink) the
-open row here.
+**Pending and partial work only.** Shipped capabilities live in
+[`FEATURES.md`](FEATURES.md). When something lands, move it there in the same
+turn and **delete** the matching row here (do not leave ✅ rows).
 
-`peeble/` remains reference-only for behavior/port ideas — not a checklist to
-match line-for-line.
-
-## TODO NEXT
-
-QoL stack — little things that make the WM feel finished (tiling excluded).
-Knock these out in order when picking “what next”; chapter tables below hold
-the detail rows. When an item ships, check it off here and move the row to
-[`FEATURES.md`](FEATURES.md).
-
-| # | Item | Status | Why |
-|---|---|---|---|
-| 1 | Cursor follows focus + warp on workspace / monitor change | ✅ | Shipped (`cursor_follows_focus` + `pointer_center`); monitor focus via #2 |
-| 2 | Multi-monitor focus + send-to-monitor | ✅ | Shipped (`focus_monitor` / `send_to_monitor` + Super+Ctrl/Shift+arrows) |
-| 3 | Keyboard nudge move / resize | ✅ | Shipped (`nudge` / `resize_edge` + `nudge_step`; Alt / Alt+Shift+arrows) |
-| 4 | Always-on-top / pin | ✅ | Shipped (`toggle_always_on_top` / rule / Super+Shift+p) |
-| 5 | Workspace switch animation | ✅ | Shipped (vertical strip slide; Super+Page / 1–9 + IPC + swipe share `sf_workspace_switch`) |
-| 6 | Real `inputs.fnl` API | ✅ | Shipped (`sf.input` + libinput apply; tap/natural/accel + left_handed/dwt/repeat) |
-| 7 | Configurable pointer gestures | ✅ | Shipped (`sf.gesture` swipe + pinch; default 3-finger V/H; pinch→max opt-in in `gestures.fnl`). Follow-on: Mod+Wheel via `sf.bind` ✅ |
-| 8 | Hardcoded → config / Lua audit | ✅ | Shipped: gestures/mouse/wheel binds, `client_maximize`, `unminimize_workspace`, contract + inventory. Deferred knobs: [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9.2. Next QoL: **#10** |
-| 9 | Live config reload (binds + opts first) | ✅ | Shipped: staging Lua re-run, inotify watch, `:reload` / `sf.reload` / IPC; keep previous on failure |
-| 10 | Dim-inactive / spotlight polish | 🚧 | **Next.** Opacity knobs exist; stronger dim or overlay so focus reads at a glance |
-| 11 | Popin / popout appear+close | ❌ | Umbriel-style scale+fade; see §2. Slide ships (tiled = right inter-gap; scratch closest) |
-| 12 | IME **or** Xwayland (pick by apps) | ❌ | fcitx/CJK/OSK → IME; Steam/legacy → Xwayland — real projects, not afternoon bites |
-
-**#8 closed.** Shipped bind/opt surfaces + border contract. Leftover UX knobs
-(focus cycle, tile insert, drop seam, tiled grab remap, border LMB on/off,
-appear give-up, pinch threshold, SSD close/min map, anim table, …) and Tier 2
-`sf.on` live as deferred backlog in [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9 —
-pick from there when useful; they no longer block TODO NEXT.
+`umbriel/` is the primary reference; `peeble/` is secondary for Umbriel gaps —
+neither is a line-for-line checklist. C↔Lua border and deferred opt inventory:
+[`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md).
 
 ---
 
-## Predictability audit (unsurprising WM)
+## TODO NEXT
 
-**Principle:** navigating, switching arrange (and back), float/unfloat, max/unmax
-(gaps, edges, fullscreen), hide/show, and send-to-WS/monitor must be round-trips
-the user can trust. No silent demotion, forgotten home cell, or focus onto
-something invisible. “Boring” here is a feature.
+Fresh pick-queue (tiling overview / big engines excluded). Knock these out in
+order when choosing “what next”; chapter tables below hold detail. Carry-overs
+from the previous stack plus high-value leftovers and low-hanging fruit.
 
-Shipped this session (baseline): strip `arrange_slot_*` for leave_tiling /
-break_out; exclusive FS + focus-obscured; sticky float + edge-max (Slack).
+| # | Item | Status | Why |
+|---|---|---|---|
+| 1 | **Dim-inactive / spotlight polish** | 🚧 | Opacity knobs exist; stronger dim or overlay so focus reads at a glance |
+| 2 | **Deferred WM opts (high)** | ❌ | From [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9.2: `focus_cycle`, `tile_insert`, `column_drop_seam`, `tiled_grab_remap`, `border_lmb` — day-to-day tiling feel without new C policy |
+| 3 | **Popin / popout appear+close** | ❌ | Umbriel scale+fade; slide already ships (tiled = right inter-gap). See §2 |
+| 4 | **`sf.opt.anim` table** | ❌ | Per-op enable/duration/style (appear, close, minimize, scratch, morph, WS); folds tiled_slide / ease / pinch threshold |
+| 5 | **`outputs.fnl` / output arrange API** | 🚧 | Workspace→output→global arrange; IPC `config outputs` still `{}` |
+| 6 | **Per-window / rule opacity** | 🚧 | Global focused/inactive only; rules/API for spotlight packs |
+| 7 | **Scratchpad claim → xdg-activation** | 🚧 | Fake `app_id` avoids steal but breaks taskbar icons; startup token is the real fix |
+| 8 | **Predictability Medium leftovers** | 🚧 | FS unFS→pack; snap↔max one “normal” box; document transient tile edge-max; pan-focus opt |
+| 9 | **IME *or* Xwayland** | ❌ | Pick by apps: fcitx/CJK/OSK → IME; Steam/legacy → Xwayland — real projects |
+| 10 | **`sf.on` + window query** | ❌ | Tier 2–3 Neovim leap ([`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9.5); packs react to map/focus/arrange |
 
-### High — ✅ fixed (same family as strip slot / exclusive FS)
+**After this stack (not numbered):** IPC `action` allowlist; APK flip to release
+buildtype when ASan hunting ends; `--write-config-lua`; tablet; `wp_fifo_v1`;
+full color-mgmt; geometry persist / tag rules; scratchpad click-outside catcher;
+winmenu (or Noctalia).
 
-| Gap | Fix |
-|---|---|
-| **WS / monitor move drops slot** | `unlink` no longer clears `arrange_slot_*`; assign remembers before unlink; clear only on destroy/close/scratch/teardown |
-| **Fullscreen still packs a cell** | `column_row_paints` skips FS (keep membership); reflow on FS enter/exit via `layout_dispatch` |
-| **Arrange switch demotes edged** | `leave_tiling` keeps layout mode; restores `arrange_float_box` only for ordinary tiles; unmax rejoins when tiling + !sticky float |
-| **Send-to-monitor + max** | edge/gap-max re-apply without `layout_float` (sticky float / PreMax safe) |
+---
 
-### Medium — product policy, then code
+## Predictability audit — still open
 
-One “maximize” word, several entry points — unify or document before more chrome:
+**Principle:** arrange switch, float/unfloat, max/unmax, FS, hide/show, WS/monitor
+send must round-trip. No silent demotion, forgotten cell, or focus onto covered
+windows. High-severity gaps are fixed (see FEATURES).
 
-| Trigger today | Stonefly op |
-|---|---|
-| Super+f / rule `:maximize_to_edges` / taskbar foreign `set_maximized` / **CSD** maximize (xdg `request_maximize`) | **edge-max** (`set_max_edges`) |
-| Super+m / **SSD** maximize button | **gap-max** / columns **full_width** (`toggle_max_gaps`) |
+### Medium
 
 | Gap | What surprises | Direction |
 |---|---|---|
-| **Maximize entry-point matrix** | ✅ `sf.opt.client_maximize` (default `gaps` = Super+m). CSD / SSD / foreign follow it. Super+f stays zen/edges | shipped |
-| **Client maximize vs Super+m** | ✅ same opt; default matches Super+m | shipped |
-| **Unminimize → active WS** | ✅ `sf.opt.unminimize_workspace` default `active` (carry); `home` keeps hide WS | shipped |
-| **Transient tile edge-max** | Focus / Tab releases overlay back to cell — correct for “peek”, surprising if user wanted sticky edge-max on a tile | Keep transient; sticky = float+edge-max or rule (already Slack path). Document in defaults |
-| **FS saved box vs tile cell** | UnFS restores layout_sm **saved** geom; if still column-managed, next pack overwrites — usually OK, race if arrange deferred | After unFS, if `arrange_managed`, skip saved-box morph and pack instead (or pack immediately) |
-| **Snap ↔ max ↔ unmax** | PreMax / PreSnap stacking: which box wins after a chain of toggles | One saved “normal” box; modes are overlays; unmax always returns to that normal |
-| **Pan focus vs click focus** | 3-finger pan retargets focus to centre-most; pointer may still sit over another cell | Acceptable (chosen); optional later: warp or “focus under pointer on swipe end” |
+| **Transient tile edge-max** | Focus/Tab drops overlay back to cell — right for “peek”, wrong if user wanted sticky | Keep transient; sticky = float+edge-max / rule. Document in defaults (TODO NEXT #8) |
+| **FS saved box vs tile cell** | UnFS restores layout_sm saved geom; column pack may overwrite | If `arrange_managed`, pack instead of saved-box morph |
+| **Snap ↔ max ↔ unmax** | PreMax / PreSnap stacking after toggle chains | One saved “normal” box; modes are overlays |
+| **Pan focus vs click focus** | 3-finger pan retargets centre-most; pointer may sit over another cell | Optional: warp or focus-under-pointer on swipe end |
 
-### Low — polish / rare
+### Low
 
 | Gap | Notes |
 |---|---|
-| Empty column shells after FS-only column | FS skipped in pack → `visible_count==0`; strip omits column while membership kept — OK; watch empty-shell leaks |
-| Scratchpad claim vs taskbar icons | §1 / FEATURES: fake `app_id` avoids steal; proper fix = xdg-activation / startup token |
-| Insert-after-focus for brand-new maps | Predictable once known; slot restore covers return paths; deferred opt in [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9.2 `tile_insert` |
-| SoftPlace late title / app_id float | Mostly fixed; watch apps that change identity after map |
-| Output disconnect / refuge | `workspace_clear` unlinks + clears slots — expected on teardown |
-| Foreign unset_maximized while SSD “max” was gap-max | Taskbar may think window is maximized (edges) while SSD toggled full_width — state bits can disagree until matrix is unified |
-| Double-click SSD title → max | Implemented (`ssd.c`, 400ms) → **gap-max** today; must follow the chosen maximize matrix once unified |
-
-### Done checklist when closing a High / Medium row
-
-Round-trip tests (manual or harness): columns multi-row → stacking → columns; float → unfloat; edge-max → unmax; FS → unFS; hide → show; send to other WS/monitor and back; sticky float+edge-max hide/show. Focus never lands on a fully covered window without an explicit exit-FS. Maximize: CSD, SSD, Super+f, Super+m, taskbar — each path matches the chosen matrix.
+| Empty column shells after FS-only column | Membership kept, pack skips FS — watch empty-shell leaks |
+| SoftPlace late title / app_id | Mostly fixed; watch late identity changes |
+| Output disconnect / refuge | `workspace_clear` unlinks + clears slots — expected |
 
 ---
 
@@ -100,7 +68,7 @@ Round-trip tests (manual or harness): columns multi-row → stacking → columns
 | **🚧** | Partial, stub, or day-zero subset |
 | **📋** | Mentioned / planned, not shipped |
 | **❌** | Not present |
-| **🌙** | Deferred to external shell (Noctalia) — compositor work only if noted |
+| **🌙** | Deferred to external shell (Noctalia) |
 
 ---
 
@@ -108,19 +76,17 @@ Round-trip tests (manual or harness): columns multi-row → stacking → columns
 
 | Feature | Status | Notes |
 |---|---|---|
-| Focus next / prev including minimized | 🚧 | Alt+Tab → `noctalia msg window-switcher`; Alt+Shift+Tab still `FOCUS_PREV_ALL` (unhides). Super+Tab visible-only |
-| Window menu | ❌ | |
-| Geometry persist across restart | ❌ | Tag protocol shipped; no persist consumer yet |
-| Workspaces polish | 🚧 | ❌ geometry persist / named window rules. Switch slide shipped (FEATURES). Layout engines separate |
-| Layout engine (tile/columns/…) | ✅ | **stacking + columns** only; first-class `sf_column` strip (umbriel-shaped) shipped — see FEATURES / LESSONS. Cell-drag, slot width, just-enough scroll, 3-finger strip pan, clockwise Tab ring shipped. Still open: `center_focused=on_overflow`, consume-from bind, tabs, drag edge pan; deck/grid declined for now |
-| Focus cycle policy (MRU vs stack) | 🚧 | Stacking / MRU list front |
-| Picture-in-picture float | ❌ | Related to always-on-top; dedicated PiP policy still open |
-| Dim inactive / spotlight | 🚧 | TODO NEXT #10. Global `client_opacity` / `inactive_opacity` shipped; no black dim-overlay / spotlight; consider stronger default inactive |
-| Maximize policy (CSD / SSD / binds / taskbar) | ✅ | `sf.opt.client_maximize` default `gaps` (= Super+m); CSD/SSD/foreign follow it. Super+f stays zen/edges |
-| Unminimize workspace policy | ✅ | `sf.opt.unminimize_workspace` default `active` (carry); `home` keeps hide WS |
-| Scratchpad click-outside catcher | ❌ | `auto_hide` on focus change ships; catcher does not |
-| Scratchpad claim vs icons | 🚧 | Fake `app_id` avoids stealing normal windows (breaks taskbar icons). Proper fix later: xdg-activation / startup token |
-| SSD per-app overrides / winmenu | 🚧 | SSD titlebars ✅; per-app overrides / winmenu open |
+| Focus next / prev including minimized | 🚧 | Alt+Tab → noctalia switcher; Alt+Shift+Tab `FOCUS_PREV_ALL` (unhides). Super+Tab visible-only |
+| Window menu / winmenu | ❌ | SSD titlebars shipped |
+| Geometry persist across restart | ❌ | Tag protocol shipped; no persist consumer |
+| Workspaces polish | 🚧 | Named rules / geometry persist open. Switch slide + strip shipped (FEATURES) |
+| Columns polish | 🚧 | Still open: `center_focused=on_overflow`, consume-from bind, tabs, drag edge pan; deck/grid declined |
+| Focus cycle opt (MRU / spatial / strip) | 🚧 | Behavior shipped; opt is TODO NEXT #2 |
+| Picture-in-picture float | ❌ | Related to always-on-top |
+| Dim inactive / spotlight | 🚧 | TODO NEXT #1 |
+| Scratchpad click-outside catcher | ❌ | `auto_hide` on focus change ships |
+| Scratchpad claim vs icons | 🚧 | TODO NEXT #7 — fake `app_id`; want xdg-activation |
+| SSD per-app overrides / winmenu | 🚧 | Rule `ssd` ships; winmenu open |
 
 ---
 
@@ -128,10 +94,10 @@ Round-trip tests (manual or harness): columns multi-row → stacking → columns
 
 | Feature | Status | Notes |
 |---|---|---|
-| Popin / popout (scale + fade) | ❌ | TODO NEXT #11. Umbriel `windows_in`/`windows_out` popin: lerp presented box from `scale`→1 centered in slot + opacity 0→1 (reverse on close/ghost). v1 can reuse morph + buffer opacity; full crop/dest_size polish later. Intent: tiled windows popin/popout; scratchpad keeps edge slide |
-| Umbriel-shaped `sf.opt.anim` table | ❌ | Per-op `enabled` / `duration_ms` / `style` (appear, close, minimize, scratchpad, morph, workspace) + master; chrome gate. Day-zero intent when picked up: scratchpad + workspace slide on; tiled appear/close → popin once shipped |
-| WM-settable per-window opacity | 🚧 | Global focused/inactive knobs; no per-window / rules API yet |
-| Blur region mask | 🚧 | Non-empty blur region → full-window SceneFX (no region mask yet) |
+| Popin / popout (scale + fade) | ❌ | TODO NEXT #3. Umbriel `windows_in`/`windows_out`; v1 = morph + buffer opacity. Tiled popin; scratch keeps edge slide |
+| Umbriel-shaped `sf.opt.anim` | ❌ | TODO NEXT #4. Per-op `enabled` / `duration_ms` / `style` + master |
+| WM-settable per-window opacity | 🚧 | TODO NEXT #6. Global knobs only |
+| Blur region mask | 🚧 | Non-empty blur region → full-window SceneFX |
 
 ---
 
@@ -139,18 +105,17 @@ Round-trip tests (manual or harness): columns multi-row → stacking → columns
 
 | Feature | Status | Notes |
 |---|---|---|
-| Winmenu | ❌ | SSD shipped |
+| Winmenu | ❌ | |
 | Power confirm / power menu | ❌ | |
 | Hold-modifier cheatsheet | ❌ | |
-| Clipboard history panel | ❌ | Compositor clipboard protocols shipped; panel is shell |
+| Clipboard history panel | ❌ | Protocols shipped; panel is shell |
 | Color picker | ❌ | |
 | Dock with magnification | ❌ | |
 | Desktop widgets | ❌ | |
 | Blur behind bar/OSD | 🚧 | SceneFX can; chrome is external |
 | In-process wallpaper engine | ❌ | Layer-shell wallpaper clients OK |
 
-Bar / launcher / OSD / notifier / control center stay **🌙 Noctalia** unless
-product asks for in-process chrome again.
+Bar / launcher / OSD / notifier / control center stay **🌙 Noctalia**.
 
 ---
 
@@ -169,14 +134,13 @@ product asks for in-process chrome again.
 
 | Feature | Status | Notes |
 |---|---|---|
-| Screencast / capture_sessions | ❌ | Screencopy + ext-image-copy-capture shipped; session UI/widget open |
+| Screencast / capture_sessions UI | ❌ | Screencopy + ext-image-copy-capture shipped |
 | Full-output screencopy blanking | ❌ | Per-window capture privacy shipped |
-| Xwayland | ❌ | TODO NEXT #12 (pick vs IME by apps). Classic X11 apps fail |
-| text-input / IME | ❌ | TODO NEXT #12 (pick vs Xwayland by apps). `zwp_text_input_v3` + `zwp_input_method_v2` — wlroots helpers exist; stonefly does not advertise. Needs seat relay + popup placement + IM client |
-| `wp_fifo_v1` | ❌ | Presentation-time ✅; tearing control advertised (hint only); no fifo helper yet |
+| Xwayland | ❌ | TODO NEXT #9 |
+| text-input / IME | ❌ | TODO NEXT #9 — `zwp_text_input_v3` + `zwp_input_method_v2`; seat relay + popup + IM client |
+| `wp_fifo_v1` | ❌ | Presentation-time ✅; no fifo helper |
 | `wp_tearing_control_v1` async flip | 🚧 | Advertised; hint log only |
-| Configurable swipe / pinch binds | ✅ | `sf.gesture` swipe + pinch (`pinchin`/`pinchout`/`pinch`) |
-| Tablet | ❌ | Touch / gestures / virtual-keyboard / constraints shipped |
+| Tablet | ❌ | Touch / gestures / VK / constraints shipped |
 | Full color-management | ❌ | Gamma LUT shipped |
 | xdg-toplevel-tag consumers | 🚧 | Protocol + IPC stored; no rules/persist consumer |
 | xdg-toplevel-icon buffers in shell | 🚧 | Protocol + IPC `icon_name`; Noctalia unused buffers yet |
@@ -187,12 +151,19 @@ product asks for in-process chrome again.
 
 | Feature | Status | Notes |
 |---|---|---|
-| Config validate CLI | ✅ | `stonefly validate` — exact Lua error on stderr; exit 0/1 |
-| Nano syntax highlight | ❌ | |
+| `--write-config-lua` | ❌ | Offload compiled/plain Lua instead of `.fnl` |
+| `outputs.fnl` API | 🚧 | TODO NEXT #5. `sf.input` shipped |
+| IPC `config` outputs section | 🚧 | Still `{}` until output API |
 | IPC `action <name>` allowlist | ❌ | |
-| IPC inputs | ❌ | Live devices dump; `config inputs` rules ✅ |
-| APK release buildtype | 🚧 | **TEMP:** clang `debugoptimized` + ASan/UBSan (`!strip`); release `abuild-meson --buildtype=release` kept commented until crash hunting ends |
+| IPC inputs (live devices) | ❌ | `config inputs` rules ✅ |
+| Nano syntax highlight | ❌ | |
+| APK release buildtype | 🚧 | **TEMP:** clang debugoptimized + ASan/UBSan; flip when crash hunting ends |
 | Exit CPU/heap profiles | ❌ | |
+| Neovim API compat / fake `vim.*` | ❌ | Non-goal |
+| Fennel as C dependency | ❌ | Non-goal |
+| Remote plugin fetch | ❌ | Non-goal for v1 |
+
+Deferred bind/opt knobs (not TODO NEXT blockers): [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9.2.
 
 ---
 
@@ -200,13 +171,11 @@ product asks for in-process chrome again.
 
 | Pri | Item | Status |
 |---|---|---|
-| P1 | Configurable gestures | ✅ `sf.gesture` swipe + pinch |
-| P1 | Hardcoded → Lua/config audit | ✅ TODO NEXT #8; deferred knobs [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9.2 |
-| P1 | WM opacity | 🚧 global focused + inactive; no per-window API (TODO NEXT #10) |
-| P2 | Workspaces polish | ❌ rules / geometry persist (switch slide ✅) |
+| P1 | WM opacity / dim | 🚧 TODO NEXT #1 / #6 |
+| P1 | `sf.on` + window query | ❌ TODO NEXT #10 |
+| P2 | Workspaces polish | ❌ rules / geometry persist |
 | P2 | `wp_fifo_v1` | ❌ |
-| — | Xwayland / IME | ❌ TODO NEXT #12 |
-| — | Tiling engines (`columns`/`tile`) | 🚧 reserved |
+| — | Xwayland / IME | ❌ TODO NEXT #9 |
 
 ---
 
@@ -216,71 +185,45 @@ product asks for in-process chrome again.
 |---|---|
 | Winmenu | ❌ |
 | Geometry persist | ❌ |
-| Xwayland / IME | ❌ TODO NEXT #12 |
-| Tiling layouts | ✅ (arrange engines; see FEATURES) |
+| Xwayland / IME | ❌ TODO NEXT #9 |
 | Alt+Tab cycle policy polish | 🚧 noctalia switcher + `FOCUS_PREV_ALL` |
 
 ---
 
 ## 9. Suggested attack order
 
-Primary queue is **TODO NEXT** at the top (QoL #1–#12). After that stack:
+Primary queue is **TODO NEXT** at the top (#1–#10). After that stack:
 
-1. Config leftovers (§10) — validate CLI, outputs API, `--write-config-lua`
-2. Optional WM: tiling engines, geometry persist / tag-based rules, overview (niri/mango-scale — large)
-3. Capture: full-output screencopy blanking; shell UI for privacy optional
-4. Input: tablet (IME is TODO NEXT #12; gestures ✅ #7; hardcoded→Lua audit ✅ #8)
-5. IPC: action allowlist
-6. Packaging: flip APK back to release buildtype when ASan hunting ends
-7. Protocol polish: `wp_fifo_v1`, full color-mgmt
+1. IPC action allowlist; APK release buildtype; `--write-config-lua`
+2. Capture: full-output screencopy blanking
+3. Input: tablet
+4. Protocol polish: `wp_fifo_v1`, full color-mgmt
+5. Optional WM: geometry persist / tag rules; overview polish (card drag, filmstrip scroll, multi-surface cards)
 
 Shell/OSD/media stay **🌙 Noctalia**.
 
 ---
 
-## 10. Config — open
-
-| Open | Status | Notes |
-|---|---|---|
-| Configurable pointer gestures | ✅ | `sf.gesture` swipe + pinch. [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) |
-| Hardcoded → config / Lua audit | ✅ | TODO NEXT #8. Deferred knobs + `sf.on` (Tier 2): [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9 |
-| Live reload mid-session | ✅ | Shipped (`sf_config_reload` + inotify; `sf.exec {:reload true}` runs on success) |
-| Config validate CLI | ✅ | `stonefly validate` — exact Lua error on stderr; exit 0/1 |
-| `--write-config-lua` | ❌ | Offload compiled/plain Lua instead of `.fnl` |
-| `outputs.fnl` API | 🚧 | `inputs.fnl` / `sf.input` shipped (FEATURES). Output `:arrange` override planned (workspace→output→global; global `opt.arrange` wired) |
-| IPC `config` outputs section | 🚧 | Inputs emit rules array; outputs still `{}` until that API exists |
-| Neovim API compat / fake `vim.*` | ❌ | Non-goal |
-| Fennel as C dependency | ❌ | Non-goal (Fennel is Lua in the pack) |
-| Remote plugin fetch | ❌ | Non-goal for v1 |
-| Static-link LuaJIT (drop `luajit` runtime dep) | ❌ | Optional packaging choice later |
-
-Shipped surface: [`FEATURES.md`](FEATURES.md) §10.
-
----
-
-## 11. Testing — open
+## 10. Testing — open
 
 | Suite | Status | Scope | Gate |
 |---|---|---|---|
-| Unit (more pure) | 📋 | Remaining config decode / rules match without Lua VM; deeper JSON field paths. Layout + place SMs shipped | Extend `make test` / `meson test` |
-| Integration | 📋 later | Headless / virtual WL + client/IPC drivers | Separate Meson suite tag; skip by default until stable |
-| Coverage floors / HTML | 📋 optional | gcovr/`llvm-cov` report; fail under a floor | Dev/CI only — not APK `check()` |
+| Unit (more pure) | 📋 | Remaining config decode / rules match without Lua VM; deeper JSON paths | Extend `make test` |
+| Integration | 📋 later | Headless / virtual WL + client/IPC drivers | Separate Meson tag; skip by default |
+| Coverage floors / HTML | 📋 optional | gcovr/`llvm-cov`; fail under a floor | Dev/CI only — not APK `check()` |
 
-Shipped unit surface (layout_sm/place_sm/geom/layout/snap/IPC parse/shell_quote/path/chord + earlier util/ssd/action/JSON): see [`FEATURES.md`](FEATURES.md) §11.
+Shipped unit surface: [`FEATURES.md`](FEATURES.md) §11.
 
 ### Non-goals (for now)
 
 - Third-party C unit frameworks as `checkdepends`
-- Mocking frameworks / linker `--wrap` as the default story
-- Running the full compositor under every `meson test`
-- Collapsing unit + headless integration into one binary
+- Mocking / linker `--wrap` as the default story
+- Full compositor under every `meson test`
 - Coverage % gate inside APK `check()`
 
 ---
 
 ## Legend for future edits
 
-When a row ships, update **FEATURES.md**, remove or shrink the matching
-roadmap row (and TODO NEXT / §7/§8/§9 if listed there). Prefer stonefly
-source paths (`src/wm/…`) in notes; river issue numbers only when they still
-explain historical context.
+When a row ships: update **FEATURES.md**, **delete** the roadmap row (and any
+TODO NEXT entry). Prefer stonefly source paths (`src/wm/…`) in notes.

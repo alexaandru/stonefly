@@ -53,6 +53,8 @@
         ;; true = natural (finger up → next / content moves with finger);
         ;; false = classic (finger down → next).
         :swipe_workspace_natural true
+        ;; overview filmstrip scale when fully open (0.1–0.75; Umbriel 0.5)
+        :overview_zoom 0.5
         ;; Warp pointer to the newly focused window on Super+Tab / workspace
         ;; switch (and move-follow). Click-to-focus does not warp.
         :cursor_follows_focus true

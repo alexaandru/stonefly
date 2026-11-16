@@ -73,6 +73,10 @@ bool sf_gesture_kind_parse(const char *name, enum sf_gesture_kind *out) {
 		*out = SF_GESTURE_KIND_COLUMNS_PAN;
 		return true;
 	}
+	if (strcmp(name, "overview") == 0) {
+		*out = SF_GESTURE_KIND_OVERVIEW;
+		return true;
+	}
 	return false;
 }
 
@@ -82,6 +86,8 @@ const char *sf_gesture_kind_name(enum sf_gesture_kind kind) {
 		return "workspace";
 	case SF_GESTURE_KIND_COLUMNS_PAN:
 		return "columns_pan";
+	case SF_GESTURE_KIND_OVERVIEW:
+		return "overview";
 	case SF_GESTURE_KIND_ACTION:
 		return "action";
 	}
@@ -186,7 +192,7 @@ bool sf_gesture_seed_defaults(struct sf_config *cfg) {
 	if (cfg == NULL) {
 		return false;
 	}
-	struct sf_gesture *g = calloc(2, sizeof *g);
+	struct sf_gesture *g = calloc(3, sizeof *g);
 	if (g == NULL) {
 		return false;
 	}
@@ -196,7 +202,10 @@ bool sf_gesture_seed_defaults(struct sf_config *cfg) {
 	g[1].fingers = 3;
 	g[1].dir = SF_GESTURE_DIR_HORIZONTAL;
 	g[1].kind = SF_GESTURE_KIND_COLUMNS_PAN;
+	g[2].fingers = 4;
+	g[2].dir = SF_GESTURE_DIR_VERTICAL;
+	g[2].kind = SF_GESTURE_KIND_OVERVIEW;
 	cfg->gestures = g;
-	cfg->n_gestures = 2;
+	cfg->n_gestures = 3;
 	return true;
 }

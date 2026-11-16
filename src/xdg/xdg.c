@@ -27,6 +27,7 @@
 #include "util/str.h"
 #include "wm/arrange.h"
 #include "wm/drag_snap.h"
+#include "wm/overview.h"
 #include "wm/rules.h"
 #include "wm/scratchpad.h"
 #include "wm/workspace.h"
@@ -184,6 +185,7 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	sf_toplevel_arm_appear(toplevel);
 	sf_foreign_toplevel_on_map(toplevel);
 	sf_ext_capture_on_map(toplevel);
+	sf_overview_on_toplevel_mapped(toplevel);
 }
 
 static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
@@ -191,6 +193,8 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	struct sf_toplevel *toplevel = wl_container_of(listener, toplevel, unmap);
 	struct sf_server *server = toplevel->server;
+
+	sf_overview_on_toplevel_unmapped(toplevel);
 
 	/* Reset the cursor mode if the grabbed toplevel was unmapped. */
 	if (toplevel == server->grabbed_toplevel) {

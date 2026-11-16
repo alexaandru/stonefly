@@ -34,4 +34,7 @@ void sf_scratchpad_on_focus_change(struct sf_toplevel *focused);
 /* Named pads are omitted from Super+Tab (peeble Alt-Tab omit). */
 bool sf_toplevel_is_scratchpad(const struct sf_toplevel *toplevel);
 
+/* Hide every visible named scratchpad (overview open). */
+void sf_scratchpad_hide_all(struct sf_server *server);
+
 #endif

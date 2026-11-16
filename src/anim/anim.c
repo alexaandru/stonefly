@@ -14,6 +14,7 @@
 #include "util/math.h"
 #include "util/time.h"
 #include "wm/column.h"
+#include "wm/overview.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
 
@@ -654,8 +655,10 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now) {
 
 	sf_ghost_tick(server, now);
 	sf_workspace_anim_tick(server, now);
+	sf_overview_tick(server, now);
 
-	if (sf_anim_busy(server) || !wl_list_empty(&server->ghosts)) {
+	if (sf_anim_busy(server) || !wl_list_empty(&server->ghosts) ||
+	    sf_overview_anim_busy(server)) {
 		sf_anim_schedule(server);
 	}
 }

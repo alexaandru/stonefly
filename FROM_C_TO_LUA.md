@@ -180,17 +180,14 @@ invariant pass) over **replace** for lifecycle.
 
 ## 6. Practical sequence
 
-Matches ROADMAP TODO NEXT; do not grow new hardcoded policy in parallel.
+Matches ROADMAP **TODO NEXT** (pending-only queue). Do not grow new hardcoded
+policy in parallel.
 
-1. **#7 Configurable gestures** — ✅ `sf.gesture` swipe + pinch; Mod+Wheel ✅
-   via `sf.bind`.
-2. **#8 Hardcoded → config/Lua audit** — ✅ closed (gestures/mouse/wheel,
-   `client_maximize`, `unminimize_workspace`, contract). Deferred knobs §9.2.
-3. **#9 Live reload** — ✅ shipped (re-run Lua init; inotify; keep previous on
-   failure). Edit Fennel → session updates without logout.
-4. **`sf.on` + window query API** — Tier 2–3; packs become real (next big leap).
-5. **Deferred Tier 1 knobs** — pick from §9.2 when pain shows (focus/insert,
-   drop seam, border LMB, anim table, …).
+1. Dim / spotlight polish; deferred high WM opts (§9.2 → ROADMAP #2).
+2. Popin / `sf.opt.anim`; outputs API; per-window opacity.
+3. Scratchpad activation token; Predictability Medium leftovers.
+4. IME or Xwayland (app-driven pick).
+5. **`sf.on` + window query** — Tier 2–3; packs become real.
 
 Shell UI (bar, launcher, OSD) stays **Noctalia**. Compositor Lua is WM policy,
 not a second shell.

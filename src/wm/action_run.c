@@ -15,6 +15,7 @@
 #include "wm/arrange.h"
 #include "wm/internal.h"
 #include "wm/layout_sm.h"
+#include "wm/overview.h"
 #include "wm/scratchpad.h"
 #include "wm/snap.h"
 #include "wm/wm.h"
@@ -323,6 +324,18 @@ static void action_resize_center(struct sf_action_ctx *ctx) {
 	sf_begin_interactive(toplevel, SF_CURSOR_RESIZE_CENTER, 0);
 }
 
+static void action_overview_toggle(struct sf_action_ctx *ctx) {
+	sf_overview_toggle(ctx->server);
+}
+
+static void action_overview_open(struct sf_action_ctx *ctx) {
+	sf_overview_open(ctx->server);
+}
+
+static void action_overview_close(struct sf_action_ctx *ctx) {
+	sf_overview_close(ctx->server);
+}
+
 /*
  * Verb catalog: one slot per enum value. Flags encode the shared protocol
  * (need window / need cmd) so arms stay free of duplicated guards.
@@ -378,6 +391,9 @@ static const struct sf_action_slot sf_action_slots[SF_ACTION_COUNT] = {
 	[SF_ACTION_MOVE_WINDOW] = {0, action_move_window},
 	[SF_ACTION_RESIZE_WINDOW] = {0, action_resize_window},
 	[SF_ACTION_RESIZE_CENTER] = {0, action_resize_center},
+	[SF_ACTION_OVERVIEW_TOGGLE] = {0, action_overview_toggle},
+	[SF_ACTION_OVERVIEW_OPEN] = {0, action_overview_open},
+	[SF_ACTION_OVERVIEW_CLOSE] = {0, action_overview_close},
 };
 
 _Static_assert(sizeof(sf_action_slots) / sizeof(sf_action_slots[0]) == (size_t)SF_ACTION_COUNT,

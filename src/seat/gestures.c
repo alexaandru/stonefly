@@ -16,8 +16,14 @@
 #include "output/output.h"
 #include "session/session.h"
 #include "wm/arrange.h"
+#include "wm/overview.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
+
+/* Umbriel kOverviewDistancePx — full open/close travel. */
+enum {
+	SF_OVERVIEW_GESTURE_PX = 300
+};
 
 static uint32_t seat_mods(struct sf_server *server) {
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(server->seat);
@@ -67,6 +73,8 @@ static void swipe_reset(struct sf_server *server) {
 	server->swipe.dy = 0;
 	server->swipe.match_idx = -1;
 	server->swipe.stepped = false;
+	server->overview.gesture_active = false;
+	server->overview.gesture_accum = 0.0;
 }
 
 static void pinch_reset(struct sf_server *server) {
@@ -224,6 +232,33 @@ static void pointer_swipe_update(struct wl_listener *listener, void *data) {
 		}
 	}
 
+	/* Continuous overview open/close (Umbriel 4-finger). Natural: finger
+	 * up opens, finger down closes. progress = base + accum/distance. */
+	if (eligible && g != NULL && g->kind == SF_GESTURE_KIND_OVERVIEW) {
+		if (!server->overview.gesture_active) {
+			server->overview.gesture_active = true;
+			server->overview.gesture_was_open = sf_overview_active(server) &&
+							    !server->overview.closing &&
+							    server->overview.progress >= 0.5;
+			server->overview.gesture_accum = 0.0;
+		}
+		double step = event->dy;
+		if (sf_cfg(server)->swipe_workspace_natural) {
+			step = -step; /* finger up → positive progress */
+		}
+		server->overview.gesture_accum += step;
+		double base = server->overview.gesture_was_open ? 1.0 : 0.0;
+		double p = base + server->overview.gesture_accum / (double)SF_OVERVIEW_GESTURE_PX;
+		/* Soft rubber-band outside [0, 1]. */
+		if (p < 0.0) {
+			p = p * 0.35;
+		} else if (p > 1.0) {
+			p = 1.0 + (p - 1.0) * 0.35;
+		}
+		sf_overview_gesture_update(server, p);
+		server->swipe.consumed = true;
+	}
+
 	if (server->pointer_gestures != NULL && !server->swipe.consumed) {
 		wlr_pointer_gestures_v1_send_swipe_update(server->pointer_gestures, server->seat,
 							  event->time_msec, event->dx, event->dy);
@@ -234,6 +269,13 @@ static void pointer_swipe_end(struct wl_listener *listener, void *data) {
 	struct sf_pointer *pointer = wl_container_of(listener, pointer, swipe_end);
 	struct sf_server *server = pointer->server;
 	struct wlr_pointer_swipe_end_event *event = data;
+
+	if (server->overview.gesture_active && !event->cancelled) {
+		bool commit_open = server->overview.progress >= 0.5;
+		sf_overview_gesture_end(server, commit_open);
+	} else if (server->overview.gesture_active && event->cancelled) {
+		sf_overview_gesture_end(server, server->overview.gesture_was_open);
+	}
 
 	if (server->pointer_gestures != NULL && !server->swipe.consumed) {
 		wlr_pointer_gestures_v1_send_swipe_end(server->pointer_gestures, server->seat,

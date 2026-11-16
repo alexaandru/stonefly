@@ -251,6 +251,7 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 	cfg->column_ratio = 0.5f;
 	cfg->swipe_workspace_threshold = 80;
 	cfg->swipe_workspace_natural = true;
+	cfg->overview_zoom = 0.5f;
 	cfg->cursor_follows_focus = true;
 	cfg->nudge_step = 25;
 	cfg->ssd_mode = SF_SSD_AUTO;

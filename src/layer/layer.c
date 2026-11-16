@@ -382,10 +382,19 @@ void sf_layer_setup(struct sf_server *server) {
 	/* Optimized blur samples everything below (wallpaper / bottom). */
 	server->blur_layer = wlr_scene_optimized_blur_create(&server->scene->tree, 0, 0);
 	server->layers.toplevel = wlr_scene_tree_create(&server->scene->tree);
+	/* Overview filmstrip: above windows, below top/bar (bar stays usable). */
+	server->layers.overview = wlr_scene_tree_create(&server->scene->tree);
 	server->layers.top = wlr_scene_tree_create(&server->scene->tree);
 	/* Above top (Noctalia bar) so F11 / xdg fullscreen covers shell chrome. */
 	server->layers.fullscreen = wlr_scene_tree_create(&server->scene->tree);
 	server->layers.overlay = wlr_scene_tree_create(&server->scene->tree);
+
+	server->overview.tree = server->layers.overview;
+	wl_list_init(&server->overview.cards);
+	wl_list_init(&server->overview.dims);
+	if (server->overview.tree != NULL) {
+		wlr_scene_node_set_enabled(&server->overview.tree->node, false);
+	}
 
 	server->layer_shell = wlr_layer_shell_v1_create(server->wl_display, SF_LAYER_SHELL_VERSION);
 	server->new_layer_surface.notify = server_new_layer_surface;

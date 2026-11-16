@@ -25,6 +25,7 @@
 #include "wm/arrange.h"
 #include "wm/column.h"
 #include "wm/layout_sm.h"
+#include "wm/overview.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
 #include "toplevel/toplevel.h"
@@ -141,6 +142,7 @@ static void workspace_switch_instant(struct sf_output *output, struct sf_workspa
 	sf_workspace_apply_arrange(ws);
 	sf_focus_top(output->server);
 	sf_pointer_follow_focus(output->server);
+	sf_overview_relayout(output->server);
 }
 
 static void workspace_anim_start(struct sf_output *output, struct sf_workspace *to) {
@@ -507,7 +509,8 @@ void sf_workspace_switch(struct sf_output *output, struct sf_workspace *ws) {
 	if (output->active == ws) {
 		return;
 	}
-	if (sf_cfg(output->server)->slide_duration_ms <= 0) {
+	/* Overview owns the filmstrip — skip the hidden desktop slide. */
+	if (sf_overview_active(output->server) || sf_cfg(output->server)->slide_duration_ms <= 0) {
 		workspace_switch_instant(output, ws);
 		return;
 	}

@@ -38,6 +38,7 @@
 #include "wm/arrange.h"
 #include "wm/drag_snap.h"
 #include "wm/geom.h"
+#include "wm/overview.h"
 #include "wm/snap_preview.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
@@ -1040,6 +1041,14 @@ void server_cursor_button(struct wl_listener *listener, void *data) {
 	struct wlr_pointer_button_event *event = data;
 
 	sf_session_notify_activity(server);
+
+	if (sf_overview_interactive(server)) {
+		bool pressed = event->state == WL_POINTER_BUTTON_STATE_PRESSED;
+		if (sf_overview_handle_button(server, event->button, pressed, server->cursor->x,
+					      server->cursor->y)) {
+			return;
+		}
+	}
 
 	if (event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
 		bool grabbing = server->cursor_mode != SF_CURSOR_PASSTHROUGH;

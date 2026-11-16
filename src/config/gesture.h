@@ -31,7 +31,7 @@ const struct sf_gesture *sf_gesture_match(const struct sf_config *cfg, uint32_t 
 const struct sf_gesture *sf_gesture_match_pinch(const struct sf_config *cfg, uint32_t fingers,
 						uint32_t mods, double scale);
 
-/* Seed the day-zero 3-finger V=workspace / H=columns_pan pair. */
+/* Seed day-zero 3-finger V=workspace / H=columns_pan + 4-finger overview. */
 bool sf_gesture_seed_defaults(struct sf_config *cfg);
 
 #endif

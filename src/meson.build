@@ -48,6 +48,7 @@ sf_src = files(
   'wm/layout_sm.c',
   'wm/place_sm.c',
   'wm/workspace.c',
+  'wm/overview.c',
   'wm/scratchpad.c',
   'wm/drag_snap.c',
   'wm/snap_preview.c',
