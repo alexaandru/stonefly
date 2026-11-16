@@ -70,7 +70,10 @@
         ;; Matching windows get capture_blocked on map / app_id change.
         ;; :capture_block_app_ids "keepass,bitwarden"
         ;; :capture_block_app_ids ["keepass" "bitwarden"]
-        :capture_block_app_ids [:org.gnome.seahorse.Application]})
+        :capture_block_app_ids [:org.gnome.seahorse.Application]
+        ;; inotify the config dir; debounce 150ms then sf_config_reload.
+        ;; false = keybind / stonefly reload / (sf.reload) only.
+        :config_watch true})
 
 (each [k v (pairs opt)]
   (tset sf.opt k v))

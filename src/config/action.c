@@ -57,6 +57,7 @@ static const struct sf_action_entry sf_actions[] = {
 	{"unfloat", SF_ACTION_UNFLOAT},
 	{"consume", SF_ACTION_CONSUME},
 	{"arrange_rotate", SF_ACTION_ARRANGE_ROTATE},
+	{"reload", SF_ACTION_RELOAD},
 };
 
 size_t sf_action_name_table_len(void) {

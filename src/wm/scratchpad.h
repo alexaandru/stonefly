@@ -9,6 +9,10 @@
 void sf_scratchpad_init(struct sf_server *server);
 void sf_scratchpad_finish(struct sf_server *server);
 
+/* After a successful config reload: rebind slot→spec pointers by pad name,
+ * keep live toplevel associations, orphan windows whose pad was removed. */
+void sf_scratchpad_rebind(struct sf_server *server);
+
 /* Toggle show/hide, or spawn on first use. */
 void sf_scratchpad_toggle(struct sf_server *server, const char *name);
 

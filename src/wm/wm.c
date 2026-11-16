@@ -290,11 +290,18 @@ static void layout_apply_result(struct sf_toplevel *toplevel, const struct sf_la
 
 static void layout_dispatch(struct sf_toplevel *toplevel, const struct sf_layout_ev *ev,
 			    struct wlr_output *fs_hint) {
+	bool was_fs = sf_layout_sm_is_fullscreen(&toplevel->layout);
 	struct sf_layout_ctx ctx;
 	layout_fill_ctx(toplevel, fs_hint, &ctx);
 	struct sf_layout_result out;
 	sf_layout_sm_step(&toplevel->layout, ev, &ctx, &out);
 	layout_apply_result(toplevel, &out);
+	/* FS enter/exit changes whether the row paints in the strip. */
+	if (was_fs != sf_layout_sm_is_fullscreen(&toplevel->layout) &&
+	    toplevel->workspace != NULL && toplevel->column != NULL &&
+	    sf_arrange_is_tiling(sf_workspace_arrange(toplevel->workspace))) {
+		sf_arrange_schedule(toplevel->workspace);
+	}
 }
 
 static void layout_dispatch_usable(struct sf_toplevel *toplevel, const struct sf_layout_ev *ev,
@@ -448,6 +455,7 @@ void sf_toplevel_set_max_edges(struct sf_toplevel *toplevel, bool want) {
 		if (toplevel->arrange_managed || toplevel->column != NULL) {
 			struct sf_workspace *ws = toplevel->workspace;
 			sf_arrange_unlink(toplevel);
+			sf_arrange_slot_clear(toplevel);
 			toplevel->arrange_managed = false;
 			toplevel->arrange_floating = false;
 			toplevel->arrange_max_edges_rejoin = false;
@@ -485,10 +493,11 @@ void sf_toplevel_set_max_edges(struct sf_toplevel *toplevel, bool want) {
 	layout_dispatch(toplevel, &ev, NULL);
 	if (want) {
 		sf_toplevel_raise(toplevel);
-	} else if (!scratch && toplevel->arrange_max_edges_rejoin && toplevel->workspace != NULL &&
+	} else if (!scratch && toplevel->workspace != NULL && !toplevel->arrange_floating &&
 		   sf_arrange_is_tiling(toplevel_ws_arrange(toplevel))) {
+		/* Tile or arrange-switch survivor with a saved slot: rejoin.
+		 * Sticky floats keep arrange_floating and stay out. */
 		toplevel->arrange_max_edges_rejoin = false;
-		toplevel->arrange_floating = false;
 		sf_arrange_join_toplevel(toplevel);
 		sf_arrange_schedule(toplevel->workspace);
 		sf_decor_refresh_border(toplevel);
@@ -1596,6 +1605,7 @@ void sf_close_toplevel(struct sf_toplevel *toplevel) {
 		/* Unlink + reflow now so survivors morph while this slides out. */
 		toplevel->anim_slide_column = true;
 		sf_arrange_unlink(toplevel);
+		sf_arrange_slot_clear(toplevel);
 		toplevel->arrange_managed = false;
 		sf_arrange_flush(ws);
 	}

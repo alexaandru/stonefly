@@ -26,6 +26,7 @@
 #include <scenefx/render/fx_renderer/fx_renderer.h>
 #include <scenefx/types/wlr_scene.h>
 
+#include "config/config_watch.h"
 #include "dbus/dbus.h"
 #include "decor/decor.h"
 #include "effect/background_effect.h"
@@ -155,6 +156,7 @@ bool sf_server_init(struct sf_server *server) {
 	sf_ext_capture_setup(server);
 	sf_seat_setup(server);
 	sf_scratchpad_init(server);
+	sf_config_watch_sync(server);
 	return true;
 }
 
@@ -195,6 +197,7 @@ int sf_server_run(struct sf_server *server, const char *startup_cmd) {
 void sf_server_finish(struct sf_server *server) {
 	/* Drop bus watches before the display/event loop goes away. */
 	sf_dbus_finish(server);
+	sf_config_watch_finish(server);
 	sf_ipc_stop(server);
 	sf_ssd_finish(server);
 	wl_display_destroy_clients(server->wl_display);

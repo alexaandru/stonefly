@@ -295,16 +295,16 @@ void sf_toplevel_place_on_output(struct sf_toplevel *toplevel, struct sf_output 
 		sf_foreign_toplevel_on_outputs_change(toplevel);
 		return;
 	}
+	/* Edge/gap-max: re-apply on the new usable box. Do not layout_float —
+	 * that demoted sticky floats (Slack) and cleared PreMax mid-send. */
 	if (max_edges) {
 		park_on_usable(toplevel, &usable);
-		sf_toplevel_layout_float(toplevel, false);
 		sf_toplevel_set_max_edges(toplevel, true);
 		sf_foreign_toplevel_on_outputs_change(toplevel);
 		return;
 	}
 	if (max_gaps) {
 		park_on_usable(toplevel, &usable);
-		sf_toplevel_layout_float(toplevel, false);
 		sf_toplevel_set_max_gaps(toplevel, true);
 		sf_foreign_toplevel_on_outputs_change(toplevel);
 		return;

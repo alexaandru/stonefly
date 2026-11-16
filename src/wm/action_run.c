@@ -7,6 +7,7 @@
 #include <wayland-server-core.h>
 
 #include "config/action.h"
+#include "config/config.h"
 #include "log/log.h"
 #include "seat/seat.h"
 #include "wm/arrange.h"
@@ -276,6 +277,12 @@ static void action_arrange_rotate(struct sf_action_ctx *ctx) {
 	sf_arrange_rotate(ctx->server, delta);
 }
 
+static void action_reload(struct sf_action_ctx *ctx) {
+	if (!sf_config_reload(ctx->server)) {
+		SF_LOGW("config reload failed; keeping previous");
+	}
+}
+
 /*
  * Verb catalog: one slot per enum value. Flags encode the shared protocol
  * (need window / need cmd) so arms stay free of duplicated guards.
@@ -327,6 +334,7 @@ static const struct sf_action_slot sf_action_slots[SF_ACTION_COUNT] = {
 	[SF_ACTION_UNFLOAT] = {SF_ACTION_F_WIN, action_unfloat},
 	[SF_ACTION_CONSUME] = {0, action_consume},
 	[SF_ACTION_ARRANGE_ROTATE] = {0, action_arrange_rotate},
+	[SF_ACTION_RELOAD] = {0, action_reload},
 };
 
 _Static_assert(sizeof(sf_action_slots) / sizeof(sf_action_slots[0]) == (size_t)SF_ACTION_COUNT,

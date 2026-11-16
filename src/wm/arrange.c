@@ -165,7 +165,8 @@ void sf_arrange_unlink(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL) {
 		return;
 	}
-	sf_arrange_slot_clear(toplevel);
+	/* Do not clear arrange_slot_* — workspace/monitor moves must round-trip
+	 * the home cell. Destroy / close / scratch detach call slot_clear. */
 	struct sf_server *server = toplevel->server;
 	struct sf_column *col = toplevel->column;
 	bool last_in_col = col != NULL && sf_column_row_count(col) <= 1;
@@ -403,6 +404,9 @@ static void leave_tiling(struct sf_workspace *ws) {
 			sf_arrange_slot_remember(t);
 		}
 		t->arrange_managed = false;
+		/* Stacking has no transient tile overlay; keep layout mode
+		 * (snap / gap-max / edge-max / FS) so arrange switch does not
+		 * silently unmax. */
 		t->arrange_max_edges_rejoin = false;
 		sf_column_remove_row(t);
 		if (t->xdg_toplevel != NULL && t->xdg_toplevel->base->initialized) {
@@ -411,12 +415,11 @@ static void leave_tiling(struct sf_workspace *ws) {
 		if (t->scene_tree != NULL && !t->scene_tree->node.enabled && !t->minimized) {
 			wlr_scene_node_set_enabled(&t->scene_tree->node, true);
 		}
-		if (t->arrange_float_saved) {
+		/* Restore pre-tile float box only for ordinary tiles — not for
+		 * max/snap/fs overlays (that was a silent demotion). */
+		if (!sf_layout_sm_is_fixed(&t->layout) && t->arrange_float_saved) {
 			sf_toplevel_move_resize(t, &t->arrange_float_box, true);
 			t->arrange_float_saved = false;
-		}
-		if (sf_layout_sm_is_edged(&t->layout)) {
-			sf_toplevel_layout_float(t, false);
 		}
 		sf_decor_update_geom(t);
 	}
@@ -802,7 +805,7 @@ void sf_arrange_columns_pan(struct sf_workspace *ws, double delta_px) {
 		size_t nrows = 0;
 		struct sf_toplevel *t;
 		wl_list_for_each(t, &cols[k]->rows, column_link) {
-			if (t->minimized) {
+			if (t->minimized || sf_layout_sm_is_fullscreen(&t->layout)) {
 				continue;
 			}
 			if (nrows >= SF_ARRANGE_MAX) {

@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <wayland-server-core.h>
 
+#include "config/config.h"
 #include "decor/decor.h"
 #include "ipc/config.h"
 #include "ipc/layers.h"
@@ -430,6 +431,14 @@ static void ipc_handle_request(struct sf_ipc_client *client, const char *line) {
 	}
 	if (strcmp(cmd, "config") == 0) {
 		ipc_handle_config(client, arg);
+		return;
+	}
+	if (strcmp(cmd, "reload") == 0) {
+		if (!sf_config_reload(client->ipc->server)) {
+			ipc_write_err(client, "config reload failed");
+			return;
+		}
+		ipc_write_ok(client);
 		return;
 	}
 	if (strcmp(cmd, "exit") == 0 || strcmp(cmd, "quit") == 0) {
@@ -918,6 +927,11 @@ int sf_ipc_cmd_exit(int argc, char **argv) {
 	return ipc_cmd_ok_noarg(argc, argv, "exit", "Usage: stonefly exit",
 				"  Quit the compositor for WAYLAND_DISPLAY / STONEFLY_SOCKET.\n"
 				"  Nested: run with that session's WAYLAND_DISPLAY set.\n");
+}
+
+int sf_ipc_cmd_reload(int argc, char **argv) {
+	return ipc_cmd_ok_noarg(argc, argv, "reload", "Usage: stonefly reload",
+				"  Re-run Lua/Fennel config (keeps previous on failure).\n");
 }
 
 int sf_ipc_cmd_config(int argc, char **argv) {

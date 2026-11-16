@@ -11,6 +11,8 @@
 
 #include "config/config.h"
 #include "log/log.h"
+#include "seat/internal.h"
+#include "seat/seat.h"
 
 static bool ascii_ieq(const char *a, const char *b) {
 	if (a == NULL || b == NULL) {
@@ -188,4 +190,24 @@ void sf_input_apply_device(struct sf_server *server, struct wlr_input_device *de
 		sf_i64("tap", (int64_t)merged.tap_to_click),
 		sf_i64("natural_scroll", (int64_t)merged.natural_scroll),
 		sf_bool("libinput", libdev != NULL));
+}
+
+void sf_input_apply_all(struct sf_server *server) {
+	if (server == NULL) {
+		return;
+	}
+	struct sf_keyboard *keyboard;
+	wl_list_for_each(keyboard, &server->keyboards, link) {
+		if (keyboard->wlr_keyboard == NULL) {
+			continue;
+		}
+		sf_input_apply_device(server, &keyboard->wlr_keyboard->base);
+	}
+	struct sf_pointer *pointer;
+	wl_list_for_each(pointer, &server->pointers, link) {
+		if (pointer->wlr_pointer == NULL) {
+			continue;
+		}
+		sf_input_apply_device(server, &pointer->wlr_pointer->base);
+	}
 }

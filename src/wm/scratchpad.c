@@ -191,6 +191,80 @@ void sf_scratchpad_finish(struct sf_server *server) {
 	for (size_t i = 0; i < scratch_nslots; i++) {
 		scratch_slots[i].toplevel = NULL;
 	}
+	scratch_nslots = 0;
+}
+
+void sf_scratchpad_rebind(struct sf_server *server) {
+	struct {
+		char name[32];
+		struct sf_toplevel *toplevel;
+	} kept[SF_SCRATCHPAD_MAX];
+	size_t n_kept = 0;
+
+	for (size_t i = 0; i < scratch_nslots; i++) {
+		if (scratch_slots[i].toplevel == NULL || scratch_slots[i].spec == NULL ||
+		    scratch_slots[i].spec->name == NULL) {
+			continue;
+		}
+		if (n_kept >= SF_SCRATCHPAD_MAX) {
+			break;
+		}
+		snprintf(kept[n_kept].name, sizeof kept[n_kept].name, "%s",
+			 scratch_slots[i].spec->name);
+		kept[n_kept].toplevel = scratch_slots[i].toplevel;
+		n_kept++;
+	}
+
+	const struct sf_config *cfg = sf_cfg(server);
+	scratch_nslots = cfg->n_scratchpads;
+	if (scratch_nslots > SF_SCRATCHPAD_MAX) {
+		scratch_nslots = SF_SCRATCHPAD_MAX;
+	}
+	for (size_t i = 0; i < scratch_nslots; i++) {
+		scratch_slots[i].spec = &cfg->scratchpads[i];
+		scratch_slots[i].toplevel = NULL;
+		const char *name = cfg->scratchpads[i].name;
+		if (name == NULL || name[0] == '\0') {
+			continue;
+		}
+		for (size_t k = 0; k < n_kept; k++) {
+			if (kept[k].toplevel == NULL) {
+				continue;
+			}
+			if (strcmp(kept[k].name, name) != 0) {
+				continue;
+			}
+			scratch_slots[i].toplevel = kept[k].toplevel;
+			kept[k].toplevel = NULL;
+			break;
+		}
+	}
+
+	/* Pads dropped from config: clear the scratch tag; show if still hidden. */
+	for (size_t k = 0; k < n_kept; k++) {
+		struct sf_toplevel *t = kept[k].toplevel;
+		if (t == NULL) {
+			continue;
+		}
+		SF_LOGI("scratchpad orphaned by reload", sf_str("name", kept[k].name));
+		t->scratchpad[0] = '\0';
+		if (t->minimized || t->anim_hide) {
+			scratch_show(t);
+		}
+	}
+
+	/* Refresh pending app_id from the new spec when the pad still exists. */
+	if (scratch_pending.active) {
+		struct sf_scratch_slot *slot = slot_by_name(scratch_pending.name);
+		if (slot == NULL) {
+			pending_clear();
+		} else if (slot->spec->app_id != NULL) {
+			snprintf(scratch_pending.app_id, sizeof(scratch_pending.app_id), "%s",
+				 slot->spec->app_id);
+		} else {
+			scratch_pending.app_id[0] = '\0';
+		}
+	}
 }
 
 bool sf_toplevel_is_scratchpad(const struct sf_toplevel *toplevel) {

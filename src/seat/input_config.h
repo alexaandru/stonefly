@@ -8,4 +8,7 @@ struct wlr_input_device;
 /* Apply matching sf.input rules to a newly added device (libinput + kb repeat). */
 void sf_input_apply_device(struct sf_server *server, struct wlr_input_device *device);
 
+/* Re-apply rules to every tracked keyboard and pointer (config reload). */
+void sf_input_apply_all(struct sf_server *server);
+
 #endif

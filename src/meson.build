@@ -18,6 +18,7 @@ sf_src = files(
   'config/config.c',
   'config/config_embed.c',
   'config/config_lua.c',
+  'config/config_watch.c',
   'config/action.c',
   'config/chord.c',
   'server/server.c',

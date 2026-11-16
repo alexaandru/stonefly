@@ -105,6 +105,8 @@
               ["Super+e"
                {:action :exec :cmd "gtk-launch org.gnome.TextEditor"}]
               ["Super+t" {:action :scratch_claim :cmd "term"}]
+              ;; live config reload (also: stonefly reload / sf.reload / inotify)
+              ["Super+Shift+r" {:action :reload}]
               ;; screenshots → noctalia
               ["Print" {:action :exec :cmd (noctalia "screenshot-fullscreen")}]
               ["Shift+Print"

@@ -101,6 +101,8 @@ enum sf_action {
 	/* cmd = next|cw|prev|ccw (default next). Rotate tile order; focus stays put.
 	 * next/cw: last→first (columns: last becomes 1st, others shift right). */
 	SF_ACTION_ARRANGE_ROTATE,
+	/* Re-run Lua/Fennel init into a staging config; keep previous on failure. */
+	SF_ACTION_RELOAD,
 
 	/* One past the last real action — table sizes / completeness checks. */
 	SF_ACTION_COUNT,
@@ -266,6 +268,9 @@ struct sf_config {
 	/* Comma-separated app_id substrings that auto-set capture_blocked. */
 	char *capture_block_app_ids;
 
+	/* Watch the config directory and reload on save (inotify). Default true. */
+	bool config_watch;
+
 	struct sf_keybind *keybinds;
 	size_t n_keybinds;
 	struct sf_tapbind *tapbinds;
@@ -298,6 +303,19 @@ int sf_config_write_default(void);
 
 /* Load user init.lua or embedded Fennel-first default into server->config. */
 bool sf_config_load(struct sf_server *server);
+
+/*
+ * Live reload: re-run user init (or embedded) into a staging config. On Lua
+ * failure keep the previous config (no embedded fallback). Rebinds scratchpads
+ * by name, reapplies rules/input/decor, runs sf.exec {:reload true}.
+ */
+bool sf_config_reload(struct sf_server *server);
+
+/*
+ * Check config without a running session (stonefly validate). Prints the
+ * resolved path and exact Lua error to stderr on failure. Returns 0 if ok.
+ */
+int sf_config_validate(void);
 
 /* Fork sf.exec entries. is_reload false → all; true → only {:reload true}.
  * Call after WAYLAND_DISPLAY is set (same window as -s). */

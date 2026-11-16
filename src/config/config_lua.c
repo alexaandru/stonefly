@@ -16,12 +16,23 @@
 #include "config/config.h"
 #include "config/config_embed.h"
 #include "config/config_lua.h"
+#include "config/config_watch.h"
+#include "dbus/dbus.h"
+#include "decor/decor.h"
 #include "log/log.h"
+#include "output/output.h"
+#include "seat/input_config.h"
+#include "seat/seat.h"
 #include "server/server.h"
+#include "ssd/ssd.h"
 #include "ssd/ssd_policy.h"
 #include "util/shell_quote.h"
 #include "util/str.h"
+#include "wm/arrange.h"
+#include "wm/rules.h"
+#include "wm/scratchpad.h"
 #include "wm/workspace.h"
+#include "toplevel/toplevel.h"
 
 #ifndef SF_DATADIR
 #define SF_DATADIR "/usr/share/stonefly"
@@ -1229,6 +1240,7 @@ static const struct {
 	{"blur_xray", offsetof(struct sf_config, blur_xray)},
 	{"swipe_workspace_natural", offsetof(struct sf_config, swipe_workspace_natural)},
 	{"cursor_follows_focus", offsetof(struct sf_config, cursor_follows_focus)},
+	{"config_watch", offsetof(struct sf_config, config_watch)},
 };
 
 static const struct {
@@ -1352,6 +1364,15 @@ static int l_opt_newindex(lua_State *L) {
 	return 0;
 }
 
+static int l_reload(lua_State *L) {
+	if (G == NULL || G->server == NULL) {
+		lua_pushboolean(L, 0);
+		return 1;
+	}
+	lua_pushboolean(L, sf_config_reload(G->server) ? 1 : 0);
+	return 1;
+}
+
 static void push_sf_table(struct lua_runtime *rt) {
 	lua_State *L = rt->L;
 	lua_newtable(L); /* sf */
@@ -1378,6 +1399,8 @@ static void push_sf_table(struct lua_runtime *rt) {
 	lua_setfield(L, -2, "exec");
 	lua_pushcfunction(L, l_input);
 	lua_setfield(L, -2, "input");
+	lua_pushcfunction(L, l_reload);
+	lua_setfield(L, -2, "reload");
 
 	/* sf.opt with __newindex */
 	lua_newtable(L); /* opt */
@@ -1489,18 +1512,17 @@ static bool lua_boot(struct sf_server *server) {
 	return true;
 }
 
-bool sf_config_load(struct sf_server *server) {
-	const char *noconfig = getenv("STONEFLY_NOCONFIG");
-	if (noconfig != NULL && noconfig[0] != '\0' && strcmp(noconfig, "0") != 0) {
-		SF_LOGI("config", sf_str("mode", "STONEFLY_NOCONFIG"));
-		return true;
+/*
+ * Evaluate user init.lua or embedded default into the already-defaulted
+ * server->config + live G. On user-init failure: if fallback_embedded, try
+ * embedded (startup); else leave the error in *err_out and return false
+ * (reload keeps the previous config).
+ */
+static bool config_eval(struct sf_server *server, bool fallback_embedded, char *err_out,
+			size_t err_cap) {
+	if (err_out != NULL && err_cap > 0) {
+		err_out[0] = '\0';
 	}
-
-	if (!lua_boot(server)) {
-		SF_LOGE("config: lua_boot failed");
-		return false;
-	}
-
 	char init_path[PATH_MAX_SF];
 	bool ok;
 	if (sf_config_init_path(init_path, sizeof init_path) == 0 && access(init_path, R_OK) == 0) {
@@ -1508,21 +1530,17 @@ bool sf_config_load(struct sf_server *server) {
 		ok = luaL_dofile(G->L, init_path) == LUA_OK;
 		if (!ok) {
 			const char *lua_err = lua_tostring(G->L, -1);
-			SF_LOGE("config user init failed; trying embedded",
+			SF_LOGE("config user init failed",
 				sf_str("err", lua_err != NULL ? lua_err : ""));
-			/* Remember for a desktop notification after WAYLAND_DISPLAY is up. */
-			free(server->config_warn);
-			server->config_warn = NULL;
-			{
-				char body[1024];
-				snprintf(body, sizeof body,
-					 "%s\n\n%s\n\nFalling back to the default configuration.",
-					 init_path,
+			if (err_out != NULL && err_cap > 0) {
+				snprintf(err_out, err_cap, "%s\n\n%s", init_path,
 					 lua_err != NULL ? lua_err : "(unknown Lua error)");
-				server->config_warn = strdup(body);
 			}
 			lua_pop(G->L, 1);
-			/* recreate clean state */
+			if (!fallback_embedded) {
+				return false;
+			}
+			SF_LOGE("config: trying embedded after user init failure");
 			sf_config_lua_close(&server->config);
 			sf_config_finish(&server->config);
 			sf_config_set_defaults(&server->config);
@@ -1534,14 +1552,204 @@ bool sf_config_load(struct sf_server *server) {
 	} else {
 		SF_LOGI("config", sf_str("mode", "embedded-default"));
 		ok = run_embedded_default(G);
+		if (!ok && err_out != NULL && err_cap > 0) {
+			snprintf(err_out, err_cap, "embedded default failed");
+		}
+	}
+	return ok;
+}
+
+static void reload_apply_side_effects(struct sf_server *server) {
+	sf_scratchpad_rebind(server);
+	sf_rules_reapply_all(server);
+	sf_input_apply_all(server);
+	sf_decor_apply_blur_params(server);
+
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &server->toplevels, link) {
+		sf_decor_update_geom(t);
+		sf_decor_apply_buffers(t);
+		sf_decor_refresh_border(t);
+		sf_ssd_update(t);
+	}
+	wl_list_for_each(t, &server->minimized, minimize_link) {
+		sf_decor_update_geom(t);
+		sf_decor_apply_buffers(t);
+		sf_decor_refresh_border(t);
+		sf_ssd_update(t);
 	}
 
-	if (!ok) {
+	struct sf_output *output;
+	wl_list_for_each(output, &server->outputs, link) {
+		struct sf_workspace *ws;
+		wl_list_for_each(ws, &output->workspaces, link) {
+			sf_arrange_schedule(ws);
+		}
+	}
+
+	sf_config_run_execs(server, true);
+	sf_config_watch_sync(server);
+}
+
+bool sf_config_load(struct sf_server *server) {
+	const char *noconfig = getenv("STONEFLY_NOCONFIG");
+	if (noconfig != NULL && noconfig[0] != '\0' && strcmp(noconfig, "0") != 0) {
+		SF_LOGI("config", sf_str("mode", "STONEFLY_NOCONFIG"));
+		server->config.config_watch = false;
+		return true;
+	}
+
+	if (!lua_boot(server)) {
+		SF_LOGE("config: lua_boot failed");
+		return false;
+	}
+
+	char err[1024];
+	if (!config_eval(server, true, err, sizeof err)) {
 		SF_LOGE("config: embedded default failed; keeping C defaults");
 		sf_config_lua_close(&server->config);
 		sf_config_finish(&server->config);
 		sf_config_set_defaults(&server->config);
+		if (err[0] != '\0') {
+			free(server->config_warn);
+			server->config_warn = strdup(err);
+		}
 		return true; /* compositor still starts */
 	}
+
+	/* Startup user-init failure already fell back inside config_eval; if we
+	 * still have an error string from the first attempt, toast it. */
+	if (err[0] != '\0') {
+		free(server->config_warn);
+		char body[1280];
+		snprintf(body, sizeof body, "%s\n\nFalling back to the default configuration.",
+			 err);
+		server->config_warn = strdup(body);
+	}
 	return true;
+}
+
+bool sf_config_reload(struct sf_server *server) {
+	static bool in_reload;
+
+	if (server == NULL) {
+		return false;
+	}
+	const char *noconfig = getenv("STONEFLY_NOCONFIG");
+	if (noconfig != NULL && noconfig[0] != '\0' && strcmp(noconfig, "0") != 0) {
+		SF_LOGI("config reload", sf_str("mode", "STONEFLY_NOCONFIG"));
+		return true;
+	}
+	if (in_reload) {
+		SF_LOGW("config reload: re-entrant; ignored");
+		return false;
+	}
+	in_reload = true;
+
+	/* Drop aliases into the config we are about to replace. */
+	sf_tap_disarm(server);
+	server->tap.single_steps = NULL;
+	server->tap.n_single_steps = 0;
+	server->tap.double_steps = NULL;
+	server->tap.n_double_steps = 0;
+
+	struct sf_config old = server->config;
+	memset(&server->config, 0, sizeof server->config);
+	sf_config_set_defaults(&server->config);
+
+	if (!lua_boot(server)) {
+		SF_LOGE("config reload: lua_boot failed; restoring previous");
+		sf_config_finish(&server->config);
+		server->config = old;
+		G = old.lua;
+		free(server->config_warn);
+		server->config_warn = strdup("Config reload failed: Lua VM boot failed.\n\n"
+					     "Keeping the previous configuration.");
+		sf_dbus_notify_config_warn(server);
+		in_reload = false;
+		return false;
+	}
+
+	char err[1024];
+	if (!config_eval(server, false, err, sizeof err)) {
+		SF_LOGE("config reload failed; keeping previous",
+			sf_str("err", err[0] != '\0' ? err : ""));
+		sf_config_finish(&server->config);
+		server->config = old;
+		G = old.lua;
+
+		free(server->config_warn);
+		server->config_warn = NULL;
+		{
+			char body[1280];
+			if (err[0] != '\0') {
+				/* Exact Lua error first — notification UIs truncate. */
+				snprintf(body, sizeof body,
+					 "%s\n\nKeeping the previous configuration.", err);
+			} else {
+				snprintf(body, sizeof body,
+					 "Config reload failed (unknown error).\n\n"
+					 "Keeping the previous configuration.");
+			}
+			server->config_warn = strdup(body);
+			sf_dbus_notify_config_warn(server);
+		}
+		in_reload = false;
+		return false;
+	}
+
+	reload_apply_side_effects(server);
+	sf_config_finish(&old);
+	free(server->config_warn);
+	server->config_warn = NULL;
+	SF_LOGI("config reloaded");
+	in_reload = false;
+	return true;
+}
+
+int sf_config_validate(void) {
+	const char *noconfig = getenv("STONEFLY_NOCONFIG");
+	if (noconfig != NULL && noconfig[0] != '\0' && strcmp(noconfig, "0") != 0) {
+		fprintf(stderr, "stonefly: STONEFLY_NOCONFIG set; nothing to validate\n");
+		return 0;
+	}
+
+	struct sf_server server = {0};
+	sf_config_set_defaults(&server.config);
+
+	if (!lua_boot(&server)) {
+		fprintf(stderr, "stonefly: validate: Lua VM boot failed\n");
+		sf_config_finish(&server.config);
+		return 1;
+	}
+
+	char init_path[PATH_MAX_SF];
+	char err[1024];
+	bool have_user = sf_config_init_path(init_path, sizeof init_path) == 0 &&
+			 access(init_path, R_OK) == 0;
+
+	if (!config_eval(&server, false, err, sizeof err)) {
+		if (have_user) {
+			fprintf(stderr, "stonefly: validate failed: %s\n",
+				err[0] != '\0' ? err : "(unknown Lua error)");
+		} else {
+			fprintf(stderr, "stonefly: validate failed (embedded default): %s\n",
+				err[0] != '\0' ? err : "(unknown Lua error)");
+		}
+		sf_config_finish(&server.config);
+		return 1;
+	}
+
+	if (have_user) {
+		printf("stonefly: config ok (%s)\n", init_path);
+	} else {
+		char dir[PATH_MAX_SF];
+		if (sf_config_dir(dir, sizeof dir) == 0) {
+			printf("stonefly: config ok (embedded default; no %s/init.lua)\n", dir);
+		} else {
+			printf("stonefly: config ok (embedded default)\n");
+		}
+	}
+	sf_config_finish(&server.config);
+	return 0;
 }

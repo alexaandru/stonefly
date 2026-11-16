@@ -243,6 +243,7 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 	cfg->ssd_font_size = 17;
 	cfg->resize_border_in = 3;
 	cfg->resize_border_out = 1;
+	cfg->config_watch = true;
 
 	cfg->capture_block_app_ids = sf_xstrdup("");
 
@@ -329,6 +330,7 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 		{SF_SUPER, XKB_KEY_e, 0, SF_ACTION_EXEC, "gtk-launch org.gnome.TextEditor",
 		 SF_ARRANGE_UNSET},
 		{SF_SUPER, XKB_KEY_t, 0, SF_ACTION_SCRATCH_CLAIM, "term", SF_ARRANGE_UNSET},
+		{SF_SUPER | SF_SHIFT, XKB_KEY_r, 0, SF_ACTION_RELOAD, NULL, SF_ARRANGE_UNSET},
 		{0, XKB_KEY_Print, 0, SF_ACTION_EXEC, "noctalia msg screenshot-fullscreen",
 		 SF_ARRANGE_UNSET},
 		{SF_SHIFT, XKB_KEY_Print, 0, SF_ACTION_EXEC, "noctalia msg screenshot-region",

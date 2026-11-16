@@ -57,6 +57,7 @@ struct sf_ipc;
 struct sf_layer_surface;
 struct sf_snap_preview;
 struct sf_dbus_notify;
+struct sf_config_watch;
 
 #include "config/config.h"
 #include "wm/drag_snap.h"
@@ -325,6 +326,9 @@ struct sf_server {
 	char *config_warn;
 	/* Pending NameOwnerChanged wait + Notify (owned by dbus.c). */
 	struct sf_dbus_notify *config_notify;
+
+	/* inotify + debounce timer for the user config directory (optional). */
+	struct sf_config_watch *config_watch;
 };
 
 bool sf_server_init(struct sf_server *server);

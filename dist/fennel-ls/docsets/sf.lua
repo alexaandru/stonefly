@@ -349,6 +349,13 @@ return {
           ["fnl/docstring"] = "Comma string or table of app_id substrings that get capture_blocked.",
         },
       },
+      ["config_watch"] = {
+        binding = "sf.opt.config_watch",
+        metadata = {
+          ["fls/itemKind"] = "Variable",
+          ["fnl/docstring"] = "Watch the config directory with inotify and reload on save (default true). false = Super+Shift+r / stonefly reload / (sf.reload) only.",
+        },
+      },
       },
     },
     ["chain"] = {
@@ -364,7 +371,7 @@ return {
       metadata = {
         ["fls/itemKind"] = "Function",
         ["fnl/arglist"] = {"chord-or-opts", "?opts"},
-        ["fnl/docstring"] = "Register a keybind.\n  (sf.bind \"Super+w\" {:action \"exec\" :cmd \"…\"})\n  (sf.bind {:key \"Super+Shift+Tab\" :action \"focus_prev\"})\nOptional :key_alt. Shift+Tab auto-adds ISO_Left_Tab.\nAction names: none quit close focus_next focus_prev focus_next_all focus_prev_all maximize maximize_to_edges unmaximize toggle_maximize toggle_maximize_to_edges minimize unminimize snap_left snap_right snap_top snap_bottom unsnap exec (needs :cmd) scratch_toggle scratch_claim (cmd = pad name) workspace_next workspace_prev workspace_switch (cmd = N) move_to_workspace_next move_to_workspace_prev move_to_workspace (cmd = N) pointer_center focus_monitor send_to_monitor (cmd = left|right|up|down|next|prev|connector) nudge resize_edge (cmd = left|right|up|down) toggle_always_on_top always_on_top (cmd = true|false) set_fullscreen unset_fullscreen toggle_fullscreen arrange_cycle (cmd = next|prev) arrange_set (cmd = stacking|columns|master|dwindle|monocle).\n:action may be a string, {:action :cmd} table, or (sf.chain …).",
+        ["fnl/docstring"] = "Register a keybind.\n  (sf.bind \"Super+w\" {:action \"exec\" :cmd \"…\"})\n  (sf.bind {:key \"Super+Shift+Tab\" :action \"focus_prev\"})\nOptional :key_alt. Shift+Tab auto-adds ISO_Left_Tab.\nAction names: none quit close focus_next focus_prev focus_next_all focus_prev_all maximize maximize_to_edges unmaximize toggle_maximize toggle_maximize_to_edges minimize unminimize snap_left snap_right snap_top snap_bottom unsnap exec (needs :cmd) scratch_toggle scratch_claim (cmd = pad name) workspace_next workspace_prev workspace_switch (cmd = N) move_to_workspace_next move_to_workspace_prev move_to_workspace (cmd = N) pointer_center focus_monitor send_to_monitor (cmd = left|right|up|down|next|prev|connector) nudge resize_edge (cmd = left|right|up|down) toggle_always_on_top always_on_top (cmd = true|false) set_fullscreen unset_fullscreen toggle_fullscreen arrange_cycle (cmd = next|prev) arrange_set (cmd = stacking|columns|master|dwindle|monocle) reload.\n:action may be a string, {:action :cmd} table, or (sf.chain …).",
       },
     },
     ["tap"] = {
@@ -396,7 +403,7 @@ return {
       metadata = {
         ["fls/itemKind"] = "Function",
         ["fnl/arglist"] = {"…cmd", "?opts"},
-        ["fnl/docstring"] = "Session spawn after WAYLAND_DISPLAY is up (Hyprland exec-once / sway exec).\n  (sf.exec \"flatpak run com.slack.Slack\")\n  (sf.exec \"flatpak\" \"run\" \"com.slack.Slack\")\n  (sf.exec \"helper\" {:reload true})\nOne string → sh -c as-is (pipes ok). Several strings → shell-quoted argv join.\nTrailing opts table: :reload bool (default false = once per compositor start; true also on future config reload). Distinct from bind action :exec.",
+        ["fnl/docstring"] = "Session spawn after WAYLAND_DISPLAY is up (Hyprland exec-once / sway exec).\n  (sf.exec \"flatpak run com.slack.Slack\")\n  (sf.exec \"flatpak\" \"run\" \"com.slack.Slack\")\n  (sf.exec \"helper\" {:reload true})\nOne string → sh -c as-is (pipes ok). Several strings → shell-quoted argv join.\nTrailing opts table: :reload bool (default false = once per compositor start; true also on live config reload). Distinct from bind action :exec.",
       },
     },
     ["input"] = {
@@ -404,7 +411,15 @@ return {
       metadata = {
         ["fls/itemKind"] = "Function",
         ["fnl/arglist"] = {"match", "opts"},
-        ["fnl/docstring"] = "Libinput / key-repeat rule for devices matching match.\n  (sf.input \"touchpad\" {:tap_to_click true :natural_scroll true :dwt true})\n  (sf.input \"keyboard\" {:repeat_rate 40 :repeat_delay 250})\nmatch: \"keyboard\"|\"pointer\"|\"mouse\"|\"touchpad\"|\"touch\" or a case-insensitive device-name substring.\nopts bools: :tap_to_click :natural_scroll :left_handed :dwt\nopts accel: :accel_speed (-1..1) :accel_profile (\"none\"|\"flat\"|\"adaptive\")\nopts keyboard: :repeat_rate (keys/sec) :repeat_delay (ms)\nLater rules override earlier ones for the same key. Applied on device add (reload is separate).",
+        ["fnl/docstring"] = "Libinput / key-repeat rule for devices matching match.\n  (sf.input \"touchpad\" {:tap_to_click true :natural_scroll true :dwt true})\n  (sf.input \"keyboard\" {:repeat_rate 40 :repeat_delay 250})\nmatch: \"keyboard\"|\"pointer\"|\"mouse\"|\"touchpad\"|\"touch\" or a case-insensitive device-name substring.\nopts bools: :tap_to_click :natural_scroll :left_handed :dwt\nopts accel: :accel_speed (-1..1) :accel_profile (\"none\"|\"flat\"|\"adaptive\")\nopts keyboard: :repeat_rate (keys/sec) :repeat_delay (ms)\nLater rules override earlier ones for the same key. Applied on device add and on live config reload.",
+      },
+    },
+    ["reload"] = {
+      binding = "sf.reload",
+      metadata = {
+        ["fls/itemKind"] = "Function",
+        ["fnl/arglist"] = {},
+        ["fnl/docstring"] = "Re-run user init.lua / Fennel into a staging config. Returns true on success.\nOn Lua failure keeps the previous config (no embedded fallback). Same as action :reload / stonefly reload / inotify watch.\nDo not call from inside init while it is loading (re-entrancy is ignored).",
       },
     },
     ["stdpath"] = {

@@ -254,6 +254,7 @@ static void workspace_clear_members(struct sf_workspace *ws) {
 	wl_list_for_each(t, &server->toplevels, link) {
 		if (t->workspace == ws) {
 			sf_arrange_unlink(t);
+			sf_arrange_slot_clear(t);
 			t->arrange_managed = false;
 			workspace_detach_toplevel_scene(t);
 			t->workspace = NULL;
@@ -262,6 +263,7 @@ static void workspace_clear_members(struct sf_workspace *ws) {
 	wl_list_for_each(t, &server->minimized, minimize_link) {
 		if (t->workspace == ws) {
 			sf_arrange_unlink(t);
+			sf_arrange_slot_clear(t);
 			t->arrange_managed = false;
 			workspace_detach_toplevel_scene(t);
 			t->workspace = NULL;
@@ -350,6 +352,10 @@ void sf_workspace_assign(struct sf_toplevel *toplevel, struct sf_workspace *ws) 
 	struct sf_workspace *old_ws = toplevel->workspace;
 	struct sf_output *old_output = old_ws != NULL ? old_ws->output : NULL;
 	if (old_ws != ws) {
+		/* Keep home cell across WS/monitor moves (unlink no longer clears). */
+		if (toplevel->column != NULL) {
+			sf_arrange_slot_remember(toplevel);
+		}
 		sf_arrange_unlink(toplevel);
 	}
 	toplevel->workspace = ws;
@@ -384,6 +390,7 @@ void sf_workspace_detach_scratchpad(struct sf_toplevel *toplevel) {
 	struct sf_output *output = ws != NULL ? ws->output : NULL;
 	/* Drop column membership so arrange cannot pack QT to a cell. */
 	sf_arrange_unlink(toplevel);
+	sf_arrange_slot_clear(toplevel);
 	toplevel->arrange_managed = false;
 	toplevel->arrange_floating = false;
 	toplevel->arrange_max_edges_rejoin = false;

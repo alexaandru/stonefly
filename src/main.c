@@ -12,6 +12,8 @@ static void usage(const char *argv0) {
 	printf("Usage:\n");
 	printf("  %s [-s startup command]         run the compositor\n", argv0);
 	printf("  %s --write-config               write default Fennel-first config tree\n", argv0);
+	printf("  %s validate                     check config without starting / applying\n",
+	       argv0);
 	printf("  %s windows [--json]             list windows via IPC\n", argv0);
 	printf("  %s layers [--json]              list layer-shell surfaces via IPC\n", argv0);
 	printf("  %s outputs [--json]             list outputs via IPC\n", argv0);
@@ -24,6 +26,7 @@ static void usage(const char *argv0) {
 	printf("  %s set-urgent <id>              mark window urgent (amber)\n", argv0);
 	printf("  %s unset-urgent <id>            clear window urgency\n", argv0);
 	printf("  %s toggle-quick-terminal        toggle scratchpad pad \"term\"\n", argv0);
+	printf("  %s reload                       re-run Lua/Fennel config\n", argv0);
 	printf("  %s exit                         quit this WAYLAND_DISPLAY session\n", argv0);
 }
 
@@ -64,6 +67,25 @@ int main(int argc, char *argv[]) {
 	if (argc >= 2 && strcmp(argv[1], "--write-config") == 0) {
 		return sf_config_write_default();
 	}
+	if (argc >= 2 && strcmp(argv[1], "validate") == 0) {
+		for (int i = 2; i < argc; i++) {
+			if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+				printf("Usage: stonefly validate\n");
+				printf("  Load user init.lua (or embedded default) and report "
+				       "the\n");
+				printf("  exact Lua/Fennel error without starting the "
+				       "compositor.\n");
+				printf("  Exit 0 if ok, 1 if invalid.\n");
+				return 0;
+			}
+			fprintf(stderr, "Usage: stonefly validate\n");
+			return 1;
+		}
+		sf_log_init(SF_LOG_WARN);
+		int rc = sf_config_validate();
+		sf_log_finish();
+		return rc;
+	}
 	if (argc >= 2 && argv[1][0] != '-') {
 		if (strcmp(argv[1], "windows") == 0) {
 			return sf_ipc_cmd_windows(argc - 1, argv + 1);
@@ -100,6 +122,9 @@ int main(int argc, char *argv[]) {
 		}
 		if (strcmp(argv[1], "toggle-quick-terminal") == 0) {
 			return sf_ipc_cmd_toggle_quick_terminal(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "reload") == 0) {
+			return sf_ipc_cmd_reload(argc - 1, argv + 1);
 		}
 		if (strcmp(argv[1], "exit") == 0 || strcmp(argv[1], "quit") == 0) {
 			return sf_ipc_cmd_exit(argc - 1, argv + 1);

@@ -34,7 +34,7 @@ features Umbriel lacks — neither is a product spec. See `AGENTS.md`.
 | Layout mode state machine | Pure `wm/layout_sm` owns float/max/snap/fullscreen + PreMax on `toplevel->layout` (no mirror bools). Commands + geometry observe → state + effects; WM applies effects only. Resize/nudge/commit reconcile both ways. Unit suite `tests/wm/layout_sm_test.c` |
 | Place / SoftPlace / appear SM | Pure `wm/place_sm` owns managed vs settled, SoftPlace soft bit, and appear-hold on `toplevel->place` (replaces `auto_place` / `soft_place` / `appear_pending`). Map begin, user/layout own, drop-soft, soft-center, arm/try appear. Unit suite `tests/wm/place_sm_test.c` |
 | Action verb catalog | `wm/action_run.c` — table of handlers + `SF_ACTION_F_WIN` / `SF_ACTION_F_CMD` protocol. Binds/taps/rules/IPC share `sf_run_action`. `SF_ACTION_COUNT` keeps name table and slot table aligned (unit-checked) |
-| Fullscreen (client + WM) | Saved geom + full output box; client `request_fullscreen` + foreign set/unset stay SET. WM actions `toggle_fullscreen` / `set_fullscreen` / `unset_fullscreen`; default **F11** → toggle (Super+f remains edge-max). Scene parent `layers.fullscreen` (above top/bar, below overlay). **Exclusive per output:** entering FS demotes any other FS on that output (no two fighting). Tab / focus_dir skip windows buried under FS; explicit focus (taskbar/IPC) exits FS then focuses. Parented dialogs of the FS window stay reachable. GEOM: sticky while fullscreen (no demote on mid-transition buffers) and **no regain** from a full-output floater (Chromium Esc/F11 exit trap). Foreign `output_enter` pins to the **workspace output** (not geom∩output) so taskbars keep all windows — off-strip columns and mid-fs 0×0 buffers alike |
+| Fullscreen (client + WM) | Saved geom + full output box; client `request_fullscreen` + foreign set/unset stay SET. WM actions `toggle_fullscreen` / `set_fullscreen` / `unset_fullscreen`; default **F11** → toggle (Super+f remains edge-max). Scene parent `layers.fullscreen` (above top/bar, below overlay). **Exclusive per output:** entering FS demotes any other FS on that output. Tab / focus_dir skip buried windows; explicit focus exits FS then focuses. **Strip:** FS keeps column membership but takes no cell (`column_row_paints`); reflow on enter/exit. GEOM sticky + no full-output regain. Foreign pins to workspace output |
 | Minimize / unminimize LIFO | Ctrl+Esc — unnamed scratchpad. Shared `apply_hidden`/`apply_shown` (LIFO vs scratch). `xdg request_minimize` → CSD/SSD buttons. Show slide targets `resting_*` (hide parks the scene node off-screen; reading node.x made floats/QT/edge-max recall slide to an off-screen pose — taskbar activate looked focused but invisible) |
 | Keyboard half-snap (arrows) | Super+arrows while stacking — gap math ports `snapBorderBox`. Tiling uses `focus_dir` |
 | Unsnap / restore PreSnap | Super+u |
@@ -163,10 +163,13 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 | Ctrl+Alt+Fn VT switch | `wlr_session_change_vt` on `XF86Switch_VT_*` |
 | Super tap / double-tap | Launcher / term pad |
 | Spawn / exec / exec_once | Bind/rule `exec` + `cmd`; session `sf.exec` (variadic, optional `{:reload bool}`). Default `execs.fnl`: Slack flatpak. IPC `config execs`. CLI `-s` |
+| Live config reload | `sf_config_reload`: staging Lua re-run; keep previous on failure + FDO Notify with exact Lua error. Action `:reload` / `sf.reload` / `stonefly reload` / Super+Shift+r. inotify: config dir or nearest existing ancestor (so `--write-config` mid-session arms + reloads). `sf.opt.config_watch`, 150ms debounce. Side effects: scratchpad rebind-by-name, rules/input/decor, `sf.exec {:reload true}` |
+| Config validate | `stonefly validate` — load user init (or embedded) without applying; exact Lua error on stderr; exit 0/1 |
 | IPC `windows` [--json] | Peeble wire shape |
 | IPC `layers` [--json] | Layer-shell debug snapshot |
 | IPC focus / close by id | JSON + CLI |
 | IPC toggle-quick-terminal | Toggles scratchpad `"term"` |
+| IPC `reload` | Live config reload (`{"ok":true}` or error) |
 | IPC `exit` / `quit` | `wl_display_terminate` on owning display |
 | IPC `config` [section] | Live dump: options/binds/taps/scratchpads/window_rules/execs/inputs (rules array)/outputs (`{}` until API) |
 | IPC `outputs` | `ipc/outputs.c` |
@@ -256,13 +259,16 @@ C23 `#embed` of Fennel-first default tree (`src/config/default/`); missing user
 `Notify` after display up; `stonefly --write-config`; builtin pack
 `fennel-shim` (Fennel 1.6.1); `sf.*` API (`opt` / `bind` / `tap` /
 `scratchpad` / `window_rule` / `packadd` / `stdpath` / `exec` / `input` /
-`chain`); chord/tap strings via libxkbcommon; action names shared with IPC via
-`config/action.h`; `opt` setters table-driven; IPC `stonefly config [section]`;
+`chain` / `reload`); chord/tap strings via libxkbcommon; action names shared
+with IPC via `config/action.h`; `opt` setters table-driven (incl.
+`config_watch`); live reload + ancestor inotify (`config_watch.c`);
+`stonefly validate`; IPC `stonefly config [section]` / `stonefly reload`;
 consumers read `sf_cfg(server)`. fennel-ls docset
 `dist/fennel-ls/docsets/sf.lua` + default `flsproject.fnl`.
 
 Entry points: `src/config/`, `runtime/pack/dist/opt/fennel-shim/`,
-`stonefly --write-config`, `stonefly config`.
+`stonefly --write-config`, `stonefly validate`, `stonefly config`,
+`stonefly reload`.
 
 Open config items stay in [`ROADMAP.md`](ROADMAP.md) §10.
 

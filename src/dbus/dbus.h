@@ -13,8 +13,9 @@ void sf_dbus_update_activation_environment(void);
 
 /*
  * If server->config_warn is set: wait (≤20s) for org.freedesktop.Notifications
- * via NameOwnerChanged, then Notify. Bail on the toast only if nothing claims
- * the name. Non-blocking — hooks the Wayland event loop.
+ * via NameOwnerChanged, then Notify with that exact body. Replaces any prior
+ * pending toast. Bail on the toast only if nothing claims the name.
+ * Non-blocking — hooks the Wayland event loop.
  */
 void sf_dbus_notify_config_warn(struct sf_server *server);
 

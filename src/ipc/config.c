@@ -207,6 +207,9 @@ static void emit_options(struct json_buf *b, const struct sf_config *cfg) {
 	json_byte(b, ',');
 	json_key(b, "capture_block_app_ids");
 	json_str(b, cfg->capture_block_app_ids ? cfg->capture_block_app_ids : "");
+	json_byte(b, ',');
+	json_key(b, "config_watch");
+	json_bool(b, cfg->config_watch);
 
 	json_byte(b, '}');
 }

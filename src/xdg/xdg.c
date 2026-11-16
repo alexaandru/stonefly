@@ -220,6 +220,7 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	struct sf_output *ws_output = old_ws != NULL ? old_ws->output : NULL;
 	bool was_tiled = toplevel->arrange_managed || toplevel->column != NULL;
 	sf_arrange_unlink(toplevel);
+	sf_arrange_slot_clear(toplevel);
 	toplevel->arrange_managed = false;
 	toplevel->workspace = NULL;
 
@@ -342,6 +343,7 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	sf_foreign_toplevel_on_close(toplevel);
 	sf_ext_capture_on_close(toplevel);
 	sf_arrange_unlink(toplevel);
+	sf_arrange_slot_clear(toplevel);
 	if (ws != NULL) {
 		sf_arrange_schedule(ws);
 	}

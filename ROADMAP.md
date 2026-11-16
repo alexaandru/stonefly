@@ -22,9 +22,9 @@ the detail rows. When an item ships, check it off here and move the row to
 | 4 | Always-on-top / pin | ✅ | Shipped (`toggle_always_on_top` / rule / Super+Shift+p) |
 | 5 | Workspace switch animation | ✅ | Shipped (vertical strip slide; Super+Page / 1–9 + IPC + swipe share `sf_workspace_switch`) |
 | 6 | Real `inputs.fnl` API | ✅ | Shipped (`sf.input` + libinput apply; tap/natural/accel + left_handed/dwt/repeat) |
-| 7 | **Configurable pointer gestures** | ❌ | **Next.** 3-finger V=workspaces / H=columns pan are hardcoded in `seat/gestures.c` (only `swipe_workspace_*` opts). Want `sf.bind`/`sf.gesture` (fingers, axis, action) like chords — same class of smell as hardcoding Super+LMB |
-| 8 | **Hardcoded → config / Lua audit** | ❌ | **Right after #7.** Sweep C for knobs and *policy* stuck in the compositor that belong in opts, binds, or Lua. Goal: C owns primitives + events; Lua composes behavior — keeping policy in C starves the runtime we want. Seed list below; expand while doing #7 |
-| 9 | Live config reload (binds + opts first) | ❌ | Tweak chords without logout; mango/Hypr baseline |
+| 7 | **Configurable pointer gestures** | ❌ | **Next.** 3-finger V=workspaces / H=columns pan are hardcoded in `seat/gestures.c` (only `swipe_workspace_*` opts). Want `sf.bind`/`sf.gesture` (fingers, axis, action) like chords — same class of smell as hardcoding Super+LMB. See [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) |
+| 8 | **Hardcoded → config / Lua audit** | ❌ | **Right after #7.** Sweep C for knobs and *policy* stuck in the compositor that belong in opts, binds, or Lua. Goal: C owns primitives + events; Lua composes behavior — keeping policy in C starves the runtime we want. Full border contract: [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md). Seed list below; expand while doing #7 |
+| 9 | Live config reload (binds + opts first) | ✅ | Shipped: staging Lua re-run, inotify watch, `:reload` / `sf.reload` / IPC; keep previous on failure |
 | 10 | Dim-inactive / spotlight polish | 🚧 | Opacity knobs exist; stronger dim or overlay so focus reads at a glance |
 | 11 | Popin / popout appear+close | ❌ | Umbriel-style scale+fade; see §2. Slide ships (tiled = right inter-gap; scratch closest) |
 | 12 | IME **or** Xwayland (pick by apps) | ❌ | fcitx/CJK/OSK → IME; Steam/legacy → Xwayland — real projects, not afternoon bites |
@@ -42,6 +42,63 @@ Seed findings for **#8** (not exhaustive — audit while implementing):
 | Appear wait | give-up after 3 commits (`arrange_prop_waits`) | opt |
 | SSD title buttons | close / min / max wired in C | actions from Lua / rules |
 | Event hooks | config is load-time declarative only (`bind`/`opt`/`rule`/`scratchpad`) | `sf.on` map/focus/arrange/… callbacks so packs extend WM without new C |
+| Appear wait note | give-up is **1** post-propose commit now (seed row above said 3 — stale) | opt later |
+
+---
+
+## Predictability audit (unsurprising WM)
+
+**Principle:** navigating, switching arrange (and back), float/unfloat, max/unmax
+(gaps, edges, fullscreen), hide/show, and send-to-WS/monitor must be round-trips
+the user can trust. No silent demotion, forgotten home cell, or focus onto
+something invisible. “Boring” here is a feature.
+
+Shipped this session (baseline): strip `arrange_slot_*` for leave_tiling /
+break_out; exclusive FS + focus-obscured; sticky float + edge-max (Slack).
+
+### High — ✅ fixed (same family as strip slot / exclusive FS)
+
+| Gap | Fix |
+|---|---|
+| **WS / monitor move drops slot** | `unlink` no longer clears `arrange_slot_*`; assign remembers before unlink; clear only on destroy/close/scratch/teardown |
+| **Fullscreen still packs a cell** | `column_row_paints` skips FS (keep membership); reflow on FS enter/exit via `layout_dispatch` |
+| **Arrange switch demotes edged** | `leave_tiling` keeps layout mode; restores `arrange_float_box` only for ordinary tiles; unmax rejoins when tiling + !sticky float |
+| **Send-to-monitor + max** | edge/gap-max re-apply without `layout_float` (sticky float / PreMax safe) |
+
+### Medium — product policy, then code
+
+One “maximize” word, several entry points — unify or document before more chrome:
+
+| Trigger today | Stonefly op |
+|---|---|
+| Super+f / rule `:maximize_to_edges` / taskbar foreign `set_maximized` / **CSD** maximize (xdg `request_maximize`) | **edge-max** (`set_max_edges`) |
+| Super+m / **SSD** maximize button | **gap-max** / columns **full_width** (`toggle_max_gaps`) |
+
+| Gap | What surprises | Direction |
+|---|---|---|
+| **Maximize entry-point matrix** | CSD / taskbar / xdg → edge-max; SSD button / Super+m → gap-max / column full_width. Same icon idea, different geometry | Pick one map (or Umbriel-style `client_maximize = column\|edges` + SSD follows the same policy). Document in defaults until then |
+| **Client maximize vs Super+m** | Same as matrix row: app request ≠ Super+m under columns | Fold into maximize matrix; don’t ship a third meaning |
+| **Unminimize → active WS** | `apply_shown` reassigns to output’s **current** active workspace — hide on WS1, switch to WS2, show → window follows | Opt: stay on home WS vs follow active (both valid; pick one and stick) |
+| **Transient tile edge-max** | Focus / Tab releases overlay back to cell — correct for “peek”, surprising if user wanted sticky edge-max on a tile | Keep transient; sticky = float+edge-max or rule (already Slack path). Document in defaults |
+| **FS saved box vs tile cell** | UnFS restores layout_sm **saved** geom; if still column-managed, next pack overwrites — usually OK, race if arrange deferred | After unFS, if `arrange_managed`, skip saved-box morph and pack instead (or pack immediately) |
+| **Snap ↔ max ↔ unmax** | PreMax / PreSnap stacking: which box wins after a chain of toggles | One saved “normal” box; modes are overlays; unmax always returns to that normal |
+| **Pan focus vs click focus** | 3-finger pan retargets focus to centre-most; pointer may still sit over another cell | Acceptable (chosen); optional later: warp or “focus under pointer on swipe end” |
+
+### Low — polish / rare
+
+| Gap | Notes |
+|---|---|
+| Empty column shells after FS-only column | FS skipped in pack → `visible_count==0`; strip omits column while membership kept — OK; watch empty-shell leaks |
+| Scratchpad claim vs taskbar icons | §1 / FEATURES: fake `app_id` avoids steal; proper fix = xdg-activation / startup token |
+| Insert-after-focus for brand-new maps | Predictable once known; slot restore covers return paths; opt/Lua later (TODO NEXT #8) |
+| SoftPlace late title / app_id float | Mostly fixed; watch apps that change identity after map |
+| Output disconnect / refuge | `workspace_clear` unlinks + clears slots — expected on teardown |
+| Foreign unset_maximized while SSD “max” was gap-max | Taskbar may think window is maximized (edges) while SSD toggled full_width — state bits can disagree until matrix is unified |
+| Double-click SSD title → max? | Not implemented; if added, must follow the same maximize matrix as the SSD button |
+
+### Done checklist when closing a High / Medium row
+
+Round-trip tests (manual or harness): columns multi-row → stacking → columns; float → unfloat; edge-max → unmax; FS → unFS; hide → show; send to other WS/monitor and back; sticky float+edge-max hide/show. Focus never lands on a fully covered window without an explicit exit-FS. Maximize: CSD, SSD, Super+f, Super+m, taskbar — each path matches the chosen matrix.
 
 ---
 
@@ -68,6 +125,8 @@ Seed findings for **#8** (not exhaustive — audit while implementing):
 | Focus cycle policy (MRU vs stack) | 🚧 | Stacking / MRU list front |
 | Picture-in-picture float | ❌ | Related to always-on-top; dedicated PiP policy still open |
 | Dim inactive / spotlight | 🚧 | TODO NEXT #10. Global `client_opacity` / `inactive_opacity` shipped; no black dim-overlay / spotlight; consider stronger default inactive |
+| Maximize policy (CSD / SSD / binds / taskbar) | 🚧 | Predictability audit **Medium**. Today: CSD+foreign+xdg → edge-max; SSD button+Super+m → gap-max/full_width. Unify or opt |
+| Unminimize workspace policy | 📋 | Predictability audit **Medium** — follow active WS vs stay on home |
 | Scratchpad click-outside catcher | ❌ | `auto_hide` on focus change ships; catcher does not |
 | Scratchpad claim vs icons | 🚧 | Fake `app_id` avoids stealing normal windows (breaks taskbar icons). Proper fix later: xdg-activation / startup token |
 | SSD per-app overrides / winmenu | 🚧 | SSD titlebars ✅; per-app overrides / winmenu open |
@@ -137,7 +196,7 @@ product asks for in-process chrome again.
 
 | Feature | Status | Notes |
 |---|---|---|
-| Config validate CLI | ❌ | Check without applying |
+| Config validate CLI | ✅ | `stonefly validate` — exact Lua error on stderr; exit 0/1 |
 | Nano syntax highlight | ❌ | |
 | IPC `action <name>` allowlist | ❌ | |
 | IPC inputs | ❌ | Live devices dump; `config inputs` rules ✅ |
@@ -192,10 +251,10 @@ Shell/OSD/media stay **🌙 Noctalia**.
 
 | Open | Status | Notes |
 |---|---|---|
-| Configurable pointer gestures | ❌ | TODO NEXT #7. `sf.gesture` / bind-shaped swipe+pinch; retire hardcoded 3-finger paths |
-| Hardcoded → config / Lua audit | ❌ | TODO NEXT #8. Knobs + policy out of C; `sf.on` event hooks; C keeps primitives |
-| Live reload mid-session | ❌ | TODO NEXT #9. Loads once at init; start with binds + opts; `sf.exec` `reload true` waits on this |
-| Config validate CLI | ❌ | Check without applying |
+| Configurable pointer gestures | ❌ | TODO NEXT #7. `sf.gesture` / bind-shaped swipe+pinch; retire hardcoded 3-finger paths. [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) |
+| Hardcoded → config / Lua audit | ❌ | TODO NEXT #8. Knobs + policy out of C; `sf.on` event hooks; C keeps primitives. [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) |
+| Live reload mid-session | ✅ | Shipped (`sf_config_reload` + inotify; `sf.exec {:reload true}` runs on success) |
+| Config validate CLI | ✅ | `stonefly validate` — exact Lua error on stderr; exit 0/1 |
 | `--write-config-lua` | ❌ | Offload compiled/plain Lua instead of `.fnl` |
 | `outputs.fnl` API | 🚧 | `inputs.fnl` / `sf.input` shipped (FEATURES). Output `:arrange` override planned (workspace→output→global; global `opt.arrange` wired) |
 | IPC `config` outputs section | 🚧 | Inputs emit rules array; outputs still `{}` until that API exists |

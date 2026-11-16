@@ -66,7 +66,7 @@ static int notify_send(sd_bus *bus, const char *body) {
 	sd_bus_message_set_auto_start(m, 0);
 
 	r = sd_bus_message_append(m, "susssasa{sv}i", "stonefly", 0u, "dialog-error",
-				  "stonefly: config load failed", body != NULL ? body : "", 0, 1,
+				  "stonefly: config error", body != NULL ? body : "", 0, 1,
 				  "urgency", "y", (uint8_t)2, 0);
 	if (r < 0) {
 		sd_bus_message_unref(m);
@@ -250,8 +250,9 @@ void sf_dbus_notify_config_warn(struct sf_server *server) {
 	if (server == NULL || server->config_warn == NULL || server->config_warn[0] == '\0') {
 		return;
 	}
+	/* A newer error replaces a still-waiting toast (reload after reload). */
 	if (server->config_notify != NULL) {
-		return;
+		notify_pending_destroy(server->config_notify);
 	}
 
 	struct sf_dbus_notify *n = calloc(1, sizeof(*n));
@@ -266,6 +267,7 @@ void sf_dbus_notify_config_warn(struct sf_server *server) {
 		SF_LOGW("config warn notify: out of memory");
 		return;
 	}
+	server->config_notify = n;
 
 	int r = sd_bus_open_user(&n->bus);
 	if (r < 0) {
@@ -318,8 +320,6 @@ void sf_dbus_notify_config_warn(struct sf_server *server) {
 		return;
 	}
 	wl_event_source_timer_update(n->timer_source, SF_NOTIFY_WAIT_MS);
-
-	server->config_notify = n;
 
 	bool owned = false;
 	r = notifications_name_owned(n->bus, &owned);

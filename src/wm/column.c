@@ -8,10 +8,17 @@
 #include "server/server.h"
 #include "toplevel/toplevel.h"
 #include "wm/arrange_math.h"
+#include "wm/layout_sm.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
 
 #define SF_COLUMN_MAX 64
+
+/* Fullscreen stays a column member but takes no strip cell (opaque layer
+ * must not shove neighbors). Minimized likewise. */
+static bool column_row_paints(const struct sf_toplevel *t) {
+	return t != NULL && !t->minimized && !sf_layout_sm_is_fullscreen(&t->layout);
+}
 
 static float default_width_frac(struct sf_workspace *ws) {
 	if (ws == NULL || ws->output == NULL || ws->output->server == NULL) {
@@ -114,7 +121,7 @@ size_t sf_column_visible_count(const struct sf_column *col) {
 	size_t n = 0;
 	struct sf_toplevel *t;
 	wl_list_for_each(t, &col->rows, column_link) {
-		if (!t->minimized) {
+		if (column_row_paints(t)) {
 			n++;
 		}
 	}
@@ -456,7 +463,7 @@ bool sf_columns_consume_from(struct sf_toplevel *toplevel, int dir) {
 	struct sf_toplevel *pulled = NULL;
 	struct sf_toplevel *t;
 	wl_list_for_each(t, &src->rows, column_link) {
-		if (!t->minimized) {
+		if (column_row_paints(t)) {
 			pulled = t;
 			break;
 		}
@@ -519,7 +526,7 @@ size_t sf_columns_collect(struct sf_workspace *ws, struct sf_toplevel **out, siz
 	wl_list_for_each(col, &ws->columns, link) {
 		struct sf_toplevel *t;
 		wl_list_for_each(t, &col->rows, column_link) {
-			if (t->minimized) {
+			if (!column_row_paints(t)) {
 				continue;
 			}
 			if (n < cap) {
@@ -593,7 +600,7 @@ size_t sf_columns_apply(struct sf_workspace *ws, const struct wlr_box *usable, i
 		size_t nrows = 0;
 		struct sf_toplevel *t;
 		wl_list_for_each(t, &cols[k]->rows, column_link) {
-			if (t->minimized) {
+			if (!column_row_paints(t)) {
 				continue;
 			}
 			if (nrows >= SF_COLUMN_MAX) {

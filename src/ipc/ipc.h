@@ -22,6 +22,7 @@ struct sf_server;
  *   {"cmd":"set-urgent","arg":"<id>"}      → {"ok":true}
  *   {"cmd":"unset-urgent","arg":"<id>"}    → {"ok":true}
  *   {"cmd":"toggle-quick-terminal"}   → {"ok":true} (pad "term")
+ *   {"cmd":"reload"}                  → {"ok":true} (live config reload)
  *   {"cmd":"config"}                  → full live config JSON object
  *   {"cmd":"config","arg":"binds"}    → one section (options|binds|taps|
  *                                       scratchpads|window_rules|inputs|
@@ -49,5 +50,7 @@ int sf_ipc_cmd_unset_urgent(int argc, char **argv);
 int sf_ipc_cmd_toggle_quick_terminal(int argc, char **argv);
 /* Terminate the compositor that owns STONEFLY_SOCKET / WAYLAND_DISPLAY. */
 int sf_ipc_cmd_exit(int argc, char **argv);
+/* Re-run Lua/Fennel config; keep previous on failure. */
+int sf_ipc_cmd_reload(int argc, char **argv);
 
 #endif

@@ -47,7 +47,7 @@ src/
 dist/testing/stonefly/APKBUILD  # Alpine aport (repo name = testing)
 ```
 
-Day-zero policy lives in the embedded Fennel-first default (`src/config/default/`); open gaps in [`ROADMAP.md`](ROADMAP.md) §10.
+Day-zero policy lives in the embedded Fennel-first default (`src/config/default/`); open gaps in [`ROADMAP.md`](ROADMAP.md) §10. C↔Lua border (Neovim-for-WM): [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md).
 Layer-shell (`wlr-layer-shell-unstable-v1` v5) is implemented for
 external clients (bars, OSD, wallpapers): exclusive zones shrink the
 usable area used by maximize/snap/cascade.
