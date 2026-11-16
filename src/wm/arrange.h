@@ -26,6 +26,10 @@ void sf_arrange_flush(struct sf_workspace *ws);
  * Call when the opener's show slide starts so push + slide share one clock. */
 void sf_arrange_release_deferred(struct sf_workspace *ws);
 
+/* Live-pan the columns strip by delta_px (content follows finger: positive
+ * delta moves windows right / decreases view offset). No-op outside columns. */
+void sf_arrange_columns_pan(struct sf_workspace *ws, double delta_px);
+
 /* Cycle active workspace arrange. delta +1 = next, -1 = prev.
  * Order: stacking ↔ columns. */
 void sf_arrange_cycle(struct sf_server *server, int delta);
@@ -42,8 +46,12 @@ void sf_arrange_set(struct sf_server *server, const char *name);
 void sf_arrange_join_workspace(struct sf_workspace *ws);
 
 /* Enroll one window into its workspace tile set (map / send / unfloat).
- * Skips arrange_floating windows. */
+ * Skips arrange_floating windows. Restores arrange_slot_* when set. */
 void sf_arrange_join_toplevel(struct sf_toplevel *toplevel);
+
+/* Snapshot column/row (+ frac) before leaving the strip. */
+void sf_arrange_slot_remember(struct sf_toplevel *toplevel);
+void sf_arrange_slot_clear(struct sf_toplevel *toplevel);
 
 /* Leave the tile set as an explicit float. Arms geom-regain hold.
  * keep_current_size: true = user float (keep slot geom); false = prefer

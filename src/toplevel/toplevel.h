@@ -84,6 +84,13 @@ struct sf_toplevel {
 	float column_row_weight;
 	/* Primary extent remembered across consume; restored on expel. */
 	float column_extent_saved;
+	/* Strip cell remembered across leave_tiling / float / max-edges break-out
+	 * so unfloat / unmax / stacking→columns restores the same column+row. */
+	bool arrange_slot_saved;
+	int arrange_slot_col;
+	int arrange_slot_row;
+	float arrange_slot_frac;
+	bool arrange_slot_full;
 	/* After break-out: suppress GEOM regain until box leaves hold. */
 	bool geom_regain_hold;
 	struct wlr_box geom_regain_box;
@@ -101,6 +108,10 @@ struct sf_toplevel {
 	 * (push/pull in sync with the appear/close slide). */
 	bool arrange_deferred;
 	struct wlr_box arrange_deferred_box;
+	/* Tiled map: pack/defer until appear slide finishes. Survives scene
+	 * enable so a mid-slide arrange cannot cancel the opener slide into a
+	 * short morph (sequential push-then-pop). */
+	bool arrange_appear_pending;
 	/* Slide uses column right-gap even after unlink (WM close / hide). */
 	bool anim_slide_column;
 	bool minimized;

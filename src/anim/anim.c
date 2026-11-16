@@ -13,6 +13,7 @@
 #include "toplevel/toplevel.h"
 #include "util/math.h"
 #include "util/time.h"
+#include "wm/column.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
 
@@ -156,16 +157,85 @@ static void offscreen_pos(enum sf_slide_dir dir, int resting_x, int resting_y, i
 	}
 }
 
+static struct sf_toplevel *strip_sample_row(struct sf_column *col) {
+	if (col == NULL) {
+		return NULL;
+	}
+	struct sf_toplevel *row;
+	wl_list_for_each(row, &col->rows, column_link) {
+		if (!row->minimized && row->scene_tree != NULL) {
+			return row;
+		}
+	}
+	return NULL;
+}
+
 /*
- * Tiled columns: always enter from / exit to the right, and travel only from
- * the column's right edge (inter-column gap), not the usable/screen edge.
+ * Tiled appear: peel with the strip motion so opener + neighbors share travel.
+ * Prefer the *next* column (pushed right): start at its current left − w − gap.
+ * Left-only glue makes a near-zero slide when the left column barely moves and
+ * the right one carries the push — that looked like "old out, then new pops in".
+ * Fallback: previous column's current right edge (1→2 shrink / rightmost insert).
+ * Hide/close: resting right inter-gap.
+ */
+static void strip_column_offscreen(struct sf_toplevel *toplevel, int resting_x, int resting_y,
+				   int w, bool appear, int *ox, int *oy) {
+	*oy = resting_y;
+	*ox = resting_x + w;
+	if (!appear || toplevel == NULL || toplevel->column == NULL ||
+	    toplevel->workspace == NULL) {
+		return;
+	}
+	int gap = sf_cfg(toplevel->server)->gap_size;
+	if (gap < 0) {
+		gap = 0;
+	}
+	struct sf_column *prev = NULL;
+	struct sf_column *next = NULL;
+	bool seen = false;
+	struct sf_column *c;
+	wl_list_for_each(c, &toplevel->workspace->columns, link) {
+		if (sf_column_visible_count(c) == 0) {
+			continue;
+		}
+		if (c == toplevel->column) {
+			seen = true;
+			continue;
+		}
+		if (!seen) {
+			prev = c;
+		} else {
+			next = c;
+			break;
+		}
+	}
+	struct sf_toplevel *sample = strip_sample_row(next);
+	if (sample != NULL) {
+		/* Neighbor still at pre-morph pose while deferred. */
+		*ox = sample->scene_tree->node.x - w - gap;
+		return;
+	}
+	sample = strip_sample_row(prev);
+	if (sample == NULL) {
+		return;
+	}
+	struct wlr_box geom;
+	sf_toplevel_layout_geom(sample, &geom);
+	if (geom.width <= 0) {
+		return;
+	}
+	*ox = sample->scene_tree->node.x + geom.width + gap;
+}
+
+/*
+ * Tiled columns: always enter from / exit to the right. Appear glues to the
+ * left neighbor; hide/close use the column's resting right inter-gap.
  * Umbriel defaults windows_in to popin; we keep slide but pin the seam.
  */
 static void slide_offscreen(struct sf_server *server, bool strip_column, int resting_x,
 			    int resting_y, int w, int h, const struct wlr_box *area, int *ox,
 			    int *oy) {
 	if (strip_column) {
-		/* Fully past the resting right edge = the gap / next column. */
 		*ox = resting_x + w;
 		*oy = resting_y;
 		return;
@@ -283,6 +353,10 @@ void sf_anim_cancel(struct sf_toplevel *toplevel, bool commit_visual) {
 	toplevel->anim.on_done = NULL;
 	toplevel->anim_hide = false;
 	toplevel->anim_slide_column = false;
+	if (!commit_visual) {
+		/* Cancelled without finishing the appear slide (unmap / apply). */
+		toplevel->arrange_appear_pending = false;
+	}
 }
 
 bool sf_anim_active(const struct sf_toplevel *toplevel) {
@@ -363,8 +437,11 @@ bool sf_anim_start_show(struct sf_toplevel *toplevel) {
 		return false;
 	}
 
-	int resting_x = toplevel->anim.active ? toplevel->resting_x : toplevel->scene_tree->node.x;
-	int resting_y = toplevel->anim.active ? toplevel->resting_y : toplevel->scene_tree->node.y;
+	/* Logical resting — not scene node. Hide finish leaves the node parked
+	 * off-screen while resting_* stays on-screen; reading node.x here made
+	 * unminimize / taskbar recall slide back to the off-screen pose. */
+	int resting_x = toplevel->resting_x;
+	int resting_y = toplevel->resting_y;
 
 	struct wlr_box area;
 	const struct wlr_box *area_p = NULL;
@@ -376,8 +453,12 @@ bool sf_anim_start_show(struct sf_toplevel *toplevel) {
 	toplevel->anim_slide_column = strip;
 
 	int from_x, from_y;
-	slide_offscreen(toplevel->server, strip, resting_x, resting_y, w, h, area_p, &from_x,
-			&from_y);
+	if (strip) {
+		strip_column_offscreen(toplevel, resting_x, resting_y, w, true, &from_x, &from_y);
+	} else {
+		slide_offscreen(toplevel->server, false, resting_x, resting_y, w, h, area_p,
+				&from_x, &from_y);
+	}
 
 	begin_slide(toplevel, from_x, from_y, resting_x, resting_y, resting_x, resting_y, false,
 		    NULL);
@@ -398,8 +479,8 @@ bool sf_anim_start_hide(struct sf_toplevel *toplevel, sf_anim_done_fn on_done) {
 		return false;
 	}
 
-	int resting_x = toplevel->anim.active ? toplevel->resting_x : toplevel->scene_tree->node.x;
-	int resting_y = toplevel->anim.active ? toplevel->resting_y : toplevel->scene_tree->node.y;
+	int resting_x = toplevel->resting_x;
+	int resting_y = toplevel->resting_y;
 	int from_x = toplevel->scene_tree->node.x;
 	int from_y = toplevel->scene_tree->node.y;
 
@@ -500,6 +581,14 @@ bool sf_anim_start_morph(struct sf_toplevel *toplevel, const struct wlr_box *fro
 	return true;
 }
 
+void sf_anim_sync_clock(struct sf_toplevel *toplevel, const struct sf_toplevel *leader) {
+	if (toplevel == NULL || leader == NULL || !toplevel->anim.active || !leader->anim.active) {
+		return;
+	}
+	toplevel->anim.start = leader->anim.start;
+	toplevel->anim.dur_ns = leader->anim.dur_ns;
+}
+
 void sf_anim_tick(struct sf_server *server, const struct timespec *now) {
 	struct sf_toplevel *toplevel, *tmp;
 	struct sf_toplevel *done[32];
@@ -549,6 +638,9 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now) {
 		t->anim_hide = false;
 		if (!was_morph) {
 			t->anim_slide_column = false;
+			if (!was_hide) {
+				t->arrange_appear_pending = false;
+			}
 		}
 		if (was_morph) {
 			morph_finish(t, true);

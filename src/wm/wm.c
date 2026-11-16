@@ -141,6 +141,15 @@ void sf_toplevel_move_resize(struct sf_toplevel *toplevel, const struct wlr_box 
 	if (toplevel == NULL || box == NULL) {
 		return;
 	}
+	/* Mid appear-slide: never cancel into a short morph — retarget end only. */
+	if (toplevel->arrange_appear_pending && toplevel->anim.active && !toplevel->anim.morph &&
+	    !toplevel->anim_hide) {
+		toplevel->resting_x = box->x;
+		toplevel->resting_y = box->y;
+		toplevel->anim.to_x = box->x;
+		toplevel->anim.to_y = box->y;
+		return;
+	}
 	if (morph) {
 		toplevel_try_morph_to(toplevel, box);
 	} else {
@@ -416,6 +425,12 @@ void sf_toplevel_release_transient_max_edges(struct sf_toplevel *toplevel) {
 		toplevel->arrange_max_edges_rejoin = false;
 		return;
 	}
+	/* Hide/show must restore the overlay as it left. apply_hidden →
+	 * focus_top would otherwise demote on the way out, and apply_shown
+	 * would then join the window as a tile. */
+	if (toplevel->minimized || toplevel->anim_hide) {
+		return;
+	}
 	if (!sf_layout_sm_is_max_edges(&toplevel->layout)) {
 		toplevel->arrange_max_edges_rejoin = false;
 		return;
@@ -443,6 +458,11 @@ void sf_toplevel_set_max_edges(struct sf_toplevel *toplevel, bool want) {
 			toplevel->arrange_max_edges_rejoin = false;
 			toplevel->arrange_floating = false;
 		}
+	} else if (want && toplevel->arrange_floating) {
+		/* Sticky float (rule / Super+v): edge-max is an overlay on the
+		 * float — never arm tile rejoin or clear arrange_floating
+		 * (Slack hide/show was joining the strip). */
+		toplevel->arrange_max_edges_rejoin = false;
 	} else if (want && toplevel->arrange_managed) {
 		/* Tiling: break out + raise so the strip cannot cover it.
 		 * Tile-originated max-edges is a transient overlay
@@ -488,9 +508,87 @@ void sf_toplevel_toggle_max_edges(struct sf_toplevel *toplevel) {
 	}
 }
 
+static struct sf_output *toplevel_focus_output(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL) {
+		return NULL;
+	}
+	if (toplevel->workspace != NULL && toplevel->workspace->output != NULL) {
+		return toplevel->workspace->output;
+	}
+	return sf_output_for_toplevel(toplevel);
+}
+
+/* Exclusive fullscreen: at most one mapped FS window per output. */
+static struct sf_toplevel *output_fullscreen_toplevel(struct sf_output *output) {
+	if (output == NULL || output->server == NULL) {
+		return NULL;
+	}
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &output->server->toplevels, link) {
+		if (t->minimized || t->anim_hide) {
+			continue;
+		}
+		if (!sf_layout_sm_is_fullscreen(&t->layout)) {
+			continue;
+		}
+		if (toplevel_focus_output(t) == output) {
+			return t;
+		}
+	}
+	return NULL;
+}
+
+bool sf_toplevel_focus_obscured(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || sf_layout_sm_is_fullscreen(&toplevel->layout)) {
+		return false;
+	}
+	struct sf_output *output = toplevel_focus_output(toplevel);
+	struct sf_toplevel *fs = output_fullscreen_toplevel(output);
+	if (fs == NULL || fs == toplevel) {
+		return false;
+	}
+	/* Parented dialog of the fullscreen window stays reachable. */
+	if (toplevel->xdg_toplevel != NULL && toplevel->xdg_toplevel->parent != NULL &&
+	    fs->xdg_toplevel != NULL && toplevel->xdg_toplevel->parent == fs->xdg_toplevel) {
+		return false;
+	}
+	return true;
+}
+
+static void fullscreen_demote_peers(struct sf_toplevel *toplevel) {
+	struct sf_output *output = toplevel_focus_output(toplevel);
+	if (output == NULL || output->server == NULL) {
+		return;
+	}
+	struct sf_toplevel *peers[64];
+	size_t n = 0;
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &output->server->toplevels, link) {
+		if (t == toplevel || t->minimized || t->anim_hide) {
+			continue;
+		}
+		if (!sf_layout_sm_is_fullscreen(&t->layout)) {
+			continue;
+		}
+		if (toplevel_focus_output(t) != output) {
+			continue;
+		}
+		if (n < sizeof(peers) / sizeof(peers[0])) {
+			peers[n++] = t;
+		}
+	}
+	for (size_t i = 0; i < n; i++) {
+		struct sf_layout_ev ev = {.kind = SF_LAYOUT_EV_SET_FULLSCREEN, .want = false};
+		layout_dispatch(peers[i], &ev, NULL);
+	}
+}
+
 void sf_toplevel_set_fullscreen(struct sf_toplevel *toplevel, bool want, struct wlr_output *hint) {
 	if (toplevel == NULL || !xdg_surface_ready(toplevel)) {
 		return;
+	}
+	if (want) {
+		fullscreen_demote_peers(toplevel);
 	}
 	struct sf_layout_ev ev = {.kind = SF_LAYOUT_EV_SET_FULLSCREEN, .want = want};
 	layout_dispatch(toplevel, &ev, hint);
@@ -499,6 +597,9 @@ void sf_toplevel_set_fullscreen(struct sf_toplevel *toplevel, bool want, struct 
 void sf_toplevel_toggle_fullscreen(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || !xdg_surface_ready(toplevel)) {
 		return;
+	}
+	if (!sf_layout_sm_is_fullscreen(&toplevel->layout)) {
+		fullscreen_demote_peers(toplevel);
 	}
 	struct sf_layout_ev ev = {.kind = SF_LAYOUT_EV_TOGGLE_FULLSCREEN};
 	layout_dispatch(toplevel, &ev, NULL);
@@ -830,8 +931,9 @@ static bool tiled_appear_size_ready(struct sf_toplevel *toplevel) {
 	if (dw <= tol && dh <= tol) {
 		return true;
 	}
-	/* Clients that ignore the configure: give up after a few commits. */
-	return toplevel->arrange_prop_waits >= 3;
+	/* Terminals often commit cell-snapped sizes that never match within 2px.
+	 * After one post-propose commit, show anyway — invisible forever is worse. */
+	return toplevel->arrange_prop_waits >= 1;
 }
 
 static bool place_fx_has(const struct sf_place_result *r, enum sf_place_fx_kind kind) {
@@ -845,16 +947,18 @@ static bool place_fx_has(const struct sf_place_result *r, enum sf_place_fx_kind 
 
 static void appear_start_show(struct sf_toplevel *toplevel) {
 	toplevel->arrange_prop_waits = 0;
+	toplevel->arrange_appear_pending = true;
 	/* Park off-screen first, then enable — avoids a resting chrome flash. */
 	bool slid = sf_anim_start_show(toplevel);
 	if (toplevel->scene_tree != NULL) {
 		if (!slid) {
 			wlr_scene_node_set_position(&toplevel->scene_tree->node,
 						    toplevel->resting_x, toplevel->resting_y);
+			toplevel->arrange_appear_pending = false;
 		}
 		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
 	}
-	/* Neighbors deferred while appear-held: morph now with the slide. */
+	/* Neighbors deferred while appear-held: morph now on the opener's clock. */
 	if (toplevel->workspace != NULL) {
 		sf_arrange_release_deferred(toplevel->workspace);
 	}
@@ -932,16 +1036,29 @@ void sf_toplevel_try_appear(struct sf_toplevel *toplevel) {
 	if (!tiled_appear_size_ready(toplevel)) {
 		return;
 	}
-	place_dispatch(toplevel, SF_PLACE_EV_TRY_APPEAR);
+	if (sf_place_sm_is_holding(&toplevel->place)) {
+		place_dispatch(toplevel, SF_PLACE_EV_TRY_APPEAR);
+		return;
+	}
+	/* Size-wait without SoftPlace: START_SHOW armed appear_hold on the
+	 * place copy, but a later settle can clear it while the scene is still
+	 * disabled under arrange_appear_pending — force the slide. */
+	if (toplevel->arrange_appear_pending && toplevel->scene_tree != NULL &&
+	    !toplevel->scene_tree->node.enabled && !toplevel->anim.active) {
+		appear_start_show(toplevel);
+	}
 }
 
 void sf_toplevel_arm_appear(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->scene_tree == NULL) {
 		return;
 	}
-	/* Pack the cell before the appear slide so travel uses final w×h. */
+	/* Pack the cell before the appear slide so travel uses final w×h.
+	 * Flag pending *before* flush so neighbors defer on this pack — otherwise
+	 * they morph into the gap and the opener's later slide looks sequential. */
 	if (toplevel->arrange_managed && toplevel->workspace != NULL &&
 	    sf_arrange_is_tiling(sf_workspace_arrange(toplevel->workspace))) {
+		toplevel->arrange_appear_pending = true;
 		sf_arrange_flush(toplevel->workspace);
 	}
 	place_dispatch(toplevel, SF_PLACE_EV_ARM_APPEAR);
@@ -1227,6 +1344,14 @@ void sf_toplevel_apply_shown(struct sf_toplevel *toplevel, bool activate) {
 				sf_workspace_assign(toplevel, out->active);
 			}
 		}
+		/* Edge-max (QT via taskbar, column transient overlay, floats that
+		 * were edge-max): reassert usable box while still hidden so
+		 * apply_box updates resting before the show slide. A post-show
+		 * REAPPLY cancels the slide (see scratch_show). */
+		if (sf_layout_sm_is_max_edges(&toplevel->layout) ||
+		    toplevel->arrange_max_edges_rejoin) {
+			sf_toplevel_set_max_edges(toplevel, true);
+		}
 		toplevel->minimized = false;
 		minimize_link_detach(toplevel);
 		/* Park off-screen, then enable (no resting chrome flash). */
@@ -1238,9 +1363,10 @@ void sf_toplevel_apply_shown(struct sf_toplevel *toplevel, bool activate) {
 		sf_foreign_toplevel_on_state_change(toplevel);
 		/* Scratch/QT stays layout-independent. Tiling: non-floats must
 		 * rejoin the strip (umbriel: cannot hold a hidden tile under
-		 * the columns). */
+		 * the columns). join_toplevel already skips max-edges / rejoin.
+		 * Rule :float (e.g. Slack) must stay sticky across hide/show. */
 		if (!sf_toplevel_is_scratchpad(toplevel) && toplevel->workspace != NULL &&
-		    !toplevel->arrange_floating &&
+		    !toplevel->arrange_floating && !sf_rules_wants_float(toplevel) &&
 		    sf_arrange_is_tiling(sf_workspace_arrange(toplevel->workspace))) {
 			sf_arrange_join_toplevel(toplevel);
 			sf_arrange_schedule(toplevel->workspace);
@@ -1316,6 +1442,15 @@ void sf_focus_toplevel(struct sf_toplevel *toplevel) {
 	struct sf_server *server = toplevel->server;
 	if (sf_session_locked(server)) {
 		return;
+	}
+	/* Explicit focus (taskbar / click / IPC): leave fullscreen first so the
+	 * target is visible. Tab/focus_dir skip buried windows instead. */
+	if (sf_toplevel_focus_obscured(toplevel)) {
+		struct sf_toplevel *fs =
+			output_fullscreen_toplevel(toplevel_focus_output(toplevel));
+		if (fs != NULL) {
+			sf_toplevel_set_fullscreen(fs, false, NULL);
+		}
 	}
 	/* Show before reveal so LIFO unminimize can reassign to the active
 	 * workspace first (otherwise reveal would switch to the old strip). */
@@ -1484,7 +1619,14 @@ static bool focus_cycle_eligible(struct sf_toplevel *t, bool include_minimized) 
 	if (!include_minimized && !sf_toplevel_workspace_visible(t)) {
 		return false;
 	}
-	return include_minimized || !t->minimized;
+	if (!(include_minimized || !t->minimized)) {
+		return false;
+	}
+	/* Do not Tab onto windows hidden behind an exclusive fullscreen. */
+	if (sf_toplevel_focus_obscured(t)) {
+		return false;
+	}
+	return true;
 }
 
 void sf_focus_cycle(struct sf_server *server, bool backward, bool include_minimized) {

@@ -12,6 +12,9 @@ struct wlr_output;
 
 void sf_focus_toplevel(struct sf_toplevel *toplevel);
 struct sf_toplevel *sf_focused_toplevel(struct sf_server *server);
+/* True when another window on the same output is fullscreen and covers this
+ * one (parented dialogs of that FS window are not obscured). */
+bool sf_toplevel_focus_obscured(struct sf_toplevel *toplevel);
 
 /* Raise toplevel, then re-stack always-on-top (+ hide slides above pins). */
 void sf_toplevel_raise(struct sf_toplevel *toplevel);

@@ -51,8 +51,20 @@ in). Move-left/right is a different verb (reorder / new column).
 Stonefly: Super+m = column-wide in columns; Super+f = edges break-out.
 Under columns, edge-max is **transient**: `arrange_max_edges_rejoin` without
 sticky `arrange_floating`. Focus change / Tab / focus_dir / Super+m releases
-it back into its cell. Marking it `arrange_floating` made Super+Tab walk only
-tiles (focus “behind” the overlay) and Super+m look like a pink float.
+it back into its cell **only while the window is still visible**. Hide →
+`focus_top` must not demote (`release_transient_max_edges` no-ops when
+`minimized` / `anim_hide`); otherwise unminimize joins a floater as a tile.
+Marking it `arrange_floating` made Super+Tab walk only tiles (focus “behind”
+the overlay) and Super+m look like a pink float.
+
+### Show slide resting vs hide park
+
+Hide finish leaves the scene node at the off-screen pose and keeps
+`resting_x/y` as the on-screen return target. `sf_anim_start_show` must slide
+to `resting_*`, never `scene_tree->node` after a completed hide — otherwise
+floats, QT (taskbar path), and edge-max come back focused but painted off
+screen (Super+m / scratch reassert looked like the “fix” because they
+`apply_box` before show).
 
 ### Minimize is float-only (Umbriel)
 
@@ -87,8 +99,17 @@ window.
 On focus, scroll just far enough to show the column. Optional
 `center_focused = on_overflow` centers only when the focused column and its
 previous neighbor cannot share the viewport. Underfull strips can center as a
-strip. Edge-drag during rearrange pans offscreen columns. Stonefly is still
-center-on-focus-ish.
+strip. Edge-drag during rearrange pans offscreen columns. Stonefly now keeps
+the prior `columns_view_offset` and nudges just-enough (no re-center on every
+focus). `on_overflow` / underfull-center / edge pan still open.
+
+### Column width is a slot, not `usable * frac`
+
+Umbriel: `width = round(frac × (viewport + gap)) - gap`. Two columns at 0.5
+fit the viewport with one inter-column gap. Stonefly used `usable * frac` and
+overflowed by exactly `gap`, so focus scrolled by that gap and the strip
+wobbled (one side glued to the edge). Resize span must use `usable + gap` as
+the unit so Super+RMB matches the slot.
 
 ### New windows insert beside focus
 
@@ -128,12 +149,19 @@ membership / consume / float / drag / foreign before inventing deck/grid.
 | Column max vs edges max | Super+m / Super+f |
 | Columns default | `arrange = columns` |
 | Lone visible column fills usable | yes (skip columns with only minimized rows); 2+ use `width_frac` |
-| Tiled slide direction | always from/to column **right inter-gap** (not screen edge; not left-half→left). Close-ghost must pass `strip_column` — box-only closest-edge slides to **top**. Umbriel `windows_in` default is **popin** |
-| Tiled appear size | pack cell + wait for configure before slide — natural buffer mid-slide looks like a short square growing in the column |
-| Tiled push/pull sync | defer neighbor morph while opener appear-held; release on show start. Close: unlink+flush with ghost/hide so survivors move on the same clock (umbriel windows_in + windows_move) |
-| Appear chrome flash | never enable at resting before parking off-screen |
+| Tiled slide direction | appear: peel with **next** column (pushed right) else previous right edge; hide/close: column **right inter-gap**. Close-ghost must pass `strip_column` — box-only closest-edge slides to **top**. Umbriel `windows_in` default is **popin** (scale+fade at final slot on the same tick as `windows_move`) |
+| Tiled appear size | pack cell + wait for configure before slide — natural buffer mid-slide looks like a short square growing in the column. **Never reset `arrange_prop_waits` on same-size re-pack** (second map / idle arrange); terminals rarely hit exact cell height → waits never reached give-up → scene stayed disabled (taskbar yes, screen no). Give up after 1 post-propose commit; commit path must try appear on `arrange_appear_pending`, not only SoftPlace hold |
+| Tiled push/pull sync | defer neighbor morph while opener appear-held; set `arrange_appear_pending` on join and **before** the arm_appear flush (place phase alone is not enough after LAYOUT_OWNED settle). Release on show start **on the opener’s clock** (`sf_anim_sync_clock`). Left-only glue made near-zero opener travel while the right column carried the push → “old slides out, new pops in”. True Umbriel rigid strip is one `LayoutMotion` + SceneFX `windows_move` shader — our morph+slide sync is the in-tree approximation. Close: unlink+flush with ghost/hide. `join_toplevel` must not enable the scene |
+| Appear chrome flash | never enable at resting before parking off-screen; preappear keeps scene disabled |
 | Scratch/QT vs layout | detach must `arrange_unlink`; edge-max is sticky (never `arrange_max_edges_rejoin` / focus demote) |
-| Popin / popout (deferred) | Umbriel: fade + presented box `lerp(scale→1)` centered in slot (crop/dest_size). Stonefly v1 path: morph inset→slot + buffer opacity; popout = reverse on hide/ghost. Keep QT/scratch as edge slide. ROADMAP §2 / TODO NEXT #9 |
+| Hide → show resting | show slide uses `resting_*`; hide parks node off-screen |
+| Column edge-max across hide | do not `release_transient_max_edges` while minimized/hiding |
+| Popin / popout (deferred) | Umbriel: fade + presented box `lerp(scale→1)` centered in slot (crop/dest_size). Stonefly v1 path: morph inset→slot + buffer opacity; popout = reverse on hide/ghost. Keep QT/scratch as edge slide. ROADMAP §2 / TODO NEXT #11 |
+| Hardcoded 3-finger swipe | V=workspaces / H=columns pan in `gestures.c`; only threshold/natural opts. Configurable `sf.gesture` → TODO NEXT #7 |
+| Policy stuck in C | Mouse grabs, cell-drag, focus-cycle shape, insert-after-focus, SSD button wiring, no `sf.on` hooks — starves the Lua runtime. Audit → TODO NEXT #8 |
+| Strip slot memory | `leave_tiling` / float / max-edges break-out must `sf_arrange_slot_remember` before unlink; `join_workspace` restores in (col,row) order. Without this, stacking↔columns and unfloat/unmax become one-client-per-column |
+| Exclusive fullscreen | One FS per output; demote peers on enter. Tab/focus_dir skip `sf_toplevel_focus_obscured`; explicit focus exits FS then focuses. Two FS fighting the screen is a hard bug |
+| Sticky float + edge-max | Rule `:float` + `maximize_to_edges` (Slack): never set `arrange_max_edges_rejoin` or clear `arrange_floating`; `apply_shown` must not join when `sf_rules_wants_float` |
 | Consume / rotate vs minimized | skip minimized-only neighbor columns; pull first visible row |
 | Insert after focused column | yes (first-class strip index) |
 | First-class Column objects | `sf_column` + `ws->columns` |
@@ -142,7 +170,10 @@ membership / consume / float / drag / foreign before inventing deck/grid.
 | Foreign pin to workspace output | fixed (was geom∩ → taskbar flicker) |
 | Drag into column / new column | Super+LMB: cell mid = swap; seam **or inter-row gap** = insert; strip gap = new col |
 | Drag live make-room | insert/new-col reflow a real spacer; neighbors shrink; tint on spacer |
-| Scroll just-enough / on_overflow | still center-ish |
+| Scroll just-enough / on_overflow | just-enough shipped; `on_overflow` / underfull-center open |
+| Column width slot math | `frac×(usable+gap)-gap` (2×0.5 fits) |
+| 3-finger strip pan | horizontal swipe pans view (`lock_offset`); vertical still switches workspaces. Focus: keep if ≥½ width still in usable, else centre-most visible cell — continuous during pan, no `pointer_follow` (warp fights the gesture). `sf_focus_toplevel` still schedules just-enough; already-visible centre focus should not yank offset |
+| Tab focus order | clockwise by angle from usable centre (stable vs membership shuffle) |
 | Consume-from API | `sf_columns_consume_from` (no default bind yet) |
 | Drag edge pan of off-strip columns | missing |
 | MRU row after close | missing |

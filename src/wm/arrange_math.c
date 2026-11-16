@@ -1,5 +1,6 @@
 #include "wm/arrange_math.h"
 
+#include <math.h>
 #include <string.h>
 
 static bool usable_ok(const struct wlr_box *usable) {
@@ -272,6 +273,29 @@ bool sf_arrange_math_master(const struct wlr_box *usable, size_t n, enum sf_mast
 	return true;
 }
 
+/* Umbriel scrolling: width = round(frac * (viewport + gap)) - gap so N equal
+ * fractions of 1/N fit the viewport with inter-column gaps (no +gap overflow). */
+int sf_arrange_math_column_width_px(int usable_w, float frac, int gap) {
+	if (usable_w < 1) {
+		return 1;
+	}
+	if (gap < 0) {
+		gap = 0;
+	}
+	if (frac < 0.05f) {
+		frac = 0.05f;
+	}
+	if (frac > 4.0f) {
+		frac = 4.0f;
+	}
+	double slot = (double)usable_w + (double)gap;
+	int w = (int)lround((double)frac * slot) - gap;
+	if (w < 1) {
+		w = 1;
+	}
+	return w;
+}
+
 bool sf_arrange_math_columns(const struct wlr_box *usable, size_t n, double col_ratio, int gap,
 			     int view_offset, struct wlr_box *out) {
 	int col_w;
@@ -291,10 +315,7 @@ bool sf_arrange_math_columns(const struct wlr_box *usable, size_t n, double col_
 	if (gap < 0) {
 		gap = 0;
 	}
-	col_w = (int)(usable->width * col_ratio);
-	if (col_w < 1) {
-		col_w = 1;
-	}
+	col_w = sf_arrange_math_column_width_px(usable->width, (float)col_ratio, gap);
 
 	for (i = 0; i < n; i++) {
 		out[i] = (struct wlr_box){
@@ -309,8 +330,8 @@ bool sf_arrange_math_columns(const struct wlr_box *usable, size_t n, double col_
 
 bool sf_arrange_math_column_strip(const struct wlr_box *usable, size_t ncol,
 				  const float *width_frac, const bool *full_width, int gap,
-				  size_t focus_col, int *out_left, int *out_width,
-				  int *out_view_offset) {
+				  size_t focus_col, int prev_offset, bool lock_offset,
+				  int *out_left, int *out_width, int *out_view_offset) {
 	if (!usable_ok(usable) || out_left == NULL || out_width == NULL ||
 	    out_view_offset == NULL) {
 		return false;
@@ -329,11 +350,16 @@ bool sf_arrange_math_column_strip(const struct wlr_box *usable, size_t ncol,
 		focus_col = 0;
 	}
 
+	/* Cumulative slot rounding (umbriel columnWidth) so adjacent fracs share
+	 * boundaries without 1px drift. */
+	double slot = (double)usable->width + (double)gap;
+	double slot_start = 0.0;
 	int x = 0;
 	for (size_t k = 0; k < ncol; k++) {
 		int w;
 		if (ncol == 1 || full_width[k]) {
 			w = usable->width;
+			slot_start = 0.0;
 		} else {
 			float f = width_frac[k];
 			if (f < 0.05f) {
@@ -342,7 +368,9 @@ bool sf_arrange_math_column_strip(const struct wlr_box *usable, size_t ncol,
 			if (f > 4.0f) {
 				f = 4.0f;
 			}
-			w = (int)(usable->width * (double)f);
+			double slot_end = slot_start + (double)f * slot;
+			w = (int)lround(slot_end) - (int)lround(slot_start) - gap;
+			slot_start = slot_end;
 		}
 		if (w < 1) {
 			w = 1;
@@ -352,15 +380,30 @@ bool sf_arrange_math_column_strip(const struct wlr_box *usable, size_t ncol,
 		x += w + (k + 1 < ncol ? gap : 0);
 	}
 
-	int fw = out_width[focus_col];
-	int fl = out_left[focus_col];
-	int offset = fl + fw / 2 - usable->width / 2;
+	int max_off = x > usable->width ? x - usable->width : 0;
+	int offset = prev_offset;
 	if (offset < 0) {
 		offset = 0;
 	}
-	int max_off = x > usable->width ? x - usable->width : 0;
 	if (offset > max_off) {
 		offset = max_off;
+	}
+	if (!lock_offset) {
+		/* Just-enough: nudge only so focus is fully visible. */
+		int fl = out_left[focus_col];
+		int fr = fl + out_width[focus_col];
+		if (fr > offset + usable->width) {
+			offset = fr - usable->width;
+		}
+		if (fl < offset) {
+			offset = fl;
+		}
+		if (offset < 0) {
+			offset = 0;
+		}
+		if (offset > max_off) {
+			offset = max_off;
+		}
 	}
 	*out_view_offset = offset;
 	return true;

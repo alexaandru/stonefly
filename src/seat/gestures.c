@@ -13,7 +13,14 @@
 #include "config/config.h"
 #include "output/output.h"
 #include "session/session.h"
+#include "wm/arrange.h"
 #include "wm/workspace.h"
+
+enum {
+	SF_SWIPE_AXIS_NONE = 0,
+	SF_SWIPE_AXIS_H = 1,
+	SF_SWIPE_AXIS_V = 2,
+};
 
 void destroy_pointer(struct sf_pointer *pointer) {
 	wl_list_remove(&pointer->swipe_begin.link);
@@ -42,6 +49,7 @@ static void pointer_swipe_begin(struct wl_listener *listener, void *data) {
 
 	server->swipe.active = true;
 	server->swipe.consumed = false;
+	server->swipe.axis = SF_SWIPE_AXIS_NONE;
 	server->swipe.fingers = event->fingers;
 	server->swipe.dx = 0;
 	server->swipe.dy = 0;
@@ -63,9 +71,8 @@ static void pointer_swipe_update(struct wl_listener *listener, void *data) {
 	server->swipe.dx += event->dx;
 	server->swipe.dy += event->dy;
 
-	bool workspace_swipe = server->swipe.fingers == 3 &&
-			       server->cursor_mode == SF_CURSOR_PASSTHROUGH &&
-			       !sf_session_locked(server);
+	bool our_swipe = server->swipe.fingers == 3 &&
+			 server->cursor_mode == SF_CURSOR_PASSTHROUGH && !sf_session_locked(server);
 	double adx = fabs(server->swipe.dx);
 	double ady = fabs(server->swipe.dy);
 	int threshold = sf_cfg(server)->swipe_workspace_threshold;
@@ -73,7 +80,31 @@ static void pointer_swipe_update(struct wl_listener *listener, void *data) {
 		threshold = 80;
 	}
 
-	if (workspace_swipe && !server->swipe.consumed && ady > adx && ady >= (double)threshold) {
+	if (our_swipe && server->swipe.axis == SF_SWIPE_AXIS_NONE) {
+		if (adx >= (double)threshold || ady >= (double)threshold) {
+			server->swipe.axis = adx > ady ? SF_SWIPE_AXIS_H : SF_SWIPE_AXIS_V;
+		}
+	}
+
+	if (our_swipe && server->swipe.axis == SF_SWIPE_AXIS_H) {
+		struct sf_output *output = sf_output_at_cursor(server);
+		struct sf_workspace *ws = output != NULL ? output->active : NULL;
+		if (ws != NULL && sf_workspace_arrange(ws) == SF_ARRANGE_COLUMNS) {
+			/* Natural: content tracks the finger (same as umbriel strip pan). */
+			double step = event->dx;
+			if (!sf_cfg(server)->swipe_workspace_natural) {
+				step = -step;
+			}
+			sf_arrange_columns_pan(ws, step);
+			server->swipe.consumed = true;
+		} else {
+			/* No columns strip — let clients see the gesture. */
+			server->swipe.axis = SF_SWIPE_AXIS_NONE;
+		}
+	}
+
+	if (our_swipe && server->swipe.axis == SF_SWIPE_AXIS_V && !server->swipe.consumed &&
+	    ady >= (double)threshold) {
 		struct sf_output *output = sf_output_at_cursor(server);
 		if (output != NULL) {
 			/* Classic: finger down → next. Natural (default): content
@@ -106,6 +137,7 @@ static void pointer_swipe_end(struct wl_listener *listener, void *data) {
 	}
 	server->swipe.active = false;
 	server->swipe.consumed = false;
+	server->swipe.axis = SF_SWIPE_AXIS_NONE;
 	server->swipe.fingers = 0;
 	server->swipe.dx = 0;
 	server->swipe.dy = 0;

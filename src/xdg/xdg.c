@@ -284,8 +284,13 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 	if (sf_place_sm_is_managed(&toplevel->place)) {
 		sf_toplevel_place_transient(toplevel);
 	}
-	/* Tiled appear held until the packed cell size commits. */
-	if (sf_place_sm_is_holding(&toplevel->place)) {
+	/* Tiled appear held until the packed cell size commits (SoftPlace hold
+	 * or arrange_appear_pending with scene still parked). */
+	bool appear_wait = sf_place_sm_is_holding(&toplevel->place) ||
+			   (toplevel->arrange_appear_pending && toplevel->arrange_managed &&
+			    toplevel->scene_tree != NULL && !toplevel->scene_tree->node.enabled &&
+			    !toplevel->anim.active);
+	if (appear_wait) {
 		if (toplevel->arrange_managed && toplevel->arrange_prop_w > 0) {
 			toplevel->arrange_prop_waits++;
 		}

@@ -578,8 +578,9 @@ size_t sf_columns_apply(struct sf_workspace *ws, const struct wlr_box *usable, i
 	int col_w[SF_COLUMN_MAX];
 	int col_left[SF_COLUMN_MAX];
 	int offset = 0;
-	if (!sf_arrange_math_column_strip(usable, ncol, fracs, fulls, gap, focus_col, col_left,
-					  col_w, &offset)) {
+	if (!sf_arrange_math_column_strip(usable, ncol, fracs, fulls, gap, focus_col,
+					  ws->columns_view_offset, false, col_left, col_w,
+					  &offset)) {
 		ws->columns_view_offset = 0;
 		return 0;
 	}

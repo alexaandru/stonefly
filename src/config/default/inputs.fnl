@@ -5,7 +5,7 @@
 ;; Bools: :tap_to_click :natural_scroll :left_handed :dwt
 ;; Accel: :accel_speed (-1..1) :accel_profile ("none"|"flat"|"adaptive")
 ;; Keyboard: :repeat_rate (keys/sec) :repeat_delay (ms)
-;; Applied when a device appears (live reload is TODO NEXT #7).
+;; Applied when a device appears (live reload is TODO NEXT #9).
 
 (sf.input "touchpad" {:tap_to_click true
                       :natural_scroll true

@@ -22,10 +22,26 @@ the detail rows. When an item ships, check it off here and move the row to
 | 4 | Always-on-top / pin | ✅ | Shipped (`toggle_always_on_top` / rule / Super+Shift+p) |
 | 5 | Workspace switch animation | ✅ | Shipped (vertical strip slide; Super+Page / 1–9 + IPC + swipe share `sf_workspace_switch`) |
 | 6 | Real `inputs.fnl` API | ✅ | Shipped (`sf.input` + libinput apply; tap/natural/accel + left_handed/dwt/repeat) |
-| 7 | Live config reload (binds + opts first) | ❌ | Tweak chords without logout; mango/Hypr baseline |
-| 8 | Dim-inactive / spotlight polish | 🚧 | Opacity knobs exist; stronger dim or overlay so focus reads at a glance |
-| 9 | Popin / popout appear+close | ❌ | Umbriel-style scale+fade; see §2. Slide ships (tiled = right inter-gap; scratch closest) |
-| 10 | IME **or** Xwayland (pick by apps) | ❌ | fcitx/CJK/OSK → IME; Steam/legacy → Xwayland — real projects, not afternoon bites |
+| 7 | **Configurable pointer gestures** | ❌ | **Next.** 3-finger V=workspaces / H=columns pan are hardcoded in `seat/gestures.c` (only `swipe_workspace_*` opts). Want `sf.bind`/`sf.gesture` (fingers, axis, action) like chords — same class of smell as hardcoding Super+LMB |
+| 8 | **Hardcoded → config / Lua audit** | ❌ | **Right after #7.** Sweep C for knobs and *policy* stuck in the compositor that belong in opts, binds, or Lua. Goal: C owns primitives + events; Lua composes behavior — keeping policy in C starves the runtime we want. Seed list below; expand while doing #7 |
+| 9 | Live config reload (binds + opts first) | ❌ | Tweak chords without logout; mango/Hypr baseline |
+| 10 | Dim-inactive / spotlight polish | 🚧 | Opacity knobs exist; stronger dim or overlay so focus reads at a glance |
+| 11 | Popin / popout appear+close | ❌ | Umbriel-style scale+fade; see §2. Slide ships (tiled = right inter-gap; scratch closest) |
+| 12 | IME **or** Xwayland (pick by apps) | ❌ | fcitx/CJK/OSK → IME; Steam/legacy → Xwayland — real projects, not afternoon bites |
+
+Seed findings for **#8** (not exhaustive — audit while implementing):
+
+| Kind | Where today | Push toward |
+|---|---|---|
+| Gesture policy | `gestures.c` 3-finger V/H | #7 `sf.gesture` |
+| Mouse grabs | `pointer.c` Super+LMB move, Super+RMB resize, Super+Shift+RMB center-lock; border LMB resize | `sf.bind` mouse chords / actions |
+| Column cell-drag | `arrange.c` Super+LMB swap/insert; Super+RMB `width_frac`; `SF_COLUMN_DROP_SEAM` 0.15 | binds + opts |
+| Focus cycle policy | tiling = clockwise atan2; stacking = MRU | opt or Lua |
+| New-tile insert | always after focused column | opt / Lua |
+| Arrange cycle set | `arrange_cycle_order[]` stacking↔columns only | opt list |
+| Appear wait | give-up after 3 commits (`arrange_prop_waits`) | opt |
+| SSD title buttons | close / min / max wired in C | actions from Lua / rules |
+| Event hooks | config is load-time declarative only (`bind`/`opt`/`rule`/`scratchpad`) | `sf.on` map/focus/arrange/… callbacks so packs extend WM without new C |
 
 ---
 
@@ -48,10 +64,10 @@ the detail rows. When an item ships, check it off here and move the row to
 | Window menu | ❌ | |
 | Geometry persist across restart | ❌ | Tag protocol shipped; no persist consumer yet |
 | Workspaces polish | 🚧 | ❌ geometry persist / named window rules. Switch slide shipped (FEATURES). Layout engines separate |
-| Layout engine (tile/columns/…) | ✅ | **stacking + columns** only; first-class `sf_column` strip (umbriel-shaped) shipped — see FEATURES / LESSONS. Cell-drag swap/insert seams shipped. Polish (scroll policy, consume-from bind, tabs) still open; deck/grid declined for now |
+| Layout engine (tile/columns/…) | ✅ | **stacking + columns** only; first-class `sf_column` strip (umbriel-shaped) shipped — see FEATURES / LESSONS. Cell-drag, slot width, just-enough scroll, 3-finger strip pan, clockwise Tab ring shipped. Still open: `center_focused=on_overflow`, consume-from bind, tabs, drag edge pan; deck/grid declined for now |
 | Focus cycle policy (MRU vs stack) | 🚧 | Stacking / MRU list front |
 | Picture-in-picture float | ❌ | Related to always-on-top; dedicated PiP policy still open |
-| Dim inactive / spotlight | 🚧 | TODO NEXT #8. Global `client_opacity` / `inactive_opacity` shipped; no black dim-overlay / spotlight; consider stronger default inactive |
+| Dim inactive / spotlight | 🚧 | TODO NEXT #10. Global `client_opacity` / `inactive_opacity` shipped; no black dim-overlay / spotlight; consider stronger default inactive |
 | Scratchpad click-outside catcher | ❌ | `auto_hide` on focus change ships; catcher does not |
 | Scratchpad claim vs icons | 🚧 | Fake `app_id` avoids stealing normal windows (breaks taskbar icons). Proper fix later: xdg-activation / startup token |
 | SSD per-app overrides / winmenu | 🚧 | SSD titlebars ✅; per-app overrides / winmenu open |
@@ -62,7 +78,7 @@ the detail rows. When an item ships, check it off here and move the row to
 
 | Feature | Status | Notes |
 |---|---|---|
-| Popin / popout (scale + fade) | ❌ | TODO NEXT #9. Umbriel `windows_in`/`windows_out` popin: lerp presented box from `scale`→1 centered in slot + opacity 0→1 (reverse on close/ghost). v1 can reuse morph + buffer opacity; full crop/dest_size polish later. Intent: tiled windows popin/popout; scratchpad keeps edge slide |
+| Popin / popout (scale + fade) | ❌ | TODO NEXT #11. Umbriel `windows_in`/`windows_out` popin: lerp presented box from `scale`→1 centered in slot + opacity 0→1 (reverse on close/ghost). v1 can reuse morph + buffer opacity; full crop/dest_size polish later. Intent: tiled windows popin/popout; scratchpad keeps edge slide |
 | Umbriel-shaped `sf.opt.anim` table | ❌ | Per-op `enabled` / `duration_ms` / `style` (appear, close, minimize, scratchpad, morph, workspace) + master; chrome gate. Day-zero intent when picked up: scratchpad + workspace slide on; tiled appear/close → popin once shipped |
 | WM-settable per-window opacity | 🚧 | Global focused/inactive knobs; no per-window / rules API yet |
 | Blur region mask | 🚧 | Non-empty blur region → full-window SceneFX (no region mask yet) |
@@ -105,10 +121,11 @@ product asks for in-process chrome again.
 |---|---|---|
 | Screencast / capture_sessions | ❌ | Screencopy + ext-image-copy-capture shipped; session UI/widget open |
 | Full-output screencopy blanking | ❌ | Per-window capture privacy shipped |
-| Xwayland | ❌ | TODO NEXT #10 (pick vs IME by apps). Classic X11 apps fail |
-| text-input / IME | ❌ | TODO NEXT #10 (pick vs Xwayland by apps). `zwp_text_input_v3` + `zwp_input_method_v2` — wlroots helpers exist; stonefly does not advertise. Needs seat relay + popup placement + IM client |
+| Xwayland | ❌ | TODO NEXT #12 (pick vs IME by apps). Classic X11 apps fail |
+| text-input / IME | ❌ | TODO NEXT #12 (pick vs Xwayland by apps). `zwp_text_input_v3` + `zwp_input_method_v2` — wlroots helpers exist; stonefly does not advertise. Needs seat relay + popup placement + IM client |
 | `wp_fifo_v1` | ❌ | Presentation-time ✅; tearing control advertised (hint only); no fifo helper yet |
 | `wp_tearing_control_v1` async flip | 🚧 | Advertised; hint log only |
+| Configurable swipe / pinch binds | ❌ | TODO NEXT #7. Today: hardcoded 3-finger V/H in `gestures.c` |
 | Tablet | ❌ | Touch / gestures / virtual-keyboard / constraints shipped |
 | Full color-management | ❌ | Gamma LUT shipped |
 | xdg-toplevel-tag consumers | 🚧 | Protocol + IPC stored; no rules/persist consumer |
@@ -133,10 +150,12 @@ product asks for in-process chrome again.
 
 | Pri | Item | Status |
 |---|---|---|
-| P1 | WM opacity | 🚧 global focused + inactive; no per-window API (TODO NEXT #8) |
+| P1 | Configurable gestures | ❌ TODO NEXT #7 (hardcoded 3-finger swipe) |
+| P1 | Hardcoded → Lua/config audit | ❌ TODO NEXT #8 (policy in C starves the runtime) |
+| P1 | WM opacity | 🚧 global focused + inactive; no per-window API (TODO NEXT #10) |
 | P2 | Workspaces polish | ❌ rules / geometry persist (switch slide ✅) |
 | P2 | `wp_fifo_v1` | ❌ |
-| — | Xwayland / IME | ❌ TODO NEXT #10 |
+| — | Xwayland / IME | ❌ TODO NEXT #12 |
 | — | Tiling engines (`columns`/`tile`) | 🚧 reserved |
 
 ---
@@ -147,7 +166,7 @@ product asks for in-process chrome again.
 |---|---|
 | Winmenu | ❌ |
 | Geometry persist | ❌ |
-| Xwayland / IME | ❌ TODO NEXT #10 |
+| Xwayland / IME | ❌ TODO NEXT #12 |
 | Tiling layouts | ✅ (arrange engines; see FEATURES) |
 | Alt+Tab cycle policy polish | 🚧 noctalia switcher + `FOCUS_PREV_ALL` |
 
@@ -155,12 +174,12 @@ product asks for in-process chrome again.
 
 ## 9. Suggested attack order
 
-Primary queue is **TODO NEXT** at the top (QoL #1–#10). After that stack:
+Primary queue is **TODO NEXT** at the top (QoL #1–#12). After that stack:
 
 1. Config leftovers (§10) — validate CLI, outputs API, `--write-config-lua`
 2. Optional WM: tiling engines, geometry persist / tag-based rules, overview (niri/mango-scale — large)
 3. Capture: full-output screencopy blanking; shell UI for privacy optional
-4. Input: tablet (IME is TODO NEXT #10)
+4. Input: tablet (IME is TODO NEXT #12; gestures #7; hardcoded→Lua audit #8)
 5. IPC: action allowlist
 6. Packaging: flip APK back to release buildtype when ASan hunting ends
 7. Protocol polish: `wp_fifo_v1`, full color-mgmt
@@ -173,7 +192,9 @@ Shell/OSD/media stay **🌙 Noctalia**.
 
 | Open | Status | Notes |
 |---|---|---|
-| Live reload mid-session | ❌ | TODO NEXT #7. Loads once at init; start with binds + opts; `sf.exec` `reload true` waits on this |
+| Configurable pointer gestures | ❌ | TODO NEXT #7. `sf.gesture` / bind-shaped swipe+pinch; retire hardcoded 3-finger paths |
+| Hardcoded → config / Lua audit | ❌ | TODO NEXT #8. Knobs + policy out of C; `sf.on` event hooks; C keeps primitives |
+| Live reload mid-session | ❌ | TODO NEXT #9. Loads once at init; start with binds + opts; `sf.exec` `reload true` waits on this |
 | Config validate CLI | ❌ | Check without applying |
 | `--write-config-lua` | ❌ | Offload compiled/plain Lua instead of `.fnl` |
 | `outputs.fnl` API | 🚧 | `inputs.fnl` / `sf.input` shipped (FEATURES). Output `:arrange` override planned (workspace→output→global; global `opt.arrange` wired) |

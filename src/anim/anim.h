@@ -24,6 +24,9 @@ bool sf_anim_start_hide(struct sf_toplevel *toplevel, sf_anim_done_fn on_done);
 bool sf_anim_start_morph(struct sf_toplevel *toplevel, const struct wlr_box *from,
 			 const struct wlr_box *to);
 
+/* Align an in-flight morph/slide to another's clock (tiled push + appear). */
+void sf_anim_sync_clock(struct sf_toplevel *toplevel, const struct sf_toplevel *leader);
+
 bool sf_anim_active(const struct sf_toplevel *toplevel);
 bool sf_anim_busy(struct sf_server *server);
 

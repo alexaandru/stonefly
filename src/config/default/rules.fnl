@@ -16,10 +16,11 @@
 (let [rule sf.window_rule
       chrome (rule {:app_id "google%-chrome"} {})]
   (rule {:title "^Google Chrome$"}
-        {:center true :borderless true :ssd "never" :float true}
-        chrome)
-  (rule {:app_id "dosbox"}
-        {:center true :borderless true :ssd "never" :float true})
-  (rule {:app_id "gcr%-prompter"} {:center true :borderless true :float true})
+        {:center true :borderless false :ssd "never" :float true} chrome)
+  (rule {:app_id "dosbox"} {:center true
+                            :borderless false
+                            :ssd "never"
+                            :float true})
+  (rule {:app_id "gcr%-prompter"} {:center true :borderless false :float true})
   (rule {:app_id "com.slack.Slack"}
-        {:borderless true :action :maximize_to_edges}))
+        {:borderless true :action :maximize_to_edges :float true :ssd never}))

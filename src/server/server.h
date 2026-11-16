@@ -293,10 +293,12 @@ struct sf_server {
 	/* Forward unused touchpad gestures to clients. */
 	struct wlr_pointer_gestures_v1 *pointer_gestures;
 
-	/* In-progress 3-finger workspace swipe. */
+	/* In-progress 3-finger swipe (vertical = workspaces, horizontal = columns pan). */
 	struct {
 		bool active;
 		bool consumed;
+		/* 0 = undecided, 1 = horizontal columns pan, 2 = vertical workspace. */
+		int axis;
 		uint32_t fingers;
 		double dx, dy;
 	} swipe;

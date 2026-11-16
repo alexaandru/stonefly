@@ -1,5 +1,6 @@
 #include "wm/arrange.h"
 
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,9 +8,11 @@
 #include <wayland-server-core.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_xdg_shell.h>
+#include <wlr/util/box.h>
 #include <wlr/util/edges.h>
 #include <scenefx/types/wlr_scene.h>
 
+#include "anim/anim.h"
 #include "config/config.h"
 #include "decor/decor.h"
 #include "layer/layer.h"
@@ -87,6 +90,67 @@ void sf_arrange_remember_float_box(struct sf_toplevel *toplevel) {
 	toplevel->arrange_float_saved = true;
 }
 
+void sf_arrange_slot_remember(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->column == NULL) {
+		return;
+	}
+	int col = sf_column_index(toplevel->column);
+	int row = sf_column_row_of(toplevel);
+	if (col < 0 || row < 0) {
+		return;
+	}
+	toplevel->arrange_slot_col = col;
+	toplevel->arrange_slot_row = row;
+	toplevel->arrange_slot_frac = toplevel->column->width_frac;
+	toplevel->arrange_slot_full = toplevel->column->full_width;
+	toplevel->arrange_slot_saved = true;
+}
+
+void sf_arrange_slot_clear(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL) {
+		return;
+	}
+	toplevel->arrange_slot_saved = false;
+	toplevel->arrange_slot_col = 0;
+	toplevel->arrange_slot_row = 0;
+	toplevel->arrange_slot_frac = 0.0f;
+	toplevel->arrange_slot_full = false;
+}
+
+/* Rebuild strip cell from arrange_slot_*. Creates missing columns by index. */
+static bool join_restore_slot(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || !toplevel->arrange_slot_saved || toplevel->workspace == NULL) {
+		return false;
+	}
+	struct sf_workspace *ws = toplevel->workspace;
+	int col_i = toplevel->arrange_slot_col;
+	int row_i = toplevel->arrange_slot_row;
+	if (col_i < 0) {
+		col_i = 0;
+	}
+	if (row_i < 0) {
+		row_i = 0;
+	}
+	struct sf_column *col = sf_columns_at(ws, col_i);
+	if (col == NULL) {
+		col = sf_columns_insert_new(ws, toplevel, col_i);
+		if (col == NULL) {
+			return false;
+		}
+		if (toplevel->arrange_slot_frac > 0.0f) {
+			col->width_frac = toplevel->arrange_slot_frac;
+		}
+		if (toplevel->arrange_slot_full) {
+			sf_column_set_full_width(col, true);
+		}
+		return true;
+	}
+	if (!sf_column_insert_row(col, toplevel, row_i)) {
+		return false;
+	}
+	return toplevel->column != NULL;
+}
+
 static void demote_edged_for_join(struct sf_toplevel *t) {
 	if (sf_layout_sm_is_fullscreen(&t->layout)) {
 		return;
@@ -101,6 +165,7 @@ void sf_arrange_unlink(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL) {
 		return;
 	}
+	sf_arrange_slot_clear(toplevel);
 	struct sf_server *server = toplevel->server;
 	struct sf_column *col = toplevel->column;
 	bool last_in_col = col != NULL && sf_column_row_count(col) <= 1;
@@ -120,6 +185,7 @@ void sf_arrange_unlink(struct sf_toplevel *toplevel) {
 	sf_column_remove_row(toplevel);
 	toplevel->arrange_managed = false;
 	toplevel->arrange_deferred = false;
+	toplevel->arrange_appear_pending = false;
 	if (toplevel->xdg_toplevel != NULL && toplevel->xdg_toplevel->base->initialized) {
 		wlr_xdg_toplevel_set_tiled(toplevel->xdg_toplevel, 0);
 	}
@@ -140,6 +206,8 @@ void sf_arrange_break_out(struct sf_toplevel *toplevel, bool keep_current_size) 
 		toplevel->arrange_max_edges_rejoin = false;
 		return;
 	}
+	/* Keep strip address so unfloat / unmax land back in the same cell. */
+	sf_arrange_slot_remember(toplevel);
 	struct wlr_box cur;
 	sf_toplevel_layout_geom(toplevel, &cur);
 	toplevel->geom_regain_box = cur;
@@ -198,12 +266,19 @@ void sf_arrange_join_toplevel(struct sf_toplevel *toplevel) {
 	toplevel->geom_regain_hold = false;
 	if (toplevel->column != NULL && toplevel->column->ws == ws) {
 		toplevel->arrange_managed = true;
+	} else if (join_restore_slot(toplevel)) {
+		/* Restored prior column+row from float / max-edges / leave_tiling. */
 	} else {
 		int after = sf_columns_focus_index(ws);
 		sf_columns_insert_new(ws, toplevel, after + 1);
 	}
+	/* Do not enable the scene here. Map parks disabled until appear parks
+	 * off-screen; enabling at the packed cell flashes chrome at rest and
+	 * makes awaiting_appear false so neighbors morph before the slide. */
+	/* Mark before the first pack so neighbors defer even if place has already
+	 * settled (LAYOUT_OWNED) or arm_appear has not run yet. */
 	if (toplevel->scene_tree != NULL && !toplevel->scene_tree->node.enabled) {
-		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
+		toplevel->arrange_appear_pending = true;
 	}
 }
 
@@ -212,13 +287,44 @@ void sf_arrange_join_workspace(struct sf_workspace *ws) {
 		return;
 	}
 	struct sf_server *server = ws->output->server;
+	struct sf_toplevel *pending[SF_ARRANGE_MAX];
+	size_t n = 0;
 	struct sf_toplevel *t;
 	wl_list_for_each(t, &server->toplevels, link) {
 		if (t->workspace != ws || t->arrange_managed || t->arrange_floating ||
-		    t->minimized) {
+		    t->minimized || t->column != NULL) {
 			continue;
 		}
-		sf_arrange_join_toplevel(t);
+		if (n < SF_ARRANGE_MAX) {
+			pending[n++] = t;
+		}
+	}
+	/* Slot-saved first, in strip order, so multi-row columns rebuild correctly. */
+	for (size_t i = 1; i < n; i++) {
+		struct sf_toplevel *key = pending[i];
+		size_t j = i;
+		while (j > 0) {
+			struct sf_toplevel *prev = pending[j - 1];
+			bool key_slot = key->arrange_slot_saved;
+			bool prev_slot = prev->arrange_slot_saved;
+			bool before = false;
+			if (key_slot && !prev_slot) {
+				before = true;
+			} else if (key_slot && prev_slot) {
+				before = key->arrange_slot_col < prev->arrange_slot_col ||
+					 (key->arrange_slot_col == prev->arrange_slot_col &&
+					  key->arrange_slot_row < prev->arrange_slot_row);
+			}
+			if (!before) {
+				break;
+			}
+			pending[j] = prev;
+			j--;
+		}
+		pending[j] = key;
+	}
+	for (size_t i = 0; i < n; i++) {
+		sf_arrange_join_toplevel(pending[i]);
 	}
 }
 
@@ -291,6 +397,11 @@ static void leave_tiling(struct sf_workspace *ws) {
 		if (t->workspace != ws) {
 			continue;
 		}
+		/* Remember strip cells before tear-down so columns↔stacking
+		 * round-trips restore rows (not one-client-per-column). */
+		if (t->column != NULL) {
+			sf_arrange_slot_remember(t);
+		}
 		t->arrange_managed = false;
 		t->arrange_max_edges_rejoin = false;
 		sf_column_remove_row(t);
@@ -339,13 +450,21 @@ static void rejoin_strays(struct sf_workspace *ws) {
 static void apply_box_preappear(struct sf_toplevel *t, const struct wlr_box *box) {
 	/* Size + resting only: keep scene disabled so appear can slide at the
 	 * final cell once the client commits this configure. */
+	t->arrange_appear_pending = true;
 	t->resting_x = box->x;
 	t->resting_y = box->y;
+	/* Only reset the give-up counter when the proposed cell size changes.
+	 * Re-pack while waiting (second map, idle arrange) used to zero waits
+	 * every time — foot rarely hits exact cell height, so appear never
+	 * started and the scene stayed disabled (taskbar yes, screen no). */
+	if (t->arrange_prop_w != box->width || t->arrange_prop_h != box->height) {
+		t->arrange_prop_waits = 0;
+	}
 	t->arrange_prop_w = box->width;
 	t->arrange_prop_h = box->height;
-	t->arrange_prop_waits = 0;
 	if (t->scene_tree != NULL) {
 		wlr_scene_node_set_position(&t->scene_tree->node, box->x, box->y);
+		wlr_scene_node_set_enabled(&t->scene_tree->node, false);
 	}
 	if (t->xdg_toplevel != NULL && t->xdg_toplevel->base->initialized) {
 		wlr_xdg_toplevel_set_size(t->xdg_toplevel, box->width, box->height);
@@ -360,12 +479,19 @@ static bool awaiting_appear(const struct sf_toplevel *t) {
 	if (t == NULL) {
 		return false;
 	}
+	if (t->arrange_appear_pending) {
+		return true;
+	}
 	if (sf_place_sm_is_holding(&t->place)) {
 		return true;
 	}
-	/* Map parks disabled until arm_appear; SoftPlace may still be managed. */
-	return t->scene_tree != NULL && !t->scene_tree->node.enabled &&
-	       sf_place_sm_is_managed(&t->place);
+	/* Map parks disabled until show start. Ignore place phase: LAYOUT_OWNED
+	 * settle must not let neighbors morph before the opener slides. */
+	if (t->arrange_managed && t->scene_tree != NULL && !t->scene_tree->node.enabled &&
+	    !t->anim.active) {
+		return true;
+	}
+	return false;
 }
 
 static void apply_box_now(struct sf_toplevel *t, const struct wlr_box *box, bool morph) {
@@ -401,6 +527,14 @@ static void apply_boxes(struct sf_toplevel **wins, const struct wlr_box *boxes, 
 		t->arrange_prop_w = box->width;
 		t->arrange_prop_h = box->height;
 		if (awaiting_appear(t)) {
+			if (t->anim.active && !t->anim_hide && !t->anim.morph) {
+				/* Appear slide already running: retarget resting only. */
+				t->resting_x = box->x;
+				t->resting_y = box->y;
+				t->anim.to_x = box->x;
+				t->anim.to_y = box->y;
+				continue;
+			}
 			/* Do not clear_auto_place / enable — that would START_SHOW
 			 * at the natural buffer size before the cell configure. */
 			apply_box_preappear(t, box);
@@ -515,7 +649,18 @@ void sf_arrange_release_deferred(struct sf_workspace *ws) {
 	}
 	struct sf_server *server = ws->output->server;
 	bool morph = server->cursor_mode != SF_CURSOR_ARRANGE_RESIZE;
+	/* Opener whose appear slide just started — share one clock with push. */
+	struct sf_toplevel *leader = NULL;
 	struct sf_toplevel *t;
+	wl_list_for_each(t, &server->toplevels, link) {
+		if (t->workspace != ws || !t->arrange_appear_pending) {
+			continue;
+		}
+		if (t->anim.active && !t->anim_hide && !t->anim.morph) {
+			leader = t;
+			break;
+		}
+	}
 	wl_list_for_each(t, &server->toplevels, link) {
 		if (t->workspace != ws || !t->arrange_deferred) {
 			continue;
@@ -525,7 +670,175 @@ void sf_arrange_release_deferred(struct sf_workspace *ws) {
 			continue;
 		}
 		apply_box_now(t, &t->arrange_deferred_box, morph);
+		if (leader != NULL && t->anim.active) {
+			sf_anim_sync_clock(t, leader);
+		}
 	}
+}
+
+/* Majority of width still in the viewport — keep keyboard focus on that cell. */
+static bool pan_box_mostly_visible(const struct wlr_box *box, const struct wlr_box *usable) {
+	if (box == NULL || usable == NULL || box->width <= 0 || box->height <= 0) {
+		return false;
+	}
+	struct wlr_box inter;
+	if (!wlr_box_intersection(&inter, box, usable) || inter.width <= 0 || inter.height <= 0) {
+		return false;
+	}
+	return inter.width * 2 >= box->width;
+}
+
+/*
+ * Pan is view-first: keep focus while its cell is still mostly on-screen; once
+ * it scrolls off, focus the centre-most visible tiled cell. No pointer warp —
+ * continuous swipe must not yank the cursor (cursor_follows_focus stays for
+ * keybinds).
+ */
+static void columns_pan_sync_focus(struct sf_workspace *ws, struct sf_toplevel **wins,
+				   const struct wlr_box *boxes, size_t n,
+				   const struct wlr_box *usable) {
+	if (ws == NULL || ws->output == NULL || wins == NULL || boxes == NULL || usable == NULL ||
+	    n == 0) {
+		return;
+	}
+	struct sf_server *server = ws->output->server;
+	struct sf_toplevel *focus = sf_focused_toplevel(server);
+	for (size_t i = 0; i < n; i++) {
+		if (wins[i] == focus && pan_box_mostly_visible(&boxes[i], usable)) {
+			return;
+		}
+	}
+	double cx = (double)usable->x + (double)usable->width / 2.0;
+	double cy = (double)usable->y + (double)usable->height / 2.0;
+	struct sf_toplevel *best = NULL;
+	double best_d = 0.0;
+	for (size_t i = 0; i < n; i++) {
+		struct wlr_box inter;
+		if (!wlr_box_intersection(&inter, &boxes[i], usable) || inter.width <= 0 ||
+		    inter.height <= 0) {
+			continue;
+		}
+		double bx = (double)boxes[i].x + (double)boxes[i].width / 2.0;
+		double by = (double)boxes[i].y + (double)boxes[i].height / 2.0;
+		double dx = bx - cx;
+		double dy = by - cy;
+		double d = dx * dx + dy * dy;
+		if (best == NULL || d < best_d) {
+			best = wins[i];
+			best_d = d;
+		}
+	}
+	if (best != NULL && best != focus) {
+		sf_focus_toplevel(best);
+	}
+}
+
+void sf_arrange_columns_pan(struct sf_workspace *ws, double delta_px) {
+	if (ws == NULL || ws->output == NULL || ws->output->server == NULL) {
+		return;
+	}
+	if (sf_workspace_arrange(ws) != SF_ARRANGE_COLUMNS) {
+		return;
+	}
+	if (delta_px == 0.0) {
+		return;
+	}
+	struct sf_server *server = ws->output->server;
+	if (server->cursor_mode == SF_CURSOR_ARRANGE_SWAP) {
+		return;
+	}
+	struct wlr_box usable;
+	if (!sf_output_usable_box(ws->output, &usable) || usable.width <= 0 || usable.height <= 0) {
+		return;
+	}
+	int gap = sf_cfg(server)->gap_size;
+	sf_box_inset_gap(&usable, gap);
+	if (usable.width <= 0 || usable.height <= 0) {
+		return;
+	}
+
+	struct sf_column *cols[SF_ARRANGE_MAX];
+	float fracs[SF_ARRANGE_MAX];
+	bool fulls[SF_ARRANGE_MAX];
+	size_t ncol = 0;
+	struct sf_column *c;
+	wl_list_for_each(c, &ws->columns, link) {
+		if (sf_column_visible_count(c) == 0) {
+			continue;
+		}
+		if (ncol >= SF_ARRANGE_MAX) {
+			break;
+		}
+		cols[ncol] = c;
+		fracs[ncol] = c->width_frac;
+		fulls[ncol] = c->full_width;
+		ncol++;
+	}
+	if (ncol < 2) {
+		return;
+	}
+
+	/* Content follows the finger: positive delta → windows move right →
+	 * view offset decreases (umbriel natural strip pan). */
+	int want = ws->columns_view_offset - (int)lround(delta_px);
+	int col_w[SF_ARRANGE_MAX];
+	int col_left[SF_ARRANGE_MAX];
+	int offset = 0;
+	if (!sf_arrange_math_column_strip(&usable, ncol, fracs, fulls, gap, 0, want, true, col_left,
+					  col_w, &offset)) {
+		return;
+	}
+	if (offset == ws->columns_view_offset) {
+		return;
+	}
+	ws->columns_view_offset = offset;
+
+	struct sf_toplevel *wins[SF_ARRANGE_MAX];
+	struct wlr_box boxes[SF_ARRANGE_MAX];
+	size_t n = 0;
+	for (size_t k = 0; k < ncol; k++) {
+		struct sf_toplevel *rows[SF_ARRANGE_MAX];
+		float weights[SF_ARRANGE_MAX];
+		size_t nrows = 0;
+		struct sf_toplevel *t;
+		wl_list_for_each(t, &cols[k]->rows, column_link) {
+			if (t->minimized) {
+				continue;
+			}
+			if (nrows >= SF_ARRANGE_MAX) {
+				break;
+			}
+			rows[nrows] = t;
+			weights[nrows] = t->column_row_weight;
+			nrows++;
+		}
+		if (nrows == 0) {
+			continue;
+		}
+		struct wlr_box col_box = {
+			.x = usable.x + col_left[k] - offset,
+			.y = usable.y,
+			.width = col_w[k],
+			.height = usable.height,
+		};
+		struct wlr_box row_boxes[SF_ARRANGE_MAX];
+		if (!sf_arrange_math_column_rows(&col_box, nrows, weights, gap, row_boxes)) {
+			continue;
+		}
+		for (size_t r = 0; r < nrows && n < SF_ARRANGE_MAX; r++) {
+			int inset = sf_ssd_top_inset(rows[r]);
+			if (inset > 0 && row_boxes[r].height > inset) {
+				row_boxes[r].y += inset;
+				row_boxes[r].height -= inset;
+			}
+			wins[n] = rows[r];
+			boxes[n] = row_boxes[r];
+			n++;
+		}
+	}
+	/* Instant track — no morph while the finger is moving. */
+	apply_boxes(wins, boxes, n, false);
+	columns_pan_sync_focus(ws, wins, boxes, n, &usable);
 }
 
 void sf_arrange_set(struct sf_server *server, const char *name) {
@@ -723,7 +1036,7 @@ void sf_arrange_focus_dir(struct sf_server *server, const char *dir) {
 	struct sf_toplevel *best = NULL;
 	int best_score = -1;
 	for (size_t i = 0; i < n; i++) {
-		if (wins[i] == focus) {
+		if (wins[i] == focus || sf_toplevel_focus_obscured(wins[i])) {
 			continue;
 		}
 		struct wlr_box b;
@@ -795,27 +1108,91 @@ bool sf_arrange_focus_cycle(struct sf_server *server, bool backward) {
 	}
 
 	struct sf_toplevel *wins[SF_ARRANGE_MAX];
-	size_t n = sf_columns_collect(ws, wins, SF_ARRANGE_MAX);
-	if (n > SF_ARRANGE_MAX) {
-		n = SF_ARRANGE_MAX;
+	size_t n_all = sf_columns_collect(ws, wins, SF_ARRANGE_MAX);
+	if (n_all > SF_ARRANGE_MAX) {
+		n_all = SF_ARRANGE_MAX;
+	}
+	/* Drop windows buried under exclusive fullscreen (Tab must not land
+	 * on something the user cannot see). */
+	size_t n = 0;
+	for (size_t i = 0; i < n_all; i++) {
+		if (sf_toplevel_focus_obscured(wins[i])) {
+			continue;
+		}
+		wins[n++] = wins[i];
 	}
 	if (n < 2) {
 		return false;
 	}
+
+	/*
+	 * Stable clockwise ring from the usable centre (atan2, y-down → clockwise
+	 * is increasing angle). Independent of column/row membership order so
+	 * drag-reorder does not reverse Tab. Ties: distance, then id.
+	 */
+	struct wlr_box usable;
+	double ox = 0.0, oy = 0.0;
+	if (ws->output != NULL && sf_output_usable_box(ws->output, &usable) && usable.width > 0 &&
+	    usable.height > 0) {
+		ox = (double)usable.x + (double)usable.width / 2.0;
+		oy = (double)usable.y + (double)usable.height / 2.0;
+	} else {
+		struct wlr_box fb;
+		sf_toplevel_layout_geom(focus != NULL ? focus : wins[0], &fb);
+		ox = (double)fb.x + (double)fb.width / 2.0;
+		oy = (double)fb.y + (double)fb.height / 2.0;
+	}
+
+	struct sf_focus_ring {
+		struct sf_toplevel *t;
+		double ang;
+		double dist;
+		uint64_t id;
+	} ring[SF_ARRANGE_MAX];
+	for (size_t i = 0; i < n; i++) {
+		struct wlr_box b;
+		sf_toplevel_layout_geom(wins[i], &b);
+		double cx = (double)b.x + (double)b.width / 2.0;
+		double cy = (double)b.y + (double)b.height / 2.0;
+		double dx = cx - ox;
+		double dy = cy - oy;
+		ring[i].t = wins[i];
+		ring[i].ang = atan2(dy, dx);
+		ring[i].dist = dx * dx + dy * dy;
+		ring[i].id = wins[i]->id;
+	}
+	for (size_t i = 1; i < n; i++) {
+		struct sf_focus_ring key = ring[i];
+		size_t j = i;
+		while (j > 0) {
+			struct sf_focus_ring *p = &ring[j - 1];
+			bool before =
+				key.ang < p->ang ||
+				(key.ang == p->ang &&
+				 (key.dist < p->dist || (key.dist == p->dist && key.id < p->id)));
+			if (!before) {
+				break;
+			}
+			ring[j] = *p;
+			j--;
+		}
+		ring[j] = key;
+	}
+
 	size_t fi = 0;
 	bool found = false;
 	for (size_t i = 0; i < n; i++) {
-		if (wins[i] == focus) {
+		if (ring[i].t == focus) {
 			fi = i;
 			found = true;
 			break;
 		}
 	}
 	if (!found) {
-		return false;
+		fi = 0;
 	}
 	size_t next = backward ? (fi + n - 1) % n : (fi + 1) % n;
-	sf_focus_toplevel(wins[next]);
+	sf_focus_toplevel(ring[next].t);
 	sf_pointer_follow_focus(server);
 	return true;
 }
@@ -906,12 +1283,13 @@ static bool columns_restore_home(struct sf_server *server, struct sf_toplevel *t
 	return true;
 }
 
-static int column_paint_width(struct sf_column *col, size_t ncol, const struct wlr_box *usable) {
+static int column_paint_width(struct sf_column *col, size_t ncol, const struct wlr_box *usable,
+			      int gap) {
 	int cw;
 	if (ncol == 1 || col->full_width) {
 		cw = usable->width;
 	} else {
-		cw = (int)(usable->width * (double)col->width_frac);
+		cw = sf_arrange_math_column_width_px(usable->width, col->width_frac, gap);
 	}
 	return cw < 1 ? 1 : cw;
 }
@@ -1023,7 +1401,8 @@ static void columns_drag_reflow(struct sf_server *server, struct sf_toplevel *gr
 		return;
 	}
 	if (!sf_arrange_math_column_strip(&usable, strip_n, strip_fracs, strip_fulls, gap,
-					  focus_col, col_left, col_w, &offset)) {
+					  focus_col, ws->columns_view_offset, false, col_left,
+					  col_w, &offset)) {
 		return;
 	}
 	ws->columns_view_offset = offset;
@@ -1179,7 +1558,7 @@ static bool columns_drop_at(struct sf_server *server, struct sf_toplevel *grab, 
 	int view = ws->columns_view_offset;
 	int x = 0;
 	for (size_t k = 0; k < ncol; k++) {
-		int cw = column_paint_width(cols[k], ncol, &usable);
+		int cw = column_paint_width(cols[k], ncol, &usable, gap);
 		int left = usable.x + x - view;
 		int right = left + cw;
 		if (lx < (double)left) {
@@ -1592,7 +1971,8 @@ void sf_arrange_resize_begin(struct sf_server *server, struct sf_toplevel *tople
 	server->arrange_resize.start_cx = server->cursor->x;
 	server->arrange_resize.start_cy = server->cursor->y;
 	server->arrange_resize.start_factor = start;
-	server->arrange_resize.span = usable.width;
+	/* Slot unit matches sf_arrange_math_column_width_px (usable + gap). */
+	server->arrange_resize.span = usable.width + cfg->gap_size;
 }
 
 void sf_arrange_resize_motion(struct sf_server *server) {

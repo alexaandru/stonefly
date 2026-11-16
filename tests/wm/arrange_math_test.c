@@ -1,4 +1,4 @@
-/* sf-suite cover=wm/arrange_math.c src=wm/arrange_math.c */
+/* sf-suite cover=wm/arrange_math.c src=wm/arrange_math.c libs=m */
 #include "sf_test.h"
 #include "wm/arrange_math.h"
 
@@ -45,14 +45,14 @@ static void test_master_center_three(void) {
 static void test_columns_three_offset(void) {
 	const struct wlr_box usable = {.x = 100, .y = 50, .width = 800, .height = 600};
 	struct wlr_box out[3];
-	/* col_w = (int)(800 * 0.5) = 400; gap = 10; view_offset = 100 */
+	/* col_w = round(0.5*(800+10))-10 = 395; gap = 10; view_offset = 100 */
 	SF_TEST_TRUE(sf_arrange_math_columns(&usable, 3, 0.5, 10, 100, out));
-	expect_box(&out[0], 100 + 0 * 410 - 100, 50, 400, 600);
-	expect_box(&out[1], 100 + 1 * 410 - 100, 50, 400, 600);
-	expect_box(&out[2], 100 + 2 * 410 - 100, 50, 400, 600);
+	expect_box(&out[0], 100 + 0 * 405 - 100, 50, 395, 600);
+	expect_box(&out[1], 100 + 1 * 405 - 100, 50, 395, 600);
+	expect_box(&out[2], 100 + 2 * 405 - 100, 50, 395, 600);
 	SF_TEST_EQ_INT(out[0].x, 0);
-	SF_TEST_EQ_INT(out[1].x, 410);
-	SF_TEST_EQ_INT(out[2].x, 820);
+	SF_TEST_EQ_INT(out[1].x, 405);
+	SF_TEST_EQ_INT(out[2].x, 810);
 }
 
 static void test_dwindle_four(void) {
