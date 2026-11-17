@@ -184,7 +184,7 @@ Matches ROADMAP **TODO NEXT** (pending-only queue). Do not grow new hardcoded
 policy in parallel.
 
 1. Dim / spotlight polish; deferred high WM opts (§9.2 → ROADMAP #2).
-2. Popin / `sf.opt.anim`; outputs API; per-window opacity.
+2. `sf.opt.anim` (fold popin hard-codes); outputs API; per-window opacity.
 3. Scratchpad activation token; Predictability Medium leftovers.
 4. IME or Xwayland (app-driven pick).
 5. **`sf.on` + window query** — Tier 2–3; packs become real.

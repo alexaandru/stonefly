@@ -172,17 +172,31 @@ struct sf_toplevel {
 	int resting_x;
 	int resting_y;
 	bool anim_hide;
+	/* Re-apply pop present crop after surface commit (scene helper resets
+	 * dest_size; without this, terminals flicker scale↔full every damage).
+	 * Also used for post-pop settle scrub. pop_idle_kind: 1=reapply 2=settle. */
+	struct wl_event_source *pop_present_idle;
+	int pop_idle_kind;
+	/* True while Umbriel presented crop is active (pop only). */
+	bool present_stretch;
 	struct {
 		bool active;
 		bool morph; /* false = pos-only slide; true = live peeble-style morph */
+		/* Umbriel popin/popout: present-scale + fade at the final slot
+		 * (no client set_size). Tiled appear/hide; floats/scratch slide. */
+		bool pop;
 		struct timespec start;
 		int64_t dur_ns;
 		int from_x, from_y;
 		int to_x, to_y;
 		int from_w, from_h;
 		int to_w, to_h;
-		/* Last size proposed this morph (skip redundant set_size). */
+		/* Last size proposed this morph (skip redundant set_size).
+		 * During pop: current presented size for decor/crop. */
 		int prop_w, prop_h;
+		float fade_from;
+		float fade_to;
+		float fade; /* current; decor multiplies chrome opacity */
 		void (*on_done)(struct sf_toplevel *);
 	} anim;
 };

@@ -131,13 +131,17 @@ void sf_toplevel_move_resize(struct sf_toplevel *toplevel, const struct wlr_box 
 	if (toplevel == NULL || box == NULL) {
 		return;
 	}
-	/* Mid appear-slide: never cancel into a short morph — retarget end only. */
+	/* Mid appear slide/popin: never cancel into a short morph — retarget end. */
 	if (toplevel->arrange_appear_pending && toplevel->anim.active && !toplevel->anim.morph &&
 	    !toplevel->anim_hide) {
 		toplevel->resting_x = box->x;
 		toplevel->resting_y = box->y;
 		toplevel->anim.to_x = box->x;
 		toplevel->anim.to_y = box->y;
+		if (toplevel->anim.pop && box->width > 0 && box->height > 0) {
+			toplevel->anim.to_w = box->width;
+			toplevel->anim.to_h = box->height;
+		}
 		return;
 	}
 	if (morph) {
@@ -1074,7 +1078,7 @@ static bool place_fx_has(const struct sf_place_result *r, enum sf_place_fx_kind 
 static void appear_start_show(struct sf_toplevel *toplevel) {
 	toplevel->arrange_prop_waits = 0;
 	toplevel->arrange_appear_pending = true;
-	/* Park off-screen first, then enable — avoids a resting chrome flash. */
+	/* Start popin/slide first, then enable — avoids a resting chrome flash. */
 	bool slid = sf_anim_start_show(toplevel);
 	if (toplevel->scene_tree != NULL) {
 		if (!slid) {

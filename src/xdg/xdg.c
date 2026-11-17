@@ -275,6 +275,12 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 		return;
 	}
 	sf_decor_update_geom(toplevel);
+	/* Pop present crop: scene xdg helper resets dest_size on this commit;
+	 * re-apply once after all commit listeners so scale↔full does not flicker
+	 * on every Ghostty/kitty damage (visible as 50%↔final thrash). */
+	if (toplevel->anim.active && toplevel->anim.pop) {
+		sf_decor_pop_schedule_reapply(toplevel);
+	}
 	sf_foreign_toplevel_on_outputs_change(toplevel);
 	/* Center-lock grab: re-pin when the committed buffer size catches up. */
 	if (toplevel->server->cursor_mode == SF_CURSOR_RESIZE_CENTER &&

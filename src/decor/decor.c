@@ -1,9 +1,12 @@
 #include <stdlib.h>
 #include <wayland-server-core.h>
+#include <wayland-server.h>
+#include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_xdg_shell.h>
+#include <wlr/util/box.h>
 #include <scenefx/types/fx/clipped_region.h>
 #include <scenefx/types/wlr_scene.h>
 
@@ -36,10 +39,16 @@ struct sf_ghost {
 	int resting_x, resting_y;
 	bool anim_active;
 	bool anim_hide;
+	bool anim_pop; /* tiled close: scale+fade instead of edge slide */
 	struct timespec anim_start;
 	int64_t anim_dur_ns;
 	int anim_from_x, anim_from_y;
 	int anim_to_x, anim_to_y;
+	int anim_from_w, anim_from_h;
+	int anim_to_w, anim_to_h;
+	float anim_fade_from;
+	float anim_fade_to;
+	float base_opacity;
 };
 
 void sf_decor_setup_scene(struct sf_server *server) {
@@ -225,7 +234,18 @@ static float toplevel_chrome_opacity(struct sf_toplevel *toplevel, bool focused)
 		return 1.0f;
 	}
 	const struct sf_config *cfg = sf_cfg(toplevel->server);
-	return focused ? cfg->client_opacity : cfg->inactive_opacity;
+	float base = focused ? cfg->client_opacity : cfg->inactive_opacity;
+	if (toplevel->anim.active && toplevel->anim.pop) {
+		float fade = toplevel->anim.fade;
+		if (fade < 0.0f) {
+			fade = 0.0f;
+		}
+		if (fade > 1.0f) {
+			fade = 1.0f;
+		}
+		base *= fade;
+	}
+	return base;
 }
 
 struct apply_buffers_ctx {
@@ -233,6 +253,11 @@ struct apply_buffers_ctx {
 	float opacity;
 	bool chrome;
 	int radius;
+	/* When >0, buffer is dest_sized to this presented box (pop / undersized
+	 * tile stretch). Corner tests must use these extents, not geo — else
+	 * radii drop off mid-pop and square client corners thin the border. */
+	int present_w;
+	int present_h;
 };
 
 static void iter_apply_buffers(struct wlr_scene_buffer *buffer, int sx, int sy, void *user_data) {
@@ -258,8 +283,24 @@ static void iter_apply_buffers(struct wlr_scene_buffer *buffer, int sx, int sy, 
 	/* Same radius as CSD / border hole — do not use outer. */
 	int radius = ctx->chrome ? ctx->radius : 0;
 	bool round_top = !sf_ssd_should_show(ctx->toplevel);
+	struct wlr_box corner_geo = *geo;
+	if (ctx->present_w > 0 && ctx->present_h > 0) {
+		struct wlr_scene_surface *ss = wlr_scene_surface_try_from_buffer(buffer);
+		struct wlr_surface *root = ctx->toplevel->xdg_toplevel->base->surface;
+		/* dest_size present box is smaller than geo mid-pop; coverage
+		 * tests against geo->width then drop radii and square client
+		 * corners sit on the rounded border rim. */
+		if (ss != NULL && root != NULL && ss->surface == root) {
+			corner_geo.width = ctx->present_w;
+			corner_geo.height = ctx->present_h;
+			sx = 0;
+			sy = 0;
+			bw = ctx->present_w;
+			bh = ctx->present_h;
+		}
+	}
 	wlr_scene_buffer_set_corner_radii(
-		buffer, corners_for_buffer(sx, sy, bw, bh, geo, radius, round_top));
+		buffer, corners_for_buffer(sx, sy, bw, bh, &corner_geo, radius, round_top));
 }
 
 static void decor_apply_buffers_focused(struct sf_toplevel *toplevel, bool focused) {
@@ -269,11 +310,20 @@ static void decor_apply_buffers_focused(struct sf_toplevel *toplevel, bool focus
 	bool chrome = decor_chrome_on(toplevel);
 	decor_set_chrome_enabled(toplevel, chrome);
 	const struct sf_config *cfg = sf_cfg(toplevel->server);
+	int present_w = 0;
+	int present_h = 0;
+	if (toplevel->anim.active && toplevel->anim.pop && toplevel->anim.prop_w > 0 &&
+	    toplevel->anim.prop_h > 0) {
+		present_w = toplevel->anim.prop_w;
+		present_h = toplevel->anim.prop_h;
+	}
 	struct apply_buffers_ctx ctx = {
 		.toplevel = toplevel,
 		.opacity = toplevel_chrome_opacity(toplevel, focused),
 		.chrome = chrome,
 		.radius = cfg->corner_radius,
+		.present_w = present_w,
+		.present_h = present_h,
 	};
 	wlr_scene_node_for_each_buffer(&toplevel->xdg_scene_tree->node, iter_apply_buffers, &ctx);
 }
@@ -281,6 +331,166 @@ static void decor_apply_buffers_focused(struct sf_toplevel *toplevel, bool focus
 void sf_decor_apply_buffers(struct sf_toplevel *toplevel) {
 	bool focused = sf_focused_toplevel(toplevel->server) == toplevel;
 	decor_apply_buffers_focused(toplevel, focused);
+}
+
+/*
+ * Umbriel presented_crop: map the window-geometry region of the committed
+ * buffer onto the presented (scaled) box. A bare dest_size on the full
+ * surface fights the xdg helper's (-geo.x,-geo.y) placement and leaves the
+ * border growing ahead of the client (wallpaper gap).
+ */
+static struct wlr_fbox pop_cropped_source(const struct wlr_fbox *base,
+					  const struct wlr_box *geometry,
+					  const struct wlr_box *content, const struct wlr_box *clip,
+					  int surface_w, int surface_h) {
+	struct wlr_fbox empty = {0};
+	if (content->width <= 0 || content->height <= 0 || geometry->width <= 0 ||
+	    geometry->height <= 0 || surface_w <= 0 || surface_h <= 0 || clip->width <= 0 ||
+	    clip->height <= 0) {
+		return empty;
+	}
+	double fx = (double)geometry->width / (double)content->width;
+	double fy = (double)geometry->height / (double)content->height;
+	double sx = (double)geometry->x + ((double)clip->x - (double)geometry->x) * fx;
+	double sy = (double)geometry->y + ((double)clip->y - (double)geometry->y) * fy;
+	double sw = (double)clip->width * fx;
+	double sh = (double)clip->height * fy;
+	double bx = base->width / (double)surface_w;
+	double by = base->height / (double)surface_h;
+	struct wlr_fbox src = {
+		.x = base->x + sx * bx,
+		.y = base->y + sy * by,
+		.width = sw * bx,
+		.height = sh * by,
+	};
+	if (src.x < base->x) {
+		src.width -= base->x - src.x;
+		src.x = base->x;
+	}
+	if (src.y < base->y) {
+		src.height -= base->y - src.y;
+		src.y = base->y;
+	}
+	double max_w = base->x + base->width - src.x;
+	double max_h = base->y + base->height - src.y;
+	if (src.width > max_w) {
+		src.width = max_w;
+	}
+	if (src.height > max_h) {
+		src.height = max_h;
+	}
+	if (src.width <= 0.0 || src.height <= 0.0) {
+		return empty;
+	}
+	return src;
+}
+
+static void decor_clip_xdg_surface(struct sf_toplevel *toplevel, const struct wlr_box *clip);
+
+/*
+ * Umbriel ViewPresentation::applyCrop / resetCrop.
+ * umbrielfx has wlr_scene_surface_get_size (scene units = width/scale).
+ * Stock SceneFX has no public scale field → scale 1.0 path only.
+ */
+static void sf_scene_surface_get_size(const struct wlr_scene_surface *ss, int *width, int *height) {
+	*width = ss->surface->current.width;
+	*height = ss->surface->current.height;
+}
+
+struct pop_dest_ctx {
+	struct wlr_surface *root;
+	struct wlr_box geometry;
+	struct wlr_box content;
+	struct wlr_box clip;
+};
+
+static void iter_pop_dest_size(struct wlr_scene_buffer *buffer, int sx, int sy, void *user_data) {
+	(void)sx;
+	(void)sy;
+	struct pop_dest_ctx *ctx = user_data;
+	struct wlr_scene_surface *ss = wlr_scene_surface_try_from_buffer(buffer);
+	if (ss == NULL || ss->surface != ctx->root) {
+		return;
+	}
+	struct wlr_fbox base = {0};
+	wlr_surface_get_buffer_source_box(ss->surface, &base);
+	/* Umbriel: geometry/content/clip are scene units; pass get_size, not
+	 * raw surface->current when scale ≠ 1 (stock = 1.0). */
+	int width = 0;
+	int height = 0;
+	sf_scene_surface_get_size(ss, &width, &height);
+	struct wlr_fbox src =
+		pop_cropped_source(&base, &ctx->geometry, &ctx->content, &ctx->clip, width, height);
+	if (src.width <= 0.0 || src.height <= 0.0) {
+		return;
+	}
+	wlr_scene_buffer_set_source_box(buffer, &src);
+	wlr_scene_buffer_set_dest_size(buffer, ctx->clip.width, ctx->clip.height);
+}
+
+void sf_decor_pop_set_dest_size(struct sf_toplevel *toplevel, int present_w, int present_h) {
+	if (toplevel == NULL || toplevel->xdg_scene_tree == NULL ||
+	    toplevel->xdg_toplevel == NULL || toplevel->xdg_toplevel->base == NULL) {
+		return;
+	}
+	if (present_w <= 0 || present_h <= 0) {
+		return;
+	}
+	struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
+	if (geo->width <= 0 || geo->height <= 0) {
+		return;
+	}
+	struct pop_dest_ctx ctx = {
+		.root = toplevel->xdg_toplevel->base->surface,
+		.geometry = *geo,
+		.content = {.x = 0, .y = 0, .width = present_w, .height = present_h},
+		.clip = {.x = geo->x, .y = geo->y, .width = present_w, .height = present_h},
+	};
+	if (ctx.root == NULL) {
+		return;
+	}
+	wlr_scene_node_for_each_buffer(&toplevel->xdg_scene_tree->node, iter_pop_dest_size, &ctx);
+	toplevel->present_stretch = true;
+}
+
+static void pop_present_idle_cb(void *data) {
+	struct sf_toplevel *toplevel = data;
+	toplevel->pop_present_idle = NULL;
+	toplevel->pop_idle_kind = 0;
+	if (toplevel->scene_tree == NULL || !toplevel->anim.active || !toplevel->anim.pop) {
+		return;
+	}
+	/* Re-apply after commit: scene helper resets dest_size (umbriel sync). */
+	sf_decor_update_geom(toplevel);
+	sf_decor_apply_buffers(toplevel);
+	sf_anim_schedule(toplevel->server);
+}
+
+void sf_decor_pop_cancel_reapply(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->pop_present_idle == NULL) {
+		return;
+	}
+	wl_event_source_remove(toplevel->pop_present_idle);
+	toplevel->pop_present_idle = NULL;
+	toplevel->pop_idle_kind = 0;
+}
+
+void sf_decor_pop_schedule_reapply(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->server == NULL || toplevel->server->wl_display == NULL) {
+		return;
+	}
+	if (!toplevel->anim.active || !toplevel->anim.pop) {
+		return;
+	}
+	if (toplevel->pop_present_idle != NULL) {
+		return;
+	}
+	struct wl_event_loop *loop = wl_display_get_event_loop(toplevel->server->wl_display);
+	if (loop == NULL) {
+		return;
+	}
+	toplevel->pop_idle_kind = 1;
+	toplevel->pop_present_idle = wl_event_loop_add_idle(loop, pop_present_idle_cb, toplevel);
 }
 
 static void apply_border_color(struct sf_toplevel *toplevel, const struct sf_rgba *src,
@@ -405,14 +615,35 @@ bool sf_decor_present_content_size(struct sf_toplevel *toplevel, int *w, int *h)
 		*h = ph;
 		return true;
 	}
-	if (toplevel->anim.active && toplevel->anim.morph && toplevel->anim.to_w > 0 &&
-	    toplevel->anim.to_h > 0) {
+	if (toplevel->anim.active && toplevel->anim.pop && toplevel->anim.prop_w > 0 &&
+	    toplevel->anim.prop_h > 0) {
+		/* Live presented size while scale+fade runs. */
+		pw = toplevel->anim.prop_w;
+		ph = toplevel->anim.prop_h;
+	} else if (toplevel->anim.active && toplevel->anim.morph && toplevel->anim.to_w > 0 &&
+		   toplevel->anim.to_h > 0) {
 		pw = toplevel->anim.to_w;
 		ph = toplevel->anim.to_h;
 	} else if (toplevel->arrange_prop_w > 0 && toplevel->arrange_prop_h > 0 &&
 		   (toplevel->arrange_managed || toplevel->arrange_appear_pending)) {
-		pw = toplevel->arrange_prop_w;
-		ph = toplevel->arrange_prop_h;
+		/* Prefer committed geometry when it already matches the packed
+		 * cell within snap tolerance — terminals often land ±1–3px off
+		 * arrange_prop; keeping the cell size left a few-px right-edge
+		 * wobble when pop cleared stretch. */
+		const int tol = 3;
+		int dw = pw - toplevel->arrange_prop_w;
+		int dh = ph - toplevel->arrange_prop_h;
+		if (dw < 0) {
+			dw = -dw;
+		}
+		if (dh < 0) {
+			dh = -dh;
+		}
+		if (dw > tol || dh > tol) {
+			pw = toplevel->arrange_prop_w;
+			ph = toplevel->arrange_prop_h;
+		}
+		/* else keep pw/ph = geo */
 	}
 	*w = pw;
 	*h = ph;
@@ -438,26 +669,44 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 		present_h = geo->height;
 	}
 	const bool fs = sf_layout_sm_is_fullscreen(&toplevel->layout);
-	/* Crop an oversized tiled buffer to the cell. Never crop fullscreen —
-	 * arrange_prop cell sizes must not chop the FS buffer. */
+	const bool pop = toplevel->anim.active && toplevel->anim.pop;
+	/* Pop stretch is applied after set_clip. Settled paths must not write
+	 * dest_size: wlroots 0.20 parks the buffer at (clip.x, clip.y), and an
+	 * equal clip early-outs, so a full-surface dest survives until commit. */
 	const struct wlr_box *clip_ptr = NULL;
 	struct wlr_box clip;
-	if (!fs) {
-		int clip_w = geo->width;
-		int clip_h = geo->height;
-		if (present_w < clip_w) {
-			clip_w = present_w;
-		}
-		if (present_h < clip_h) {
-			clip_h = present_h;
-		}
+	if (pop) {
 		clip = (struct wlr_box){
 			.x = geo->x,
 			.y = geo->y,
-			.width = clip_w,
-			.height = clip_h,
+			.width = present_w,
+			.height = present_h,
 		};
 		clip_ptr = &clip;
+	} else {
+		if (toplevel->present_stretch) {
+			/* Null first. The resting clip often equals the last pop clip,
+			 * and set_clip then returns without surface_reconfigure. */
+			decor_clip_xdg_surface(toplevel, NULL);
+			toplevel->present_stretch = false;
+		}
+		if (!fs) {
+			int clip_w = geo->width;
+			int clip_h = geo->height;
+			if (present_w < clip_w) {
+				clip_w = present_w;
+			}
+			if (present_h < clip_h) {
+				clip_h = present_h;
+			}
+			clip = (struct wlr_box){
+				.x = geo->x,
+				.y = geo->y,
+				.width = clip_w,
+				.height = clip_h,
+			};
+			clip_ptr = &clip;
+		}
 	}
 
 	const bool chrome = decor_chrome_on(toplevel);
@@ -505,6 +754,11 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 	}
 	wlr_scene_node_set_position(&toplevel->xdg_scene_tree->node, xdg_ox, xdg_oy);
 	decor_clip_xdg_surface(toplevel, clip_ptr);
+	/* surface_reconfigure overwrites source and dest when the clip changes.
+	 * Program the scaled crop after that, or the box is a 1:1 top-left crop. */
+	if (pop) {
+		sf_decor_pop_set_dest_size(toplevel, present_w, present_h);
+	}
 
 	if (toplevel->blur != NULL) {
 		wlr_scene_blur_set_size(toplevel->blur, present_w, present_h + ssd_h);
@@ -636,6 +890,7 @@ void sf_decor_ring_bell(struct sf_toplevel *toplevel) {
 }
 
 void sf_decor_finish_toplevel(struct sf_toplevel *toplevel) {
+	sf_decor_pop_cancel_reapply(toplevel);
 	if (toplevel->bell_timer != NULL) {
 		wl_event_source_remove(toplevel->bell_timer);
 		toplevel->bell_timer = NULL;
@@ -867,20 +1122,47 @@ void sf_ghost_try_spawn(struct sf_toplevel *toplevel) {
 	/* Capture before unmap unlinks the column (caller order). */
 	bool strip = toplevel->arrange_managed || toplevel->column != NULL ||
 		     toplevel->anim_slide_column;
-	int to_x, to_y;
-	sf_anim_offscreen_for_box(ghost->server, ghost->resting_x, ghost->resting_y, ghost->width,
-				  ghost->height, strip, &to_x, &to_y);
+	ghost->base_opacity = cfg->client_opacity;
+	ghost->anim_pop = strip;
 
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
-	ghost->anim_from_x = ghost->resting_x;
-	ghost->anim_from_y = ghost->resting_y;
-	ghost->anim_to_x = to_x;
-	ghost->anim_to_y = to_y;
 	ghost->anim_start = now;
+	/* FIXME: per-op duration → sf.opt.anim; reuse slide for now. */
 	ghost->anim_dur_ns = (int64_t)cfg->slide_duration_ms * 1000000LL;
 	ghost->anim_active = true;
 	ghost->anim_hide = true;
+	ghost->anim_from_x = ghost->resting_x;
+	ghost->anim_from_y = ghost->resting_y;
+	ghost->anim_from_w = pick_w;
+	ghost->anim_from_h = pick_h;
+	ghost->anim_fade_from = 1.0f;
+	ghost->anim_fade_to = 0.0f;
+
+	if (strip) {
+		/* FIXME: sf.opt.anim.windows_out.scale (Umbriel default 0.8). */
+		const double scale = 0.8;
+		int small_w = (int)((double)pick_w * scale);
+		int small_h = (int)((double)pick_h * scale);
+		if (small_w < 1) {
+			small_w = 1;
+		}
+		if (small_h < 1) {
+			small_h = 1;
+		}
+		ghost->anim_to_w = small_w;
+		ghost->anim_to_h = small_h;
+		ghost->anim_to_x = ghost->resting_x + (pick_w - small_w) / 2;
+		ghost->anim_to_y = ghost->resting_y + (pick_h - small_h) / 2;
+	} else {
+		int to_x, to_y;
+		sf_anim_offscreen_for_box(ghost->server, ghost->resting_x, ghost->resting_y,
+					  ghost->width, ghost->height, false, &to_x, &to_y);
+		ghost->anim_to_x = to_x;
+		ghost->anim_to_y = to_y;
+		ghost->anim_to_w = pick_w;
+		ghost->anim_to_h = pick_h;
+	}
 
 	wl_list_insert(&toplevel->server->ghosts, &ghost->link);
 	sf_anim_schedule(toplevel->server);
@@ -905,6 +1187,32 @@ void sf_ghost_tick(struct sf_server *server, const struct timespec *now) {
 		int x = sf_lerp_i(ghost->anim_from_x, ghost->anim_to_x, p);
 		int y = sf_lerp_i(ghost->anim_from_y, ghost->anim_to_y, p);
 		wlr_scene_node_set_position(&ghost->tree->node, x, y);
+
+		if (ghost->anim_pop) {
+			int w = sf_lerp_i(ghost->anim_from_w, ghost->anim_to_w, p);
+			int h = sf_lerp_i(ghost->anim_from_h, ghost->anim_to_h, p);
+			if (w < 1) {
+				w = 1;
+			}
+			if (h < 1) {
+				h = 1;
+			}
+			float fade = ghost->anim_fade_from +
+				     (ghost->anim_fade_to - ghost->anim_fade_from) * (float)p;
+			if (fade < 0.0f) {
+				fade = 0.0f;
+			}
+			if (fade > 1.0f) {
+				fade = 1.0f;
+			}
+			wlr_scene_buffer_set_dest_size(ghost->buffer, w, h);
+			wlr_scene_buffer_set_opacity(ghost->buffer, ghost->base_opacity * fade);
+			if (t >= 1.0) {
+				ghost->anim_active = false;
+				ghost_destroy(ghost);
+			}
+			continue;
+		}
 
 		/* Drop as soon as the buffer clears usable — ease-out can crawl
 		 * with a sliver on-screen if frames stall near t=1. */

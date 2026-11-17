@@ -609,13 +609,9 @@ void sf_workspace_apply_arrange(struct sf_workspace *ws) {
 	bool morph = server->cursor_mode != SF_CURSOR_ARRANGE_RESIZE;
 	apply_boxes(wins, boxes, n, morph);
 
-	struct sf_toplevel *ft;
-	wl_list_for_each(ft, &server->toplevels, link) {
-		if (ft->workspace == ws && ft->arrange_floating && !ft->minimized &&
-		    ft->scene_tree != NULL) {
-			wlr_scene_node_raise_to_top(&ft->scene_tree->node);
-		}
-	}
+	/* Do not re-raise floats here. Focus raise owns z-order: selecting a
+	 * window must leave it visible, even under a covering sticky float.
+	 * Pinned / hide-slide stay on top via sf_pinned_restack. */
 	sf_pinned_restack(server);
 }
 
@@ -1134,6 +1130,23 @@ bool sf_arrange_focus_cycle(struct sf_server *server, bool backward) {
 			continue;
 		}
 		wins[n++] = wins[i];
+	}
+	/* Sticky floats sit outside the strip; leave them out and Tab can never
+	 * return from a tile. Append visible workspace floats into the same
+	 * spatial ring (focus raises, so the target stays visible). */
+	struct sf_toplevel *ft;
+	wl_list_for_each(ft, &server->toplevels, link) {
+		if (n >= SF_ARRANGE_MAX) {
+			break;
+		}
+		if (ft->workspace != ws || !ft->arrange_floating || ft->minimized ||
+		    ft->anim_hide || ft->scene_tree == NULL) {
+			continue;
+		}
+		if (sf_toplevel_is_scratchpad(ft) || sf_toplevel_focus_obscured(ft)) {
+			continue;
+		}
+		wins[n++] = ft;
 	}
 	if (n < 2) {
 		return false;

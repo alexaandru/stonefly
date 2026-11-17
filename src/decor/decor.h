@@ -49,8 +49,19 @@ void sf_decor_refresh_blur(struct sf_toplevel *toplevel);
 /* Apply opacity + per-buffer corner radii (corner_radius; only geometry
  * outer corners each buffer covers — avoids foot CSD titlebar/body
  * hourglass; SSD windows also skip client top radii). Edge-max: square
- * corners, no border/shadow, blur+opacity on. Fullscreen: opaque, no blur. */
+ * corners, no border/shadow, blur+opacity on. Fullscreen: opaque, no blur.
+ * While anim.pop, multiplies by toplevel->anim.fade. */
 void sf_decor_apply_buffers(struct sf_toplevel *toplevel);
+
+/* Popin/popout: stretch the root xdg buffer to the presented box
+ * (umbriel source_box + dest_size). Call after set_clip — wlroots 0.20
+ * surface_reconfigure overwrites source and dest when the clip changes.
+ * Leave does not write dest_size; it nulls the clip, then sets the
+ * resting clip, so reconfigure matches a client commit. */
+void sf_decor_pop_set_dest_size(struct sf_toplevel *toplevel, int present_w, int present_h);
+/* After a surface commit during pop — scene resets dest_size; re-apply idle. */
+void sf_decor_pop_schedule_reapply(struct sf_toplevel *toplevel);
+void sf_decor_pop_cancel_reapply(struct sf_toplevel *toplevel);
 
 /* Refresh border from focus / urgent / bell-flash state. */
 void sf_decor_refresh_border(struct sf_toplevel *toplevel);

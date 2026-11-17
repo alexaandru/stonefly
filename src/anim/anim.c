@@ -13,7 +13,6 @@
 #include "toplevel/toplevel.h"
 #include "util/math.h"
 #include "util/time.h"
-#include "wm/column.h"
 #include "wm/overview.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
@@ -172,80 +171,9 @@ static void offscreen_pos(struct sf_server *server, enum sf_slide_dir dir, int r
 	}
 }
 
-static struct sf_toplevel *strip_sample_row(struct sf_column *col) {
-	if (col == NULL) {
-		return NULL;
-	}
-	struct sf_toplevel *row;
-	wl_list_for_each(row, &col->rows, column_link) {
-		if (!row->minimized && row->scene_tree != NULL) {
-			return row;
-		}
-	}
-	return NULL;
-}
-
 /*
- * Tiled appear: peel with the strip motion so opener + neighbors share travel.
- * Prefer the *next* column (pushed right): start at its current left − w − gap.
- * Left-only glue makes a near-zero slide when the left column barely moves and
- * the right one carries the push — that looked like "old out, then new pops in".
- * Fallback: previous column's current right edge (1→2 shrink / rightmost insert).
- * Hide/close: resting right inter-gap.
- */
-static void strip_column_offscreen(struct sf_toplevel *toplevel, int resting_x, int resting_y,
-				   int w, bool appear, int *ox, int *oy) {
-	*oy = resting_y;
-	*ox = resting_x + w;
-	if (!appear || toplevel == NULL || toplevel->column == NULL ||
-	    toplevel->workspace == NULL) {
-		return;
-	}
-	int gap = sf_cfg(toplevel->server)->gap_size;
-	if (gap < 0) {
-		gap = 0;
-	}
-	struct sf_column *prev = NULL;
-	struct sf_column *next = NULL;
-	bool seen = false;
-	struct sf_column *c;
-	wl_list_for_each(c, &toplevel->workspace->columns, link) {
-		if (sf_column_visible_count(c) == 0) {
-			continue;
-		}
-		if (c == toplevel->column) {
-			seen = true;
-			continue;
-		}
-		if (!seen) {
-			prev = c;
-		} else {
-			next = c;
-			break;
-		}
-	}
-	struct sf_toplevel *sample = strip_sample_row(next);
-	if (sample != NULL) {
-		/* Neighbor still at pre-morph pose while deferred. */
-		*ox = sample->scene_tree->node.x - w - gap;
-		return;
-	}
-	sample = strip_sample_row(prev);
-	if (sample == NULL) {
-		return;
-	}
-	struct wlr_box geom;
-	sf_toplevel_layout_geom(sample, &geom);
-	if (geom.width <= 0) {
-		return;
-	}
-	*ox = sample->scene_tree->node.x + geom.width + gap;
-}
-
-/*
- * Tiled columns: always enter from / exit to the right. Appear glues to the
- * left neighbor; hide/close use the column's resting right inter-gap.
- * Umbriel defaults windows_in to popin; we keep slide but pin the seam.
+ * Edge slide off-screen target. strip_column keeps the legacy right inter-gap
+ * peel for callers that still pass it; tiled appear/hide use popin/popout.
  */
 static void slide_offscreen(struct sf_server *server, bool strip_column, int resting_x,
 			    int resting_y, int w, int h, const struct wlr_box *area, int *ox,
@@ -344,6 +272,189 @@ static void morph_finish(struct sf_toplevel *toplevel, bool commit) {
 	sf_decor_apply_buffers(toplevel);
 }
 
+/* FIXME: move to sf.opt.anim.windows_in.scale / windows_out.scale */
+#define SF_ANIM_POPIN_SCALE 0.5
+#define SF_ANIM_POPOUT_SCALE 0.8
+
+static void pop_finish(struct sf_toplevel *toplevel, bool commit) {
+	bool was_hide = toplevel->anim_hide;
+	sf_decor_pop_cancel_reapply(toplevel);
+
+	/* Drop pop before clear so update_geom cannot re-stretch. Prefer the
+	 * committed size when it already matches the cell (±3px) so chrome and
+	 * content agree on the first settled frame. */
+	if (!was_hide && toplevel->xdg_toplevel != NULL) {
+		struct wlr_box geo = {0};
+		sf_toplevel_layout_geom(toplevel, &geo);
+		const int tol = 3;
+		int dw = geo.width - toplevel->anim.to_w;
+		int dh = geo.height - toplevel->anim.to_h;
+		if (dw < 0) {
+			dw = -dw;
+		}
+		if (dh < 0) {
+			dh = -dh;
+		}
+		if (geo.width > 0 && geo.height > 0 && dw <= tol && dh <= tol) {
+			toplevel->anim.to_w = geo.width;
+			toplevel->anim.to_h = geo.height;
+		}
+	}
+
+	toplevel->anim.pop = false;
+	toplevel->anim.active = false;
+	toplevel->anim.on_done = NULL;
+	toplevel->anim.prop_w = 0;
+	toplevel->anim.prop_h = 0;
+	toplevel->anim.fade = 1.0f;
+	toplevel->anim.fade_from = 1.0f;
+	toplevel->anim.fade_to = 1.0f;
+	/* Leave present_stretch set. update_geom nulls the clip, then installs
+	 * the resting clip. Writing dest_size here parks a full-surface buffer
+	 * at (geometry.x, geometry.y) — content shifts by that margin until
+	 * the next commit (wlroots 0.20 set_clip early-out). */
+
+	if (!commit || toplevel->scene_tree == NULL) {
+		return;
+	}
+
+	if (!was_hide) {
+		toplevel->resting_x = toplevel->anim.to_x;
+		toplevel->resting_y = toplevel->anim.to_y;
+		set_visual_pos(toplevel, toplevel->anim.to_x, toplevel->anim.to_y);
+		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
+	}
+	sf_decor_update_geom(toplevel);
+	sf_decor_apply_buffers(toplevel);
+}
+
+static void pop_apply_live(struct sf_toplevel *toplevel, int x, int y, int w, int h, float fade) {
+	if (w < 1) {
+		w = 1;
+	}
+	if (h < 1) {
+		h = 1;
+	}
+	if (fade < 0.0f) {
+		fade = 0.0f;
+	}
+	if (fade > 1.0f) {
+		fade = 1.0f;
+	}
+	set_visual_pos(toplevel, x, y);
+	toplevel->anim.prop_w = w;
+	toplevel->anim.prop_h = h;
+	toplevel->anim.fade = fade;
+	sf_decor_update_geom(toplevel);
+	sf_decor_apply_buffers(toplevel);
+}
+
+static bool begin_pop(struct sf_toplevel *toplevel, bool hide, sf_anim_done_fn on_done) {
+	int w, h;
+	/* Tiled appear must target the packed cell, not the still-catching-up
+	 * commit (Ghostty/kitty: 70% height then a second “pop into place”). */
+	if (!hide && toplevel->arrange_managed && toplevel->arrange_prop_w > 0 &&
+	    toplevel->arrange_prop_h > 0) {
+		w = toplevel->arrange_prop_w;
+		h = toplevel->arrange_prop_h;
+	} else {
+		toplevel_size(toplevel, &w, &h);
+	}
+	if (w <= 0 || h <= 0) {
+		return false;
+	}
+
+	/* FIXME: per-op duration belongs in sf.opt.anim; reuse slide for now. */
+	int64_t dur_ns = (int64_t)sf_cfg(toplevel->server)->slide_duration_ms * 1000000LL;
+	if (dur_ns <= 0) {
+		return false;
+	}
+
+	int resting_x = toplevel->resting_x;
+	int resting_y = toplevel->resting_y;
+	double scale = hide ? SF_ANIM_POPOUT_SCALE : SF_ANIM_POPIN_SCALE;
+	if (scale < 0.05) {
+		scale = 0.05;
+	}
+	if (scale > 1.0) {
+		scale = 1.0;
+	}
+	int small_w = (int)((double)w * scale);
+	int small_h = (int)((double)h * scale);
+	if (small_w < 1) {
+		small_w = 1;
+	}
+	if (small_h < 1) {
+		small_h = 1;
+	}
+	int small_x = resting_x + (w - small_w) / 2;
+	int small_y = resting_y + (h - small_h) / 2;
+
+	int from_x = hide ? resting_x : small_x;
+	int from_y = hide ? resting_y : small_y;
+	int from_w = hide ? w : small_w;
+	int from_h = hide ? h : small_h;
+	float fade_from = hide ? 1.0f : 0.0f;
+
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+
+	if (toplevel->anim.active) {
+		if (toplevel->anim.morph) {
+			morph_finish(toplevel, true);
+		} else if (toplevel->anim.pop) {
+			/* Reverse mid-flight: keep remaining time + current pose. */
+			int64_t elapsed =
+				sf_timespec_ns(&now) - sf_timespec_ns(&toplevel->anim.start);
+			int64_t remain = dur_ns - elapsed;
+			if (remain > 0 && remain < dur_ns) {
+				dur_ns = remain;
+			}
+			from_x = toplevel->scene_tree->node.x;
+			from_y = toplevel->scene_tree->node.y;
+			if (toplevel->anim.prop_w > 0 && toplevel->anim.prop_h > 0) {
+				from_w = toplevel->anim.prop_w;
+				from_h = toplevel->anim.prop_h;
+			}
+			fade_from = toplevel->anim.fade;
+		} else {
+			sf_anim_cancel(toplevel, true);
+		}
+	}
+
+	toplevel->resting_x = resting_x;
+	toplevel->resting_y = resting_y;
+	toplevel->anim.pop = true;
+	toplevel->anim.morph = false;
+	toplevel->anim.active = true;
+	toplevel->anim_hide = hide;
+	toplevel->anim_slide_column = true;
+	toplevel->anim.start = now;
+	toplevel->anim.dur_ns = dur_ns;
+	toplevel->anim.on_done = on_done;
+	toplevel->anim.from_x = from_x;
+	toplevel->anim.from_y = from_y;
+	toplevel->anim.from_w = from_w;
+	toplevel->anim.from_h = from_h;
+	toplevel->anim.to_x = hide ? small_x : resting_x;
+	toplevel->anim.to_y = hide ? small_y : resting_y;
+	toplevel->anim.to_w = hide ? small_w : w;
+	toplevel->anim.to_h = hide ? small_h : h;
+	toplevel->anim.fade_from = fade_from;
+	toplevel->anim.fade_to = hide ? 0.0f : 1.0f;
+	toplevel->anim.fade = fade_from;
+	toplevel->anim.prop_w = 0;
+	toplevel->anim.prop_h = 0;
+
+	if (hide) {
+		sf_toplevel_raise(toplevel);
+	}
+	wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
+	pop_apply_live(toplevel, from_x, from_y, from_w, from_h, fade_from);
+	sf_anim_schedule(toplevel->server);
+	return true;
+}
+
 void sf_anim_schedule(struct sf_server *server) {
 	struct sf_output *output;
 	wl_list_for_each(output, &server->outputs, link) {
@@ -367,6 +478,26 @@ void sf_anim_cancel(struct sf_toplevel *toplevel, bool commit_visual) {
 		}
 		morph_finish(toplevel, true);
 		toplevel->anim_hide = false;
+		return;
+	}
+	if (toplevel->anim.pop) {
+		if (commit_visual && !toplevel->anim_hide) {
+			toplevel->anim.to_x = toplevel->scene_tree->node.x;
+			toplevel->anim.to_y = toplevel->scene_tree->node.y;
+			if (toplevel->anim.prop_w > 0 && toplevel->anim.prop_h > 0) {
+				toplevel->anim.to_w = toplevel->anim.prop_w;
+				toplevel->anim.to_h = toplevel->anim.prop_h;
+			}
+		} else if (!commit_visual) {
+			toplevel->anim.to_x = toplevel->resting_x;
+			toplevel->anim.to_y = toplevel->resting_y;
+		}
+		pop_finish(toplevel, true);
+		toplevel->anim_hide = false;
+		toplevel->anim_slide_column = false;
+		if (!commit_visual) {
+			toplevel->arrange_appear_pending = false;
+		}
 		return;
 	}
 	if (commit_visual) {
@@ -439,6 +570,8 @@ static void begin_slide(struct sf_toplevel *toplevel, int from_x, int from_y, in
 	toplevel->anim.on_done = on_done;
 	toplevel->anim.active = true;
 	toplevel->anim.morph = false;
+	toplevel->anim.pop = false;
+	toplevel->anim.fade = 1.0f;
 	toplevel->anim_hide = hide;
 
 	/* Park off-screen before any enable so chrome cannot flash at rest. */
@@ -463,6 +596,12 @@ bool sf_anim_start_show(struct sf_toplevel *toplevel) {
 		return false;
 	}
 
+	/* Tiled columns: umbriel popin at the packed cell. Floats / scratch
+	 * keep the edge slide. */
+	if (toplevel_strip_column(toplevel)) {
+		return begin_pop(toplevel, false, NULL);
+	}
+
 	/* Logical resting — not scene node. Hide finish leaves the node parked
 	 * off-screen while resting_* stays on-screen; reading node.x here made
 	 * unminimize / taskbar recall slide back to the off-screen pose. */
@@ -475,16 +614,11 @@ bool sf_anim_start_show(struct sf_toplevel *toplevel) {
 		area_p = &area;
 	}
 
-	bool strip = toplevel_strip_column(toplevel);
-	toplevel->anim_slide_column = strip;
+	toplevel->anim_slide_column = false;
 
 	int from_x, from_y;
-	if (strip) {
-		strip_column_offscreen(toplevel, resting_x, resting_y, w, true, &from_x, &from_y);
-	} else {
-		slide_offscreen(toplevel->server, false, resting_x, resting_y, w, h, area_p,
-				&from_x, &from_y);
-	}
+	slide_offscreen(toplevel->server, false, resting_x, resting_y, w, h, area_p, &from_x,
+			&from_y);
 
 	begin_slide(toplevel, from_x, from_y, resting_x, resting_y, resting_x, resting_y, false,
 		    NULL);
@@ -505,6 +639,10 @@ bool sf_anim_start_hide(struct sf_toplevel *toplevel, sf_anim_done_fn on_done) {
 		return false;
 	}
 
+	if (toplevel_strip_column(toplevel)) {
+		return begin_pop(toplevel, true, on_done);
+	}
+
 	int resting_x = toplevel->resting_x;
 	int resting_y = toplevel->resting_y;
 	int from_x = toplevel->scene_tree->node.x;
@@ -516,12 +654,10 @@ bool sf_anim_start_hide(struct sf_toplevel *toplevel, sf_anim_done_fn on_done) {
 		area_p = &area;
 	}
 
-	bool strip = toplevel_strip_column(toplevel);
-	toplevel->anim_slide_column = strip;
+	toplevel->anim_slide_column = false;
 
-	/* Same off-screen target as show start (peeble). */
 	int to_x, to_y;
-	slide_offscreen(toplevel->server, strip, resting_x, resting_y, w, h, area_p, &to_x, &to_y);
+	slide_offscreen(toplevel->server, false, resting_x, resting_y, w, h, area_p, &to_x, &to_y);
 
 	begin_slide(toplevel, from_x, from_y, to_x, to_y, resting_x, resting_y, true, on_done);
 	return true;
@@ -597,6 +733,8 @@ bool sf_anim_start_morph(struct sf_toplevel *toplevel, const struct wlr_box *fro
 	toplevel->anim.on_done = NULL;
 	toplevel->anim.active = true;
 	toplevel->anim.morph = true;
+	toplevel->anim.pop = false;
+	toplevel->anim.fade = 1.0f;
 	toplevel->anim_hide = false;
 	toplevel->resting_x = to->x;
 	toplevel->resting_y = to->y;
@@ -638,6 +776,17 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now) {
 			int w = sf_lerp_i(toplevel->anim.from_w, toplevel->anim.to_w, p);
 			int h = sf_lerp_i(toplevel->anim.from_h, toplevel->anim.to_h, p);
 			morph_apply_live(toplevel, x, y, w, h);
+		} else if (toplevel->anim.pop) {
+			if (toplevel->anim_hide) {
+				sf_toplevel_raise(toplevel);
+			}
+			int x = sf_lerp_i(toplevel->anim.from_x, toplevel->anim.to_x, p);
+			int y = sf_lerp_i(toplevel->anim.from_y, toplevel->anim.to_y, p);
+			int w = sf_lerp_i(toplevel->anim.from_w, toplevel->anim.to_w, p);
+			int h = sf_lerp_i(toplevel->anim.from_h, toplevel->anim.to_h, p);
+			float fade = toplevel->anim.fade_from +
+				     (toplevel->anim.fade_to - toplevel->anim.fade_from) * (float)p;
+			pop_apply_live(toplevel, x, y, w, h, fade);
 		} else {
 			if (toplevel->anim_hide) {
 				sf_toplevel_raise(toplevel);
@@ -660,8 +809,8 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now) {
 		sf_anim_done_fn on_done = t->anim.on_done;
 		bool was_hide = t->anim_hide;
 		bool was_morph = t->anim.morph;
+		bool was_pop = t->anim.pop;
 		t->anim.on_done = NULL;
-		t->anim_hide = false;
 		if (!was_morph) {
 			t->anim_slide_column = false;
 			if (!was_hide) {
@@ -670,6 +819,12 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now) {
 		}
 		if (was_morph) {
 			morph_finish(t, true);
+		} else if (was_pop) {
+			/* pop_finish reads anim_hide for resting restore. */
+			pop_finish(t, true);
+			if (was_hide && t->scene_tree != NULL) {
+				wlr_scene_node_set_enabled(&t->scene_tree->node, false);
+			}
 		} else if (!was_hide) {
 			set_visual_pos(t, t->resting_x, t->resting_y);
 		} else if (t->scene_tree != NULL) {
@@ -678,6 +833,7 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now) {
 			 * async after close_after_hide. */
 			wlr_scene_node_set_enabled(&t->scene_tree->node, false);
 		}
+		t->anim_hide = false;
 		if (on_done != NULL) {
 			on_done(t);
 		}

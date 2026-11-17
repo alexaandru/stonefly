@@ -84,8 +84,9 @@ bool sf_arrange_bind_matches(enum sf_arrange filter, enum sf_arrange current);
 /* Focus nearest managed peer in direction. cmd=left|right|up|down. */
 void sf_arrange_focus_dir(struct sf_server *server, const char *dir);
 
-/* Tab cycle along columns→rows (cw = next; same ring as arrange_rotate on columns).
- * Returns false when not tiling / fewer than 2 tiles — caller falls back to MRU. */
+/* Tab cycle: spatial clockwise ring of strip cells + sticky floats on the
+ * workspace. Returns false when not tiling / fewer than 2 peers — caller
+ * falls back to MRU. */
 bool sf_arrange_focus_cycle(struct sf_server *server, bool backward);
 
 /* Super+LMB: drag follows pointer; cell mid swaps, seams/gaps insert with live

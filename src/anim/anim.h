@@ -13,10 +13,11 @@ typedef void (*sf_anim_done_fn)(struct sf_toplevel *toplevel);
 
 void sf_anim_cancel(struct sf_toplevel *toplevel, bool commit_visual);
 
-/* Slide from off-screen into the current scene resting position. */
+/* Appear: tiled columns → popin (scale+fade at final slot); floats /
+ * scratchpads → edge slide into resting. */
 bool sf_anim_start_show(struct sf_toplevel *toplevel);
 
-/* Slide from the current visual position off-screen, then on_done. */
+/* Hide/close: tiled → popout; floats/scratch → edge slide; then on_done. */
 bool sf_anim_start_hide(struct sf_toplevel *toplevel, sf_anim_done_fn on_done);
 
 /* Live morph (peeble ApplyManage): lerp position+size each tick via

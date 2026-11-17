@@ -19,21 +19,20 @@ from the previous stack plus high-value leftovers and low-hanging fruit.
 | # | Item | Status | Why |
 |---|---|---|---|
 | 1 | **Dim-inactive / spotlight polish** | 🚧 | Opacity knobs exist; stronger dim or overlay so focus reads at a glance |
-| 2 | **Deferred WM opts (high)** | ❌ | From [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9.2: `focus_cycle`, `tile_insert`, `column_drop_seam`, `tiled_grab_remap`, `border_lmb` — day-to-day tiling feel without new C policy |
-| 3 | **Popin / popout appear+close** | ❌ | Umbriel scale+fade; slide already ships (tiled = right inter-gap). See §2 |
-| 4 | **`sf.opt.anim` table** | ❌ | Per-op enable/duration/style (appear, close, minimize, scratch, morph, WS); folds tiled_slide / ease / pinch threshold |
-| 5 | **`outputs.fnl` / output arrange API** | 🚧 | Workspace→output→global arrange; IPC `config outputs` still `{}` |
-| 6 | **Per-window / rule opacity** | 🚧 | Global focused/inactive only; rules/API for spotlight packs |
-| 7 | **Scratchpad claim → xdg-activation** | 🚧 | Fake `app_id` avoids steal but breaks taskbar icons; startup token is the real fix |
-| 8 | **Predictability Medium leftovers** | 🚧 | FS unFS→pack; snap↔max one “normal” box; document transient tile edge-max; pan-focus opt |
-| 9 | **IME *or* Xwayland** | ❌ | Pick by apps: fcitx/CJK/OSK → IME; Steam/legacy → Xwayland — real projects |
-| 10 | **`sf.on` + window query** | ❌ | Tier 2–3 Neovim leap ([`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9.5). Packs subscribe to map/unmap/focus/arrange/layout/workspace and **recompute** from `sf.wins()` — not one-shot max/unmax. Example: Noctalia bar opaque iff any visible edge-max on that output (`noctalia msg config-set bar.default.background_opacity`); naive bind-side toggle breaks with 2+ maxed windows |
+| 2 | **`sf.opt.anim` table** | ❌ | Per-op enable/duration/style/scale (appear, close, minimize, scratch, morph, WS). Popin/popout shipped with hard-coded Umbriel scales + `slide_duration_ms` — fold those FIXMEs here |
+| 3 | **Deferred WM opts (high)** | ❌ | From [`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9.2: `focus_cycle`, `tile_insert`, `column_drop_seam`, `tiled_grab_remap`, `border_lmb` — day-to-day tiling feel without new C policy |
+| 4 | **`outputs.fnl` / output arrange API** | 🚧 | Workspace→output→global arrange; IPC `config outputs` still `{}` |
+| 5 | **Per-window / rule opacity** | 🚧 | Global focused/inactive only; rules/API for spotlight packs |
+| 6 | **Scratchpad claim → xdg-activation** | 🚧 | Fake `app_id` avoids steal but breaks taskbar icons; startup token is the real fix |
+| 7 | **Predictability Medium leftovers** | 🚧 | FS unFS→pack; snap↔max one “normal” box; document transient tile edge-max; pan-focus opt |
+| 8 | **IME *or* Xwayland** | ❌ | Pick by apps: fcitx/CJK/OSK → IME; Steam/legacy → Xwayland — real projects |
+| 9 | **`sf.on` + window query** | ❌ | Tier 2–3 Neovim leap ([`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md) §9.5). Packs subscribe to map/unmap/focus/arrange/layout/workspace and **recompute** from `sf.wins()` — not one-shot max/unmax. Example: Noctalia bar opaque iff any visible edge-max on that output (`noctalia msg config-set bar.default.background_opacity`); naive bind-side toggle breaks with 2+ maxed windows |
 
 **After this stack (not numbered):** IPC `action` allowlist; APK flip to release
 buildtype when ASan hunting ends; `--write-config-lua`; protocol hollow-ads
 (tearing flips, blur region/popup, dialog modal); tag/icon consumers; full-output
 screencopy blanking; tablet; `wp_fifo_v1`; full color-mgmt; geometry persist;
-scratchpad click-outside catcher; winmenu (or Noctalia).
+scratchpad click-outside catcher; winmenu (or Noctalia). Queue is #1–#9.
 
 ---
 
@@ -47,7 +46,7 @@ windows. High-severity gaps are fixed (see FEATURES).
 
 | Gap | What surprises | Direction |
 |---|---|---|
-| **Transient tile edge-max** | Focus/Tab drops overlay back to cell — right for “peek”, wrong if user wanted sticky | Keep transient; sticky = float+edge-max / rule. Document in defaults (TODO NEXT #8) |
+| **Transient tile edge-max** | Focus/Tab drops overlay back to cell — right for “peek”, wrong if user wanted sticky | Keep transient; sticky = float+edge-max / rule. Document in defaults (TODO NEXT #7) |
 | **FS saved box vs tile cell** | UnFS restores layout_sm saved geom; column pack may overwrite | If `arrange_managed`, pack instead of saved-box morph |
 | **Snap ↔ max ↔ unmax** | PreMax / PreSnap stacking after toggle chains | One saved “normal” box; modes are overlays |
 | **Pan focus vs click focus** | 3-finger pan retargets centre-most; pointer may sit over another cell | Optional: warp or focus-under-pointer on swipe end |
@@ -77,16 +76,16 @@ windows. High-severity gaps are fixed (see FEATURES).
 
 | Feature | Status | Notes |
 |---|---|---|
-| Focus next / prev including minimized | 🚧 | Alt+Tab → noctalia switcher; Alt+Shift+Tab `FOCUS_PREV_ALL` (unhides). Super+Tab visible-only |
+| Focus next / prev including minimized | 🚧 | Alt+Tab → noctalia switcher; Alt+Shift+Tab `FOCUS_PREV_ALL` (unhides). Super+Tab visible-only (columns ring includes sticky floats; focus raises so targets stay visible) |
 | Window menu / winmenu | ❌ | SSD titlebars shipped |
 | Geometry persist across restart | ❌ | Tag protocol shipped; no persist consumer |
 | Workspaces polish | 🚧 | Named rules / geometry persist open. Switch slide + strip shipped (FEATURES) |
 | Columns polish | 🚧 | Still open: `center_focused=on_overflow`, consume-from bind, tabs, drag edge pan; deck/grid declined |
-| Focus cycle opt (MRU / spatial / strip) | 🚧 | Behavior shipped; opt is TODO NEXT #2 |
+| Focus cycle opt (MRU / spatial / strip) | 🚧 | Behavior shipped (spatial tiles+floats; focus-raise z-order). Opt is TODO NEXT #3 |
 | Picture-in-picture float | ❌ | Related to always-on-top |
 | Dim inactive / spotlight | 🚧 | TODO NEXT #1 |
 | Scratchpad click-outside catcher | ❌ | `auto_hide` on focus change ships |
-| Scratchpad claim vs icons | 🚧 | TODO NEXT #7 — fake `app_id`; want xdg-activation |
+| Scratchpad claim vs icons | 🚧 | TODO NEXT #6 — fake `app_id`; want xdg-activation |
 | SSD per-app overrides / winmenu | 🚧 | Rule `ssd` ships; winmenu open |
 
 ---
@@ -95,9 +94,8 @@ windows. High-severity gaps are fixed (see FEATURES).
 
 | Feature | Status | Notes |
 |---|---|---|
-| Popin / popout (scale + fade) | ❌ | TODO NEXT #3. Umbriel `windows_in`/`windows_out`; v1 = morph + buffer opacity. Tiled popin; scratch keeps edge slide |
-| Umbriel-shaped `sf.opt.anim` | ❌ | TODO NEXT #4. Per-op `enabled` / `duration_ms` / `style` + master |
-| WM-settable per-window opacity | 🚧 | TODO NEXT #6. Global knobs only |
+| Umbriel-shaped `sf.opt.anim` | ❌ | TODO NEXT #2. Per-op `enabled` / `duration_ms` / `style` / `scale`; fold popin hard-codes |
+| WM-settable per-window opacity | 🚧 | TODO NEXT #5. Global knobs only |
 | Blur region mask / popup blur | 🚧 | Layers: one plate per effect rect; full-region falls back to exclusive/opaque/input (+ transparency mask). Toplevels still treat non-empty region as full-surface bool. Layer popup blur open; no Alpine `ignore_alpha` threshold |
 
 ---
@@ -144,8 +142,8 @@ wire + known gaps:
 | `xdg-toplevel-icon-v1` buffers | 🚧 | Preferred sizes + name/buffer ref + IPC `icon_name`; SSD/shell do not paint buffers |
 | Full-output screencopy blanking | ❌ | Per-toplevel `ext-image-capture` reject + IPC `capture_blocked` ship; `zwlr_screencopy` full-output still composites blocked windows |
 | Screencast / capture_sessions UI | ❌ | Screencopy + ext-image-copy-capture wire shipped; portal session UX open |
-| Xwayland | ❌ | TODO NEXT #9 — not advertised |
-| text-input / IME | ❌ | TODO NEXT #9 — `zwp_text_input_v3` + `zwp_input_method_v2` not advertised |
+| Xwayland | ❌ | TODO NEXT #8 — not advertised |
+| text-input / IME | ❌ | TODO NEXT #8 — `zwp_text_input_v3` + `zwp_input_method_v2` not advertised |
 | `wp_fifo_v1` | ❌ | Not advertised. Presentation-time ships |
 | Tablet (`zwp_tablet_v2`) | ❌ | Not advertised. Touch / gestures / VK / constraints ship |
 | Full color-management | ❌ | Not advertised. Gamma LUT ships |
@@ -162,7 +160,7 @@ stays click-to-focus); foreign has no URGENT state (IPC urgency instead).
 | Feature | Status | Notes |
 |---|---|---|
 | `--write-config-lua` | ❌ | Offload compiled/plain Lua instead of `.fnl` |
-| `outputs.fnl` API | 🚧 | TODO NEXT #5. `sf.input` shipped |
+| `outputs.fnl` API | 🚧 | TODO NEXT #4. `sf.input` shipped |
 | IPC `config` outputs section | 🚧 | Still `{}` until output API |
 | IPC `action <name>` allowlist | ❌ | |
 | IPC inputs (live devices) | ❌ | `config inputs` rules ✅ |
@@ -181,12 +179,12 @@ Deferred bind/opt knobs (not TODO NEXT blockers): [`FROM_C_TO_LUA.md`](FROM_C_TO
 
 | Pri | Item | Status |
 |---|---|---|
-| P1 | WM opacity / dim | 🚧 TODO NEXT #1 / #6 |
-| P1 | `sf.on` + window query | ❌ TODO NEXT #10 |
+| P1 | WM opacity / dim | 🚧 TODO NEXT #1 / #5 |
+| P1 | `sf.on` + window query | ❌ TODO NEXT #9 |
 | P2 | Workspaces polish | ❌ rules / geometry persist |
 | P2 | Protocol hollow-ads (tearing / blur region / dialog modal) | 🚧 §5 |
 | P2 | `wp_fifo_v1` | ❌ |
-| — | Xwayland / IME | ❌ TODO NEXT #9 |
+| — | Xwayland / IME | ❌ TODO NEXT #8 |
 
 ---
 
@@ -196,14 +194,14 @@ Deferred bind/opt knobs (not TODO NEXT blockers): [`FROM_C_TO_LUA.md`](FROM_C_TO
 |---|---|
 | Winmenu | ❌ |
 | Geometry persist | ❌ |
-| Xwayland / IME | ❌ TODO NEXT #9 |
+| Xwayland / IME | ❌ TODO NEXT #8 |
 | Alt+Tab cycle policy polish | 🚧 noctalia switcher + `FOCUS_PREV_ALL` |
 
 ---
 
 ## 9. Suggested attack order
 
-Primary queue is **TODO NEXT** at the top (#1–#10). After that stack:
+Primary queue is **TODO NEXT** at the top (#1–#9). After that stack:
 
 1. IPC action allowlist; APK release buildtype; `--write-config-lua`
 2. Protocol hollow-ads: tearing async flips; blur region/popup; dialog modal policy
