@@ -255,6 +255,13 @@ static void layout_apply_result(struct sf_toplevel *toplevel, const struct sf_la
 			}
 			break;
 		case SF_LAYOUT_FX_XDG_FULLSCREEN:
+			if (e->flag) {
+				/* Strip membership stays; drop cell present-size so
+				 * decor cannot crop the FS buffer to the old tile. */
+				toplevel->arrange_prop_w = 0;
+				toplevel->arrange_prop_h = 0;
+				toplevel->arrange_prop_waits = 0;
+			}
 			if (xdg_surface_ready(toplevel)) {
 				wlr_xdg_toplevel_set_fullscreen(toplevel->xdg_toplevel, e->flag);
 			}
@@ -361,8 +368,12 @@ static bool toplevel_full_output_box(struct sf_toplevel *toplevel, struct wlr_ou
 			return false;
 		}
 	}
-	/* Cover fractional-scale hairline the same way max-edges does. */
-	sf_box_cover_fractional_gap(box, sf_output_scale_factor(server));
+	/*
+	 * Exact output logical size for the client configure. Fractional +1
+	 * cover belongs on the opaque fs_backdrop only — growing the configure
+	 * made Chrome lay out 2134×1334 on a 2133×1333 output and clipped the
+	 * bottom transport. Max-edges still covers via layout_fill_targets.
+	 */
 	return true;
 }
 
@@ -387,6 +398,10 @@ static void fullscreen_ensure_box(struct sf_toplevel *toplevel, struct wlr_outpu
 	SF_LOGI("fullscreen: apply output box", sf_i64("id", (int64_t)toplevel->id),
 		sf_i64("x", want.x), sf_i64("y", want.y), sf_i64("w", want.width),
 		sf_i64("h", want.height));
+	/* Drop tiled present-size so decor cannot crop the FS buffer to a cell. */
+	toplevel->arrange_prop_w = 0;
+	toplevel->arrange_prop_h = 0;
+	toplevel->arrange_prop_waits = 0;
 	sf_toplevel_apply_box(toplevel, &want);
 	sf_decor_update_geom(toplevel);
 	sf_toplevel_sync_scene_layer(toplevel);

@@ -355,14 +355,20 @@ void sf_decor_init_toplevel(struct sf_toplevel *toplevel) {
 }
 
 /* Clip the subsurface tree inside wlr_scene_xdg_surface_create's wrapper.
- * set_clip on the outer tree is a no-op — only the subsurface tree accepts it. */
-static void decor_clip_xdg_surface(struct sf_toplevel *toplevel, const struct wlr_box *geo) {
+ * set_clip on the outer tree is a no-op — only the subsurface tree accepts it.
+ * Pass clip == NULL to clear (empty box = no crop). */
+static void decor_clip_xdg_surface(struct sf_toplevel *toplevel, const struct wlr_box *clip) {
 	if (toplevel->xdg_scene_tree == NULL) {
 		return;
 	}
+	/* scenefx equal-check dereferences clip; never pass NULL. */
+	struct wlr_box none = {0};
+	if (clip == NULL) {
+		clip = &none;
+	}
 	struct wlr_scene_node *child;
 	wl_list_for_each(child, &toplevel->xdg_scene_tree->children, link) {
-		wlr_scene_subsurface_tree_set_clip(child, geo);
+		wlr_scene_subsurface_tree_set_clip(child, clip);
 		return;
 	}
 	SF_LOGW("decor clip: no subsurface child", sf_i64("id", (int64_t)toplevel->id));
@@ -390,6 +396,14 @@ bool sf_decor_present_content_size(struct sf_toplevel *toplevel, int *w, int *h)
 	}
 	if (pw <= 0 || ph <= 0) {
 		return false;
+	}
+	/* Fullscreen must show the client's full buffer. Column arrange_prop
+	 * survives FS (strip membership kept) and used to crop Netflix to the
+	 * old cell — bottom transport + sides chopped. */
+	if (sf_layout_sm_is_fullscreen(&toplevel->layout)) {
+		*w = pw;
+		*h = ph;
+		return true;
 	}
 	if (toplevel->anim.active && toplevel->anim.morph && toplevel->anim.to_w > 0 &&
 	    toplevel->anim.to_h > 0) {
@@ -423,21 +437,28 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 		present_w = geo->width;
 		present_h = geo->height;
 	}
-	/* Crop the live buffer to the tile when the client has not redrawn yet. */
-	int clip_w = geo->width;
-	int clip_h = geo->height;
-	if (present_w < clip_w) {
-		clip_w = present_w;
+	const bool fs = sf_layout_sm_is_fullscreen(&toplevel->layout);
+	/* Crop an oversized tiled buffer to the cell. Never crop fullscreen —
+	 * arrange_prop cell sizes must not chop the FS buffer. */
+	const struct wlr_box *clip_ptr = NULL;
+	struct wlr_box clip;
+	if (!fs) {
+		int clip_w = geo->width;
+		int clip_h = geo->height;
+		if (present_w < clip_w) {
+			clip_w = present_w;
+		}
+		if (present_h < clip_h) {
+			clip_h = present_h;
+		}
+		clip = (struct wlr_box){
+			.x = geo->x,
+			.y = geo->y,
+			.width = clip_w,
+			.height = clip_h,
+		};
+		clip_ptr = &clip;
 	}
-	if (present_h < clip_h) {
-		clip_h = present_h;
-	}
-	struct wlr_box clip = {
-		.x = geo->x,
-		.y = geo->y,
-		.width = clip_w,
-		.height = clip_h,
-	};
 
 	const bool chrome = decor_chrome_on(toplevel);
 	const struct sf_config *cfg = sf_cfg(toplevel->server);
@@ -459,7 +480,6 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 	 */
 	int xdg_ox = 0;
 	int xdg_oy = 0;
-	const bool fs = sf_layout_sm_is_fullscreen(&toplevel->layout);
 	if (fs && toplevel->fs_backdrop != NULL) {
 		struct wlr_box tile = {0};
 		struct sf_output *out = sf_output_for_toplevel(toplevel);
@@ -473,6 +493,8 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 			wlr_scene_node_set_position(&toplevel->fs_backdrop->node, 0, 0);
 			wlr_scene_node_set_enabled(&toplevel->fs_backdrop->node, true);
 			wlr_scene_node_lower_to_bottom(&toplevel->fs_backdrop->node);
+			/* Letterbox only while the committed buffer is still short of
+			 * the tile. Once geo fills the output, offset is 0 — full bleed. */
 			xdg_ox = sf_fullscreen_center_offset(tile.width, geo->width);
 			xdg_oy = sf_fullscreen_center_offset(tile.height, geo->height);
 		} else {
@@ -482,7 +504,7 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 		wlr_scene_node_set_enabled(&toplevel->fs_backdrop->node, false);
 	}
 	wlr_scene_node_set_position(&toplevel->xdg_scene_tree->node, xdg_ox, xdg_oy);
-	decor_clip_xdg_surface(toplevel, &clip);
+	decor_clip_xdg_surface(toplevel, clip_ptr);
 
 	if (toplevel->blur != NULL) {
 		wlr_scene_blur_set_size(toplevel->blur, present_w, present_h + ssd_h);
