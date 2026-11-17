@@ -1064,6 +1064,11 @@ void sf_ghost_try_spawn(struct sf_toplevel *toplevel) {
 	if (toplevel->scene_tree == NULL) {
 		return;
 	}
+	/* Super+q already popped/slid the live tree and disabled it. A ghost
+	 * here is a second close (full opacity at the 0.8 pose, then pop/slide). */
+	if (!toplevel->scene_tree->node.enabled) {
+		return;
+	}
 
 	/* Prefer the cached last frame — live scene buffers are often already
 	 * NULL by unmap (client attached a null buffer). */

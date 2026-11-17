@@ -13,6 +13,7 @@
 #include "toplevel/toplevel.h"
 #include "util/math.h"
 #include "util/time.h"
+#include "wm/arrange.h"
 #include "wm/overview.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
@@ -306,6 +307,12 @@ static void pop_finish(struct sf_toplevel *toplevel, bool commit) {
 	toplevel->anim.on_done = NULL;
 	toplevel->anim.prop_w = 0;
 	toplevel->anim.prop_h = 0;
+	/* Hide: drop the tree before fade/clip restore. Leaving it enabled
+	 * paints a full-opacity box at the 0.8 pose (down-right of the cell)
+	 * for a frame, then unmap spawns a second close-ghost. */
+	if (was_hide && toplevel->scene_tree != NULL) {
+		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, false);
+	}
 	toplevel->anim.fade = 1.0f;
 	toplevel->anim.fade_from = 1.0f;
 	toplevel->anim.fade_to = 1.0f;
@@ -318,12 +325,14 @@ static void pop_finish(struct sf_toplevel *toplevel, bool commit) {
 		return;
 	}
 
-	if (!was_hide) {
-		toplevel->resting_x = toplevel->anim.to_x;
-		toplevel->resting_y = toplevel->anim.to_y;
-		set_visual_pos(toplevel, toplevel->anim.to_x, toplevel->anim.to_y);
-		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
+	if (was_hide) {
+		return;
 	}
+
+	toplevel->resting_x = toplevel->anim.to_x;
+	toplevel->resting_y = toplevel->anim.to_y;
+	set_visual_pos(toplevel, toplevel->anim.to_x, toplevel->anim.to_y);
+	wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
 	sf_decor_update_geom(toplevel);
 	sf_decor_apply_buffers(toplevel);
 }
@@ -811,10 +820,12 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now) {
 		bool was_morph = t->anim.morph;
 		bool was_pop = t->anim.pop;
 		t->anim.on_done = NULL;
-		if (!was_morph) {
+		if (!was_morph && !was_hide) {
 			t->anim_slide_column = false;
-			if (!was_hide) {
-				t->arrange_appear_pending = false;
+			t->arrange_appear_pending = false;
+			/* Mid-pop consume may have stashed neighbor boxes. */
+			if (t->workspace != NULL) {
+				sf_arrange_release_deferred(t->workspace);
 			}
 		}
 		if (was_morph) {
@@ -822,9 +833,6 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now) {
 		} else if (was_pop) {
 			/* pop_finish reads anim_hide for resting restore. */
 			pop_finish(t, true);
-			if (was_hide && t->scene_tree != NULL) {
-				wlr_scene_node_set_enabled(&t->scene_tree->node, false);
-			}
 		} else if (!was_hide) {
 			set_visual_pos(t, t->resting_x, t->resting_y);
 		} else if (t->scene_tree != NULL) {
@@ -833,9 +841,14 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now) {
 			 * async after close_after_hide. */
 			wlr_scene_node_set_enabled(&t->scene_tree->node, false);
 		}
-		t->anim_hide = false;
+		/* Keep anim_hide through on_done so close_after_hide → unmap
+		 * skips the close-ghost (WM popout already ran). */
 		if (on_done != NULL) {
 			on_done(t);
+		}
+		t->anim_hide = false;
+		if (was_hide) {
+			t->anim_slide_column = false;
 		}
 	}
 

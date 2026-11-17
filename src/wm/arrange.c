@@ -508,6 +508,16 @@ static bool awaiting_appear(const struct sf_toplevel *t) {
 	return false;
 }
 
+/* Pop/slide already running — do not treat as a parked opener. */
+static bool appear_running(const struct sf_toplevel *t) {
+	return t != NULL && t->anim.active && !t->anim_hide && !t->anim.morph;
+}
+
+/* Parked for first show: neighbors must wait so push shares the opener clock. */
+static bool appear_parked(const struct sf_toplevel *t) {
+	return awaiting_appear(t) && !appear_running(t);
+}
+
 static void apply_box_now(struct sf_toplevel *t, const struct wlr_box *box, bool morph) {
 	t->arrange_deferred = false;
 	if (t->scene_tree != NULL && !t->scene_tree->node.enabled) {
@@ -525,11 +535,14 @@ static void apply_box_now(struct sf_toplevel *t, const struct wlr_box *box, bool
 
 static void apply_boxes(struct sf_toplevel **wins, const struct wlr_box *boxes, size_t n,
 			bool morph) {
-	bool has_opener = false;
+	bool has_parked = false;
+	struct sf_toplevel *leader = NULL;
 	for (size_t i = 0; i < n; i++) {
-		if (awaiting_appear(wins[i])) {
-			has_opener = true;
-			break;
+		if (appear_parked(wins[i])) {
+			has_parked = true;
+		}
+		if (leader == NULL && appear_running(wins[i]) && wins[i]->arrange_appear_pending) {
+			leader = wins[i];
 		}
 	}
 	for (size_t i = 0; i < n; i++) {
@@ -540,21 +553,20 @@ static void apply_boxes(struct sf_toplevel **wins, const struct wlr_box *boxes, 
 		}
 		t->arrange_prop_w = box->width;
 		t->arrange_prop_h = box->height;
+		if (awaiting_appear(t) && appear_running(t)) {
+			/* Consume/repack mid-pop: retarget the full cell (xy+wh).
+			 * Deferring neighbors here left them at the old column x
+			 * with the new row height until the next spawn. */
+			sf_toplevel_move_resize(t, box, false);
+			continue;
+		}
 		if (awaiting_appear(t)) {
-			if (t->anim.active && !t->anim_hide && !t->anim.morph) {
-				/* Appear slide already running: retarget resting only. */
-				t->resting_x = box->x;
-				t->resting_y = box->y;
-				t->anim.to_x = box->x;
-				t->anim.to_y = box->y;
-				continue;
-			}
 			/* Do not clear_auto_place / enable — that would START_SHOW
 			 * at the natural buffer size before the cell configure. */
 			apply_box_preappear(t, box);
 			continue;
 		}
-		if (has_opener) {
+		if (has_parked) {
 			/* Hold neighbor geom until the opener's show slide starts
 			 * so push + slide share one clock (umbriel windows_move). */
 			t->arrange_deferred = true;
@@ -562,6 +574,9 @@ static void apply_boxes(struct sf_toplevel **wins, const struct wlr_box *boxes, 
 			continue;
 		}
 		apply_box_now(t, box, morph);
+		if (leader != NULL && t->anim.active) {
+			sf_anim_sync_clock(t, leader);
+		}
 	}
 }
 
