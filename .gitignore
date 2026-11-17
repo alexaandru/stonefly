@@ -6,8 +6,7 @@
 /*.apk
 /.abuild/
 /.ccls-cache
-/peeble/
-/umbriel/
+/references/
 
 /dist/**/*.tar.gz
 /dist/alpine/src
@@ -16,6 +15,3 @@
 # meson
 /output/
 /build/
-
-# local recovery artifacts (zip / worktree dumps)
-/recovery/
