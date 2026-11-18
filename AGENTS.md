@@ -222,10 +222,13 @@ Shipped work lives in [`FEATURES.md`](FEATURES.md); open and partial work in
 [`ROADMAP.md`](ROADMAP.md) (TODO NEXT pick-queue stays titled **TODO NEXT**).
 Peer-compositor UX notes and hard-won traps live in [`LESSONS.md`](LESSONS.md)
 (start with Umbriel columns / foreign / float). C↔Lua border:
-[`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md). After a change, fix, feature, or
-notable diagnosis, update the matching rows **in the same turn**. When
-something ships, move it from the roadmap into features (and drop or shrink
-the open row). Capture durable peer lessons in `LESSONS.md`.
+[`FROM_C_TO_LUA.md`](FROM_C_TO_LUA.md). Wayland globals, versions, completeness,
+and peer comparison (Umbriel / niri / mango): [`PROTOCOLS.md`](PROTOCOLS.md).
+After a change, fix, feature, or notable diagnosis, update the matching rows
+**in the same turn**. When something ships, move it from the roadmap into
+features (and drop or shrink the open row). Capture durable peer lessons in
+`LESSONS.md`. When a protocol is advertised, version-bumped, wired, or left
+hollow, update the matching `PROTOCOLS.md` row (and FEATURES/ROADMAP as usual).
 
 ## Workflow
 
@@ -251,8 +254,9 @@ Before calling work finished:
    `Makefile` / `APKBUILD` / `pkgrel` edits. `make apk` is the compile check.
 3. No new internal shell-outs (user-configured spawn goes through
    `sf_spawn_cmd`).
-4. `FEATURES.md` / `ROADMAP.md` / `LESSONS.md` rows for the touched feature
-   are current (shipped items moved to features).
+4. `FEATURES.md` / `ROADMAP.md` / `LESSONS.md` / `PROTOCOLS.md` rows for the
+   touched feature are current (shipped items moved to features; protocol
+   ads/versions/gaps stay in PROTOCOLS).
 5. `pkgrel` / `pkgver`, root `Makefile`, and `dist/alpine/APKBUILD` untouched
    unless requested.
 6. New sources are listed in `src/meson.build` when applicable.

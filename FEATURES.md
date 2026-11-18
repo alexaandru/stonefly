@@ -134,7 +134,7 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 
 | Feature | Notes |
 |---|---|
-| xdg-shell toplevels / popups | `request_minimize` → minimize / unminimize. Popups `wlr_xdg_popup_unconstrain_from_box` into parent output **usable** (flip/slide/resize); layer `get_popup` reparents and re-constrains only if `xdg_surface` already initialized (else `xdg_popup_commit` on first commit). Early configure aborted wlroots 0.20 on Noctalia taskbar tooltips |
+| xdg-shell toplevels / popups | Advertised **v7**. Bounds = usable box; `wm_capabilities` = max/fs/min (no window-menu); `suspended` on minimize / hidden workspace / lock; `constrained` on tile/max/FS/snap/flush edges. `request_minimize` → hide/show. Popups unconstrain into parent output **usable**; layer `get_popup` reparents only if `xdg_surface` initialized (else first commit). |
 | wlr-layer-shell | v5 server; exclusive zones → usable. `set_exclusive_edge` via wlroots scene configure |
 | wp_fractional_scale + viewporter | DRM: scale 1.5 (`SF_OUTPUT_SCALE`). Nested/headless: scale 1.0 |
 | zxdg_output_v1 | Logical size for Noctalia floating-panel margins under fractional scale |

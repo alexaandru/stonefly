@@ -211,6 +211,16 @@ Workspace **arrange** (stacking/columns) owns packing. Per-window `layout_sm`
 owns float/max/snap/fullscreen chrome. Do not conflate them: column-max stays
 tiled; edges-max breaks out.
 
+### xdg-shell v4–v7
+
+Advertise the wlroots cap (`WM_BASE_VERSION` 7 on 0.20.2). Always
+`set_wm_capabilities` without `WINDOW_MENU` until a real menu exists — wlroots
+defaults to all four caps. `set_bounds` uses the usable box, not the full mode.
+`suspended` is for minimize, hidden workspace, lock, and scratch hide; keep
+from/to unsuspended during a workspace slide, and never suspend a column that
+is only scrolled off-strip (it still paints for overview/foreign). `constrained`
+is resize-handle policy (flush/strut edges); `tiled` remains CSD chrome.
+
 ### Taskbar / foreign is membership, not visibility
 
 Noctalia’s taskbar keys off foreign-toplevel `output_enter` / state. Off-strip

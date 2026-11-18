@@ -29,6 +29,7 @@
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
+#include "xdg/xdg.h"
 
 void sf_toplevel_layout_geom(struct sf_toplevel *toplevel, struct wlr_box *box) {
 	struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
@@ -293,6 +294,7 @@ static void layout_apply_result(struct sf_toplevel *toplevel, const struct sf_la
 		}
 	}
 	sf_toplevel_sync_scene_layer(toplevel);
+	sf_xdg_sync_toplevel(toplevel);
 }
 
 static void layout_dispatch(struct sf_toplevel *toplevel, const struct sf_layout_ev *ev,
@@ -1006,6 +1008,7 @@ void sf_wm_relayout_output(struct sf_output *output) {
 	if (output->active != NULL) {
 		sf_arrange_schedule(output->active);
 	}
+	sf_xdg_sync_output(output);
 }
 
 void sf_toplevel_unsnap(struct sf_toplevel *toplevel) {
@@ -1451,6 +1454,7 @@ void sf_toplevel_apply_hidden(struct sf_toplevel *toplevel, enum sf_hide_kind ki
 		sf_focus_top(server);
 	}
 	sf_foreign_toplevel_on_state_change(toplevel);
+	sf_xdg_sync_toplevel(toplevel);
 	/* Columns pack only visible rows — reflow so a lone visible column fills. */
 	if (!was_hidden && toplevel->workspace != NULL &&
 	    sf_arrange_is_tiling(sf_workspace_arrange(toplevel->workspace))) {
@@ -1512,6 +1516,7 @@ void sf_toplevel_apply_shown(struct sf_toplevel *toplevel, bool activate) {
 	    toplevel->scene_tree->node.enabled && !(toplevel->anim.active && toplevel->anim.pop)) {
 		sf_decor_update_geom(toplevel);
 	}
+	sf_xdg_sync_toplevel(toplevel);
 }
 
 static void minimize_now(struct sf_toplevel *toplevel) {

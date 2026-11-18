@@ -17,6 +17,7 @@
 #include "session/session.h"
 #include "wm/overview.h"
 #include "wm/wm.h"
+#include "xdg/xdg.h"
 
 struct sf_lock_surface {
 	struct wl_list link;
@@ -155,6 +156,7 @@ static void session_destroy_lock(struct sf_server *server, bool unlocked) {
 		if (server->lock.blank != NULL) {
 			wlr_scene_node_set_enabled(&server->lock.blank->node, false);
 		}
+		sf_xdg_sync_all(server);
 		wlr_seat_keyboard_notify_clear_focus(server->seat);
 		sf_focus_top(server);
 		SF_LOGI("session unlocked");
@@ -224,6 +226,7 @@ static void session_new_lock(struct wl_listener *listener, void *data) {
 	wl_signal_add(&lock->events.destroy, &server->lock.on_destroy);
 
 	wlr_session_lock_v1_send_locked(lock);
+	sf_xdg_sync_all(server);
 	SF_LOGI("session locked");
 }
 

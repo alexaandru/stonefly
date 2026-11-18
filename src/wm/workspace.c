@@ -29,6 +29,7 @@
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
 #include "toplevel/toplevel.h"
+#include "xdg/xdg.h"
 
 static uint32_t workspace_caps(void) {
 	return EXT_WORKSPACE_HANDLE_V1_WORKSPACE_CAPABILITIES_ACTIVATE;
@@ -106,6 +107,7 @@ static void workspace_update_visibility(struct sf_output *output) {
 			wlr_ext_workspace_handle_v1_set_active(ws->ext, ws == output->active);
 		}
 	}
+	sf_xdg_sync_output(output);
 }
 
 static void workspace_anim_finish(struct sf_output *output) {
@@ -382,6 +384,7 @@ void sf_workspace_assign(struct sf_toplevel *toplevel, struct sf_workspace *ws) 
 	if (old_ws != NULL && old_ws != ws) {
 		sf_arrange_schedule(old_ws);
 	}
+	sf_xdg_sync_toplevel(toplevel);
 }
 
 void sf_workspace_detach_scratchpad(struct sf_toplevel *toplevel) {

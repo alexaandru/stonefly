@@ -31,8 +31,150 @@
 #include "wm/rules.h"
 #include "wm/scratchpad.h"
 #include "wm/workspace.h"
+#include "session/session.h"
+#include "wm/layout_sm.h"
 #include "wm/wm.h"
 #include "xdg/xdg.h"
+
+#define SF_XDG_SHELL_VERSION 7
+
+static bool xdg_surface_ready(struct sf_toplevel *toplevel) {
+	return toplevel != NULL && toplevel->xdg_toplevel != NULL &&
+	       toplevel->xdg_toplevel->base->initialized;
+}
+
+static uint32_t xdg_edges_all(void) {
+	return (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_BOTTOM | (uint32_t)WLR_EDGE_LEFT |
+	       (uint32_t)WLR_EDGE_RIGHT;
+}
+
+static uint32_t xdg_edges_for_snap(enum sf_snap edge) {
+	switch (edge) {
+	case SF_SNAP_LEFT:
+		return (uint32_t)WLR_EDGE_LEFT | (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_BOTTOM;
+	case SF_SNAP_RIGHT:
+		return (uint32_t)WLR_EDGE_RIGHT | (uint32_t)WLR_EDGE_TOP |
+		       (uint32_t)WLR_EDGE_BOTTOM;
+	case SF_SNAP_TOP:
+		return (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_LEFT | (uint32_t)WLR_EDGE_RIGHT;
+	case SF_SNAP_BOTTOM:
+		return (uint32_t)WLR_EDGE_BOTTOM | (uint32_t)WLR_EDGE_LEFT |
+		       (uint32_t)WLR_EDGE_RIGHT;
+	case SF_SNAP_NONE:
+		break;
+	}
+	return 0;
+}
+
+static uint32_t xdg_wm_caps(void) {
+	return (uint32_t)WLR_XDG_TOPLEVEL_WM_CAPABILITIES_MAXIMIZE |
+	       (uint32_t)WLR_XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN |
+	       (uint32_t)WLR_XDG_TOPLEVEL_WM_CAPABILITIES_MINIMIZE;
+}
+
+static bool xdg_should_suspend(const struct sf_toplevel *toplevel) {
+	if (toplevel->minimized) {
+		return true;
+	}
+	if (sf_session_locked(toplevel->server)) {
+		return true;
+	}
+	if (sf_toplevel_is_scratchpad(toplevel)) {
+		return false;
+	}
+	if (toplevel->workspace == NULL) {
+		return false;
+	}
+	struct sf_output *output = toplevel->workspace->output;
+	if (output == NULL) {
+		return false;
+	}
+	if (output->active == toplevel->workspace) {
+		return false;
+	}
+	if (output->ws_anim.active && (toplevel->workspace == output->ws_anim.from ||
+				       toplevel->workspace == output->ws_anim.to)) {
+		return false;
+	}
+
+	return true;
+}
+
+static uint32_t xdg_constrained_edges(struct sf_toplevel *toplevel) {
+	if (sf_layout_sm_is_fullscreen(&toplevel->layout) ||
+	    sf_layout_sm_is_max_edges(&toplevel->layout) ||
+	    sf_layout_sm_is_max_gaps(&toplevel->layout)) {
+		return xdg_edges_all();
+	}
+	if (toplevel->arrange_managed && !toplevel->arrange_floating) {
+		return xdg_edges_all();
+	}
+	enum sf_snap snap = sf_layout_sm_snap(&toplevel->layout);
+	if (snap != SF_SNAP_NONE) {
+		return xdg_edges_for_snap(snap);
+	}
+	struct wlr_box usable, geom;
+	if (!sf_toplevel_output_box(toplevel, &usable) || usable.width <= 0 || usable.height <= 0) {
+		return 0;
+	}
+	sf_toplevel_layout_geom(toplevel, &geom);
+	if (geom.width <= 0 || geom.height <= 0) {
+		return 0;
+	}
+	const int tol = 2;
+	uint32_t edges = 0;
+	if (geom.x <= usable.x + tol) {
+		edges |= (uint32_t)WLR_EDGE_LEFT;
+	}
+	if (geom.y <= usable.y + tol) {
+		edges |= (uint32_t)WLR_EDGE_TOP;
+	}
+	if (geom.x + geom.width >= usable.x + usable.width - tol) {
+		edges |= (uint32_t)WLR_EDGE_RIGHT;
+	}
+	if (geom.y + geom.height >= usable.y + usable.height - tol) {
+		edges |= (uint32_t)WLR_EDGE_BOTTOM;
+	}
+
+	return edges;
+}
+
+void sf_xdg_sync_toplevel(struct sf_toplevel *toplevel) {
+	if (!xdg_surface_ready(toplevel)) {
+		return;
+	}
+	struct wlr_xdg_toplevel *xdg = toplevel->xdg_toplevel;
+	wlr_xdg_toplevel_set_wm_capabilities(xdg, xdg_wm_caps());
+	struct wlr_box usable;
+	if (sf_toplevel_output_box(toplevel, &usable) && usable.width > 0 && usable.height > 0) {
+		wlr_xdg_toplevel_set_bounds(xdg, usable.width, usable.height);
+	}
+	wlr_xdg_toplevel_set_suspended(xdg, xdg_should_suspend(toplevel));
+	wlr_xdg_toplevel_set_constrained(xdg, xdg_constrained_edges(toplevel));
+}
+
+void sf_xdg_sync_output(struct sf_output *output) {
+	if (output == NULL || output->server == NULL) {
+		return;
+	}
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &output->server->toplevels, link) {
+		if (t->workspace != NULL && t->workspace->output != output) {
+			continue;
+		}
+		sf_xdg_sync_toplevel(t);
+	}
+}
+
+void sf_xdg_sync_all(struct sf_server *server) {
+	if (server == NULL) {
+		return;
+	}
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &server->toplevels, link) {
+		sf_xdg_sync_toplevel(t);
+	}
+}
 
 static struct sf_toplevel *toplevel_from_surface(struct sf_server *server,
 						 struct wlr_surface *surface) {
@@ -186,6 +328,7 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	sf_foreign_toplevel_on_map(toplevel);
 	sf_ext_capture_on_map(toplevel);
 	sf_overview_on_toplevel_mapped(toplevel);
+	sf_xdg_sync_toplevel(toplevel);
 }
 
 static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
@@ -268,6 +411,7 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 		 * configures the xdg_toplevel with 0,0 size to let the client pick the
 		 * dimensions itself. */
 		wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, 0, 0);
+		sf_xdg_sync_toplevel(toplevel);
 		return;
 	}
 	/* Output teardown may have already destroyed scene chrome. */
@@ -921,7 +1065,7 @@ static void server_new_xdg_dialog(struct wl_listener *listener, void *data) {
 
 void sf_xdg_setup(struct sf_server *server) {
 	wl_list_init(&server->toplevels);
-	server->xdg_shell = wlr_xdg_shell_create(server->wl_display, 3);
+	server->xdg_shell = wlr_xdg_shell_create(server->wl_display, SF_XDG_SHELL_VERSION);
 	server->new_xdg_toplevel.notify = server_new_xdg_toplevel;
 	wl_signal_add(&server->xdg_shell->events.new_toplevel, &server->new_xdg_toplevel);
 	server->new_xdg_popup.notify = server_new_xdg_popup;
