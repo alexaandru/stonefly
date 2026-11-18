@@ -326,6 +326,9 @@ static void pop_finish(struct sf_toplevel *toplevel, bool commit) {
 	}
 
 	if (was_hide) {
+		/* Tree is already disabled. Still drop the pop clip/dest so show
+		 * does not come back with the 0.8 buffer covering the rim. */
+		sf_decor_update_geom(toplevel);
 		return;
 	}
 
@@ -851,8 +854,7 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now) {
 			t->anim_slide_column = false;
 		}
 		if (!was_hide && t->scene_tree != NULL && t->scene_tree->node.enabled) {
-			sf_decor_update_geom(t);
-			sf_decor_apply_buffers(t);
+			sf_decor_rebuild_chrome(t);
 		}
 	}
 

@@ -111,9 +111,12 @@ bool sf_toplevel_room_for_chrome(const struct sf_toplevel *toplevel) {
 	    sf_layout_sm_is_fullscreen(&toplevel->layout)) {
 		return false;
 	}
+	/* Logical rest — never hide/show park. Scene xy is off-screen (slide)
+	 * or the 0.5 pop cell; that flush test left border nodes disabled
+	 * until a later arrange / max op re-ran update_geom at rest. */
 	struct wlr_box geom = {
-		.x = toplevel->scene_tree->node.x,
-		.y = toplevel->scene_tree->node.y,
+		.x = toplevel->resting_x,
+		.y = toplevel->resting_y,
 		.width = toplevel->xdg_toplevel->base->geometry.width,
 		.height = toplevel->xdg_toplevel->base->geometry.height,
 	};
@@ -153,11 +156,9 @@ bool sf_toplevel_room_for_chrome(const struct sf_toplevel *toplevel) {
 }
 
 static bool decor_chrome_on(const struct sf_toplevel *toplevel) {
-	/* Live hide pop only — Super+q uses a chrome-less ghost. Do not keep
-	 * this after anim_hide clears or show comes back rimless. */
-	if (toplevel->anim_hide && toplevel->anim.active) {
-		return false;
-	}
+	/* Super+q is a chrome-less ghost. Live hide/show keep the rim and fade
+	 * it with anim.fade — turning thickness off on hide left SceneFX with a
+	 * full-hole rect that never drew again until a later arrange. */
 	return !sf_layout_sm_is_max_edges(&toplevel->layout) &&
 	       !sf_layout_sm_is_fullscreen(&toplevel->layout) && !toplevel->borderless &&
 	       sf_toplevel_room_for_chrome(toplevel);
@@ -193,11 +194,18 @@ void sf_decor_refresh_blur(struct sf_toplevel *toplevel) {
 
 static void decor_set_chrome_enabled(struct sf_toplevel *toplevel, bool on) {
 	sf_decor_refresh_blur(toplevel);
+	/*
+	 * Never set_enabled(false) on border/shadow. Hide already disables the
+	 * parent scene tree; child disable survived parent re-enable, so show
+	 * came back rimless until a later arrange. Chrome-off is thickness 0
+	 * plus a full hole (update_geom). Keep the nodes enabled.
+	 */
+	(void)on;
 	if (toplevel->border != NULL) {
-		wlr_scene_node_set_enabled(&toplevel->border->node, on);
+		wlr_scene_node_set_enabled(&toplevel->border->node, true);
 	}
 	if (toplevel->shadow != NULL) {
-		wlr_scene_node_set_enabled(&toplevel->shadow->node, on);
+		wlr_scene_node_set_enabled(&toplevel->shadow->node, true);
 	}
 }
 
@@ -518,6 +526,24 @@ static void apply_shadow_opacity(struct sf_toplevel *toplevel, float opacity) {
 	wlr_scene_shadow_set_color(toplevel->shadow, sf_rgba_vec(&shadow));
 }
 
+static void decor_restack_chrome(struct sf_toplevel *toplevel) {
+	/* fs_backdrop < blur < shadow < xdg. The border is raised above xdg
+	 * after geom — a rim left under the client is covered by any buffer
+	 * that still has a pop dest_size. */
+	if (toplevel->border != NULL) {
+		wlr_scene_node_lower_to_bottom(&toplevel->border->node);
+	}
+	if (toplevel->shadow != NULL) {
+		wlr_scene_node_lower_to_bottom(&toplevel->shadow->node);
+	}
+	if (toplevel->blur != NULL) {
+		wlr_scene_node_lower_to_bottom(&toplevel->blur->node);
+	}
+	if (toplevel->fs_backdrop != NULL) {
+		wlr_scene_node_lower_to_bottom(&toplevel->fs_backdrop->node);
+	}
+}
+
 void sf_decor_init_toplevel(struct sf_toplevel *toplevel) {
 	const struct sf_config *cfg = sf_cfg(toplevel->server);
 	const int inner = cfg->corner_radius;
@@ -560,13 +586,58 @@ void sf_decor_init_toplevel(struct sf_toplevel *toplevel) {
 	wlr_scene_node_set_position(&toplevel->shadow->node, -border - (int)sigma,
 				    -border - (int)sigma);
 
-	/* xdg content on top; fs_backdrop < blur < shadow < border < xdg. */
-	wlr_scene_node_lower_to_bottom(&toplevel->border->node);
-	wlr_scene_node_lower_to_bottom(&toplevel->shadow->node);
-	wlr_scene_node_lower_to_bottom(&toplevel->blur->node);
-	if (toplevel->fs_backdrop != NULL) {
-		wlr_scene_node_lower_to_bottom(&toplevel->fs_backdrop->node);
+	decor_restack_chrome(toplevel);
+}
+
+void sf_decor_rebuild_chrome(struct sf_toplevel *toplevel) {
+	if (toplevel == NULL || toplevel->scene_tree == NULL) {
+		return;
 	}
+	const struct sf_config *cfg = sf_cfg(toplevel->server);
+	const int inner = cfg->corner_radius;
+	const int border = cfg->border_thickness;
+	const int outer = outer_corner_radius(inner, border);
+	const float sigma = cfg->shadow_blur_sigma;
+	float start_opacity = cfg->inactive_opacity;
+	struct sf_rgba inactive;
+	sf_rgba_premul(&cfg->border_inactive, start_opacity, &inactive);
+
+	if (toplevel->border != NULL) {
+		wlr_scene_node_destroy(&toplevel->border->node);
+		toplevel->border = NULL;
+	}
+	if (toplevel->shadow != NULL) {
+		wlr_scene_node_destroy(&toplevel->shadow->node);
+		toplevel->shadow = NULL;
+	}
+
+	toplevel->border =
+		wlr_scene_rect_create(toplevel->scene_tree, 0, 0, sf_rgba_vec(&inactive));
+	if (toplevel->border != NULL) {
+		wlr_scene_rect_set_corner_radii(toplevel->border, corner_radii_all(outer));
+		wlr_scene_node_set_position(&toplevel->border->node, -border, -border);
+		wlr_scene_rect_set_clipped_region(
+			toplevel->border,
+			(struct clipped_region){
+				.area = {.x = border, .y = border, .width = 0, .height = 0},
+				.corners = corner_radii_all(inner),
+			});
+		wlr_scene_node_set_enabled(&toplevel->border->node, true);
+	}
+
+	struct sf_rgba shadow;
+	sf_rgba_premul(&cfg->shadow_color, start_opacity, &shadow);
+	toplevel->shadow = wlr_scene_shadow_create(toplevel->scene_tree, 0, 0, outer, sigma,
+						   sf_rgba_vec(&shadow));
+	if (toplevel->shadow != NULL) {
+		wlr_scene_node_set_position(&toplevel->shadow->node, -border - (int)sigma,
+					    -border - (int)sigma);
+		wlr_scene_node_set_enabled(&toplevel->shadow->node, true);
+	}
+
+	decor_restack_chrome(toplevel);
+	sf_decor_update_geom(toplevel);
+	sf_decor_apply_buffers(toplevel);
 }
 
 /* Clip the subsurface tree inside wlr_scene_xdg_surface_create's wrapper.
@@ -662,6 +733,9 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 	    toplevel->xdg_toplevel == NULL) {
 		return;
 	}
+	/* Enable bits are independent of clip/geo. Hide pop leaves border/shadow
+	 * disabled; a 0×0 commit must still restore them on show. */
+	decor_set_chrome_enabled(toplevel, decor_chrome_on(toplevel));
 	struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
 	if (geo->width <= 0 || geo->height <= 0) {
 		return;
@@ -676,8 +750,9 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 	const bool fs = sf_layout_sm_is_fullscreen(&toplevel->layout);
 	const bool pop = toplevel->anim.active && toplevel->anim.pop;
 	/* Pop stretch is applied after set_clip. Settled paths must not write
-	 * dest_size: wlroots 0.20 parks the buffer at (clip.x, clip.y), and an
-	 * equal clip early-outs, so a full-surface dest survives until commit. */
+	 * dest_size: wlroots 0.20 parks the buffer at (clip.x, clip.y), and
+	 * set_clip returns without surface_reconfigure when the box is unchanged.
+	 * A pop crop then stays until the next commit and paints over the rim. */
 	const struct wlr_box *clip_ptr = NULL;
 	struct wlr_box clip;
 	if (pop) {
@@ -689,12 +764,17 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 		};
 		clip_ptr = &clip;
 	} else {
-		if (toplevel->present_stretch) {
-			/* Null first. The resting clip often equals the last pop clip,
-			 * and set_clip then returns without surface_reconfigure. */
-			decor_clip_xdg_surface(toplevel, NULL);
-			toplevel->present_stretch = false;
-		}
+		/* Nudge, then empty, so the real clip below cannot match the last
+		 * pop box and skip reconfigure. */
+		struct wlr_box nudge = {
+			.x = -2,
+			.y = -2,
+			.width = 1,
+			.height = 1,
+		};
+		decor_clip_xdg_surface(toplevel, &nudge);
+		decor_clip_xdg_surface(toplevel, NULL);
+		toplevel->present_stretch = false;
 		if (!fs) {
 			int clip_w = geo->width;
 			int clip_h = geo->height;
@@ -798,6 +878,7 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 		wlr_scene_node_set_position(&toplevel->border->node, -border, -ssd_h - border);
 		wlr_scene_rect_set_corner_radii(toplevel->border, outer_corners);
 		wlr_scene_rect_set_clipped_region(toplevel->border, hole);
+		wlr_scene_node_set_enabled(&toplevel->border->node, true);
 	}
 
 	if (toplevel->shadow != NULL) {
@@ -818,10 +899,17 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 								    },
 							    .corners = outer_corners,
 						    });
+		wlr_scene_node_set_enabled(&toplevel->shadow->node, true);
 	}
 
 	sf_decor_apply_buffers(toplevel);
 	sf_ssd_update(toplevel);
+	/* SSD raises itself, then the border. CSD has no SSD, so the rim would
+	 * stay under xdg and disappear under a leftover pop buffer. */
+	if (toplevel->border != NULL) {
+		wlr_scene_node_raise_to_top(&toplevel->border->node);
+	}
+	sf_decor_refresh_border(toplevel);
 	sf_decor_refresh_close_snap(toplevel);
 }
 

@@ -1492,8 +1492,6 @@ void sf_toplevel_apply_shown(struct sf_toplevel *toplevel, bool activate) {
 						    toplevel->resting_x, toplevel->resting_y);
 		}
 		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
-		/* Hide pop disabled border/shadow; show must put them back. */
-		sf_decor_update_geom(toplevel);
 		sf_foreign_toplevel_on_state_change(toplevel);
 		/* Scratch/QT stays layout-independent. Tiling: non-floats must
 		 * rejoin the strip (umbriel: cannot hold a hidden tile under
@@ -1508,6 +1506,11 @@ void sf_toplevel_apply_shown(struct sf_toplevel *toplevel, bool activate) {
 	}
 	if (activate) {
 		sf_focus_toplevel(toplevel);
+	}
+	/* Fresh SceneFX rim — hide used to leave a full-hole rect. */
+	if (!toplevel->minimized && toplevel->scene_tree != NULL &&
+	    toplevel->scene_tree->node.enabled) {
+		sf_decor_rebuild_chrome(toplevel);
 	}
 }
 
