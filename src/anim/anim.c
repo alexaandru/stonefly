@@ -850,6 +850,10 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now) {
 		if (was_hide) {
 			t->anim_slide_column = false;
 		}
+		if (!was_hide && t->scene_tree != NULL && t->scene_tree->node.enabled) {
+			sf_decor_update_geom(t);
+			sf_decor_apply_buffers(t);
+		}
 	}
 
 	sf_ghost_tick(server, now);

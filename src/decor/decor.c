@@ -153,6 +153,11 @@ bool sf_toplevel_room_for_chrome(const struct sf_toplevel *toplevel) {
 }
 
 static bool decor_chrome_on(const struct sf_toplevel *toplevel) {
+	/* Live hide pop only — Super+q uses a chrome-less ghost. Do not keep
+	 * this after anim_hide clears or show comes back rimless. */
+	if (toplevel->anim_hide && toplevel->anim.active) {
+		return false;
+	}
 	return !sf_layout_sm_is_max_edges(&toplevel->layout) &&
 	       !sf_layout_sm_is_fullscreen(&toplevel->layout) && !toplevel->borderless &&
 	       sf_toplevel_room_for_chrome(toplevel);
@@ -1057,17 +1062,16 @@ void sf_decor_refresh_close_snap(struct sf_toplevel *toplevel) {
 	toplevel->close_snap_h = h;
 }
 
-void sf_ghost_try_spawn(struct sf_toplevel *toplevel) {
+bool sf_ghost_try_spawn(struct sf_toplevel *toplevel) {
 	if (toplevel->minimized || toplevel->anim_hide) {
-		return;
+		return false;
 	}
 	if (toplevel->scene_tree == NULL) {
-		return;
+		return false;
 	}
-	/* Super+q already popped/slid the live tree and disabled it. A ghost
-	 * here is a second close (full opacity at the 0.8 pose, then pop/slide). */
+	/* Super+q already spawned the ghost and disabled the live tree. */
 	if (!toplevel->scene_tree->node.enabled) {
-		return;
+		return false;
 	}
 
 	/* Prefer the cached last frame — live scene buffers are often already
@@ -1082,13 +1086,13 @@ void sf_ghost_try_spawn(struct sf_toplevel *toplevel) {
 		toplevel->close_snap_w = 0;
 		toplevel->close_snap_h = 0;
 	} else if (!sf_decor_lock_snapshot(toplevel, &locked, &pick_w, &pick_h)) {
-		return;
+		return false;
 	}
 
 	struct sf_ghost *ghost = calloc(1, sizeof(*ghost));
 	if (ghost == NULL) {
 		wlr_buffer_unlock(locked);
-		return;
+		return false;
 	}
 
 	ghost->server = toplevel->server;
@@ -1109,14 +1113,14 @@ void sf_ghost_try_spawn(struct sf_toplevel *toplevel) {
 	if (ghost->tree == NULL) {
 		wlr_buffer_unlock(locked);
 		free(ghost);
-		return;
+		return false;
 	}
 	ghost->buffer = wlr_scene_buffer_create(ghost->tree, locked);
 	if (ghost->buffer == NULL) {
 		wlr_scene_node_destroy(&ghost->tree->node);
 		wlr_buffer_unlock(locked);
 		free(ghost);
-		return;
+		return false;
 	}
 	wlr_scene_buffer_set_dest_size(ghost->buffer, pick_w, pick_h);
 	wlr_scene_buffer_set_opacity(ghost->buffer, cfg->client_opacity);
@@ -1173,6 +1177,7 @@ void sf_ghost_try_spawn(struct sf_toplevel *toplevel) {
 	sf_anim_schedule(toplevel->server);
 	SF_LOGI("close ghost", sf_i64("id", (int64_t)toplevel->id), sf_i64("w", (int64_t)pick_w),
 		sf_i64("h", (int64_t)pick_h));
+	return true;
 }
 
 void sf_ghost_tick(struct sf_server *server, const struct timespec *now) {

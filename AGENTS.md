@@ -169,21 +169,24 @@ Workarounds:
 
 ## Build environment
 
-**The user owns packaging and compile verification.** Agent work is edit +
-(when useful) host unit tests (`make test` / `tests/drive.py`). Do **not**
-run `make apk`, `abuild`, `ninja -C output`, `meson compile`, host `cc` for
-the compositor, `abuild-keygen`, or invent signing-key workarounds unless the
-user **explicitly asks to build in that turn**.
+**`make apk` works in the agent sandbox.** After compositor / Meson / protocol
+edits that should compile, run it to verify the Alpine pack (compile +
+`check()`: style-check + `tests/drive.py`). Host unit tests (`make test` /
+`tests/drive.py`) remain fine for faster C harness iteration.
 
 **Do not look up libraries, headers, or pkg-config on the host.**
 
-1. Agents almost always run in a sandbox without the compositor deps.
-2. The real package build is **abuild** (`make apk`): clang, Meson, wlroots,
-   SceneFX, and friends exist inside that environment, not on the host.
-3. If a symbol or `.pc` file is unclear, read Meson/`APKBUILD` makedepends and
+1. Compositor deps live in the **abuild** chroot (`make apk`), not a host
+   `ninja` / `meson compile` / `cc` tree. Prefer `make apk` over probing
+   `/usr` or inventing a host Meson dir.
+2. If a symbol or `.pc` file is unclear, read Meson/`APKBUILD` makedepends and
    vendored headers under `protocol/` — do not probe `/usr` on the host.
-4. When the user pastes `@dist/alpine/build.log` or says “reread,” read that
-   log for Alpine `check()` / tidy status; do not relaunch abuild to “confirm.”
+3. When the user pastes `@dist/alpine/build.log` or says “reread,” read that
+   log; do not relaunch abuild only to “confirm” a log they already have.
+4. Do **not** run `abuild-keygen` or invent signing-key workarounds. Missing
+   keys → stop and hand off; signing stays on the host with the user’s keys.
+5. `make apk` runs `abuild checksum` (may dirty `APKBUILD` hashes). Do not
+   run checksum by itself, and do not edit `Makefile` / `APKBUILD` otherwise.
 
 ## Prefer in-process C
 
@@ -208,7 +211,8 @@ thin C API over an optional static C++ helper). Keep the compositor C-first.
 - **Do not bump `pkgrel` / `pkgver`** unless the user explicitly asks.
   Build/source fixes are fine; revision numbering is the user’s call.
 - **Do not edit or revert** root `Makefile` or `dist/alpine/APKBUILD` unless
-  the user explicitly asks. Do not run `abuild checksum` (dirties `APKBUILD`).
+  the user explicitly asks. `make apk` already runs `abuild checksum`; do not
+  run checksum by itself.
 - **Never generate abuild signing keypairs** in the sandbox. Missing keys →
   stop and hand off; signing belongs on the host with the user’s keys.
 
@@ -230,7 +234,9 @@ the open row). Capture durable peer lessons in `LESSONS.md`.
 - Prefer implementing over drafting long design docs when Umbriel/LESSONS
   already define the abstraction.
 - Host unit tests (`make test`, owned C harness under `tests/`) are fine when
-  they help; packaging/`make apk` remains the user’s job.
+  they help. After src/Meson/protocol work that should compile, run
+  `make apk` (sandbox abuild) unless the user already pasted a matching
+  `build.log` this turn.
 - Do not run `make fmt` unless the user asks — formatting is their call.
 - When changing `.clang-tidy`, keep useful checks; silence only known narrow
   false positives and document them here (see Lint / analyzer above).
@@ -241,8 +247,8 @@ Before calling work finished:
 
 1. Code matches wlroots/tinywl style (`.clang-format` / neighboring `./src`),
    including module layout and `util/` reuse above.
-2. No host library/pkg-config probing; no unsolicited `make apk` / abuild /
-   keygen / packaging-file edits.
+2. No host library/pkg-config probing; no `abuild-keygen`; no unsolicited
+   `Makefile` / `APKBUILD` / `pkgrel` edits. `make apk` is the compile check.
 3. No new internal shell-outs (user-configured spawn goes through
    `sf_spawn_cmd`).
 4. `FEATURES.md` / `ROADMAP.md` / `LESSONS.md` rows for the touched feature

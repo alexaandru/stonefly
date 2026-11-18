@@ -1492,6 +1492,8 @@ void sf_toplevel_apply_shown(struct sf_toplevel *toplevel, bool activate) {
 						    toplevel->resting_x, toplevel->resting_y);
 		}
 		wlr_scene_node_set_enabled(&toplevel->scene_tree->node, true);
+		/* Hide pop disabled border/shadow; show must put them back. */
+		sf_decor_update_geom(toplevel);
 		sf_foreign_toplevel_on_state_change(toplevel);
 		/* Scratch/QT stays layout-independent. Tiling: non-floats must
 		 * rejoin the strip (umbriel: cannot hold a hidden tile under
@@ -1725,12 +1727,24 @@ void sf_close_toplevel(struct sf_toplevel *toplevel) {
 	struct sf_workspace *ws = toplevel->workspace;
 	bool strip = toplevel->arrange_managed || toplevel->column != NULL;
 	if (strip && ws != NULL && sf_arrange_is_tiling(sf_workspace_arrange(ws))) {
-		/* Unlink + reflow now so survivors morph while this slides out. */
+		/* Unlink + reflow now so survivors morph while the ghost pops. */
 		toplevel->anim_slide_column = true;
 		sf_arrange_unlink(toplevel);
 		sf_arrange_slot_clear(toplevel);
 		toplevel->arrange_managed = false;
 		sf_arrange_flush(ws);
+	}
+	/* Same snapshot pop/slide as client Ctrl+W — no live chrome, no hang
+	 * at the 0.8 pose waiting for send_close. */
+	sf_decor_refresh_close_snap(toplevel);
+	if (sf_ghost_try_spawn(toplevel)) {
+		sf_anim_cancel(toplevel, false);
+		if (toplevel->scene_tree != NULL) {
+			wlr_scene_node_set_enabled(&toplevel->scene_tree->node, false);
+		}
+		toplevel->anim_hide = true;
+		wlr_xdg_toplevel_send_close(toplevel->xdg_toplevel);
+		return;
 	}
 	if (sf_anim_start_hide(toplevel, close_after_hide)) {
 		return;

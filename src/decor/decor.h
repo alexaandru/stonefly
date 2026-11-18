@@ -89,8 +89,8 @@ void sf_decor_refresh_close_snap(struct sf_toplevel *toplevel);
 /* Unlock and clear toplevel->close_snap. */
 void sf_decor_clear_close_snap(struct sf_toplevel *toplevel);
 
-/* Client-initiated unmap: slide cached last frame (FORK.md close-ghost). */
-void sf_ghost_try_spawn(struct sf_toplevel *toplevel);
+/* Snapshot close-ghost (Ctrl+W unmap and Super+q). Returns true if spawned. */
+bool sf_ghost_try_spawn(struct sf_toplevel *toplevel);
 
 /* Advance / destroy finished ghosts (called from anim tick). */
 void sf_ghost_tick(struct sf_server *server, const struct timespec *now);
