@@ -1507,10 +1507,10 @@ void sf_toplevel_apply_shown(struct sf_toplevel *toplevel, bool activate) {
 	if (activate) {
 		sf_focus_toplevel(toplevel);
 	}
-	/* Fresh SceneFX rim — hide used to leave a full-hole rect. */
+	/* Slide show never reaches pop_finish. Pop show already update_geom'd. */
 	if (!toplevel->minimized && toplevel->scene_tree != NULL &&
-	    toplevel->scene_tree->node.enabled) {
-		sf_decor_rebuild_chrome(toplevel);
+	    toplevel->scene_tree->node.enabled && !(toplevel->anim.active && toplevel->anim.pop)) {
+		sf_decor_update_geom(toplevel);
 	}
 }
 

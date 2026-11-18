@@ -192,15 +192,13 @@ void sf_decor_refresh_blur(struct sf_toplevel *toplevel) {
 	wlr_scene_node_set_enabled(&toplevel->blur->node, decor_blur_on(toplevel));
 }
 
-static void decor_set_chrome_enabled(struct sf_toplevel *toplevel, bool on) {
+static void decor_set_chrome_enabled(struct sf_toplevel *toplevel) {
 	sf_decor_refresh_blur(toplevel);
 	/*
 	 * Never set_enabled(false) on border/shadow. Hide already disables the
-	 * parent scene tree; child disable survived parent re-enable, so show
-	 * came back rimless until a later arrange. Chrome-off is thickness 0
-	 * plus a full hole (update_geom). Keep the nodes enabled.
+	 * parent scene tree; a child disable survives parent re-enable. Chrome
+	 * off is thickness 0 plus a full hole (update_geom).
 	 */
-	(void)on;
 	if (toplevel->border != NULL) {
 		wlr_scene_node_set_enabled(&toplevel->border->node, true);
 	}
@@ -321,7 +319,7 @@ static void decor_apply_buffers_focused(struct sf_toplevel *toplevel, bool focus
 		return;
 	}
 	bool chrome = decor_chrome_on(toplevel);
-	decor_set_chrome_enabled(toplevel, chrome);
+	decor_set_chrome_enabled(toplevel);
 	const struct sf_config *cfg = sf_cfg(toplevel->server);
 	int present_w = 0;
 	int present_h = 0;
@@ -589,57 +587,6 @@ void sf_decor_init_toplevel(struct sf_toplevel *toplevel) {
 	decor_restack_chrome(toplevel);
 }
 
-void sf_decor_rebuild_chrome(struct sf_toplevel *toplevel) {
-	if (toplevel == NULL || toplevel->scene_tree == NULL) {
-		return;
-	}
-	const struct sf_config *cfg = sf_cfg(toplevel->server);
-	const int inner = cfg->corner_radius;
-	const int border = cfg->border_thickness;
-	const int outer = outer_corner_radius(inner, border);
-	const float sigma = cfg->shadow_blur_sigma;
-	float start_opacity = cfg->inactive_opacity;
-	struct sf_rgba inactive;
-	sf_rgba_premul(&cfg->border_inactive, start_opacity, &inactive);
-
-	if (toplevel->border != NULL) {
-		wlr_scene_node_destroy(&toplevel->border->node);
-		toplevel->border = NULL;
-	}
-	if (toplevel->shadow != NULL) {
-		wlr_scene_node_destroy(&toplevel->shadow->node);
-		toplevel->shadow = NULL;
-	}
-
-	toplevel->border =
-		wlr_scene_rect_create(toplevel->scene_tree, 0, 0, sf_rgba_vec(&inactive));
-	if (toplevel->border != NULL) {
-		wlr_scene_rect_set_corner_radii(toplevel->border, corner_radii_all(outer));
-		wlr_scene_node_set_position(&toplevel->border->node, -border, -border);
-		wlr_scene_rect_set_clipped_region(
-			toplevel->border,
-			(struct clipped_region){
-				.area = {.x = border, .y = border, .width = 0, .height = 0},
-				.corners = corner_radii_all(inner),
-			});
-		wlr_scene_node_set_enabled(&toplevel->border->node, true);
-	}
-
-	struct sf_rgba shadow;
-	sf_rgba_premul(&cfg->shadow_color, start_opacity, &shadow);
-	toplevel->shadow = wlr_scene_shadow_create(toplevel->scene_tree, 0, 0, outer, sigma,
-						   sf_rgba_vec(&shadow));
-	if (toplevel->shadow != NULL) {
-		wlr_scene_node_set_position(&toplevel->shadow->node, -border - (int)sigma,
-					    -border - (int)sigma);
-		wlr_scene_node_set_enabled(&toplevel->shadow->node, true);
-	}
-
-	decor_restack_chrome(toplevel);
-	sf_decor_update_geom(toplevel);
-	sf_decor_apply_buffers(toplevel);
-}
-
 /* Clip the subsurface tree inside wlr_scene_xdg_surface_create's wrapper.
  * set_clip on the outer tree is a no-op — only the subsurface tree accepts it.
  * Pass clip == NULL to clear (empty box = no crop). */
@@ -735,7 +682,7 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 	}
 	/* Enable bits are independent of clip/geo. Hide pop leaves border/shadow
 	 * disabled; a 0×0 commit must still restore them on show. */
-	decor_set_chrome_enabled(toplevel, decor_chrome_on(toplevel));
+	decor_set_chrome_enabled(toplevel);
 	struct wlr_box *geo = &toplevel->xdg_toplevel->base->geometry;
 	if (geo->width <= 0 || geo->height <= 0) {
 		return;

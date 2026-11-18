@@ -39,11 +39,6 @@ bool sf_decor_present_content_size(struct sf_toplevel *toplevel, int *w, int *h)
  * the next cell. */
 void sf_decor_update_geom(struct sf_toplevel *toplevel);
 
-/* Destroy and recreate border+shadow, then update_geom. Unhide must not
- * reuse a SceneFX rect whose hole was the full window (hide used to zero
- * thickness). */
-void sf_decor_rebuild_chrome(struct sf_toplevel *toplevel);
-
 /* Non-tiled only: true when the logical rest box clears usable by ≥ border
  * on all four sides (not the hide/show park pose). Flush on any side → no
  * border/shadow/SSD (all-or-nothing). */
