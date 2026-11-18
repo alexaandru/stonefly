@@ -241,6 +241,8 @@ struct sf_server {
 		struct wl_global *wlr_global;
 		struct wl_list managers;
 		struct wl_list handles;
+		/* Coalesce title/state/outputs sends onto one idle flush. */
+		struct wl_event_source *flush_idle;
 		struct wlr_ext_foreign_toplevel_list_v1 *ext_list;
 		struct wlr_ext_foreign_toplevel_image_capture_source_manager_v1 *capture_mgr;
 		struct wl_listener on_capture_request;

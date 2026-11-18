@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <wayland-server-core.h>
+#include <wayland-server.h>
 #include <wlr/backend.h>
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
@@ -60,6 +61,13 @@ bool sf_server_init(struct sf_server *server) {
 	server->pinch.match_idx = -1;
 
 	server->wl_display = wl_display_create();
+	/*
+	 * Default libwayland send ring is 4 KiB. A briefly stalled client
+	 * (Noctalia calendar / taskbar under hide-show FS bursts) fills it and
+	 * the compositor disconnects with "Data too big for buffer". Umbriel /
+	 * sway / labwc / hyprland raise the default to 1 MiB (wayland >= 1.23).
+	 */
+	wl_display_set_default_max_buffer_size(server->wl_display, (size_t)1024 * 1024);
 	server->session = NULL;
 	server->backend = wlr_backend_autocreate(wl_display_get_event_loop(server->wl_display),
 						 &server->session);

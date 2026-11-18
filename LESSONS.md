@@ -227,6 +227,17 @@ Noctalia’s taskbar keys off foreign-toplevel `output_enter` / state. Off-strip
 columns, disabled monocle peers, and mid-fs buffers are still windows. Never
 tie foreign output to the current scene box for workspace members.
 
+### Wayland 4 KiB send buffer disconnects shells
+
+libwayland-server’s default per-client send ring is 4 KiB. When Noctalia’s
+main loop stalls (calendar HTTP) or stonefly bursts foreign state (hide/show
+of a fullscreen window), the compositor logs `Data too big for buffer
+(4096 + 8 > 4096)`, disconnects the client, and Noctalia exits on Broken pipe
+with no `[ERR]`. Fix: `wl_display_set_default_max_buffer_size(display,
+1024 * 1024)` right after `wl_display_create` (Umbriel `kWaylandClientBufferSize`,
+sway/labwc/hyprland). Also idle-coalesce foreign title/state/outputs into one
+`done` per handle per tick so taskbar updates do not amplify the flood.
+
 ### Reference trees
 
 - `./umbriel` — **primary** reference compositor (layouts, float, consume,

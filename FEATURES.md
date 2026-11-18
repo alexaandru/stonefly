@@ -143,7 +143,8 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 | wlr-output-management | apply/test + layout pos; `set_configuration` on new/destroy/apply/request_state |
 | ext-data-control clipboard | `ext-data-control-v1` + legacy `wlr-data-control-v1` + `wp_primary_selection` |
 | Screenshots / capture | `ext-image-copy-capture` + toplevel capture + `zwlr_screencopy_manager_v1`; Print binds → noctalia. Capture privacy for toplevel image-capture |
-| Foreign-toplevel management | `zwlr_foreign_toplevel_management_v1` v3 + `ext-foreign-toplevel-list-v1` |
+| Foreign-toplevel management | `zwlr_foreign_toplevel_management_v1` v3 + `ext-foreign-toplevel-list-v1`. Title/app_id/state/parent/outputs coalesce onto one `wl_event_loop` idle flush (one `done` per handle) so hide/show FS and title spam do not flood Noctalia’s taskbar socket |
+| Wayland client send buffer | `wl_display_set_default_max_buffer_size` 1 MiB (wayland ≥ 1.23; same as Umbriel/sway/labwc/hyprland). Avoids `Data too big for buffer` disconnects when a shell briefly stalls |
 | xdg-activation (urgency) | Amber until focus; IPC set/unset |
 | xdg-system-bell | Visual flash only (`bell_flash_ms`) |
 | xdg_wm_dialog_v1 | Tracks `toplevel->modal`; placement keys off parent (modal focus/trap still ROADMAP §5) |

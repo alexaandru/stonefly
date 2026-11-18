@@ -15,6 +15,13 @@
 
 #include "wlr-foreign-toplevel-management-unstable-v1-protocol.h"
 
+/* Coalesce foreign property storms (hide/show FS, title spam) into one flush. */
+#define SF_FOREIGN_DIRTY_STATE ((uint32_t)(1u << 0u))
+#define SF_FOREIGN_DIRTY_TITLE ((uint32_t)(1u << 1u))
+#define SF_FOREIGN_DIRTY_APP_ID ((uint32_t)(1u << 2u))
+#define SF_FOREIGN_DIRTY_PARENT ((uint32_t)(1u << 3u))
+#define SF_FOREIGN_DIRTY_OUTPUTS ((uint32_t)(1u << 4u))
+
 struct sf_foreign_toplevel_handle;
 
 struct sf_foreign_handle_output {
@@ -107,6 +114,77 @@ static void foreign_send_handle_state(struct wl_resource *resource, struct sf_to
 	sf_foreign_encode_state(toplevel, &states);
 	zwlr_foreign_toplevel_handle_v1_send_state(resource, &states);
 	wl_array_release(&states);
+}
+
+static void foreign_send_parent(struct sf_foreign_toplevel_handle *handle);
+static void foreign_handle_sync_outputs(struct sf_foreign_toplevel_handle *handle);
+
+static void foreign_flush_toplevel(struct sf_toplevel *toplevel) {
+	uint32_t dirty = toplevel->foreign_dirty;
+	toplevel->foreign_dirty = 0;
+	if (dirty == 0) {
+		return;
+	}
+
+	struct sf_foreign_toplevel_handle *handle;
+	wl_list_for_each(handle, &toplevel->server->foreign.handles, link) {
+		if (handle->toplevel != toplevel) {
+			continue;
+		}
+		if (dirty & SF_FOREIGN_DIRTY_TITLE) {
+			const char *title = toplevel->xdg_toplevel->title;
+			zwlr_foreign_toplevel_handle_v1_send_title(handle->resource,
+								   title != NULL ? title : "");
+		}
+		if (dirty & SF_FOREIGN_DIRTY_APP_ID) {
+			const char *app_id = toplevel->xdg_toplevel->app_id;
+			zwlr_foreign_toplevel_handle_v1_send_app_id(handle->resource,
+								    app_id != NULL ? app_id : "");
+		}
+		if (dirty & SF_FOREIGN_DIRTY_OUTPUTS) {
+			foreign_handle_sync_outputs(handle);
+		}
+		if (dirty & SF_FOREIGN_DIRTY_STATE) {
+			foreign_send_handle_state(handle->resource, toplevel);
+		}
+		if (dirty & SF_FOREIGN_DIRTY_PARENT) {
+			foreign_send_parent(handle);
+		}
+		zwlr_foreign_toplevel_handle_v1_send_done(handle->resource);
+	}
+}
+
+static void foreign_flush_idle_cb(void *data) {
+	struct sf_server *server = data;
+	server->foreign.flush_idle = NULL;
+
+	struct sf_toplevel *toplevel;
+	wl_list_for_each(toplevel, &server->toplevels, link) {
+		foreign_flush_toplevel(toplevel);
+	}
+}
+
+static void foreign_schedule_flush(struct sf_server *server) {
+	if (server == NULL || server->foreign.flush_idle != NULL) {
+		return;
+	}
+	struct wl_event_loop *loop = wl_display_get_event_loop(server->wl_display);
+	if (loop == NULL) {
+		foreign_flush_idle_cb(server);
+		return;
+	}
+	server->foreign.flush_idle = wl_event_loop_add_idle(loop, foreign_flush_idle_cb, server);
+}
+
+static void foreign_mark(struct sf_toplevel *toplevel, uint32_t bits) {
+	if (toplevel == NULL || bits == 0 || toplevel->server == NULL) {
+		return;
+	}
+	if (wl_list_empty(&toplevel->server->foreign.managers)) {
+		return;
+	}
+	toplevel->foreign_dirty |= bits;
+	foreign_schedule_flush(toplevel->server);
 }
 
 static void foreign_send_parent(struct sf_foreign_toplevel_handle *handle) {
@@ -524,6 +602,7 @@ static void foreign_manager_bind(struct wl_client *client, void *data, uint32_t 
 void sf_foreign_toplevel_setup(struct sf_server *server) {
 	wl_list_init(&server->foreign.handles);
 	wl_list_init(&server->foreign.managers);
+	server->foreign.flush_idle = NULL;
 
 	server->foreign.wlr_global =
 		wl_global_create(server->wl_display, &zwlr_foreign_toplevel_manager_v1_interface, 3,
@@ -538,6 +617,11 @@ void sf_foreign_toplevel_setup(struct sf_server *server) {
 }
 
 void sf_foreign_toplevel_finish(struct sf_server *server) {
+	if (server->foreign.flush_idle != NULL) {
+		wl_event_source_remove(server->foreign.flush_idle);
+		server->foreign.flush_idle = NULL;
+	}
+
 	if (server->foreign.wlr_global != NULL) {
 		wl_global_destroy(server->foreign.wlr_global);
 		server->foreign.wlr_global = NULL;
@@ -570,6 +654,8 @@ void sf_foreign_toplevel_on_map(struct sf_toplevel *toplevel) {
 	wl_list_for_each(mgr, &server->foreign.managers, link) {
 		foreign_announce_toplevel(mgr, toplevel);
 	}
+	/* Announce already sent current props; drop any pre-map dirty bits. */
+	toplevel->foreign_dirty = 0;
 
 	/* Parent may map after a transient child; refresh those parent links. */
 	struct sf_toplevel *child;
@@ -582,68 +668,31 @@ void sf_foreign_toplevel_on_map(struct sf_toplevel *toplevel) {
 
 void sf_foreign_toplevel_on_unmap(struct sf_toplevel *toplevel) {
 	SF_LOGI("foreign on_unmap", sf_i64("id", (int64_t)toplevel->id));
+	toplevel->foreign_dirty = 0;
 	foreign_close_handles_for(toplevel);
 }
 
 void sf_foreign_toplevel_on_title_change(struct sf_toplevel *toplevel) {
-	struct sf_foreign_toplevel_handle *handle;
-	wl_list_for_each(handle, &toplevel->server->foreign.handles, link) {
-		if (handle->toplevel != toplevel) {
-			continue;
-		}
-		const char *title = toplevel->xdg_toplevel->title;
-		zwlr_foreign_toplevel_handle_v1_send_title(handle->resource,
-							   title != NULL ? title : "");
-		zwlr_foreign_toplevel_handle_v1_send_done(handle->resource);
-	}
+	foreign_mark(toplevel, SF_FOREIGN_DIRTY_TITLE);
 }
 
 void sf_foreign_toplevel_on_app_id_change(struct sf_toplevel *toplevel) {
-	struct sf_foreign_toplevel_handle *handle;
-	wl_list_for_each(handle, &toplevel->server->foreign.handles, link) {
-		if (handle->toplevel != toplevel) {
-			continue;
-		}
-		const char *app_id = toplevel->xdg_toplevel->app_id;
-		zwlr_foreign_toplevel_handle_v1_send_app_id(handle->resource,
-							    app_id != NULL ? app_id : "");
-		zwlr_foreign_toplevel_handle_v1_send_done(handle->resource);
-	}
+	foreign_mark(toplevel, SF_FOREIGN_DIRTY_APP_ID);
 }
 
 void sf_foreign_toplevel_on_parent_change(struct sf_toplevel *toplevel) {
-	struct sf_foreign_toplevel_handle *handle;
-	wl_list_for_each(handle, &toplevel->server->foreign.handles, link) {
-		if (handle->toplevel != toplevel) {
-			continue;
-		}
-		foreign_send_parent(handle);
-		zwlr_foreign_toplevel_handle_v1_send_done(handle->resource);
-	}
+	foreign_mark(toplevel, SF_FOREIGN_DIRTY_PARENT);
 }
 
 void sf_foreign_toplevel_on_state_change(struct sf_toplevel *toplevel) {
-	struct sf_foreign_toplevel_handle *handle;
-	wl_list_for_each(handle, &toplevel->server->foreign.handles, link) {
-		if (handle->toplevel != toplevel) {
-			continue;
-		}
-		foreign_send_handle_state(handle->resource, toplevel);
-		zwlr_foreign_toplevel_handle_v1_send_done(handle->resource);
-	}
+	foreign_mark(toplevel, SF_FOREIGN_DIRTY_STATE);
 }
 
 void sf_foreign_toplevel_on_outputs_change(struct sf_toplevel *toplevel) {
-	struct sf_foreign_toplevel_handle *handle;
-	wl_list_for_each(handle, &toplevel->server->foreign.handles, link) {
-		if (handle->toplevel != toplevel) {
-			continue;
-		}
-		foreign_handle_sync_outputs(handle);
-		zwlr_foreign_toplevel_handle_v1_send_done(handle->resource);
-	}
+	foreign_mark(toplevel, SF_FOREIGN_DIRTY_OUTPUTS);
 }
 
 void sf_foreign_toplevel_on_close(struct sf_toplevel *toplevel) {
+	toplevel->foreign_dirty = 0;
 	foreign_close_handles_for(toplevel);
 }

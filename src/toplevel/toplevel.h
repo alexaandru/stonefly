@@ -177,6 +177,8 @@ struct sf_toplevel {
 	 * Also used for post-pop settle scrub. pop_idle_kind: 1=reapply 2=settle. */
 	struct wl_event_source *pop_present_idle;
 	int pop_idle_kind;
+	/* Pending zwlr-foreign-toplevel props; flushed on wl idle (see foreign.c). */
+	uint32_t foreign_dirty;
 	/* True while Umbriel presented crop is active (pop only). */
 	bool present_stretch;
 	struct {
