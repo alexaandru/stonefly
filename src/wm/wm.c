@@ -1029,8 +1029,9 @@ static void place_fill_ctx(const struct sf_toplevel *toplevel, struct sf_place_c
 		ctx->has_parent = toplevel->xdg_toplevel->parent != NULL;
 		const char *title = toplevel->xdg_toplevel->title;
 		const char *app = toplevel->xdg_toplevel->app_id;
-		ctx->partial_identity =
-			(title != NULL && title[0] != '\0') || (app != NULL && app[0] != '\0');
+		ctx->title_known = title != NULL && title[0] != '\0';
+		bool app_known = app != NULL && app[0] != '\0';
+		ctx->partial_identity = ctx->title_known || app_known;
 	}
 	ctx->wants_center = sf_rules_wants_center(toplevel);
 	ctx->center_still_possible = sf_rules_center_still_possible(toplevel);
@@ -1598,6 +1599,13 @@ void sf_focus_toplevel(struct sf_toplevel *toplevel) {
 	 * workspace first (otherwise reveal would switch to the old strip). */
 	if (toplevel->minimized) {
 		sf_toplevel_apply_shown(toplevel, false);
+	}
+	/* SoftPlace/appear can leave the scene parked (foreign + overview still
+	 * list it). Explicit focus must unpark — raise alone does not enable. */
+	if (!toplevel->minimized && toplevel->scene_tree != NULL &&
+	    !toplevel->scene_tree->node.enabled) {
+		toplevel->place.appear_hold = false;
+		appear_start_show(toplevel);
 	}
 	sf_workspace_reveal_toplevel(toplevel);
 	server->exclusive_layer = NULL;

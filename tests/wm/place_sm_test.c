@@ -17,6 +17,7 @@ static struct sf_place_ctx ctx_hold(void) {
 		.wants_center = false,
 		.center_still_possible = true,
 		.partial_identity = true,
+		.title_known = false, /* late title (app_id already present) */
 		.layout_fixed = false,
 		.wants_float = false,
 		.float_still_possible = false,
@@ -135,6 +136,24 @@ static void test_float_still_possible_holds(void) {
 	SF_TEST_TRUE(!sf_place_sm_should_hold(&s, &ctx));
 }
 
+static void test_title_known_does_not_hold(void) {
+	/* Chrome Task Manager: title set, app_id empty forever. Any app_id
+	 * float rule keeps float_still_possible — must still show. */
+	struct sf_place_sm s = {.phase = SF_PLACE_MANAGED, .soft = true};
+	struct sf_place_ctx ctx = ctx_hold();
+	ctx.center_still_possible = false;
+	ctx.float_still_possible = true;
+	ctx.title_known = true;
+	ctx.partial_identity = true;
+	SF_TEST_TRUE(!sf_place_sm_should_hold(&s, &ctx));
+
+	struct sf_place_result out;
+	struct sf_place_ev arm = {.kind = SF_PLACE_EV_ARM_APPEAR};
+	sf_place_sm_step(&s, &arm, &ctx, &out);
+	SF_TEST_TRUE(!sf_place_sm_is_holding(&out.state));
+	SF_TEST_TRUE(has_fx(&out, SF_PLACE_FX_START_SHOW));
+}
+
 static void test_may_morph(void) {
 	struct sf_place_sm s = {.phase = SF_PLACE_MANAGED, .soft = false};
 	SF_TEST_TRUE(sf_place_sm_may_morph(&s));
@@ -160,6 +179,7 @@ static const struct sf_test tests[] = {
 	{"arm_hold_then_try_release", test_arm_hold_then_try_release},
 	{"parent_never_holds", test_parent_never_holds},
 	{"float_still_possible_holds", test_float_still_possible_holds},
+	{"title_known_does_not_hold", test_title_known_does_not_hold},
 	{"layout_owned_releases_hold", test_layout_owned_releases_hold},
 	{"drop_soft_releases_when_holding", test_drop_soft_releases_when_holding},
 	{"soft_center_reasserts_managed", test_soft_center_reasserts_managed},

@@ -46,6 +46,7 @@ struct sf_place_ctx {
 	bool wants_center;
 	bool center_still_possible;
 	bool partial_identity; /* title or app_id known */
+	bool title_known;      /* non-empty xdg title */
 	bool layout_fixed;
 	bool wants_float;
 	bool float_still_possible;

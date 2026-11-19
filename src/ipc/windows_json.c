@@ -92,6 +92,10 @@ int sf_windows_to_json(const struct sf_window_info *infos, size_t n, char *buf, 
 		json_key(&b, "always_on_top");
 		json_bool(&b, w->always_on_top);
 
+		json_byte(&b, ',');
+		json_key(&b, "scene_enabled");
+		json_bool(&b, w->scene_enabled);
+
 		if (w->snap_dir[0] != '\0') {
 			json_byte(&b, ',');
 			json_key(&b, "snap_dir");
@@ -191,7 +195,7 @@ static bool parse_object(struct json_scan *s, struct sf_window_info *out) {
 			   strcmp(key, "fullscreen") == 0 || strcmp(key, "minimized") == 0 ||
 			   strcmp(key, "snapped") == 0 || strcmp(key, "urgent") == 0 ||
 			   strcmp(key, "capture_blocked") == 0 ||
-			   strcmp(key, "always_on_top") == 0) {
+			   strcmp(key, "always_on_top") == 0 || strcmp(key, "scene_enabled") == 0) {
 			bool v = false;
 			if (!json_scan_bool(s, &v)) {
 				return false;
@@ -212,8 +216,10 @@ static bool parse_object(struct json_scan *s, struct sf_window_info *out) {
 				out->urgent = v;
 			} else if (strcmp(key, "capture_blocked") == 0) {
 				out->capture_blocked = v;
-			} else {
+			} else if (strcmp(key, "always_on_top") == 0) {
 				out->always_on_top = v;
+			} else {
+				out->scene_enabled = v;
 			}
 		} else {
 			/* Skip unknown value: string, bool, or integer. */

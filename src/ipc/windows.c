@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <wlr/types/wlr_output.h>
+#include <wlr/types/wlr_scene.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/box.h>
 
@@ -57,6 +58,8 @@ size_t sf_windows_collect(struct sf_server *server, struct sf_window_info *out, 
 		info->urgent = toplevel->urgent;
 		info->capture_blocked = toplevel->capture_blocked;
 		info->always_on_top = toplevel->always_on_top;
+		info->scene_enabled =
+			toplevel->scene_tree != NULL && toplevel->scene_tree->node.enabled;
 		info->floating = !info->maximized_to_edges && !info->fullscreen &&
 				 !sf_layout_sm_is_max_gaps(&toplevel->layout) && !info->snapped;
 		copy_str(info->snap_dir, sizeof(info->snap_dir),

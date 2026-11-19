@@ -21,7 +21,13 @@ bool sf_place_sm_should_hold(const struct sf_place_sm *s, const struct sf_place_
 	if (!ctx->center_still_possible && !ctx->float_still_possible) {
 		return false;
 	}
-	/* Hold only with partial identity (e.g. app_id before title). */
+	/* Park only for a late title (Chrome app_id first, then "^Google Chrome$").
+	 * Empty app_id must not hold: Chrome Task Manager never sets app_id, and
+	 * any app_id float rule would leave the scene disabled forever (taskbar +
+	 * overview yes, desktop no). Late app_id can still morph via soft place. */
+	if (ctx->title_known) {
+		return false;
+	}
 	return ctx->partial_identity;
 }
 
