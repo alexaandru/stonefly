@@ -549,11 +549,15 @@ void sf_decor_init_toplevel(struct sf_toplevel *toplevel) {
 	const int outer = outer_corner_radius(inner, border);
 	const float sigma = cfg->shadow_blur_sigma;
 
-	toplevel->blur = wlr_scene_blur_create(toplevel->scene_tree, 0, 0);
-	/* blur_xray: sample optimized wallpaper only. Off: blur real backdrop. */
-	wlr_scene_blur_set_should_only_blur_bottom_layer(toplevel->blur, cfg->blur_xray);
-	wlr_scene_blur_set_corner_radii(toplevel->blur, corner_radii_all(inner));
-	sf_decor_refresh_blur(toplevel);
+	if (cfg->window_blur) {
+		toplevel->blur = wlr_scene_blur_create(toplevel->scene_tree, 0, 0);
+		/* blur_xray: sample optimized wallpaper only. Off: blur real backdrop. */
+		wlr_scene_blur_set_should_only_blur_bottom_layer(toplevel->blur, cfg->blur_xray);
+		wlr_scene_blur_set_corner_radii(toplevel->blur, corner_radii_all(inner));
+		sf_decor_refresh_blur(toplevel);
+	} else {
+		toplevel->blur = NULL;
+	}
 
 	/* Opaque FS letterbox plate (umbriel ViewPresentation backdrop). */
 	static const float fs_backdrop_color[4] = {0.0f, 0.0f, 0.0f, 1.0f};

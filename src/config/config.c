@@ -218,7 +218,7 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 	cfg->inactive_opacity = 0.96f; /* match client_opacity → opt-in dim */
 	cfg->corner_radius = 12;
 	cfg->border_thickness = 3;
-	cfg->shadow_blur_sigma = 20.0f;
+	cfg->shadow_blur_sigma = 10.0f;
 	sf_rgba_set(&cfg->border_active, 0.10f, 0.75f, 1.00f, 1.00f);
 	sf_rgba_set(&cfg->border_inactive, 0.22f, 0.22f, 0.24f, 1.00f);
 	sf_rgba_set(&cfg->border_urgent, 1.00f, 0.45f, 0.10f, 1.00f);
@@ -226,12 +226,12 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 	sf_rgba_set(&cfg->border_float_active, 1.00f, 0.35f, 0.70f, 1.00f);
 	sf_rgba_set(&cfg->border_float_inactive, 0.55f, 0.32f, 0.42f, 1.00f);
 	sf_rgba_set(&cfg->shadow_color, 0.0f, 0.0f, 0.0f, 0.55f);
-	cfg->window_blur = true;
+	cfg->window_blur = false;
 	/* false: blur real backdrop including other clients (hypr/niri-ish). */
 	cfg->blur_xray = false;
 	/* mango-ish SceneFX defaults */
-	cfg->blur_num_passes = 2;
-	cfg->blur_radius = 5;
+	cfg->blur_num_passes = 1;
+	cfg->blur_radius = 3;
 	cfg->blur_noise = 0.02f;
 	cfg->blur_brightness = 0.9f;
 	cfg->blur_contrast = 0.9f;

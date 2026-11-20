@@ -11,9 +11,9 @@
         :cascade_step 25
         :cascade_wrap 10
         ;; animation (slide_duration_ms also drives workspace strip switches)
-        :slide_duration_ms 200
+        :slide_duration_ms 300
         :slide_dir_closest true
-        :morph_duration_ms 200
+        :morph_duration_ms 300
         ;; chrome / SceneFX
         ;; Focused vs unfocused opacity (hypr/mango/niri: dim is opt-in).
         ;; Set inactive_opacity lower (e.g. 0.85) to dim unfocused windows.
@@ -21,7 +21,7 @@
         :inactive_opacity 0.80
         :corner_radius 8
         :border_thickness 3
-        :shadow_blur_sigma 20.0
+        :shadow_blur_sigma 10.0
         :border_active [0.10 0.75 1.00 1.00]
         :border_inactive [0.22 0.22 0.24 1.00]
         :border_urgent [1.00 0.45 0.10 1.00]
@@ -30,11 +30,11 @@
         :border_float_inactive [0.55 0.32 0.42 1.00]
         :shadow_color [0.0 0.0 0.0 0.35]
         ;; Per-window blur (needs a background/bottom wallpaper; else looks black).
-        :window_blur true
+        :window_blur false
         ;; false = blur real backdrop (other windows); true = wallpaper-only (cheap).
         :blur_xray false
-        :blur_num_passes 2
-        :blur_radius 5
+        :blur_num_passes 1
+        :blur_radius 3
         :blur_noise 0.02
         :blur_brightness 0.9
         :blur_contrast 0.9
