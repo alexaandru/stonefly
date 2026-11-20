@@ -139,18 +139,36 @@ static uint32_t xdg_constrained_edges(struct sf_toplevel *toplevel) {
 	return edges;
 }
 
-void sf_xdg_sync_toplevel(struct sf_toplevel *toplevel) {
+static void xdg_sync_toplevel(struct sf_toplevel *toplevel, bool initial) {
 	if (!xdg_surface_ready(toplevel)) {
 		return;
 	}
 	struct wlr_xdg_toplevel *xdg = toplevel->xdg_toplevel;
-	wlr_xdg_toplevel_set_wm_capabilities(xdg, xdg_wm_caps());
+	/* Each setter queues a configure, even for equal values. Compare against
+	 * scheduled, not current: the client may not have acked our last change. */
+	const struct wlr_xdg_toplevel_configure *scheduled = &xdg->scheduled;
+	uint32_t caps = xdg_wm_caps();
+	if (initial || scheduled->wm_capabilities != caps) {
+		wlr_xdg_toplevel_set_wm_capabilities(xdg, caps);
+	}
 	struct wlr_box usable;
-	if (sf_toplevel_output_box(toplevel, &usable) && usable.width > 0 && usable.height > 0) {
+	if (sf_toplevel_output_box(toplevel, &usable) && usable.width > 0 && usable.height > 0 &&
+	    (initial || scheduled->bounds.width != usable.width ||
+	     scheduled->bounds.height != usable.height)) {
 		wlr_xdg_toplevel_set_bounds(xdg, usable.width, usable.height);
 	}
-	wlr_xdg_toplevel_set_suspended(xdg, xdg_should_suspend(toplevel));
-	wlr_xdg_toplevel_set_constrained(xdg, xdg_constrained_edges(toplevel));
+	bool suspended = xdg_should_suspend(toplevel);
+	if (scheduled->suspended != suspended) {
+		wlr_xdg_toplevel_set_suspended(xdg, suspended);
+	}
+	uint32_t constrained = xdg_constrained_edges(toplevel);
+	if (scheduled->constrained != constrained) {
+		wlr_xdg_toplevel_set_constrained(xdg, constrained);
+	}
+}
+
+void sf_xdg_sync_toplevel(struct sf_toplevel *toplevel) {
+	xdg_sync_toplevel(toplevel, false);
 }
 
 void sf_xdg_sync_output(struct sf_output *output) {
@@ -411,7 +429,7 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 		 * configures the xdg_toplevel with 0,0 size to let the client pick the
 		 * dimensions itself. */
 		wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, 0, 0);
-		sf_xdg_sync_toplevel(toplevel);
+		xdg_sync_toplevel(toplevel, true);
 		return;
 	}
 	/* Output teardown may have already destroyed scene chrome. */

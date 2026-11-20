@@ -715,17 +715,14 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 		};
 		clip_ptr = &clip;
 	} else {
-		/* Nudge, then empty, so the real clip below cannot match the last
-		 * pop box and skip reconfigure. */
-		struct wlr_box nudge = {
-			.x = -2,
-			.y = -2,
-			.width = 1,
-			.height = 1,
-		};
-		decor_clip_xdg_surface(toplevel, &nudge);
-		decor_clip_xdg_surface(toplevel, NULL);
-		toplevel->present_stretch = false;
+		/* Force reconfigure once to undo the pop's source/dest override.
+		 * Settled commits only need the real clip (an equal box is a no-op). */
+		if (toplevel->present_stretch) {
+			struct wlr_box nudge = {.x = -2, .y = -2, .width = 1, .height = 1};
+			decor_clip_xdg_surface(toplevel, &nudge);
+			decor_clip_xdg_surface(toplevel, NULL);
+			toplevel->present_stretch = false;
+		}
 		if (!fs) {
 			int clip_w = geo->width;
 			int clip_h = geo->height;

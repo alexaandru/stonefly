@@ -81,6 +81,9 @@ from that directory does not mean unimplemented (`xdg-shell` via
 | 6 | `suspended` | Minimize / scratch hide, hidden workspace (not mid-slide), session lock |
 | 7 | `constrained_*` edges | Tile/max/FS: all edges; snap: flush edges; float: geom∩usable |
 
+Send capabilities and available bounds on initial configure, including remap. Later syncs compare
+against the last scheduled values so an unchanged client commit does not request another configure.
+
 Do not suspend columns that are only scrolled off-strip: they stay in the
 scene and foreign-toplevel still pins them to the output.
 

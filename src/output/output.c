@@ -35,9 +35,9 @@ static void output_frame(struct wl_listener *listener, void *data) {
 	/* Advance slides before commit so this frame shows the new pose. */
 	sf_anim_tick(output->server, &now);
 
-	/* Render the scene if needed and commit the output */
-	if (wlr_scene_output_commit(scene_output, NULL))
-		wlr_scene_output_send_frame_done(scene_output, &now);
+	/* Rendering is damage driven. Frame callbacks pace clients, not proof of a flip. */
+	wlr_scene_output_commit(scene_output, NULL);
+	wlr_scene_output_send_frame_done(scene_output, &now);
 }
 
 static void output_rearrange_all(struct sf_server *server) {

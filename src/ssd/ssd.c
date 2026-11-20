@@ -18,6 +18,7 @@
 #include "ssd/ssd_paint.h"
 #include "ssd/ssd_policy.h"
 #include "util/color.h"
+#include "util/str.h"
 #include "util/time.h"
 #include "wm/wm.h"
 #include "xdg/xdg.h"
@@ -30,10 +31,17 @@ struct sf_ssd_buffer {
 	struct wlr_buffer base;
 	void *data;
 	size_t stride;
+	/* Last paint on this buffer; replacing it on resize invalidates the cache. */
+	char *title;
+	int font_size;
+	uint8_t fill[4];
+	bool focused;
+	bool maximized;
 };
 
 static void ssd_buffer_destroy(struct wlr_buffer *wlr_buffer) {
 	struct sf_ssd_buffer *buf = wl_container_of(wlr_buffer, buf, base);
+	free(buf->title);
 	free(buf->data);
 	free(buf);
 }
@@ -174,6 +182,42 @@ static bool ssd_content_size(struct sf_toplevel *toplevel, int *out_w, int *out_
 	return sf_decor_present_content_size(toplevel, out_w, out_h);
 }
 
+static void ssd_repaint(struct sf_ssd *ssd, bool focused) {
+	struct sf_toplevel *toplevel = ssd->toplevel;
+	struct sf_ssd_buffer *buf = wl_container_of(ssd->buffer, buf, base);
+	const char *title = toplevel->xdg_toplevel->title;
+	if (title == NULL) {
+		title = "";
+	}
+	bool same_title = buf->title != NULL && strcmp(buf->title, title) == 0;
+	int font_size = sf_cfg(toplevel->server)->ssd_font_size;
+	bool maximized = sf_layout_sm_is_max_gaps(&toplevel->layout) ||
+			 sf_layout_sm_is_max_edges(&toplevel->layout);
+	uint8_t fill[4];
+	ssd_fill_color(toplevel, focused, fill);
+	if (same_title && buf->focused == focused && buf->maximized == maximized &&
+	    buf->font_size == font_size && memcmp(buf->fill, fill, sizeof(fill)) == 0) {
+		return;
+	}
+
+	struct sf_ssd_layout lay;
+	sf_ssd_layout_title(ssd->width, ssd->height, &lay);
+	sf_ssd_paint_ensure_font(font_size);
+	sf_ssd_paint_titlebar(ssd->pixels, ssd->width, ssd->height, title, focused, maximized, fill,
+			      &lay);
+	wlr_scene_buffer_set_buffer(ssd->scene_buf, NULL);
+	wlr_scene_buffer_set_buffer(ssd->scene_buf, ssd->buffer);
+
+	if (!same_title) {
+		free(buf->title);
+		buf->title = sf_xstrdup(title);
+	}
+	buf->focused = focused;
+	buf->maximized = maximized;
+	buf->font_size = font_size;
+	memcpy(buf->fill, fill, sizeof(fill));
+}
+
 void sf_ssd_update(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL || toplevel->scene_tree == NULL) {
 		return;
@@ -260,22 +304,7 @@ void sf_ssd_update(struct sf_toplevel *toplevel) {
 		ssd->scene_buf->node.data = ssd;
 	}
 
-	struct sf_ssd_layout lay;
-	sf_ssd_layout_title(width, height, &lay);
-
-	sf_ssd_paint_ensure_font(cfg->ssd_font_size);
-
-	bool focused = sf_focused_toplevel(toplevel->server) == toplevel;
-	uint8_t fill[4];
-	ssd_fill_color(toplevel, focused, fill);
-	const char *title = toplevel->xdg_toplevel->title;
-	bool maximized = sf_layout_sm_is_max_gaps(&toplevel->layout) ||
-			 sf_layout_sm_is_max_edges(&toplevel->layout);
-	sf_ssd_paint_titlebar(ssd->pixels, width, height, title, focused, maximized, fill, &lay);
-
-	/* Force scene to re-upload after CPU paint (same buffer pointer). */
-	wlr_scene_buffer_set_buffer(ssd->scene_buf, NULL);
-	wlr_scene_buffer_set_buffer(ssd->scene_buf, ssd->buffer);
+	ssd_repaint(ssd, sf_focused_toplevel(toplevel->server) == toplevel);
 
 	wlr_scene_node_set_position(&ssd->scene_buf->node, -border, -height);
 	/*
@@ -287,9 +316,11 @@ void sf_ssd_update(struct sf_toplevel *toplevel) {
 	int inner = cfg->corner_radius;
 	int outer = inner > 0 ? inner + border : 0;
 	wlr_scene_buffer_set_corner_radii(ssd->scene_buf, corner_radii_top(outer));
-	wlr_scene_node_raise_to_top(&ssd->scene_buf->node);
 	if (toplevel->border != NULL) {
 		wlr_scene_node_raise_to_top(&toplevel->border->node);
+		wlr_scene_node_place_below(&ssd->scene_buf->node, &toplevel->border->node);
+	} else {
+		wlr_scene_node_raise_to_top(&ssd->scene_buf->node);
 	}
 	wlr_scene_node_set_enabled(&ssd->scene_buf->node, true);
 	ssd->visible = true;
@@ -300,19 +331,7 @@ void sf_ssd_set_focused(struct sf_toplevel *toplevel, bool focused) {
 	    toplevel->ssd->pixels == NULL) {
 		return;
 	}
-	struct sf_ssd *ssd = toplevel->ssd;
-	struct sf_ssd_layout lay;
-	sf_ssd_layout_title(ssd->width, ssd->height, &lay);
-	sf_ssd_paint_ensure_font(sf_cfg(toplevel->server)->ssd_font_size);
-	uint8_t fill[4];
-	ssd_fill_color(toplevel, focused, fill);
-	const char *title = toplevel->xdg_toplevel->title;
-	bool maximized = sf_layout_sm_is_max_gaps(&toplevel->layout) ||
-			 sf_layout_sm_is_max_edges(&toplevel->layout);
-	sf_ssd_paint_titlebar(ssd->pixels, ssd->width, ssd->height, title, focused, maximized, fill,
-			      &lay);
-	wlr_scene_buffer_set_buffer(ssd->scene_buf, NULL);
-	wlr_scene_buffer_set_buffer(ssd->scene_buf, ssd->buffer);
+	ssd_repaint(toplevel->ssd, focused);
 }
 
 void sf_ssd_decoration_apply(struct sf_toplevel *toplevel,

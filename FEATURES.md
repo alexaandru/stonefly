@@ -54,7 +54,7 @@ features Umbriel lacks — neither is a product spec. See `AGENTS.md`.
 | Named scratchpads | `scratchpads.fnl` + `sf.scratchpad` / `scratch_toggle`/`scratch_claim`. Default ships `term` only. Fake `app_id` (`stonefly.scratch.term`) for claim vs normal windows. `auto_hide` (default true) hides when focus moves to another window on the same output. Detach unlinks columns; QT starts edge-max on spawn/claim; user-resized size survives hide/show until explicit max-edges again |
 | Scratchpad claim focused | Super+t |
 | Scratchpad omit from Alt-Tab | Super+Tab too |
-| SSD titlebars | `ssd_mode` (`auto`/`prefer_ssd`/`always`/`never`) + `ssd_height` (28) + `ssd_font_size` (17, fcft). Honors client `request_mode` within policy; hide on fullscreen/edge-max; TopInset in ensure-on-screen / cascade / gap-max / snap. Defer `set_mode` until `xdg_surface` initialized. Outer `corner_radii_top` on SSD; border hole punches content+SSD. Max button + title double-click follow `client_maximize` |
+| SSD titlebars | `ssd_mode` (`auto`/`prefer_ssd`/`always`/`never`) + `ssd_height` (28) + `ssd_font_size` (17, fcft). Honors client `request_mode` within policy; hide on fullscreen/edge-max; TopInset in ensure-on-screen / cascade / gap-max / snap. Defer `set_mode` until `xdg_surface` initialized. Unchanged titlebars reuse their painted buffer across client commits. Outer `corner_radii_top` on SSD; border hole punches content+SSD. Max button + title double-click follow `client_maximize` |
 | Client maximize policy | `sf.opt.client_maximize` (`gaps` default / `edges`). CSD `request_maximize`, SSD max/dblclick, foreign taskbar → that verb. Super+m = gaps; Super+f = edges (zen) — two binds |
 | Unminimize workspace | `sf.opt.unminimize_workspace` (`active` default = carry to current WS; `home` = stay on hide WS) |
 | Transient / dialog placement | Center on visible `set_parent` (+ stack above); late parent/size re-place while `place` is managed. No size-based dialog heuristic. Cleared on move/resize/max/snap |
@@ -134,7 +134,7 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 
 | Feature | Notes |
 |---|---|
-| xdg-shell toplevels / popups | Advertised **v7**. Bounds = usable box; `wm_capabilities` = max/fs/min (no window-menu); `suspended` on minimize / hidden workspace / lock; `constrained` on tile/max/FS/snap/flush edges. `request_minimize` → hide/show. Popups unconstrain into parent output **usable**; layer `get_popup` reparents only if `xdg_surface` initialized (else first commit). |
+| xdg-shell toplevels / popups | Advertised **v7**. Settled commits do not reissue unchanged xdg state. Bounds = usable box; `wm_capabilities` = max/fs/min (no window-menu); `suspended` on minimize / hidden workspace / lock; `constrained` on tile/max/FS/snap/flush edges. `request_minimize` → hide/show. Popups unconstrain into parent output **usable**; layer `get_popup` reparents only if `xdg_surface` initialized (else first commit). |
 | wlr-layer-shell | v5 server; exclusive zones → usable. `set_exclusive_edge` via wlroots scene configure |
 | wp_fractional_scale + viewporter | DRM: scale 1.5 (`SF_OUTPUT_SCALE`). Nested/headless: scale 1.0 |
 | zxdg_output_v1 | Logical size for Noctalia floating-panel margins under fractional scale |
