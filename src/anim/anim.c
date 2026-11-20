@@ -808,10 +808,9 @@ void sf_anim_tick(struct sf_server *server, const struct timespec *now) {
 			set_visual_pos(toplevel, x, y);
 		}
 
-		if (t >= 1.0) {
-			if (ndone < sizeof(done) / sizeof(done[0])) {
-				done[ndone++] = toplevel;
-			}
+		/* Overflow stays active and completes on the next scheduled frame. */
+		if (t >= 1.0 && ndone < sizeof(done) / sizeof(done[0])) {
+			done[ndone++] = toplevel;
 			toplevel->anim.active = false;
 		}
 	}

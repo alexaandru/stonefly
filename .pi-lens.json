@@ -1,0 +1,17 @@
+{
+  "clangd": {
+    "fallbackFlags": [
+      "-I/usr/include",
+      "-Iprotocol"
+    ]
+  },
+  "diagnostics": {
+    "suppress": [
+      "pp_file_not_found",
+      "unknown_typename",
+      "field_incomplete_or_sizeless",
+      "typecheck_incomplete_tag",
+      "incomplete_definition_of_type"
+    ]
+  }
+}

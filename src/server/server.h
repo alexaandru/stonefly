@@ -268,6 +268,8 @@ struct sf_server {
 	/* ext-session-lock-v1 (Noctalia auto-lock). */
 	struct {
 		bool active;
+		bool awaiting_present;
+		struct wl_listener layout_change;
 		struct wlr_session_lock_manager_v1 *mgr;
 		struct wlr_session_lock_v1 *current;
 		struct wlr_scene_tree *tree;

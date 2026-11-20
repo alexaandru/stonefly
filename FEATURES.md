@@ -107,7 +107,7 @@ pieces that already ship:
 |---|---|
 | Window snap preview (WM) | In compositor |
 | SSD titlebars | See §1; winmenu still open |
-| Idle ceremony / lock / DPMS | `ext-session-lock-v1` + `zwlr-output-power-management-v1` (`session/session.c`). Nested `server->lock` / `idle` / `output_power`. Blank retained if lock client dies |
+| Idle ceremony / lock / DPMS | `ext-session-lock-v1` + `zwlr-output-power-management-v1` (`session/session.c`). Nested `server->lock` / `idle` / `output_power`. Lock acknowledgment waits for a protected presentation on every enabled output. Coverage follows layout changes; blank retained if lock client dies |
 | Caffeine (idle-inhibit) | `zwp_idle_inhibit_v1` → `ext-idle-notify-v1` inhibit |
 | Night light (gamma) | `zwlr_gamma_control_v1` + SceneFX scene hook. Schedule stays Noctalia-side |
 
@@ -140,7 +140,7 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 | zxdg_output_v1 | Logical size for Noctalia floating-panel margins under fractional scale |
 | wp_cursor_shape_v1 | v2. WM grab cursors via `sf_seat_apply_grab_cursor` |
 | XCURSOR_THEME / SIZE | `seat/pointer.c`; nested uses config `cursor_size` and strips `-NNpx` theme suffixes |
-| wlr-output-management | apply/test + layout pos; `set_configuration` on new/destroy/apply/request_state |
+| wlr-output-management | Grouped backend test/apply before layout changes; best-effort rollback on failure; `set_configuration` on new/destroy/apply/request_state |
 | ext-data-control clipboard | `ext-data-control-v1` + legacy `wlr-data-control-v1` + `wp_primary_selection` |
 | Screenshots / capture | `ext-image-copy-capture` + toplevel capture + `zwlr_screencopy_manager_v1`; Print binds → noctalia. Capture privacy for toplevel image-capture |
 | Foreign-toplevel management | `zwlr_foreign_toplevel_management_v1` v3 + `ext-foreign-toplevel-list-v1`. Title/app_id/state/parent/outputs coalesce onto one `wl_event_loop` idle flush (one `done` per handle) so hide/show FS and title spam do not flood Noctalia’s taskbar socket |
@@ -174,7 +174,7 @@ policy, and most status widgets (network / BT / MPRIS / weather).
 | Config validate | `stonefly validate` — load user init (or embedded) without applying; exact Lua error on stderr; exit 0/1 |
 | IPC `windows` [--json] | Peeble wire shape |
 | IPC `layers` [--json] | Layer-shell debug snapshot |
-| IPC focus / close by id | JSON + CLI |
+| IPC focus / close by id | JSON + CLI; per-connection nonblocking replies keep slow readers off the compositor critical path |
 | IPC toggle-quick-terminal | Toggles scratchpad `"term"` |
 | IPC `reload` | Live config reload (`{"ok":true}` or error) |
 | IPC `exit` / `quit` | `wl_display_terminate` on owning display |

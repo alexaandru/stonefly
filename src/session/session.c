@@ -24,7 +24,7 @@ struct sf_lock_surface {
 	struct sf_server *server;
 	struct wlr_session_lock_surface_v1 *lock_surface;
 	struct wlr_scene_tree *scene;
-	struct sf_output *output;
+	int width, height;
 	struct wl_listener destroy;
 	struct wl_listener map;
 };
@@ -79,11 +79,93 @@ static void lock_surface_map(struct wl_listener *listener, void *data) {
 	session_focus_lock_surface(ls->server, ls->lock_surface->surface);
 }
 
+static void lock_surface_configure(struct sf_lock_surface *ls) {
+	struct wlr_output *output = ls->lock_surface->output;
+	struct wlr_box box;
+	wlr_output_layout_get_box(ls->server->output_layout, output, &box);
+	bool visible = output->enabled && !wlr_box_empty(&box);
+	wlr_scene_node_set_enabled(&ls->scene->node, visible);
+	if (!visible) {
+		wlr_output_effective_resolution(output, &box.width, &box.height);
+	}
+	wlr_scene_node_set_position(&ls->scene->node, box.x, box.y);
+	if (box.width > 0 && box.height > 0 &&
+	    (box.width != ls->width || box.height != ls->height)) {
+		ls->width = box.width;
+		ls->height = box.height;
+		wlr_session_lock_surface_v1_configure(ls->lock_surface, (uint32_t)box.width,
+						      (uint32_t)box.height);
+	}
+}
+
+static void lock_update_layout(struct sf_server *server) {
+	if (!server->lock.active) {
+		return;
+	}
+	struct wlr_box box;
+	wlr_output_layout_get_box(server->output_layout, NULL, &box);
+	wlr_scene_rect_set_size(server->lock.blank, box.width, box.height);
+	wlr_scene_node_set_position(&server->lock.blank->node, box.x, box.y);
+	struct sf_lock_surface *ls;
+	wl_list_for_each(ls, &server->lock.surfaces, link) {
+		lock_surface_configure(ls);
+	}
+	struct sf_output *output;
+	wl_list_for_each(output, &server->outputs, link) {
+		box = (struct wlr_box){0};
+		if (output->wlr_output->enabled) {
+			wlr_output_layout_get_box(server->output_layout, output->wlr_output, &box);
+		}
+		if (!wlr_box_equal(&box, &output->lock_box)) {
+			output->lock_box = box;
+			output->lock_frame = (struct sf_lock_frame){0};
+			if (!wlr_box_empty(&box)) {
+				wlr_output_schedule_frame(output->wlr_output);
+			}
+		}
+	}
+}
+
+static void lock_layout_change(struct wl_listener *listener, void *data) {
+	(void)data;
+	struct sf_server *server = wl_container_of(listener, server, lock.layout_change);
+	lock_update_layout(server);
+}
+
+static void lock_maybe_ack(struct sf_server *server) {
+	if (!server->lock.awaiting_present) {
+		return;
+	}
+	struct sf_output *output;
+	wl_list_for_each(output, &server->outputs, link) {
+		if (output->wlr_output->enabled && !output->lock_frame.presented) {
+			return;
+		}
+	}
+	server->lock.awaiting_present = false;
+	wlr_session_lock_v1_send_locked(server->lock.current);
+}
+
+void sf_session_sync_outputs(struct sf_server *server) {
+	lock_update_layout(server);
+	lock_maybe_ack(server);
+}
+
+void sf_session_output_present(struct sf_output *output, uint32_t seq, bool presented) {
+	if (!output->server->lock.awaiting_present ||
+	    !sf_lock_frame_feedback(&output->lock_frame, seq, presented)) {
+		return;
+	}
+	if (presented) {
+		lock_maybe_ack(output->server);
+	} else {
+		wlr_output_schedule_frame(output->wlr_output);
+	}
+}
+
 static void session_new_lock_surface(struct wl_listener *listener, void *data) {
 	struct sf_server *server = wl_container_of(listener, server, lock.on_new_surface);
 	struct wlr_session_lock_surface_v1 *lock_surface = data;
-	struct wlr_output *wlr_output = lock_surface->output;
-	struct sf_output *output = wlr_output != NULL ? wlr_output->data : NULL;
 
 	struct sf_lock_surface *ls = calloc(1, sizeof(*ls));
 	if (ls == NULL) {
@@ -91,30 +173,19 @@ static void session_new_lock_surface(struct wl_listener *listener, void *data) {
 	}
 	ls->server = server;
 	ls->lock_surface = lock_surface;
-	ls->output = output;
 
 	struct wlr_scene_tree *parent = server->lock.tree;
 	if (parent == NULL) {
 		parent = server->layers.lock;
 	}
 	ls->scene = wlr_scene_subsurface_tree_create(parent, lock_surface->surface);
+	if (ls->scene == NULL) {
+		free(ls);
+		return;
+	}
 	lock_surface->surface->data = ls->scene;
 
-	int ox = 0, oy = 0, ow = 0, oh = 0;
-	if (output != NULL) {
-		struct wlr_box box;
-		wlr_output_layout_get_box(server->output_layout, wlr_output, &box);
-		ox = box.x;
-		oy = box.y;
-		ow = box.width;
-		oh = box.height;
-	}
-	if (ow <= 0 || oh <= 0) {
-		ow = wlr_output != NULL ? wlr_output->width : 0;
-		oh = wlr_output != NULL ? wlr_output->height : 0;
-	}
-	wlr_scene_node_set_position(&ls->scene->node, ox, oy);
-	wlr_session_lock_surface_v1_configure(lock_surface, (uint32_t)ow, (uint32_t)oh);
+	lock_surface_configure(ls);
 
 	ls->destroy.notify = lock_surface_destroy;
 	wl_signal_add(&lock_surface->events.destroy, &ls->destroy);
@@ -150,6 +221,7 @@ static void session_destroy_lock(struct sf_server *server, bool unlocked) {
 		server->lock.tree = NULL;
 	}
 	server->lock.current = NULL;
+	server->lock.awaiting_present = false;
 
 	if (unlocked) {
 		server->lock.active = false;
@@ -199,16 +271,13 @@ static void session_new_lock(struct wl_listener *listener, void *data) {
 	wl_list_init(&server->lock.surfaces);
 	sf_overview_force_close(server);
 
-	if (server->lock.blank != NULL) {
-		/* Cover the whole layout while the locker maps surfaces. */
-		struct wlr_box layout = {0};
-		wlr_output_layout_get_box(server->output_layout, NULL, &layout);
-		if (layout.width > 0 && layout.height > 0) {
-			wlr_scene_rect_set_size(server->lock.blank, layout.width, layout.height);
-			wlr_scene_node_set_position(&server->lock.blank->node, layout.x, layout.y);
-		}
-		wlr_scene_node_set_enabled(&server->lock.blank->node, true);
+	struct sf_output *output;
+	wl_list_for_each(output, &server->outputs, link) {
+		output->lock_box = (struct wlr_box){0};
+		output->lock_frame = (struct sf_lock_frame){0};
 	}
+	wlr_scene_node_set_enabled(&server->lock.blank->node, true);
+	server->lock.awaiting_present = true;
 
 	server->lock.tree = wlr_scene_tree_create(server->layers.lock);
 
@@ -225,7 +294,7 @@ static void session_new_lock(struct wl_listener *listener, void *data) {
 	server->lock.on_destroy.notify = session_lock_destroy;
 	wl_signal_add(&lock->events.destroy, &server->lock.on_destroy);
 
-	wlr_session_lock_v1_send_locked(lock);
+	sf_session_sync_outputs(server);
 	sf_xdg_sync_all(server);
 	SF_LOGI("session locked");
 }
@@ -269,7 +338,6 @@ static void output_power_set_mode(struct wl_listener *listener, void *data) {
 	struct sf_server *server = wl_container_of(listener, server, output_power.on_set_mode);
 	struct wlr_output_power_v1_set_mode_event *event = data;
 	struct wlr_output *wlr_output = event->output;
-	(void)server;
 
 	bool enable = event->mode == ZWLR_OUTPUT_POWER_V1_MODE_ON;
 	struct wlr_output_state state;
@@ -286,6 +354,7 @@ static void output_power_set_mode(struct wl_listener *listener, void *data) {
 			sf_str("output", wlr_output->name != NULL ? wlr_output->name : "?"),
 			sf_bool("enable", enable));
 	} else {
+		sf_session_sync_outputs(server);
 		SF_LOGI("output power",
 			sf_str("output", wlr_output->name != NULL ? wlr_output->name : "?"),
 			sf_bool("enable", enable));
@@ -336,6 +405,8 @@ void sf_session_setup(struct sf_server *server) {
 	wlr_scene_node_set_enabled(&server->lock.blank->node, false);
 
 	server->lock.mgr = wlr_session_lock_manager_v1_create(server->wl_display);
+	server->lock.layout_change.notify = lock_layout_change;
+	wl_signal_add(&server->output_layout->events.change, &server->lock.layout_change);
 	server->lock.on_new.notify = session_new_lock;
 	wl_signal_add(&server->lock.mgr->events.new_lock, &server->lock.on_new);
 
@@ -372,6 +443,8 @@ void sf_session_finish(struct sf_server *server) {
 		server->output_power.mgr = NULL;
 	}
 	server->idle.notifier = NULL;
+	wl_list_remove(&server->lock.layout_change.link);
+	server->lock.active = false;
 	server->lock.blank = NULL;
 	server->layers.lock = NULL;
 }

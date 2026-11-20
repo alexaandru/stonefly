@@ -214,13 +214,24 @@ tiled; edges-max breaks out.
 
 ### xdg-shell v4–v7
 
-Advertise the wlroots cap (`WM_BASE_VERSION` 7 on 0.20.2). Always
+Advertise the wlroots cap (`WM_BASE_VERSION` 7 on 0.20.2). On initial configure/remap send
 `set_wm_capabilities` without `WINDOW_MENU` until a real menu exists — wlroots
 defaults to all four caps. `set_bounds` uses the usable box, not the full mode.
 `suspended` is for minimize, hidden workspace, lock, and scratch hide; keep
 from/to unsuspended during a workspace slide, and never suspend a column that
 is only scrolled off-strip (it still paints for overview/foreign). `constrained`
 is resize-handle policy (flush/strut edges); `tiled` remains CSD chrome.
+
+Unchanged caps, bounds, suspension and edges must not schedule another
+configure on a client commit. See the idle-client regression rule in AGENTS.md.
+
+### Session lock is a presentation guarantee
+
+Enabling an opaque scene node does not mean a monitor has shown it. As in
+Umbriel, wait for per-output presentation feedback for a protected buffer;
+a no-op commit, stale feedback or a discarded frame cannot satisfy the lock.
+Keep the blank and lock surfaces synchronized with the output layout even
+when the locker has gone away.
 
 ### Taskbar / foreign is membership, not visibility
 

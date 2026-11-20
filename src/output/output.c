@@ -1,10 +1,15 @@
 #include <stdlib.h>
 #include <time.h>
 #include <wlr/backend.h>
+#include <wlr/render/pass.h>
+#include <wlr/render/swapchain.h>
+#include <wlr/render/wlr_renderer.h>
+#include <wlr/types/wlr_buffer.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_output_management_v1.h>
+#include <wlr/types/wlr_output_swapchain_manager.h>
 #include <scenefx/types/wlr_scene.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 
@@ -14,7 +19,30 @@
 #include "layer/layer.h"
 #include "log/log.h"
 #include "output/output.h"
+#include "session/session.h"
 #include "wm/workspace.h"
+
+static void output_present(struct wl_listener *listener, void *data) {
+	struct sf_output *output = wl_container_of(listener, output, present);
+	const struct wlr_output_event_present *event = data;
+	sf_session_output_present(output, event->commit_seq, event->presented);
+}
+
+static void output_commit_lock_frame(struct sf_output *output, struct wlr_scene_output *scene) {
+	/* A successful scene commit can be a no-op. Only track a submitted buffer. */
+	struct wlr_output_state state;
+	wlr_output_state_init(&state);
+	if (wlr_scene_output_build_state(scene, &state, NULL) && state.buffer != NULL &&
+	    wlr_output_commit_state(output->wlr_output, &state)) {
+		output->lock_frame = (struct sf_lock_frame){
+			.seq = output->wlr_output->commit_seq,
+			.submitted = true,
+		};
+	} else {
+		wlr_output_schedule_frame(output->wlr_output);
+	}
+	wlr_output_state_finish(&state);
+}
 
 static void output_frame(struct wl_listener *listener, void *data) {
 	(void)data;
@@ -36,7 +64,15 @@ static void output_frame(struct wl_listener *listener, void *data) {
 	sf_anim_tick(output->server, &now);
 
 	/* Rendering is damage driven. Frame callbacks pace clients, not proof of a flip. */
-	wlr_scene_output_commit(scene_output, NULL);
+	if (sf_session_locked(output->server) && wlr_box_empty(&output->lock_box)) {
+		return;
+	}
+	if (output->server->lock.awaiting_present && !output->lock_frame.submitted &&
+	    !output->lock_frame.presented) {
+		output_commit_lock_frame(output, scene_output);
+	} else {
+		wlr_scene_output_commit(scene_output, NULL);
+	}
 	wlr_scene_output_send_frame_done(scene_output, &now);
 }
 
@@ -48,15 +84,11 @@ static void output_rearrange_all(struct sf_server *server) {
 	sf_decor_update_blur_size(server);
 }
 
-void sf_output_mgr_send_config(struct sf_server *server) {
-	if (server->output_mgr == NULL) {
-		return;
-	}
-
+static struct wlr_output_configuration_v1 *output_snapshot(struct sf_server *server) {
 	struct wlr_output_configuration_v1 *config = wlr_output_configuration_v1_create();
 	if (config == NULL) {
 		SF_LOGW("output manager", sf_str("err", "config create failed"));
-		return;
+		return NULL;
 	}
 
 	struct sf_output *output;
@@ -68,7 +100,7 @@ void sf_output_mgr_send_config(struct sf_server *server) {
 			SF_LOGW("output manager", sf_str("err", "head create failed"),
 				sf_str("output", wlr_output->name));
 			wlr_output_configuration_v1_destroy(config);
-			return;
+			return NULL;
 		}
 		if (wlr_output->enabled) {
 			struct wlr_box box;
@@ -80,65 +112,149 @@ void sf_output_mgr_send_config(struct sf_server *server) {
 		}
 	}
 
-	wlr_output_manager_v1_set_configuration(server->output_mgr, config);
+	return config;
+}
+
+void sf_output_mgr_send_config(struct sf_server *server) {
+	if (server->output_mgr != NULL) {
+		struct wlr_output_configuration_v1 *config = output_snapshot(server);
+		if (config != NULL) {
+			wlr_output_manager_v1_set_configuration(server->output_mgr, config);
+		}
+	}
+}
+
+static bool output_apply_layout(struct sf_server *server, struct wlr_output_configuration_v1 *cfg) {
+	struct wlr_output_configuration_head_v1 *head;
+	wl_list_for_each(head, &cfg->heads, link) {
+		struct wlr_output *output = head->state.output;
+		if (!head->state.enabled) {
+			wlr_output_layout_remove(server->output_layout, output);
+			continue;
+		}
+		struct wlr_output_layout_output *lo = wlr_output_layout_add(
+			server->output_layout, output, head->state.x, head->state.y);
+		struct wlr_scene_output *so = wlr_scene_get_scene_output(server->scene, output);
+		if (lo == NULL || so == NULL) {
+			return false;
+		}
+		wlr_scene_output_layout_add_output(server->scene_layout, lo, so);
+	}
+	return true;
+}
+
+/* A new mode can extend past the current lock blank. Its first buffer must
+ * already be safe; the regular scene repaints once the new layout is known. */
+static bool output_build_blank(struct sf_server *server, struct wlr_swapchain *swapchain,
+			       struct wlr_output_state *state) {
+	struct wlr_buffer *buffer = wlr_swapchain_acquire(swapchain);
+	if (buffer == NULL) {
+		return false;
+	}
+	struct wlr_render_pass *pass =
+		wlr_renderer_begin_buffer_pass(server->renderer, buffer, NULL);
+	bool ok = false;
+	if (pass != NULL) {
+		wlr_render_pass_add_rect(pass, &(struct wlr_render_rect_options){
+						       .color = {0, 0, 0, 1},
+						       .blend_mode = WLR_RENDER_BLEND_MODE_NONE,
+					       });
+		ok = wlr_render_pass_submit(pass);
+		if (ok) {
+			wlr_output_state_set_buffer(state, buffer);
+		}
+	}
+	wlr_buffer_unlock(buffer);
+	return ok;
+}
+
+static bool output_configure_heads(struct sf_server *server,
+				   struct wlr_output_configuration_v1 *cfg, bool test,
+				   bool *attempted) {
+	size_t count = 0;
+	struct wlr_backend_output_state *states =
+		wlr_output_configuration_v1_build_state(cfg, &count);
+	if (states == NULL) {
+		return false;
+	}
+	struct wlr_output_swapchain_manager mgr;
+	wlr_output_swapchain_manager_init(&mgr, server->backend);
+	bool ok = wlr_output_swapchain_manager_prepare(&mgr, states, count);
+	if (!test && ok) {
+		for (size_t i = 0; i < count && ok; i++) {
+			struct wlr_backend_output_state *head = &states[i];
+			if (!head->base.enabled) {
+				continue;
+			}
+			struct wlr_scene_output *scene =
+				wlr_scene_get_scene_output(server->scene, head->output);
+			struct wlr_scene_output_state_options opts = {
+				.swapchain = wlr_output_swapchain_manager_get_swapchain(
+					&mgr, head->output),
+			};
+			if (scene == NULL || opts.swapchain == NULL) {
+				ok = false;
+			} else if (sf_session_locked(server) ||
+				   wlr_output_layout_get(server->output_layout, head->output) ==
+					   NULL) {
+				ok = output_build_blank(server, opts.swapchain, &head->base);
+			} else {
+				ok = wlr_scene_output_build_state(scene, &head->base, &opts);
+			}
+		}
+		if (ok) {
+			*attempted = true;
+			ok = wlr_backend_commit(server->backend, states, count);
+		}
+		if (ok) {
+			wlr_output_swapchain_manager_apply(&mgr);
+		}
+	}
+	for (size_t i = 0; i < count; i++) {
+		wlr_output_state_finish(&states[i].base);
+	}
+	free(states);
+	wlr_output_swapchain_manager_finish(&mgr);
+	return ok;
 }
 
 static void output_mgr_apply_or_test(struct sf_server *server,
 				     struct wlr_output_configuration_v1 *config, bool test) {
-	bool ok = true;
-	struct wlr_output_configuration_head_v1 *head;
-
-	wl_list_for_each(head, &config->heads, link) {
-		struct wlr_output *wlr_output = head->state.output;
-		struct wlr_output_state state;
-		wlr_output_state_init(&state);
-		wlr_output_head_v1_state_apply(&head->state, &state);
-
-		if (test) {
-			ok = wlr_output_test_state(wlr_output, &state);
-		} else {
-			ok = wlr_output_commit_state(wlr_output, &state);
-		}
-		wlr_output_state_finish(&state);
-		if (!ok) {
-			SF_LOGW("output manager", sf_str("op", test ? "test" : "apply"),
-				sf_str("err", "state failed"), sf_str("output", wlr_output->name));
-			break;
-		}
-
-		if (test) {
-			continue;
-		}
-
-		/* Position is not applied by head_state_apply. */
-		if (head->state.enabled) {
-			struct wlr_output_layout_output *l_output = wlr_output_layout_add(
-				server->output_layout, wlr_output, head->state.x, head->state.y);
-			struct wlr_scene_output *scene_output =
-				wlr_scene_get_scene_output(server->scene, wlr_output);
-			if (l_output != NULL && scene_output != NULL) {
-				/* Re-link after layout_remove destroyed the prior link. */
-				wlr_scene_output_layout_add_output(server->scene_layout, l_output,
-								   scene_output);
-			}
-		} else {
-			wlr_output_layout_remove(server->output_layout, wlr_output);
+	bool attempted = false;
+	struct wlr_output_configuration_v1 *prev = test ? NULL : output_snapshot(server);
+	bool ok =
+		(test || prev != NULL) && output_configure_heads(server, config, test, &attempted);
+	if (ok && !test) {
+		ok = output_apply_layout(server, config);
+	}
+	if (!ok && attempted) {
+		bool restored = output_configure_heads(server, prev, false, &attempted);
+		if (!output_apply_layout(server, prev) || !restored) {
+			SF_LOGE("output configuration rollback incomplete");
 		}
 	}
-
+	if (prev != NULL) {
+		wlr_output_configuration_v1_destroy(prev);
+	}
 	if (ok) {
 		wlr_output_configuration_v1_send_succeeded(config);
 	} else {
 		wlr_output_configuration_v1_send_failed(config);
 	}
 	wlr_output_configuration_v1_destroy(config);
-
-	if (!test && ok) {
+	if (!test) {
 		struct sf_output *output;
 		wl_list_for_each(output, &server->outputs, link) {
 			wlr_xcursor_manager_load(server->cursor_mgr, output->wlr_output->scale);
+			struct wlr_scene_output *scene =
+				wlr_scene_get_scene_output(server->scene, output->wlr_output);
+			if (scene != NULL && output->wlr_output->enabled) {
+				wlr_damage_ring_add_whole(&scene->damage_ring);
+				wlr_output_schedule_frame(output->wlr_output);
+			}
 		}
 		output_rearrange_all(server);
+		sf_session_sync_outputs(server);
 		sf_output_mgr_send_config(server);
 	}
 }
@@ -159,7 +275,10 @@ static void output_request_state(struct wl_listener *listener, void *data) {
 	 * when the output window is resized. */
 	struct sf_output *output = wl_container_of(listener, output, request_state);
 	const struct wlr_output_event_request_state *event = data;
-	wlr_output_commit_state(output->wlr_output, event->state);
+	if (!wlr_output_commit_state(output->wlr_output, event->state)) {
+		return;
+	}
+	sf_session_sync_outputs(output->server);
 	sf_layer_arrange_output(output);
 	sf_decor_update_blur_size(output->server);
 	sf_output_mgr_send_config(output->server);
@@ -179,12 +298,14 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 
 	sf_workspace_output_finish(output);
 	output->wlr_output->data = NULL;
+	wl_list_remove(&output->present.link);
 	wl_list_remove(&output->frame.link);
 	wl_list_remove(&output->request_state.link);
 	wl_list_remove(&output->destroy.link);
 	wl_list_remove(&output->link);
 	free(output);
 
+	sf_session_sync_outputs(server);
 	sf_output_mgr_send_config(server);
 }
 
@@ -196,7 +317,27 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 
 	/* Configures the output created by the backend to use our allocator
 	 * and our renderer. Must be done once, before committing the output */
-	wlr_output_init_render(wlr_output, server->allocator, server->renderer);
+	if (!wlr_output_init_render(wlr_output, server->allocator, server->renderer)) {
+		SF_LOGW("output render initialization failed", sf_str("output", wlr_output->name));
+		return;
+	}
+	struct sf_output *output = calloc(1, sizeof(*output));
+	if (output == NULL) {
+		return;
+	}
+	struct wlr_scene_output *scene_output = wlr_scene_output_create(server->scene, wlr_output);
+	if (scene_output == NULL) {
+		free(output);
+		return;
+	}
+	struct wlr_output_layout_output *l_output =
+		wlr_output_layout_add_auto(server->output_layout, wlr_output);
+	if (l_output == NULL) {
+		wlr_scene_output_destroy(scene_output);
+		free(output);
+		return;
+	}
+	wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
 
 	/* The output may be disabled, switch it on. */
 	float scale = sf_output_scale_factor(server);
@@ -216,13 +357,19 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	}
 
 	/* Atomically applies the new output state. */
-	wlr_output_commit_state(wlr_output, &state);
+	bool ok = wlr_output_commit_state(wlr_output, &state);
 	wlr_output_state_finish(&state);
+	if (!ok) {
+		wlr_output_layout_remove(server->output_layout, wlr_output);
+		wlr_scene_output_destroy(scene_output);
+		free(output);
+		SF_LOGW("initial output commit failed", sf_str("output", wlr_output->name));
+		return;
+	}
 
 	wlr_xcursor_manager_load(server->cursor_mgr, scale);
 
-	/* Allocates and configures our state for this output */
-	struct sf_output *output = calloc(1, sizeof(*output));
+	/* Publish the head only after its scene and initial state are ready. */
 	output->wlr_output = wlr_output;
 	output->server = server;
 	wlr_output->data = output;
@@ -244,19 +391,9 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 
 	wl_list_insert(&server->outputs, &output->link);
 
-	/* Adds this to the output layout. The add_auto function arranges outputs
-	 * from left-to-right in the order they appear. A more sophisticated
-	 * compositor would let the user configure the arrangement of outputs in the
-	 * layout.
-	 *
-	 * The output layout utility automatically adds a wl_output global to the
-	 * display, which Wayland clients can see to find out information about the
-	 * output (such as DPI, scale factor, manufacturer, etc).
-	 */
-	struct wlr_output_layout_output *l_output =
-		wlr_output_layout_add_auto(server->output_layout, wlr_output);
-	struct wlr_scene_output *scene_output = wlr_scene_output_create(server->scene, wlr_output);
-	wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
+	output->present.notify = output_present;
+	wl_signal_add(&wlr_output->events.present, &output->present);
+	sf_session_sync_outputs(server);
 
 	sf_workspace_output_init(output);
 	sf_layer_arrange_output(output);

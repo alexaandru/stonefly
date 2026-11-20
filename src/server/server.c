@@ -174,13 +174,10 @@ bool sf_server_init(struct sf_server *server) {
 int sf_server_run(struct sf_server *server, const char *startup_cmd) {
 	const char *socket = wl_display_add_socket_auto(server->wl_display);
 	if (!socket) {
-		wlr_backend_destroy(server->backend);
 		return 1;
 	}
 
 	if (!wlr_backend_start(server->backend)) {
-		wlr_backend_destroy(server->backend);
-		wl_display_destroy(server->wl_display);
 		return 1;
 	}
 

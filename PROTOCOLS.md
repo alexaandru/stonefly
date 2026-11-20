@@ -27,13 +27,13 @@ data-device) are assumed on all four.
 | **ext-workspace-v1** | Shell workspace list/activate | yes (per-output groups) | yes | yes | yes |
 | **zwlr-foreign-toplevel-v1** | Taskbar window list + activate | yes **v3**; pin to workspace output | yes | yes | yes |
 | **ext-foreign-toplevel-list-v1** | Stable ids for capture/shell | yes | yes | yes | yes |
-| **ext-session-lock-v1** | Screen lock surfaces | yes | yes | yes | yes |
+| **ext-session-lock-v1** | Screen lock surfaces | yes (presentation-gated, dynamic layout coverage) | yes | yes | yes |
 | **ext-idle-notify-v1** | Idle timeout for lockers | yes | yes | yes | yes |
 | **zwp-idle-inhibit-v1** | Video/fullscreen keeps session awake | yes | yes | yes | yes |
 | **zwlr-output-power-v1** | DPMS / output off | yes | yes* | yes | no* |
 | **zwlr-gamma-control-v1** | Night-light LUT | yes | yes | yes* | yes |
 | **wp-color-manager-v1** | HDR / ICC / transfer | no | no | **hdr.c** custom | yes (if renderer supports) |
-| **zwlr-output-management-v1** | kanshi / wlr-randr layout | yes | yes | yes | yes |
+| **zwlr-output-management-v1** | kanshi / wlr-randr layout | yes (group test/apply; layout after commit) | yes | yes | yes |
 | **zxdg-output-v1** | Logical size/name under fractional scale | yes | yes | yes | yes |
 | **wp-fractional-scale-v1** | Non-integer scale | yes | yes | yes* | yes |
 | **wp-viewporter** | Crop/scale buffer | yes | yes | yes* | yes |

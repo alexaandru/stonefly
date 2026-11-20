@@ -18,6 +18,7 @@
 #include "ipc/layers.h"
 #include "ipc/outputs.h"
 #include "ipc/parse.h"
+#include "ipc/send.h"
 #include "ipc/windows.h"
 #include "ipc/workspaces.h"
 #include "log/log.h"
@@ -43,6 +44,7 @@ struct sf_ipc {
 	struct sf_server *server;
 	int fd;
 	char *path;
+	struct wl_list clients;
 	struct wl_event_source *source;
 };
 
@@ -50,6 +52,10 @@ struct sf_ipc_client {
 	struct sf_ipc *ipc;
 	int fd;
 	struct wl_event_source *source;
+	struct wl_list link;
+	char *reply;
+	size_t reply_len;
+	size_t sent;
 	char buf[SF_IPC_REQ_CAP];
 	size_t len;
 };
@@ -107,26 +113,23 @@ static void ipc_client_destroy(struct sf_ipc_client *client) {
 		close(client->fd);
 		client->fd = -1;
 	}
+	wl_list_remove(&client->link);
+	free(client->reply);
 	free(client);
 }
 
-static void ipc_write_line(int fd, const char *payload) {
+static void ipc_write_line(struct sf_ipc_client *client, const char *payload) {
 	size_t n = strlen(payload);
-	char *line = malloc(n + 2);
-	if (line == NULL) {
-		return;
+	client->reply = malloc(n + 1);
+	if (client->reply != NULL) {
+		memcpy(client->reply, payload, n);
+		client->reply[n] = '\n';
+		client->reply_len = n + 1;
 	}
-	memcpy(line, payload, n);
-	line[n] = '\n';
-	line[n + 1] = '\0';
-	if (write(fd, line, n + 1) < 0) {
-		SF_LOGE("ipc write", sf_str("err", strerror(errno)));
-	}
-	free(line);
 }
 
 static void ipc_write_ok(struct sf_ipc_client *client) {
-	ipc_write_line(client->fd, "{\"ok\":true}");
+	ipc_write_line(client, "{\"ok\":true}");
 }
 
 static void ipc_write_err(struct sf_ipc_client *client, const char *msg) {
@@ -138,7 +141,7 @@ static void ipc_write_err(struct sf_ipc_client *client, const char *msg) {
 	json_str(&b, msg);
 	json_byte(&b, '}');
 	json_finish(&b);
-	ipc_write_line(client->fd, json_ok(&b) ? err : "{\"error\":\"oom\"}");
+	ipc_write_line(client, json_ok(&b) ? err : "{\"error\":\"oom\"}");
 }
 
 static void ipc_handle_windows(struct sf_ipc_client *client) {
@@ -147,13 +150,13 @@ static void ipc_handle_windows(struct sf_ipc_client *client) {
 
 	char *out = malloc(SF_IPC_REPLY_CAP);
 	if (out == NULL) {
-		ipc_write_line(client->fd, "{\"error\":\"oom\"}");
+		ipc_write_line(client, "{\"error\":\"oom\"}");
 		return;
 	}
 	if (sf_windows_to_json(infos, n, out, SF_IPC_REPLY_CAP) < 0) {
-		ipc_write_line(client->fd, "{\"error\":\"windows snapshot overflow\"}");
+		ipc_write_line(client, "{\"error\":\"windows snapshot overflow\"}");
 	} else {
-		ipc_write_line(client->fd, out);
+		ipc_write_line(client, out);
 	}
 	free(out);
 }
@@ -164,13 +167,13 @@ static void ipc_handle_layers(struct sf_ipc_client *client) {
 
 	char *out = malloc(SF_IPC_REPLY_CAP);
 	if (out == NULL) {
-		ipc_write_line(client->fd, "{\"error\":\"oom\"}");
+		ipc_write_line(client, "{\"error\":\"oom\"}");
 		return;
 	}
 	if (sf_layers_to_json(infos, n, out, SF_IPC_REPLY_CAP) < 0) {
-		ipc_write_line(client->fd, "{\"error\":\"layers snapshot overflow\"}");
+		ipc_write_line(client, "{\"error\":\"layers snapshot overflow\"}");
 	} else {
-		ipc_write_line(client->fd, out);
+		ipc_write_line(client, out);
 	}
 	free(out);
 }
@@ -181,13 +184,13 @@ static void ipc_handle_outputs(struct sf_ipc_client *client) {
 
 	char *out = malloc(SF_IPC_REPLY_CAP);
 	if (out == NULL) {
-		ipc_write_line(client->fd, "{\"error\":\"oom\"}");
+		ipc_write_line(client, "{\"error\":\"oom\"}");
 		return;
 	}
 	if (sf_outputs_to_json(infos, n, out, SF_IPC_REPLY_CAP) < 0) {
-		ipc_write_line(client->fd, "{\"error\":\"outputs snapshot overflow\"}");
+		ipc_write_line(client, "{\"error\":\"outputs snapshot overflow\"}");
 	} else {
-		ipc_write_line(client->fd, out);
+		ipc_write_line(client, out);
 	}
 	free(out);
 }
@@ -198,13 +201,13 @@ static void ipc_handle_workspaces(struct sf_ipc_client *client) {
 
 	char *out = malloc(SF_IPC_REPLY_CAP);
 	if (out == NULL) {
-		ipc_write_line(client->fd, "{\"error\":\"oom\"}");
+		ipc_write_line(client, "{\"error\":\"oom\"}");
 		return;
 	}
 	if (sf_workspaces_to_json(infos, n, out, SF_IPC_REPLY_CAP) < 0) {
-		ipc_write_line(client->fd, "{\"error\":\"workspaces snapshot overflow\"}");
+		ipc_write_line(client, "{\"error\":\"workspaces snapshot overflow\"}");
 	} else {
-		ipc_write_line(client->fd, out);
+		ipc_write_line(client, out);
 	}
 	free(out);
 }
@@ -349,7 +352,7 @@ static void ipc_handle_exit(struct sf_ipc_client *client) {
 static void ipc_handle_config(struct sf_ipc_client *client, const char *arg) {
 	char *out = malloc(SF_IPC_REPLY_CAP);
 	if (out == NULL) {
-		ipc_write_line(client->fd, "{\"error\":\"oom\"}");
+		ipc_write_line(client, "{\"error\":\"oom\"}");
 		return;
 	}
 	const char *section = (arg != NULL && arg[0] != '\0') ? arg : NULL;
@@ -361,11 +364,11 @@ static void ipc_handle_config(struct sf_ipc_client *client, const char *arg) {
 					      "(options|binds|taps|scratchpads|window_rules|"
 					      "inputs|outputs)");
 		} else {
-			ipc_write_line(client->fd, "{\"error\":\"config snapshot overflow\"}");
+			ipc_write_line(client, "{\"error\":\"config snapshot overflow\"}");
 		}
 		return;
 	}
-	ipc_write_line(client->fd, out);
+	ipc_write_line(client, out);
 	free(out);
 }
 
@@ -451,26 +454,35 @@ static void ipc_handle_request(struct sf_ipc_client *client, const char *line) {
 	ipc_write_err(client, msg);
 }
 
+static void ipc_flush(struct sf_ipc_client *client) {
+	if (client->reply != NULL &&
+	    sf_ipc_send_pending(client->fd, client->reply, client->reply_len, &client->sent) &&
+	    client->sent < client->reply_len &&
+	    wl_event_source_fd_update(client->source, WL_EVENT_WRITABLE) == 0) {
+		return;
+	}
+	ipc_client_destroy(client);
+}
+
 static int ipc_client_readable(int fd, uint32_t mask, void *data) {
 	struct sf_ipc_client *client = data;
-	(void)fd;
 
 	if (mask & ((uint32_t)WL_EVENT_ERROR | (uint32_t)WL_EVENT_HANGUP)) {
 		ipc_client_destroy(client);
+		return 0;
+	}
+	if (client->reply != NULL) {
+		ipc_flush(client);
 		return 0;
 	}
 	if (!(mask & (uint32_t)WL_EVENT_READABLE)) {
 		return 0;
 	}
 
-	if (client->len + 1 >= sizeof(client->buf)) {
-		ipc_write_line(client->fd, "{\"error\":\"request too large\"}");
-		ipc_client_destroy(client);
+	ssize_t n = read(fd, client->buf + client->len, sizeof(client->buf) - client->len - 1);
+	if (n < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) {
 		return 0;
 	}
-
-	ssize_t n =
-		read(client->fd, client->buf + client->len, sizeof(client->buf) - client->len - 1);
 	if (n <= 0) {
 		ipc_client_destroy(client);
 		return 0;
@@ -480,11 +492,15 @@ static int ipc_client_readable(int fd, uint32_t mask, void *data) {
 
 	char *nl = memchr(client->buf, '\n', client->len);
 	if (nl == NULL) {
+		if (client->len + 1 == sizeof(client->buf)) {
+			ipc_write_err(client, "request too large");
+			ipc_flush(client);
+		}
 		return 0;
 	}
 	*nl = '\0';
 	ipc_handle_request(client, client->buf);
-	ipc_client_destroy(client);
+	ipc_flush(client);
 	return 0;
 }
 
@@ -506,6 +522,11 @@ static int ipc_listen_readable(int fd, uint32_t mask, void *data) {
 		return 0;
 	}
 	fd_set_cloexec(cfd);
+	int flags = fcntl(cfd, F_GETFL);
+	if (flags < 0 || fcntl(cfd, F_SETFL, (uint32_t)flags | (uint32_t)O_NONBLOCK) < 0) {
+		close(cfd);
+		return 0;
+	}
 
 	struct sf_ipc_client *client = calloc(1, sizeof(*client));
 	if (client == NULL) {
@@ -523,6 +544,8 @@ static int ipc_listen_readable(int fd, uint32_t mask, void *data) {
 	if (client->source == NULL) {
 		close(cfd);
 		free(client);
+	} else {
+		wl_list_insert(&ipc->clients, &client->link);
 	}
 	return 0;
 }
@@ -537,7 +560,7 @@ bool sf_ipc_start(struct sf_server *server) {
 
 	(void)unlink(path);
 
-	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0);
 	if (fd < 0) {
 		SF_LOGE("ipc socket", sf_str("err", strerror(errno)));
 		free(path);
@@ -580,6 +603,7 @@ bool sf_ipc_start(struct sf_server *server) {
 	ipc->server = server;
 	ipc->fd = fd;
 	ipc->path = path;
+	wl_list_init(&ipc->clients);
 
 	struct wl_event_loop *loop = wl_display_get_event_loop(server->wl_display);
 	ipc->source = wl_event_loop_add_fd(loop, fd,
@@ -603,6 +627,10 @@ void sf_ipc_stop(struct sf_server *server) {
 	struct sf_ipc *ipc = server->ipc;
 	if (ipc == NULL) {
 		return;
+	}
+	struct sf_ipc_client *client, *tmp;
+	wl_list_for_each_safe(client, tmp, &ipc->clients, link) {
+		ipc_client_destroy(client);
 	}
 	if (ipc->source != NULL) {
 		wl_event_source_remove(ipc->source);

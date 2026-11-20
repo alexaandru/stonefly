@@ -7,6 +7,7 @@
 #include <wlr/util/box.h>
 
 #include "server/server.h"
+#include "session/lock_frame.h"
 #include "wm/workspace.h"
 
 struct wlr_output;
@@ -17,6 +18,9 @@ struct sf_output {
 	struct sf_server *server;
 	struct wlr_output *wlr_output;
 	struct wl_listener frame;
+	struct wl_listener present;
+	struct wlr_box lock_box;
+	struct sf_lock_frame lock_frame;
 	struct wl_listener request_state;
 	struct wl_listener destroy;
 

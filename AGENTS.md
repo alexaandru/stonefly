@@ -30,6 +30,15 @@ diagnosing stonefly.
   max/unmax, fullscreen, hide/show, workspace/monitor send must round-trip
   without silent demotion, forgotten cells, or focus onto covered windows.
   See ROADMAP Predictability audit and [`LESSONS.md`](LESSONS.md).
+- **An idle window must settle.** We fed every xdg surface commit back into
+  wlroots configure setters even when caps, bounds, suspended state and edges
+  were unchanged. The client acknowledged and committed again. Two idle foot
+  terminals ran at 54°C after the fix (previously 92°C); blur was not the fix.
+  Send required initial/remap state, then compare desired values against the
+  **last scheduled** state, not just the last ack. After touching commit/layout
+  paths, trace an idle client with `WAYLAND_DEBUG=client`: after initial placement
+  configure serials must stop until something actually changes. Don't suppress
+  frame callbacks or disable effects to mask a configure loop.
 - **C ↔ Lua border:** C owns Wayland/scene/lifecycle/geometry kernels/action
   primitives/invariants; Lua owns policy, UX composition, and packs. Rule of
   thumb: user/pack disagreement → Lua/opts; scene/Wayland corruption risk →
