@@ -10,6 +10,7 @@
 #include <wlr/types/wlr_session_lock_v1.h>
 #include <scenefx/types/wlr_scene.h>
 
+#include "layer/layer.h"
 #include "log/log.h"
 #include "output/output.h"
 #include "seat/seat.h"
@@ -339,11 +340,15 @@ static void output_power_set_mode(struct wl_listener *listener, void *data) {
 	struct wlr_output_power_v1_set_mode_event *event = data;
 	struct wlr_output *wlr_output = event->output;
 
+	struct sf_output *output = wlr_output->data;
+	if (output == NULL || wlr_output_layout_get(server->output_layout, wlr_output) == NULL) {
+		return;
+	}
 	bool enable = event->mode == ZWLR_OUTPUT_POWER_V1_MODE_ON;
 	struct wlr_output_state state;
 	wlr_output_state_init(&state);
 	wlr_output_state_set_enabled(&state, enable);
-	if (enable && wlr_output->current_mode == NULL) {
+	if (enable && wlr_output->current_mode == NULL && wlr_output->width <= 0) {
 		struct wlr_output_mode *mode = wlr_output_preferred_mode(wlr_output);
 		if (mode != NULL) {
 			wlr_output_state_set_mode(&state, mode);
@@ -354,7 +359,12 @@ static void output_power_set_mode(struct wl_listener *listener, void *data) {
 			sf_str("output", wlr_output->name != NULL ? wlr_output->name : "?"),
 			sf_bool("enable", enable));
 	} else {
+		output->dpms_off = !enable;
 		sf_session_sync_outputs(server);
+		if (enable) {
+			sf_layer_arrange_output(output);
+			sf_workspace_adopt_parked(output);
+		}
 		SF_LOGI("output power",
 			sf_str("output", wlr_output->name != NULL ? wlr_output->name : "?"),
 			sf_bool("enable", enable));

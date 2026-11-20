@@ -157,7 +157,7 @@ Default output scale is **1.5** (`sf.opt.scale`) with `wp_fractional_scale_v1` +
 - Usable area: layer exclusive zones (`exclusive_zone != 0`, including `-1`) shrink the box used by max/snap/cascade. When the bar’s zone arrives after map, floaters are EnsureOnScreen’d (gap-max if oversized).
 - Drag-snap (peeble parity): Super+LMB / CSD move has magnetic edge resistance (`snap_threshold` 26, push-through `4×`), neon half-snap preview on `layers.overlay` (SceneFX rects), release-to-snap / push-through cancel, PrepareDrag float from snap/max keeping PreSnap.
 - No Xwayland yet. Config is LuaJIT + Fennel-first (`stonefly --write-config` / `stonefly config`), including Fennel `window_rule` (Lua-pattern `app_id`/`title`; center/float/size/ssd/borderless; defaults for Chrome profile + gcr-prompter). Layer-shell is implemented. Editor completion for `sf.*`: copy `dist/fennel-ls/docsets/sf.lua` into fennel-ls docsets (see `dist/fennel-ls/README.md`).
-- `LICENSE.tinywl` is upstream’s MIT notice for the seed.
+- Stonefly is [MIT-licensed](LICENSE). Its original tinywl seed was released under [CC0-1.0](LICENSE.tinywl).
 
 ## FORK.md → stonefly (remaining gaps)
 

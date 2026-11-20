@@ -37,6 +37,7 @@ void sf_workspace_finish(struct sf_server *server);
 /* Create the per-output strip (one empty workspace) + ext group. */
 void sf_workspace_output_init(struct sf_output *output);
 void sf_workspace_output_finish(struct sf_output *output);
+void sf_workspace_adopt_parked(struct sf_output *output);
 
 struct sf_output *sf_output_at_cursor(struct sf_server *server);
 struct sf_output *sf_output_for_toplevel(struct sf_toplevel *toplevel);

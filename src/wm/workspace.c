@@ -14,12 +14,10 @@
 
 #include "anim/anim.h"
 #include "config/config.h"
-#include "decor/decor.h"
 #include "log/log.h"
 #include "output/output.h"
 #include "seat/seat.h"
 #include "server/server.h"
-#include "ssd/ssd.h"
 #include "util/math.h"
 #include "util/time.h"
 #include "wm/arrange.h"
@@ -234,43 +232,48 @@ static struct sf_workspace *workspace_create(struct sf_output *output) {
 	return ws;
 }
 
-/* Drop scene chrome before the workspace tree is destroyed. Nested-session
- * output teardown can free ws->tree (and its children) while sf_toplevel
- * still lives; border hit-tests then UAF on scene_tree. */
-static void workspace_detach_toplevel_scene(struct sf_toplevel *toplevel) {
-	if (toplevel == NULL) {
-		return;
-	}
-	if (toplevel->server != NULL && toplevel->server->grabbed_toplevel == toplevel) {
-		sf_reset_cursor_mode(toplevel->server);
-	}
-	sf_anim_cancel(toplevel, false);
-	sf_ssd_destroy(toplevel);
-	sf_decor_finish_toplevel(toplevel);
-}
-
-static void workspace_clear_members(struct sf_workspace *ws) {
-	if (ws == NULL || ws->output == NULL || ws->output->server == NULL) {
-		return;
-	}
+/* Reparent before destroying the strip. With no desktop output left, a
+ * mapped normal window stays workspace-less until an output can adopt it. */
+static void workspace_park_members(struct sf_workspace *ws) {
 	struct sf_server *server = ws->output->server;
 	struct sf_toplevel *t;
+	/* Capture every cell before removing a row renumbers its neighbors. */
 	wl_list_for_each(t, &server->toplevels, link) {
 		if (t->workspace == ws) {
-			sf_arrange_unlink(t);
-			sf_arrange_slot_clear(t);
-			t->arrange_managed = false;
-			workspace_detach_toplevel_scene(t);
-			t->workspace = NULL;
+			sf_arrange_slot_remember(t);
 		}
 	}
-	wl_list_for_each(t, &server->minimized, minimize_link) {
-		if (t->workspace == ws) {
-			sf_arrange_unlink(t);
-			sf_arrange_slot_clear(t);
-			t->arrange_managed = false;
-			workspace_detach_toplevel_scene(t);
-			t->workspace = NULL;
+	wl_list_for_each(t, &server->toplevels, link) {
+		if (t->workspace != ws) {
+			continue;
+		}
+		if (server->grabbed_toplevel == t) {
+			sf_reset_cursor_mode(server);
+		}
+		sf_arrange_unlink(t);
+		t->workspace = NULL;
+		sf_toplevel_sync_scene_layer(t);
+	}
+}
+
+void sf_workspace_adopt_parked(struct sf_output *output) {
+	if (!output->wlr_output->enabled || output->active == NULL || output->full.width <= 0 ||
+	    output->full.height <= 0) {
+		return;
+	}
+	struct sf_toplevel *t, *tmp;
+	wl_list_for_each_safe(t, tmp, &output->server->toplevels, link) {
+		if (t->workspace != NULL || sf_toplevel_is_scratchpad(t)) {
+			continue;
+		}
+		if (t->minimized) {
+			/* Preserve the hidden scene and LIFO order, but don't leave its
+			 * restore position on the removed head. */
+			sf_workspace_assign(t, output->active);
+			t->resting_x = output->usable.x;
+			t->resting_y = output->usable.y;
+		} else {
+			sf_toplevel_place_on_output(t, output);
 		}
 	}
 }
@@ -283,7 +286,7 @@ static void workspace_destroy(struct sf_workspace *ws) {
 		wl_event_source_remove(ws->arrange_idle);
 		ws->arrange_idle = NULL;
 	}
-	workspace_clear_members(ws);
+	workspace_park_members(ws);
 	sf_columns_clear(ws);
 	if (ws->ext != NULL) {
 		wlr_ext_workspace_handle_v1_destroy(ws->ext);
@@ -355,7 +358,8 @@ void sf_workspace_assign(struct sf_toplevel *toplevel, struct sf_workspace *ws) 
 	}
 	struct sf_workspace *old_ws = toplevel->workspace;
 	struct sf_output *old_output = old_ws != NULL ? old_ws->output : NULL;
-	if (old_ws != ws) {
+	bool moved = old_ws != ws;
+	if (moved) {
 		/* Keep home cell across WS/monitor moves (unlink no longer clears). */
 		if (toplevel->column != NULL) {
 			sf_arrange_slot_remember(toplevel);
@@ -366,6 +370,9 @@ void sf_workspace_assign(struct sf_toplevel *toplevel, struct sf_workspace *ws) 
 	/* Fullscreen stays on layers.fullscreen above the bar; sync picks
 	 * ws->tree only when not fullscreen. */
 	sf_toplevel_sync_scene_layer(toplevel);
+	if (moved && old_ws != NULL) {
+		sf_arrange_schedule(old_ws);
+	}
 	if (old_output != NULL && old_output != ws->output) {
 		sf_workspace_compact(old_output);
 	}
@@ -377,12 +384,9 @@ void sf_workspace_assign(struct sf_toplevel *toplevel, struct sf_workspace *ws) 
 		 * stay out; everything else joins the strip. */
 		sf_arrange_join_toplevel(toplevel);
 		sf_arrange_schedule(ws);
-	} else if (old_ws != ws && !toplevel->arrange_floating) {
+	} else if (moved && !toplevel->arrange_floating) {
 		toplevel->arrange_managed = false;
 		sf_column_remove_row(toplevel);
-	}
-	if (old_ws != NULL && old_ws != ws) {
-		sf_arrange_schedule(old_ws);
 	}
 	sf_xdg_sync_toplevel(toplevel);
 }
@@ -419,7 +423,8 @@ void sf_workspace_compact(struct sf_output *output) {
 	/* Keep occupied workspaces, the current active (may be empty), and the
 	 * outgoing slide partner until the strip animation finishes. */
 	wl_list_for_each_safe(ws, tmp, &output->workspaces, link) {
-		if (workspace_has_members(ws) || ws == output->active) {
+		if (workspace_has_members(ws) || ws == output->active ||
+		    ws->link.next == &output->workspaces) {
 			continue;
 		}
 		if (output->ws_anim.active && ws == output->ws_anim.from) {

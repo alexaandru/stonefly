@@ -1105,7 +1105,7 @@ bool sf_ghost_try_spawn(struct sf_toplevel *toplevel) {
 	if (toplevel->scene_tree == NULL) {
 		return false;
 	}
-	/* Super+q already spawned the ghost and disabled the live tree. */
+	/* A hidden surface has no visible closing frame. */
 	if (!toplevel->scene_tree->node.enabled) {
 		return false;
 	}

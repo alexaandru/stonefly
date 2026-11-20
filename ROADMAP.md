@@ -57,7 +57,7 @@ windows. High-severity gaps are fixed (see FEATURES).
 |---|---|
 | Empty column shells after FS-only column | Membership kept, pack skips FS — watch empty-shell leaks |
 | SoftPlace late title / app_id | Appear-hold is late-title only (empty app_id no longer parks forever — Chrome Task Manager). Watch late app_id morph still |
-| Output disconnect / refuge | `workspace_clear` unlinks + clears slots — expected |
+| Output disconnect / refuge | Live validation: unplug/replug with tiled, minimized and fullscreen clients; verify recovery when the last head was lost |
 
 ---
 

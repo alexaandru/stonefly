@@ -61,6 +61,10 @@ bool sf_server_init(struct sf_server *server) {
 	server->pinch.match_idx = -1;
 
 	server->wl_display = wl_display_create();
+	if (server->wl_display == NULL) {
+		SF_LOGE("failed to create Wayland display");
+		return false;
+	}
 	/*
 	 * Default libwayland send ring is 4 KiB. A briefly stalled client
 	 * (Noctalia calendar / taskbar under hide-show FS bursts) fills it and
@@ -82,7 +86,13 @@ bool sf_server_init(struct sf_server *server) {
 		SF_LOGE("failed to create fx_renderer");
 		return false;
 	}
-	wlr_renderer_init_wl_display(server->renderer, server->wl_display);
+	if (!wlr_renderer_init_wl_display(server->renderer, server->wl_display)) {
+		SF_LOGE("failed to initialize renderer Wayland globals");
+		wlr_renderer_destroy(server->renderer);
+		wlr_backend_destroy(server->backend);
+		wl_display_destroy(server->wl_display);
+		return false;
+	}
 
 	server->allocator = wlr_allocator_autocreate(server->backend, server->renderer);
 	if (server->allocator == NULL) {

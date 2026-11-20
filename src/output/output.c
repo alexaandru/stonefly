@@ -20,6 +20,7 @@
 #include "log/log.h"
 #include "output/output.h"
 #include "session/session.h"
+#include "wm/overview.h"
 #include "wm/workspace.h"
 
 static void output_present(struct wl_listener *listener, void *data) {
@@ -102,13 +103,12 @@ static struct wlr_output_configuration_v1 *output_snapshot(struct sf_server *ser
 			wlr_output_configuration_v1_destroy(config);
 			return NULL;
 		}
-		if (wlr_output->enabled) {
-			struct wlr_box box;
-			wlr_output_layout_get_box(server->output_layout, wlr_output, &box);
-			if (!wlr_box_empty(&box)) {
-				head->state.x = box.x;
-				head->state.y = box.y;
-			}
+		struct wlr_output_layout_output *lo =
+			wlr_output_layout_get(server->output_layout, wlr_output);
+		head->state.enabled = lo != NULL;
+		if (lo != NULL) {
+			head->state.x = lo->x;
+			head->state.y = lo->y;
 		}
 	}
 
@@ -168,6 +168,36 @@ static bool output_build_blank(struct sf_server *server, struct wlr_swapchain *s
 	return ok;
 }
 
+/* A logical configuration includes sleeping heads. Permit layout changes but
+ * don't wake them or silently accept backend properties we didn't apply. */
+static bool output_mask_sleeping(struct wlr_backend_output_state *heads, size_t count) {
+	for (size_t i = 0; i < count; i++) {
+		struct wlr_output *wlr = heads[i].output;
+		struct sf_output *output = wlr->data;
+		struct wlr_output_state *state = &heads[i].base;
+		if (output == NULL || !output->dpms_off || !state->enabled) {
+			continue;
+		}
+		bool mode_matches = state->mode_type == WLR_OUTPUT_STATE_MODE_FIXED
+					    ? state->mode == wlr->current_mode
+					    : wlr->current_mode == NULL &&
+						      state->custom_mode.width == wlr->width &&
+						      state->custom_mode.height == wlr->height &&
+						      state->custom_mode.refresh == wlr->refresh;
+		if (!mode_matches ||
+		    wl_fixed_from_double(state->scale) != wl_fixed_from_double(wlr->scale) ||
+		    state->transform != wlr->transform ||
+		    state->adaptive_sync_enabled !=
+			    (wlr->adaptive_sync_status == WLR_OUTPUT_ADAPTIVE_SYNC_ENABLED)) {
+			return false;
+		}
+		wlr_output_state_finish(state);
+		wlr_output_state_init(state);
+		wlr_output_state_set_enabled(state, false);
+	}
+	return true;
+}
+
 static bool output_configure_heads(struct sf_server *server,
 				   struct wlr_output_configuration_v1 *cfg, bool test,
 				   bool *attempted) {
@@ -179,7 +209,8 @@ static bool output_configure_heads(struct sf_server *server,
 	}
 	struct wlr_output_swapchain_manager mgr;
 	wlr_output_swapchain_manager_init(&mgr, server->backend);
-	bool ok = wlr_output_swapchain_manager_prepare(&mgr, states, count);
+	bool ok = output_mask_sleeping(states, count) &&
+		  wlr_output_swapchain_manager_prepare(&mgr, states, count);
 	if (!test && ok) {
 		for (size_t i = 0; i < count && ok; i++) {
 			struct wlr_backend_output_state *head = &states[i];
@@ -254,6 +285,14 @@ static void output_mgr_apply_or_test(struct sf_server *server,
 			}
 		}
 		output_rearrange_all(server);
+		wl_list_for_each(output, &server->outputs, link) {
+			if (wlr_output_layout_get(server->output_layout, output->wlr_output) ==
+			    NULL) {
+				output->dpms_off = false;
+			} else {
+				sf_workspace_adopt_parked(output);
+			}
+		}
 		sf_session_sync_outputs(server);
 		sf_output_mgr_send_config(server);
 	}
@@ -290,6 +329,10 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 	struct sf_server *server = output->server;
 	struct sf_layer_surface *layer, *tmp;
 
+	bool live_strip = !wl_list_empty(&output->workspaces);
+	if (live_strip) {
+		sf_overview_force_close(server);
+	}
 	for (int i = 0; i <= ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY; i++) {
 		wl_list_for_each_safe(layer, tmp, &output->layers[i], link) {
 			wlr_layer_surface_v1_destroy(layer->layer_surface);
@@ -297,6 +340,9 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 	}
 
 	sf_workspace_output_finish(output);
+	if (live_strip) {
+		wlr_output_layout_remove(server->output_layout, output->wlr_output);
+	}
 	output->wlr_output->data = NULL;
 	wl_list_remove(&output->present.link);
 	wl_list_remove(&output->frame.link);
@@ -305,6 +351,17 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&output->link);
 	free(output);
 
+	/* At shutdown the strips were already finished before the scene. */
+	if (live_strip) {
+		struct sf_output *other;
+		wl_list_for_each(other, &server->outputs, link) {
+			if (wlr_output_layout_get(server->output_layout, other->wlr_output) !=
+			    NULL) {
+				sf_layer_arrange_output(other);
+				sf_workspace_adopt_parked(other);
+			}
+		}
+	}
 	sf_session_sync_outputs(server);
 	sf_output_mgr_send_config(server);
 }
@@ -397,6 +454,7 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 
 	sf_workspace_output_init(output);
 	sf_layer_arrange_output(output);
+	sf_workspace_adopt_parked(output);
 	sf_decor_update_blur_size(server);
 	sf_output_mgr_send_config(server);
 }

@@ -1732,40 +1732,11 @@ void sf_unminimize_most_recent(struct sf_server *server) {
 	sf_focus_toplevel(toplevel);
 }
 
-static void close_after_hide(struct sf_toplevel *toplevel) {
-	wlr_xdg_toplevel_send_close(toplevel->xdg_toplevel);
-}
-
 void sf_close_toplevel(struct sf_toplevel *toplevel) {
-	if (toplevel == NULL) {
-		return;
-	}
-	struct sf_workspace *ws = toplevel->workspace;
-	bool strip = toplevel->arrange_managed || toplevel->column != NULL;
-	if (strip && ws != NULL && sf_arrange_is_tiling(sf_workspace_arrange(ws))) {
-		/* Unlink + reflow now so survivors morph while the ghost pops. */
-		toplevel->anim_slide_column = true;
-		sf_arrange_unlink(toplevel);
-		sf_arrange_slot_clear(toplevel);
-		toplevel->arrange_managed = false;
-		sf_arrange_flush(ws);
-	}
-	/* Same snapshot pop/slide as client Ctrl+W — no live chrome, no hang
-	 * at the 0.8 pose waiting for send_close. */
-	sf_decor_refresh_close_snap(toplevel);
-	if (sf_ghost_try_spawn(toplevel)) {
-		sf_anim_cancel(toplevel, false);
-		if (toplevel->scene_tree != NULL) {
-			wlr_scene_node_set_enabled(&toplevel->scene_tree->node, false);
-		}
-		toplevel->anim_hide = true;
+	/* A close request can be declined. Unmap owns the ghost and reflow. */
+	if (toplevel != NULL) {
 		wlr_xdg_toplevel_send_close(toplevel->xdg_toplevel);
-		return;
 	}
-	if (sf_anim_start_hide(toplevel, close_after_hide)) {
-		return;
-	}
-	wlr_xdg_toplevel_send_close(toplevel->xdg_toplevel);
 }
 
 static bool focus_cycle_eligible(struct sf_toplevel *t, bool include_minimized) {

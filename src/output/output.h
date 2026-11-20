@@ -19,6 +19,7 @@ struct sf_output {
 	struct wlr_output *wlr_output;
 	struct wl_listener frame;
 	struct wl_listener present;
+	bool dpms_off;
 	struct wlr_box lock_box;
 	struct sf_lock_frame lock_frame;
 	struct wl_listener request_state;

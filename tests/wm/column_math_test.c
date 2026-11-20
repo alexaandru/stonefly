@@ -88,6 +88,25 @@ static void test_strip_just_enough_scroll(void) {
 	SF_TEST_EQ_INT(offset, keep);
 }
 
+static void test_strip_close_middle(void) {
+	const struct wlr_box usable = {.width = 800, .height = 600};
+	const float fracs[] = {0.5f, 0.5f, 0.5f};
+	const bool fulls[] = {false, false, false};
+	int left[3], width[3], offset;
+	SF_TEST_TRUE(sf_arrange_math_column_strip(&usable, 3, fracs, fulls, 10, 2, 0, false, left,
+						  width, &offset));
+	SF_TEST_EQ_INT(offset, 405);
+	int previous = offset;
+	for (size_t focus = 0; focus < 2; focus++) {
+		SF_TEST_TRUE(sf_arrange_math_column_strip(&usable, 2, fracs, fulls, 10, focus,
+							  previous, false, left, width, &offset));
+		SF_TEST_EQ_INT(offset, 0);
+		SF_TEST_EQ_INT(left[0], 0);
+		SF_TEST_EQ_INT(left[1], width[0] + 10);
+		SF_TEST_EQ_INT(left[1] + width[1], usable.width);
+	}
+}
+
 static void test_strip_full_width_and_scroll(void) {
 	const struct wlr_box usable = {.x = 0, .y = 0, .width = 800, .height = 600};
 	const float fracs[] = {0.5f, 0.5f, 0.5f};
@@ -142,6 +161,7 @@ static void test_width_px_helper(void) {
 
 static const struct sf_test tests[] = {
 	{"strip_lone_fills", test_strip_lone_fills},
+	{"strip_close_middle", test_strip_close_middle},
 	{"strip_two_equal_fit", test_strip_two_equal_fit},
 	{"strip_two_equal_with_gap_fit", test_strip_two_equal_with_gap_fit},
 	{"strip_just_enough_scroll", test_strip_just_enough_scroll},

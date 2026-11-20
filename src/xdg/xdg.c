@@ -364,7 +364,7 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 
 	bool was_focused = sf_focused_toplevel(server) == toplevel;
 
-	/* Client Ctrl+W / CSD close: slide cached last frame (FORK.md close-ghost). */
+	/* Client and compositor closes converge here, before removing the cell. */
 	sf_ghost_try_spawn(toplevel);
 	sf_anim_cancel(toplevel, false);
 	{
