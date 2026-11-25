@@ -599,8 +599,8 @@ to enter a submap on Super+o.
 
 | Suite | Status | Scope | Gate |
 |---|---|---|---|
-| Unit (more pure) | 🚧 | Rules match extract still open; geom/json/csv-substr/blur-clamp deepened | Extend `make test` |
-| Integration | 📋 later | Headless / virtual WL + client/IPC drivers | Separate Meson tag; skip by default |
+| Unit (more pure) | 🚧 | LuaJIT OK in suites (follow compositor); SoftPlace/rules via live `windows`/`dump` or pattern helper — do not peel C to dodge Lua | Extend `make test` |
+| Integration | 📋 later | Headless / virtual WL + client/IPC drivers; assert on `dump` / enriched `windows` | Separate Meson tag; skip by default |
 | Coverage floors / HTML | 📋 optional | gcovr/`llvm-cov`; fail under a floor | Dev/CI only — not APK `check()` |
 
 Shipped unit surface: [`FEATURES.md`](FEATURES.md) (Testing and packaging).

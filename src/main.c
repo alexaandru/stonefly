@@ -15,6 +15,7 @@ static void usage(const char *argv0) {
 	printf("  %s validate                     check config without starting / applying\n",
 	       argv0);
 	printf("  %s windows [--json]             list windows via IPC\n", argv0);
+	printf("  %s dump                         kitchen-sink internal state JSON\n", argv0);
 	printf("  %s layers [--json]              list layer-shell surfaces via IPC\n", argv0);
 	printf("  %s outputs [--json]             list outputs via IPC\n", argv0);
 	printf("  %s workspaces [--json]          list workspaces via IPC\n", argv0);
@@ -91,6 +92,9 @@ int main(int argc, char *argv[]) {
 	if (argc >= 2 && argv[1][0] != '-') {
 		if (strcmp(argv[1], "windows") == 0) {
 			return sf_ipc_cmd_windows(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "dump") == 0) {
+			return sf_ipc_cmd_dump(argc - 1, argv + 1);
 		}
 		if (strcmp(argv[1], "layers") == 0) {
 			return sf_ipc_cmd_layers(argc - 1, argv + 1);

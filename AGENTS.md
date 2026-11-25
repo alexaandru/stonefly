@@ -358,6 +358,14 @@ it was a pick-queue item).
   they help. After src/Meson/protocol work that should compile, run
   `make apk` (sandbox abuild) unless the user already pasted a matching
   `build.log` this turn.
+- **Tests follow the compositor.** If product code uses LuaJIT, pixman, or
+  other deps already in `makedepends`, unit suites may link them
+  (`libs=` / pkg-config in `tests/drive.py`). Do not invent C peels, fake
+  matchers, or dep-free reshapes solely so the harness stays “pure.” Domain
+  kernels that are already Wayland-free (`place_sm`, `layout_sm`,
+  `arrange_math`) stay unit-tested as pure C — that is domain purity, not
+  harness purism. Live / integration asserts prefer IPC snapshots
+  (`windows`, `dump`) over injecting test seams into scene/WM paths.
 - Do not run `make fmt` unless the user asks — formatting is their call.
 - When changing `.clang-tidy`, keep useful checks; silence only known narrow
   false positives and document them here (see Lint / analyzer above).

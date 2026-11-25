@@ -6,110 +6,83 @@
 
 #include "util/json.h"
 
+static void emit_bool(struct json_buf *b, const char *key, bool v) {
+	json_byte(b, ',');
+	json_key(b, key);
+	json_bool(b, v);
+}
+
+static void emit_i64(struct json_buf *b, const char *key, int64_t v) {
+	json_byte(b, ',');
+	json_key(b, key);
+	json_i64(b, v);
+}
+
+static void emit_str(struct json_buf *b, const char *key, const char *v) {
+	json_byte(b, ',');
+	json_key(b, key);
+	json_str(b, v != NULL ? v : "");
+}
+
+void sf_windows_info_to_json_object(struct json_buf *b, const struct sf_window_info *w) {
+	json_byte(b, '{');
+
+	json_key(b, "id");
+	char idbuf[32];
+	snprintf(idbuf, sizeof(idbuf), "%llu", (unsigned long long)w->id);
+	json_str(b, idbuf);
+
+	emit_str(b, "app_id", w->app_id);
+	emit_str(b, "title", w->title);
+	emit_str(b, "tag", w->tag);
+	emit_str(b, "description", w->description);
+	emit_str(b, "icon_name", w->icon_name);
+	emit_i64(b, "x", w->x);
+	emit_i64(b, "y", w->y);
+	emit_i64(b, "w", w->w);
+	emit_i64(b, "h", w->h);
+	emit_bool(b, "focused", w->focused);
+	emit_bool(b, "floating", w->floating);
+	emit_bool(b, "maximized_to_edges", w->maximized_to_edges);
+	emit_bool(b, "maximized_gaps", w->maximized_gaps);
+	emit_bool(b, "fullscreen", w->fullscreen);
+	emit_bool(b, "minimized", w->minimized);
+	emit_bool(b, "snapped", w->snapped);
+	emit_bool(b, "urgent", w->urgent);
+	emit_bool(b, "capture_blocked", w->capture_blocked);
+	emit_bool(b, "always_on_top", w->always_on_top);
+	emit_bool(b, "scene_enabled", w->scene_enabled);
+	emit_bool(b, "arrange_floating", w->arrange_floating);
+	emit_bool(b, "arrange_managed", w->arrange_managed);
+	emit_bool(b, "soft", w->soft);
+	emit_bool(b, "appear_hold", w->appear_hold);
+	emit_bool(b, "modal", w->modal);
+	emit_bool(b, "borderless", w->borderless);
+	emit_bool(b, "xwayland", w->xwayland);
+	emit_bool(b, "client_blur", w->client_blur);
+	emit_str(b, "layout", w->layout);
+	if (w->snap_dir[0] != '\0') {
+		emit_str(b, "snap_dir", w->snap_dir);
+	}
+	emit_str(b, "scratchpad", w->scratchpad);
+	emit_str(b, "output", w->output);
+	emit_i64(b, "workspace", w->workspace);
+	emit_i64(b, "column", w->column);
+	emit_i64(b, "column_row", w->column_row);
+
+	json_byte(b, '}');
+}
+
 int sf_windows_to_json(const struct sf_window_info *infos, size_t n, char *buf, size_t cap) {
 	struct json_buf b;
 	json_buf_init(&b, buf, cap);
 
 	json_byte(&b, '[');
 	for (size_t i = 0; i < n; i++) {
-		const struct sf_window_info *w = &infos[i];
 		if (i > 0) {
 			json_byte(&b, ',');
 		}
-		json_byte(&b, '{');
-
-		json_key(&b, "id");
-		char idbuf[32];
-		snprintf(idbuf, sizeof(idbuf), "%llu", (unsigned long long)w->id);
-		json_str(&b, idbuf);
-
-		json_byte(&b, ',');
-		json_key(&b, "app_id");
-		json_str(&b, w->app_id);
-
-		json_byte(&b, ',');
-		json_key(&b, "title");
-		json_str(&b, w->title);
-
-		json_byte(&b, ',');
-		json_key(&b, "tag");
-		json_str(&b, w->tag);
-
-		json_byte(&b, ',');
-		json_key(&b, "description");
-		json_str(&b, w->description);
-
-		json_byte(&b, ',');
-		json_key(&b, "icon_name");
-		json_str(&b, w->icon_name);
-
-		json_byte(&b, ',');
-		json_key(&b, "x");
-		json_i64(&b, w->x);
-		json_byte(&b, ',');
-		json_key(&b, "y");
-		json_i64(&b, w->y);
-		json_byte(&b, ',');
-		json_key(&b, "w");
-		json_i64(&b, w->w);
-		json_byte(&b, ',');
-		json_key(&b, "h");
-		json_i64(&b, w->h);
-
-		json_byte(&b, ',');
-		json_key(&b, "focused");
-		json_bool(&b, w->focused);
-
-		json_byte(&b, ',');
-		json_key(&b, "floating");
-		json_bool(&b, w->floating);
-
-		json_byte(&b, ',');
-		json_key(&b, "maximized_to_edges");
-		json_bool(&b, w->maximized_to_edges);
-
-		json_byte(&b, ',');
-		json_key(&b, "fullscreen");
-		json_bool(&b, w->fullscreen);
-
-		json_byte(&b, ',');
-		json_key(&b, "minimized");
-		json_bool(&b, w->minimized);
-
-		json_byte(&b, ',');
-		json_key(&b, "snapped");
-		json_bool(&b, w->snapped);
-
-		json_byte(&b, ',');
-		json_key(&b, "urgent");
-		json_bool(&b, w->urgent);
-
-		json_byte(&b, ',');
-		json_key(&b, "capture_blocked");
-		json_bool(&b, w->capture_blocked);
-
-		json_byte(&b, ',');
-		json_key(&b, "always_on_top");
-		json_bool(&b, w->always_on_top);
-
-		json_byte(&b, ',');
-		json_key(&b, "scene_enabled");
-		json_bool(&b, w->scene_enabled);
-
-		if (w->snap_dir[0] != '\0') {
-			json_byte(&b, ',');
-			json_key(&b, "snap_dir");
-			json_str(&b, w->snap_dir);
-		}
-
-		json_byte(&b, ',');
-		json_key(&b, "output");
-		json_str(&b, w->output);
-		json_byte(&b, ',');
-		json_key(&b, "workspace");
-		json_i64(&b, w->workspace);
-
-		json_byte(&b, '}');
+		sf_windows_info_to_json_object(&b, &infos[i]);
 	}
 	json_byte(&b, ']');
 	json_finish(&b);
@@ -122,6 +95,8 @@ int sf_windows_to_json(const struct sf_window_info *infos, size_t n, char *buf, 
 
 static bool parse_object(struct json_scan *s, struct sf_window_info *out) {
 	memset(out, 0, sizeof(*out));
+	out->column = -1;
+	out->column_row = -1;
 	if (!json_scan_expect(s, '{')) {
 		return false;
 	}
@@ -164,8 +139,16 @@ static bool parse_object(struct json_scan *s, struct sf_window_info *out) {
 			if (!json_scan_string(s, out->icon_name, sizeof(out->icon_name))) {
 				return false;
 			}
+		} else if (strcmp(key, "layout") == 0) {
+			if (!json_scan_string(s, out->layout, sizeof(out->layout))) {
+				return false;
+			}
 		} else if (strcmp(key, "snap_dir") == 0) {
 			if (!json_scan_string(s, out->snap_dir, sizeof(out->snap_dir))) {
+				return false;
+			}
+		} else if (strcmp(key, "scratchpad") == 0) {
+			if (!json_scan_string(s, out->scratchpad, sizeof(out->scratchpad))) {
 				return false;
 			}
 		} else if (strcmp(key, "output") == 0) {
@@ -174,13 +157,18 @@ static bool parse_object(struct json_scan *s, struct sf_window_info *out) {
 			}
 		} else if (strcmp(key, "x") == 0 || strcmp(key, "y") == 0 ||
 			   strcmp(key, "w") == 0 || strcmp(key, "h") == 0 ||
-			   strcmp(key, "workspace") == 0) {
+			   strcmp(key, "workspace") == 0 || strcmp(key, "column") == 0 ||
+			   strcmp(key, "column_row") == 0) {
 			int64_t v = 0;
 			if (!json_scan_i64(s, &v)) {
 				return false;
 			}
 			if (strcmp(key, "workspace") == 0) {
 				out->workspace = (int)v;
+			} else if (strcmp(key, "column") == 0) {
+				out->column = (int)v;
+			} else if (strcmp(key, "column_row") == 0) {
+				out->column_row = (int)v;
 			} else if (key[0] == 'x') {
 				out->x = (int32_t)v;
 			} else if (key[0] == 'y') {
@@ -192,10 +180,15 @@ static bool parse_object(struct json_scan *s, struct sf_window_info *out) {
 			}
 		} else if (strcmp(key, "focused") == 0 || strcmp(key, "floating") == 0 ||
 			   strcmp(key, "maximized_to_edges") == 0 ||
-			   strcmp(key, "fullscreen") == 0 || strcmp(key, "minimized") == 0 ||
-			   strcmp(key, "snapped") == 0 || strcmp(key, "urgent") == 0 ||
-			   strcmp(key, "capture_blocked") == 0 ||
-			   strcmp(key, "always_on_top") == 0 || strcmp(key, "scene_enabled") == 0) {
+			   strcmp(key, "maximized_gaps") == 0 || strcmp(key, "fullscreen") == 0 ||
+			   strcmp(key, "minimized") == 0 || strcmp(key, "snapped") == 0 ||
+			   strcmp(key, "urgent") == 0 || strcmp(key, "capture_blocked") == 0 ||
+			   strcmp(key, "always_on_top") == 0 || strcmp(key, "scene_enabled") == 0 ||
+			   strcmp(key, "arrange_floating") == 0 ||
+			   strcmp(key, "arrange_managed") == 0 || strcmp(key, "soft") == 0 ||
+			   strcmp(key, "appear_hold") == 0 || strcmp(key, "modal") == 0 ||
+			   strcmp(key, "borderless") == 0 || strcmp(key, "xwayland") == 0 ||
+			   strcmp(key, "client_blur") == 0) {
 			bool v = false;
 			if (!json_scan_bool(s, &v)) {
 				return false;
@@ -206,6 +199,8 @@ static bool parse_object(struct json_scan *s, struct sf_window_info *out) {
 				out->floating = v;
 			} else if (strcmp(key, "maximized_to_edges") == 0) {
 				out->maximized_to_edges = v;
+			} else if (strcmp(key, "maximized_gaps") == 0) {
+				out->maximized_gaps = v;
 			} else if (strcmp(key, "fullscreen") == 0) {
 				out->fullscreen = v;
 			} else if (strcmp(key, "minimized") == 0) {
@@ -218,8 +213,24 @@ static bool parse_object(struct json_scan *s, struct sf_window_info *out) {
 				out->capture_blocked = v;
 			} else if (strcmp(key, "always_on_top") == 0) {
 				out->always_on_top = v;
-			} else {
+			} else if (strcmp(key, "scene_enabled") == 0) {
 				out->scene_enabled = v;
+			} else if (strcmp(key, "arrange_floating") == 0) {
+				out->arrange_floating = v;
+			} else if (strcmp(key, "arrange_managed") == 0) {
+				out->arrange_managed = v;
+			} else if (strcmp(key, "soft") == 0) {
+				out->soft = v;
+			} else if (strcmp(key, "appear_hold") == 0) {
+				out->appear_hold = v;
+			} else if (strcmp(key, "modal") == 0) {
+				out->modal = v;
+			} else if (strcmp(key, "borderless") == 0) {
+				out->borderless = v;
+			} else if (strcmp(key, "xwayland") == 0) {
+				out->xwayland = v;
+			} else {
+				out->client_blur = v;
 			}
 		} else {
 			/* Skip unknown value: string, bool, or integer. */
@@ -289,9 +300,11 @@ bool sf_windows_from_json(const char *json, struct sf_window_info *out, size_t c
 		if (!json_scan_expect(&s, ']')) {
 			return false;
 		}
-		if (n_out != NULL) {
-			*n_out = n;
-		}
-		return true;
+		break;
 	}
+
+	if (n_out != NULL) {
+		*n_out = n;
+	}
+	return json_scan_ok(&s);
 }

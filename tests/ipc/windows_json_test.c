@@ -7,7 +7,7 @@
 
 static void test_roundtrip(void) {
 	struct sf_window_info in = {0}, out[2];
-	char buf[4096];
+	char buf[8192];
 	size_t n = 0;
 
 	in.id = 42;
@@ -22,16 +22,29 @@ static void test_roundtrip(void) {
 	in.h = 600;
 	in.focused = true;
 	in.floating = true;
-	in.maximized_to_edges = true;
-	in.fullscreen = true;
+	in.maximized_to_edges = false;
+	in.maximized_gaps = true;
+	in.fullscreen = false;
 	in.minimized = true;
 	in.snapped = true;
 	in.urgent = true;
 	in.capture_blocked = true;
 	in.always_on_top = true;
 	in.scene_enabled = true;
+	in.arrange_floating = true;
+	in.arrange_managed = false;
+	in.soft = true;
+	in.appear_hold = true;
+	in.modal = true;
+	in.borderless = true;
+	in.xwayland = true;
+	in.client_blur = true;
+	snprintf(in.layout, sizeof(in.layout), "%s", "max_gaps");
 	snprintf(in.snap_dir, sizeof(in.snap_dir), "%s", "left");
+	snprintf(in.scratchpad, sizeof(in.scratchpad), "%s", "term");
 	in.workspace = 2;
+	in.column = 3;
+	in.column_row = 1;
 	snprintf(in.output, sizeof(in.output), "%s", "eDP-1");
 
 	SF_TEST_TRUE(sf_windows_to_json(&in, 1, buf, sizeof(buf)) > 0);
@@ -49,16 +62,29 @@ static void test_roundtrip(void) {
 	SF_TEST_EQ_INT(out[0].h, 600);
 	SF_TEST_TRUE(out[0].focused);
 	SF_TEST_TRUE(out[0].floating);
-	SF_TEST_TRUE(out[0].maximized_to_edges);
-	SF_TEST_TRUE(out[0].fullscreen);
+	SF_TEST_TRUE(!out[0].maximized_to_edges);
+	SF_TEST_TRUE(out[0].maximized_gaps);
+	SF_TEST_TRUE(!out[0].fullscreen);
 	SF_TEST_TRUE(out[0].minimized);
 	SF_TEST_TRUE(out[0].snapped);
 	SF_TEST_TRUE(out[0].urgent);
 	SF_TEST_TRUE(out[0].capture_blocked);
 	SF_TEST_TRUE(out[0].always_on_top);
 	SF_TEST_TRUE(out[0].scene_enabled);
+	SF_TEST_TRUE(out[0].arrange_floating);
+	SF_TEST_TRUE(!out[0].arrange_managed);
+	SF_TEST_TRUE(out[0].soft);
+	SF_TEST_TRUE(out[0].appear_hold);
+	SF_TEST_TRUE(out[0].modal);
+	SF_TEST_TRUE(out[0].borderless);
+	SF_TEST_TRUE(out[0].xwayland);
+	SF_TEST_TRUE(out[0].client_blur);
+	SF_TEST_STREQ(out[0].layout, "max_gaps");
 	SF_TEST_STREQ(out[0].snap_dir, "left");
+	SF_TEST_STREQ(out[0].scratchpad, "term");
 	SF_TEST_EQ_INT(out[0].workspace, 2);
+	SF_TEST_EQ_INT(out[0].column, 3);
+	SF_TEST_EQ_INT(out[0].column_row, 1);
 	SF_TEST_STREQ(out[0].output, "eDP-1");
 }
 
@@ -78,6 +104,7 @@ static void test_empty_and_errors(void) {
 	/* Unknown keys are skipped; empty object is valid. */
 	SF_TEST_TRUE(sf_windows_from_json("[{\"extra\":\"x\",\"n\":1,\"ok\":true}]", out, 1, &n));
 	SF_TEST_EQ_INT((int)n, 1);
+	SF_TEST_EQ_INT(out[0].column, -1);
 	SF_TEST_TRUE(!sf_windows_from_json("[{},{}]", out, 1, &n));
 }
 

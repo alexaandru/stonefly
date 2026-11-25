@@ -10,6 +10,7 @@ struct sf_server;
  *
  * One JSON object per line:
  *   {"cmd":"windows"}                 → JSON array of windows
+ *   {"cmd":"dump"}                    → versioned kitchen-sink snapshot object
  *   {"cmd":"layers"}                  → JSON array of layer-shell surfaces
  *   {"cmd":"outputs"}                 → JSON array of outputs
  *   {"cmd":"workspaces"}              → JSON array of workspaces
@@ -42,6 +43,7 @@ void sf_ipc_stop(struct sf_server *server);
 
 /* Client entries. Return process exit status. */
 int sf_ipc_cmd_windows(int argc, char **argv);
+int sf_ipc_cmd_dump(int argc, char **argv);
 int sf_ipc_cmd_layers(int argc, char **argv);
 int sf_ipc_cmd_outputs(int argc, char **argv);
 int sf_ipc_cmd_workspaces(int argc, char **argv);

@@ -16,6 +16,7 @@
 #include "config/config.h"
 #include "decor/decor.h"
 #include "ipc/config.h"
+#include "ipc/dump.h"
 #include "ipc/layers.h"
 #include "ipc/outputs.h"
 #include "ipc/parse.h"
@@ -34,7 +35,8 @@
 #include <wlr/types/wlr_xdg_shell.h>
 
 #define SF_IPC_ENV "STONEFLY_SOCKET"
-#define SF_IPC_REPLY_CAP ((size_t)64 * 1024)
+/* Enriched windows + dump snapshots; was 64 KiB. */
+#define SF_IPC_REPLY_CAP ((size_t)1024 * 1024)
 #define SF_IPC_REQ_CAP 4096
 #define SF_IPC_MAX_WINDOWS 256
 #define SF_IPC_MAX_LAYERS 256
@@ -156,6 +158,20 @@ static void ipc_handle_windows(struct sf_ipc_client *client) {
 	}
 	if (sf_windows_to_json(infos, n, out, SF_IPC_REPLY_CAP) < 0) {
 		ipc_write_line(client, "{\"error\":\"windows snapshot overflow\"}");
+	} else {
+		ipc_write_line(client, out);
+	}
+	free(out);
+}
+
+static void ipc_handle_dump(struct sf_ipc_client *client) {
+	char *out = malloc(SF_IPC_REPLY_CAP);
+	if (out == NULL) {
+		ipc_write_line(client, "{\"error\":\"oom\"}");
+		return;
+	}
+	if (sf_dump_to_json(client->ipc->server, out, SF_IPC_REPLY_CAP) < 0) {
+		ipc_write_line(client, "{\"error\":\"dump overflow\"}");
 	} else {
 		ipc_write_line(client, out);
 	}
@@ -409,6 +425,10 @@ static void ipc_handle_request(struct sf_ipc_client *client, const char *line) {
 
 	if (strcmp(cmd, "windows") == 0) {
 		ipc_handle_windows(client);
+		return;
+	}
+	if (strcmp(cmd, "dump") == 0) {
+		ipc_handle_dump(client);
 		return;
 	}
 	if (strcmp(cmd, "layers") == 0) {
@@ -950,6 +970,25 @@ static int workspaces_format(const char *reply) {
 int sf_ipc_cmd_windows(int argc, char **argv) {
 	return ipc_cmd_list(argc, argv, "windows", "Usage: stonefly windows [--json]",
 			    windows_format);
+}
+
+int sf_ipc_cmd_dump(int argc, char **argv) {
+	(void)argc;
+	(void)argv;
+	char *reply = NULL;
+	int rc = ipc_request("dump", &reply);
+	if (rc != 0) {
+		free(reply);
+		return rc;
+	}
+	if (reply != NULL) {
+		fputs(reply, stdout);
+		if (reply[0] != '\0' && reply[strlen(reply) - 1] != '\n') {
+			fputc('\n', stdout);
+		}
+	}
+	free(reply);
+	return 0;
 }
 
 int sf_ipc_cmd_layers(int argc, char **argv) {

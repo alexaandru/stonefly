@@ -216,11 +216,19 @@ system bell is visual only; layer keyboard auto-focus is exclusive-only.
 Same binary; socket `$STONEFLY_SOCKET` or
 `$XDG_RUNTIME_DIR/stonefly-$WAYLAND_DISPLAY.sock`.
 
-`windows`, `layers`, `outputs`, `workspaces`, `workspace` /
+`windows`, `dump`, `layers`, `outputs`, `workspaces`, `workspace` /
 `move-to-workspace`, `config` [section], `focus` / `close`,
 `toggle-quick-terminal`, `toggle-claim-quick-terminal`, `reload`,
 `action` `<name>` `[data…]` (allowlisted bind verbs; pointer-grab denied;
 `quit` allowed — same terminate as `exit`), `exit` — human or `--json`.
+
+`windows` JSON includes layout mode (`float` / `max_edges` / `max_gaps` /
+`snap` / `fullscreen`), sticky `arrange_floating` / `arrange_managed`,
+SoftPlace `soft` / `appear_hold`, scratchpad name, column indices, modal /
+borderless / xwayland / client_blur, and `maximized_gaps`. `floating` means
+layout_sm float mode (not sticky membership). `dump` returns a versioned
+kitchen-sink object (`windows` plus per-window `debug`, workspaces, outputs,
+scratchpads) for live diagnosis and future integration asserts.
 
 Structured JSON logs on stderr and `~/.var/log/stonefly/wm.log`.
 

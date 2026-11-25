@@ -9,6 +9,7 @@ sf_src = files(
   'dbus/dbus.c',
   'ipc/ipc.c',
   'ipc/parse.c',
+  'ipc/dump.c',
   'ipc/windows.c',
   'ipc/windows_json.c',
   'ipc/layers.c',
