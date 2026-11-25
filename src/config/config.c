@@ -177,6 +177,7 @@ void sf_config_finish(struct sf_config *cfg) {
 	for (size_t i = 0; i < cfg->n_window_rules; i++) {
 		free(cfg->window_rules[i].app_id);
 		free(cfg->window_rules[i].title);
+		free(cfg->window_rules[i].tag);
 		sf_action_steps_free(cfg->window_rules[i].steps, cfg->window_rules[i].n_steps);
 	}
 	free(cfg->window_rules);

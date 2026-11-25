@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <time.h>
+#include <pixman.h>
 
 struct sf_server;
 struct sf_toplevel;
@@ -33,9 +34,10 @@ bool sf_decor_present_content_size(struct sf_toplevel *toplevel, int *w, int *h)
 
 /* Sync decoration geometry after an xdg commit / resize.
  * Edge-maximize: border/shadow/corners off; blur stays if window_blur
- * or client_blur (ext-background-effect-v1). Fullscreen: blur off, opaque
- * fs_backdrop sized to the output tile, content centered while the client
- * buffer is still catching up (umbriel letterbox — hides wallpaper).
+ * or client region plates (ext-background-effect-v1). Fullscreen: chrome
+ * blur and client plates off, opaque fs_backdrop sized to the output tile,
+ * content centered while the client buffer is still catching up (umbriel
+ * letterbox — hides wallpaper).
  * Border hole/client = corner_radius; outer = sf_outer_corner_radius;
  * hole inset + matching hole_r shrink for CSD AA (concentric SceneFX rect;
  * no Umbriel render-margin — that pad is transparent only in border.frag).
@@ -48,8 +50,11 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel);
  * border/shadow/SSD (all-or-nothing). */
 bool sf_toplevel_room_for_chrome(const struct sf_toplevel *toplevel);
 
-/* Re-evaluate SceneFX blur node enable (window_blur / client_blur / fullscreen). */
+/* Re-evaluate SceneFX blur: chrome window_blur plate and/or client region plates. */
 void sf_decor_refresh_blur(struct sf_toplevel *toplevel);
+
+/* ext-background-effect-v1: copy region (or clear) and sync client blur plates. */
+void sf_decor_set_client_blur(struct sf_toplevel *toplevel, const pixman_region32_t *region);
 
 /* Apply opacity + per-buffer corner radii (corner_radius; only geometry
  * outer corners each buffer covers — avoids foot CSD titlebar/body

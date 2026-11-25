@@ -7,12 +7,15 @@
 #include "toplevel/toplevel.h"
 
 struct wlr_xdg_popup;
+struct wlr_scene_blur;
 struct sf_output;
 struct sf_server;
 
 struct sf_popup {
 	struct sf_server *server;
 	struct wlr_xdg_popup *xdg_popup;
+	/* Inherited full-geometry blur when parent layer has client_blur. */
+	struct wlr_scene_blur *blur;
 	struct wl_listener commit;
 	struct wl_listener reposition;
 	struct wl_listener destroy;

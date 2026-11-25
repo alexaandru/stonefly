@@ -303,12 +303,14 @@ struct sf_gesture {
 };
 
 /* Fennel window_rule(match, actions [, parent]). Parent merge baked in.
- * app_id / title are Lua patterns (string.find); empty/NULL = any. */
+ * app_id / title / tag are Lua patterns (string.find); empty/NULL = any.
+ * tag matches xdg-toplevel-tag-v1 (match.tag or alias match.xdg_tag). */
 struct sf_window_rule {
 	char id[40];
 	char parent_id[40];
 	char *app_id;
 	char *title;
+	char *tag;
 	bool center;
 	bool center_set;
 	bool float_win;

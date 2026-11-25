@@ -18,7 +18,7 @@
 #include "wm/workspace.h"
 
 static bool rule_matches(const struct sf_config *cfg, const struct sf_window_rule *r,
-			 const char *title, const char *app_id) {
+			 const char *title, const char *app_id, const char *tag) {
 	if (r->title != NULL && r->title[0] != '\0') {
 		if (!sf_lua_pattern_match(cfg, title, r->title)) {
 			return false;
@@ -26,6 +26,11 @@ static bool rule_matches(const struct sf_config *cfg, const struct sf_window_rul
 	}
 	if (r->app_id != NULL && r->app_id[0] != '\0') {
 		if (!sf_lua_pattern_match(cfg, app_id, r->app_id)) {
+			return false;
+		}
+	}
+	if (r->tag != NULL && r->tag[0] != '\0') {
+		if (!sf_lua_pattern_match(cfg, tag, r->tag)) {
 			return false;
 		}
 	}
@@ -40,6 +45,9 @@ static int rule_specificity(const struct sf_window_rule *r) {
 	if (r->app_id != NULL) {
 		n += (int)strlen(r->app_id);
 	}
+	if (r->tag != NULL) {
+		n += (int)strlen(r->tag);
+	}
 	return n;
 }
 
@@ -53,11 +61,12 @@ const struct sf_window_rule *sf_rules_match(const struct sf_toplevel *toplevel) 
 	}
 	const char *title = sf_toplevel_title(toplevel);
 	const char *app_id = sf_toplevel_app_id(toplevel);
+	const char *tag = toplevel->tag;
 	const struct sf_window_rule *best = NULL;
 	int best_score = -1;
 	for (size_t i = 0; i < cfg->n_window_rules; i++) {
 		const struct sf_window_rule *r = &cfg->window_rules[i];
-		if (!rule_matches(cfg, r, title, app_id)) {
+		if (!rule_matches(cfg, r, title, app_id, tag)) {
 			continue;
 		}
 		int score = rule_specificity(r);
@@ -90,8 +99,10 @@ static bool rule_field_still_possible(const struct sf_toplevel *toplevel, bool w
 	}
 	const char *title = sf_toplevel_title(toplevel);
 	const char *app_id = sf_toplevel_app_id(toplevel);
+	const char *tag = toplevel->tag;
 	bool title_known = title != NULL && title[0] != '\0';
 	bool app_known = app_id != NULL && app_id[0] != '\0';
+	bool tag_known = tag != NULL && tag[0] != '\0';
 
 	for (size_t i = 0; i < cfg->n_window_rules; i++) {
 		const struct sf_window_rule *r = &cfg->window_rules[i];
@@ -106,15 +117,20 @@ static bool rule_field_still_possible(const struct sf_toplevel *toplevel, bool w
 		}
 		bool has_title = r->title != NULL && r->title[0] != '\0';
 		bool has_app = r->app_id != NULL && r->app_id[0] != '\0';
+		bool has_tag = r->tag != NULL && r->tag[0] != '\0';
 		if (has_title && title_known && !sf_lua_pattern_match(cfg, title, r->title)) {
 			continue;
 		}
 		if (has_app && app_known && !sf_lua_pattern_match(cfg, app_id, r->app_id)) {
 			continue;
 		}
+		if (has_tag && tag_known && !sf_lua_pattern_match(cfg, tag, r->tag)) {
+			continue;
+		}
 		/* Ruled out only when a required field is known and mismatches.
 		 * Missing fields keep the rule possible (SoftPlace wait). */
-		if ((has_title && !title_known) || (has_app && !app_known)) {
+		if ((has_title && !title_known) || (has_app && !app_known) ||
+		    (has_tag && !tag_known)) {
 			return true;
 		}
 	}

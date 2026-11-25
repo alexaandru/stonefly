@@ -76,13 +76,12 @@ static void effect_apply_client_blur(struct sf_background_effect *effect) {
 	bool want = pixman_region32_not_empty(&effect->current);
 	struct sf_toplevel *toplevel = toplevel_for_surface(effect->server, effect->surface);
 	if (toplevel != NULL) {
-		if (toplevel->client_blur == want) {
-			return;
+		bool was = toplevel->client_blur;
+		sf_decor_set_client_blur(toplevel, want ? &effect->current : NULL);
+		if (was != toplevel->client_blur) {
+			SF_LOGI("client blur", sf_i64("id", (int64_t)toplevel->id),
+				sf_bool("on", toplevel->client_blur));
 		}
-		toplevel->client_blur = want;
-		sf_decor_update_geom(toplevel);
-		sf_decor_refresh_blur(toplevel);
-		SF_LOGI("client blur", sf_i64("id", (int64_t)toplevel->id), sf_bool("on", want));
 		return;
 	}
 	struct sf_layer_surface *layer = layer_for_surface(effect->server, effect->surface);
@@ -103,12 +102,7 @@ static void effect_apply_client_blur(struct sf_background_effect *effect) {
 static void effect_clear_client_blur(struct sf_background_effect *effect) {
 	struct sf_toplevel *toplevel = toplevel_for_surface(effect->server, effect->surface);
 	if (toplevel != NULL) {
-		if (!toplevel->client_blur) {
-			return;
-		}
-		toplevel->client_blur = false;
-		sf_decor_update_geom(toplevel);
-		sf_decor_refresh_blur(toplevel);
+		sf_decor_set_client_blur(toplevel, NULL);
 		return;
 	}
 	struct sf_layer_surface *layer = layer_for_surface(effect->server, effect->surface);

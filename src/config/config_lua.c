@@ -263,6 +263,7 @@ static void clear_window_rules(struct sf_config *cfg) {
 	for (size_t i = 0; i < cfg->n_window_rules; i++) {
 		free(cfg->window_rules[i].app_id);
 		free(cfg->window_rules[i].title);
+		free(cfg->window_rules[i].tag);
 		sf_action_steps_free(cfg->window_rules[i].steps, cfg->window_rules[i].n_steps);
 	}
 	free(cfg->window_rules);
@@ -990,6 +991,15 @@ static int parse_rule_match(lua_State *L, int idx, struct sf_window_rule *out) {
 			check_lua_pattern(L, s, "title");
 			free(out->title);
 			out->title = sf_xstrdup(s);
+		} else if (strcmp(k, "tag") == 0 || strcmp(k, "xdg_tag") == 0) {
+			/* xdg-toplevel-tag-v1; xdg_tag is an alias for tag. */
+			const char *s = lua_tostring(L, -1);
+			if (s == NULL) {
+				return luaL_error(L, "window_rule: match.tag must be a string");
+			}
+			check_lua_pattern(L, s, "tag");
+			free(out->tag);
+			out->tag = sf_xstrdup(s);
 		} else if (strcmp(k, "title_exact") == 0) {
 			return luaL_error(L,
 					  "window_rule: title_exact removed; use title \"^...$\" "
@@ -1126,6 +1136,7 @@ static void merge_window_rule(struct sf_window_rule *dst, const struct sf_window
 
 	dst->app_id = parent->app_id != NULL ? sf_xstrdup(parent->app_id) : NULL;
 	dst->title = parent->title != NULL ? sf_xstrdup(parent->title) : NULL;
+	dst->tag = parent->tag != NULL ? sf_xstrdup(parent->tag) : NULL;
 	if (child->app_id != NULL && child->app_id[0] != '\0') {
 		free(dst->app_id);
 		dst->app_id = sf_xstrdup(child->app_id);
@@ -1133,6 +1144,10 @@ static void merge_window_rule(struct sf_window_rule *dst, const struct sf_window
 	if (child->title != NULL && child->title[0] != '\0') {
 		free(dst->title);
 		dst->title = sf_xstrdup(child->title);
+	}
+	if (child->tag != NULL && child->tag[0] != '\0') {
+		free(dst->tag);
+		dst->tag = sf_xstrdup(child->tag);
 	}
 
 	dst->center = parent->center;
@@ -1252,12 +1267,14 @@ static int l_window_rule(lua_State *L) {
 		if (pid == NULL || pid[0] == '\0') {
 			free(raw.app_id);
 			free(raw.title);
+			free(raw.tag);
 			sf_action_steps_free(raw.steps, raw.n_steps);
 			return luaL_error(L, "window_rule: parent must be a rule tag string");
 		}
 		if (find_window_rule(cfg, pid) == NULL) {
 			free(raw.app_id);
 			free(raw.title);
+			free(raw.tag);
 			sf_action_steps_free(raw.steps, raw.n_steps);
 			return luaL_error(L, "window_rule: unknown parent tag %s", pid);
 		}
@@ -1272,6 +1289,7 @@ static int l_window_rule(lua_State *L) {
 	if (nb == NULL) {
 		free(raw.app_id);
 		free(raw.title);
+		free(raw.tag);
 		sf_action_steps_free(raw.steps, raw.n_steps);
 		return luaL_error(L, "window_rule: OOM");
 	}
@@ -1283,30 +1301,35 @@ static int l_window_rule(lua_State *L) {
 		if (parent == NULL) {
 			free(raw.app_id);
 			free(raw.title);
+			free(raw.tag);
 			sf_action_steps_free(raw.steps, raw.n_steps);
 			return luaL_error(L, "window_rule: unknown parent tag %s", parent_id);
 		}
 		merge_window_rule(dst, parent, &raw);
 		free(raw.app_id);
 		free(raw.title);
+		free(raw.tag);
 		sf_action_steps_free(raw.steps, raw.n_steps);
 	} else {
 		*dst = raw;
 		raw.app_id = NULL;
 		raw.title = NULL;
+		raw.tag = NULL;
 		raw.steps = NULL;
 		raw.n_steps = 0;
 	}
 
 	bool has_match = (dst->app_id != NULL && dst->app_id[0] != '\0') ||
-			 (dst->title != NULL && dst->title[0] != '\0');
+			 (dst->title != NULL && dst->title[0] != '\0') ||
+			 (dst->tag != NULL && dst->tag[0] != '\0');
 	if (!has_match) {
 		free(dst->app_id);
 		free(dst->title);
+		free(dst->tag);
 		sf_action_steps_free(dst->steps, dst->n_steps);
 		dst->steps = NULL;
 		dst->n_steps = 0;
-		return luaL_error(L, "window_rule: match needs app_id or title");
+		return luaL_error(L, "window_rule: match needs app_id, title, or tag");
 	}
 	cfg->n_window_rules++;
 	lua_pushstring(L, dst->id);

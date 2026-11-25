@@ -244,6 +244,7 @@ static void xdg_toplevel_set_tag(struct wl_listener *listener, void *data) {
 	sf_replace_str(&toplevel->tag, event->tag);
 	SF_LOGI("toplevel tag", sf_i64("id", (int64_t)toplevel->id),
 		sf_str("tag", toplevel->tag != NULL ? toplevel->tag : ""));
+	sf_rules_consider_place(toplevel);
 }
 
 static void xdg_toplevel_set_description(struct wl_listener *listener, void *data) {
@@ -864,6 +865,64 @@ void sf_xdg_popup_unconstrain(struct sf_server *server, struct wlr_xdg_popup *xd
 	wlr_xdg_popup_unconstrain_from_box(xdg_popup, &box);
 }
 
+static struct sf_layer_surface *popup_parent_layer(struct wlr_xdg_popup *xdg_popup) {
+	if (xdg_popup == NULL || xdg_popup->parent == NULL) {
+		return NULL;
+	}
+	struct wlr_surface *root = wlr_surface_get_root_surface(xdg_popup->parent);
+	if (root == NULL) {
+		root = xdg_popup->parent;
+	}
+	struct wlr_layer_surface_v1 *ls = wlr_layer_surface_v1_try_from_wlr_surface(root);
+	if (ls == NULL || ls->data == NULL) {
+		return NULL;
+	}
+	struct sf_layer_surface *layer = ls->data;
+	if (layer->kind != SF_NODE_LAYER) {
+		return NULL;
+	}
+	return layer;
+}
+
+/* Layer popups inherit a full-geometry plate when the parent has client_blur. */
+static void popup_refresh_blur(struct sf_popup *popup) {
+	struct wlr_xdg_popup *xdg_popup = popup->xdg_popup;
+	struct wlr_scene_tree *tree = xdg_popup->base->data;
+	struct sf_layer_surface *layer = popup_parent_layer(xdg_popup);
+	struct wlr_surface *surf = xdg_popup->base->surface;
+	struct wlr_box geo = xdg_popup->base->current.geometry;
+	int w = geo.width;
+	int h = geo.height;
+	if ((w <= 0 || h <= 0) && surf != NULL) {
+		w = surf->current.width;
+		h = surf->current.height;
+	}
+	bool want = layer != NULL && layer->client_blur && tree != NULL && surf != NULL &&
+		    surf->mapped && w > 0 && h > 0;
+
+	if (!want) {
+		if (popup->blur != NULL) {
+			wlr_scene_node_set_enabled(&popup->blur->node, false);
+		}
+		return;
+	}
+
+	if (popup->blur == NULL) {
+		popup->blur = wlr_scene_blur_create(tree, w, h);
+		if (popup->blur == NULL) {
+			return;
+		}
+		wlr_scene_blur_set_corner_radii(popup->blur, corner_radii_none());
+		/* Sample real backdrop under the popup (not wallpaper-only). */
+		wlr_scene_blur_set_should_only_blur_bottom_layer(popup->blur, false);
+	} else {
+		wlr_scene_blur_set_size(popup->blur, w, h);
+	}
+	wlr_scene_node_set_position(&popup->blur->node, 0, 0);
+	wlr_scene_node_set_enabled(&popup->blur->node, true);
+	wlr_scene_node_lower_to_bottom(&popup->blur->node);
+}
+
 static void xdg_popup_commit(struct wl_listener *listener, void *data) {
 	(void)data;
 	struct sf_popup *popup = wl_container_of(listener, popup, commit);
@@ -874,6 +933,7 @@ static void xdg_popup_commit(struct wl_listener *listener, void *data) {
 		 * ensure one so the client can map. */
 		wlr_xdg_surface_schedule_configure(popup->xdg_popup->base);
 	}
+	popup_refresh_blur(popup);
 }
 
 static void xdg_popup_reposition(struct wl_listener *listener, void *data) {
@@ -885,6 +945,7 @@ static void xdg_popup_reposition(struct wl_listener *listener, void *data) {
 	}
 	sf_xdg_popup_unconstrain(popup->server, popup->xdg_popup);
 	wlr_xdg_surface_schedule_configure(popup->xdg_popup->base);
+	popup_refresh_blur(popup);
 }
 
 static void xdg_popup_destroy(struct wl_listener *listener, void *data) {
@@ -894,6 +955,11 @@ static void xdg_popup_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&popup->commit.link);
 	wl_list_remove(&popup->reposition.link);
 	wl_list_remove(&popup->destroy.link);
+
+	if (popup->blur != NULL) {
+		wlr_scene_node_destroy(&popup->blur->node);
+		popup->blur = NULL;
+	}
 
 	free(popup);
 }

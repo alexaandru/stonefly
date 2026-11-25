@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <pixman.h>
 #include <wayland-server-core.h>
 #include <wayland-server.h>
 #include <wlr/types/wlr_compositor.h>
@@ -13,6 +14,7 @@
 #include "anim/anim.h"
 #include "config/config.h"
 #include "decor/decor.h"
+#include "effect/blur_plates.h"
 #include "layer/layer.h"
 #include "log/log.h"
 #include "output/output.h"
@@ -163,10 +165,53 @@ static bool decor_chrome_on(const struct sf_toplevel *toplevel) {
 	       sf_toplevel_room_for_chrome(toplevel);
 }
 
-static bool decor_blur_on(const struct sf_toplevel *toplevel) {
+struct decor_blur_mask_ctx {
+	struct wlr_surface *surface;
+	struct wlr_scene_buffer *buffer;
+};
+
+static void decor_blur_mask_iter(struct wlr_scene_buffer *buffer, int sx, int sy, void *data) {
+	(void)sx;
+	(void)sy;
+	struct decor_blur_mask_ctx *ctx = data;
+	if (ctx->buffer != NULL) {
+		return;
+	}
+	struct wlr_scene_surface *ss = wlr_scene_surface_try_from_buffer(buffer);
+	if (ss != NULL && ss->surface == ctx->surface) {
+		ctx->buffer = buffer;
+	}
+}
+
+static struct wlr_scene_buffer *decor_find_surface_buffer(struct sf_toplevel *toplevel) {
+	if (toplevel->xdg_scene_tree == NULL) {
+		return NULL;
+	}
+	struct wlr_surface *surf = sf_toplevel_wlr_surface(toplevel);
+	if (surf == NULL) {
+		return NULL;
+	}
+	struct decor_blur_mask_ctx ctx = {
+		.surface = surf,
+		.buffer = NULL,
+	};
+	wlr_scene_node_for_each_buffer(&toplevel->xdg_scene_tree->node, decor_blur_mask_iter, &ctx);
+	return ctx.buffer;
+}
+
+static void decor_ensure_chrome_blur(struct sf_toplevel *toplevel) {
+	if (toplevel->blur != NULL || toplevel->scene_tree == NULL) {
+		return;
+	}
 	const struct sf_config *cfg = sf_cfg(toplevel->server);
-	return (cfg->window_blur || toplevel->client_blur) &&
-	       !sf_layout_sm_is_fullscreen(&toplevel->layout);
+	const int inner = cfg->corner_radius;
+	toplevel->blur = wlr_scene_blur_create(toplevel->scene_tree, 0, 0);
+	if (toplevel->blur == NULL) {
+		return;
+	}
+	wlr_scene_blur_set_should_only_blur_bottom_layer(toplevel->blur, cfg->blur_xray);
+	wlr_scene_blur_set_corner_radii(toplevel->blur, corner_radii_all(inner));
+	sf_decor_restack_chrome(toplevel);
 }
 
 /*
@@ -183,10 +228,69 @@ enum {
 };
 
 void sf_decor_refresh_blur(struct sf_toplevel *toplevel) {
-	if (toplevel == NULL || toplevel->blur == NULL) {
+	if (toplevel == NULL) {
 		return;
 	}
-	wlr_scene_node_set_enabled(&toplevel->blur->node, decor_blur_on(toplevel));
+	const struct sf_config *cfg = sf_cfg(toplevel->server);
+	const bool fs = sf_layout_sm_is_fullscreen(&toplevel->layout);
+	const bool client_on =
+		toplevel->client_blur && pixman_region32_not_empty(&toplevel->blur_region) && !fs;
+
+	if (fs) {
+		if (toplevel->blur != NULL) {
+			wlr_scene_node_set_enabled(&toplevel->blur->node, false);
+		}
+		sf_blur_plates_clear(&toplevel->blur_plates);
+		return;
+	}
+
+	if (client_on) {
+		if (toplevel->blur != NULL) {
+			wlr_scene_node_set_enabled(&toplevel->blur->node, false);
+		}
+		if (toplevel->xdg_scene_tree == NULL) {
+			sf_blur_plates_clear(&toplevel->blur_plates);
+			return;
+		}
+		struct wlr_surface *surf = sf_toplevel_wlr_surface(toplevel);
+		int surf_w = surf != NULL ? surf->current.width : 0;
+		int surf_h = surf != NULL ? surf->current.height : 0;
+		struct wlr_box boxes[SF_BLUR_PLATE_MAX];
+		size_t n = sf_blur_region_boxes(&toplevel->blur_region, surf_w, surf_h, boxes,
+						SF_BLUR_PLATE_MAX);
+		struct wlr_scene_buffer *mask = n == 1 ? decor_find_surface_buffer(toplevel) : NULL;
+		sf_blur_plates_sync(toplevel->xdg_scene_tree, &toplevel->blur_plates, boxes, n,
+				    n > 0, cfg->blur_xray, mask);
+		return;
+	}
+
+	sf_blur_plates_clear(&toplevel->blur_plates);
+	if (cfg->window_blur) {
+		decor_ensure_chrome_blur(toplevel);
+		if (toplevel->blur != NULL) {
+			wlr_scene_node_set_enabled(&toplevel->blur->node, true);
+		}
+	} else if (toplevel->blur != NULL) {
+		wlr_scene_node_set_enabled(&toplevel->blur->node, false);
+	}
+}
+
+void sf_decor_set_client_blur(struct sf_toplevel *toplevel, const pixman_region32_t *region) {
+	if (toplevel == NULL) {
+		return;
+	}
+	bool want = region != NULL && pixman_region32_not_empty(region);
+	if (want) {
+		pixman_region32_copy(&toplevel->blur_region, region);
+	} else {
+		pixman_region32_clear(&toplevel->blur_region);
+	}
+	toplevel->client_blur = want;
+	if (!want) {
+		sf_blur_plates_clear(&toplevel->blur_plates);
+	}
+	sf_decor_update_geom(toplevel);
+	sf_decor_refresh_blur(toplevel);
 }
 
 static void decor_set_chrome_enabled(struct sf_toplevel *toplevel) {
@@ -594,6 +698,9 @@ void sf_decor_init_toplevel(struct sf_toplevel *toplevel) {
 	const int border = cfg->border_thickness;
 	const int outer = sf_outer_corner_radius(inner, border);
 	const float sigma = cfg->shadow_blur_sigma;
+
+	pixman_region32_init(&toplevel->blur_region);
+	wl_list_init(&toplevel->blur_plates);
 
 	if (cfg->window_blur) {
 		toplevel->blur = wlr_scene_blur_create(toplevel->scene_tree, 0, 0);
@@ -1021,6 +1128,11 @@ void sf_decor_finish_toplevel(struct sf_toplevel *toplevel) {
 	}
 	toplevel->bell_flash = false;
 	sf_decor_clear_close_snap(toplevel);
+
+	/* Drop client plates before the wrapper tree frees their blur nodes. */
+	sf_blur_plates_clear(&toplevel->blur_plates);
+	pixman_region32_fini(&toplevel->blur_region);
+	toplevel->client_blur = false;
 
 	/* Wrapper owns blur/shadow/border (+ xdg child if still linked). */
 	if (toplevel->scene_tree != NULL) {

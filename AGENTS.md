@@ -131,6 +131,9 @@ stays in FEATURES; open gaps in ROADMAP.
 - **Layer blur:** one SceneFX plate per effect rect; full-region falls back to
   exclusive/opaque/input. Do not destroy blur plates in `layer_surface_destroy`
   (tree already freed). Wire every layer surface, not a bar special case.
+  Toplevel client regions use plates under `xdg_scene_tree` (chrome
+  `window_blur` plate disabled while active). Layer popups inherit a live
+  non-xray plate when the parent layer has `client_blur`.
 - **xdg_popup:** `wlr_xdg_popup_unconstrain_from_box` into usable; layer popups
   reparent on `get_popup`; defer unconstrain until initialized.
 - **Derived shell policy** (e.g. Noctalia bar opacity on edge-max): recompute

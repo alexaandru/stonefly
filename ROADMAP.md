@@ -26,9 +26,10 @@ Core Wayland desktop plumbing (`xdg-shell` v7, `wlr-layer-shell` v5,
 `zwlr-foreign-toplevel-v1` + `ext-foreign-toplevel-list-v1`, `ext-workspace-v1`,
 `ext-image-copy-capture-v1` with per-toplevel privacy block, `ext-session-lock-v1`,
 output power / gamma / management, fractional scale, viewporter,
-`ext-background-effect-v1` on layers, shortcuts inhibit, security context, lazy
-on-demand Xwayland). WM & UX: scrollable `columns` + `stacking`, workspace
-overview filmstrip, touchpad gestures, SceneFX blur/shadows/rounded corners,
+`ext-background-effect-v1` (layers+toplevels per-rect; layer popup inherit),
+shortcuts inhibit, security context, lazy on-demand Xwayland). WM & UX:
+scrollable `columns` + `stacking`, workspace overview filmstrip, touchpad
+gestures, SceneFX blur/shadows/rounded corners,
 `sf.opt.anim`, dim-inactive spotlight, per-window/rule opacity & `no_dim`,
 LuaJIT + Fennel config.
 
@@ -38,7 +39,7 @@ LuaJIT + Fennel config.
 |---|---|---|
 | **App-compatibility walls** | (IME + tablet shipped) | — |
 | **Daily-driver feel & polish** | `sf.on` + `sf.wins()`; columns polish (`center_focused=on_overflow`, drag-edge pan) | TODO NEXT #2; §1 columns |
-| **Credibility / no-surprises** | Hollow protocol ads (toplevel blur region / popup); Predictability Medium leftovers | TODO NEXT #1; §5; after-stack |
+| **Credibility / no-surprises** | Predictability Medium leftovers; optional SSD icon blit | TODO NEXT #1; after-stack |
 
 Recent catch-up batch already in FEATURES: shortcuts inhibit, security context,
 `sf.opt.anim` + dim-inactive + opacity/`no_dim`, lazy Xwayland, scratchpad
@@ -64,7 +65,7 @@ data-device) are assumed on all four.
 | **zxdg-decoration** | Client vs server-side titlebars | yes (SSD in `ssd_mode`) | yes | yes | yes |
 | **org_kde_kwin_server_decoration** | Old GTK SSD hint | no | yes | no | yes |
 | **xdg_wm_dialog_v1** | Modal dialog + parent | **yes** (attach + shade + focus trap) | no* | no* | yes |
-| **xdg-toplevel-tag-v1** | Stable window id for restore/rules | **yes** (store + IPC; no persist/rules yet) | no* | no* | yes |
+| **xdg-toplevel-tag-v1** | Stable window id for restore/rules | **yes** (store + IPC + `match.tag` rules) | no* | no* | yes |
 | **xdg-toplevel-icon-v1** | Client-set window icon | yes | no* | no* | no* |
 | **xdg-toplevel-drag-v1** | Tab/window drag between clients | no | no* | no | yes |
 | **xdg-foreign-v2** | Embed another client’s surface | no | yes | no | yes |
@@ -96,7 +97,7 @@ data-device) are assumed on all four.
 | **zwlr-screencopy-v1** | grim / old portal capture | yes (dual-pass omits `capture_blocked`) | yes | ? | yes |
 | **ext-image-copy-capture-v1** | New output capture | yes | yes | yes | yes |
 | **ext-*-image-capture-source-v1** | Per-output / per-toplevel capture | yes (toplevel + privacy block) | yes | yes | yes |
-| **ext-background-effect-v1** | Client blur regions (Noctalia) | yes (layers per-rect; toplevels full plate) | yes | no* | yes |
+| **ext-background-effect-v1** | Client blur regions (Noctalia) | yes (layers+toplevels per-rect; layer popup inherit) | yes | no* | compositor blur (no protocol) |
 | **wp-cursor-shape-v1** | Named cursors | yes v2 + WM grab faces | yes | yes | yes |
 | **zwp-pointer-gestures-v1** | Touchpad swipe/pinch | yes (`sf.gesture`) | yes | yes | yes |
 | **zwp-relative-pointer-v1** | FPS look | yes | yes | yes | yes |
@@ -137,8 +138,8 @@ scene and foreign-toplevel still pins them to the output.
 
 ### Highest-leverage protocol gaps
 
-1. `wp_color_manager_v1` / `wp_fifo_v1` — after-stack / §5
-2. `ext-background-effect` toplevel region mask + layer popup blur — §5
+1. Full `wp_color_manager_v1` (HDR/output) — multi-day; leave unadvertised until then (§5)
+2. `wp_fifo_v1` — needs wlroots/SceneFX newer than 0.20; leave unadvertised
 
 ---
 
@@ -390,7 +391,7 @@ v2; deferred WM opts high (`focus_cycle`, `tile_insert`, `column_drop_seam`,
 
 **After this stack (not numbered):** IPC `action` allowlist; APK flip to release
 buildtype when ASan hunting ends; `--write-config-lua`; protocol hollow-ads
-(blur region/popup); tag/icon consumers; `wp_fifo_v1`; full color-mgmt;
+optional SSD icon blit; `wp_fifo_v1` / full color-mgmt (unadvertised);
 geometry persist;
 scratchpad click-outside catcher; winmenu (or Noctalia); columns polish leftovers.
 Queue is #1–#2.
@@ -454,9 +455,8 @@ slots or one window per column (FEATURES).
 
 ## 2. Presentation / animations / eye candy
 
-| Feature | Status | Notes |
-|---|---|---|
-| Blur region mask / popup blur | 🚧 | Layers: one plate per effect rect; full-region falls back to exclusive/opaque/input (+ transparency mask). Toplevels still treat non-empty region as full-surface bool. Layer popup blur open; no Alpine `ignore_alpha` threshold |
+Blur region plates + layer popup inherit shipped (FEATURES). Optional later:
+Alpine SceneFX `ignore_alpha` threshold for transparency-mask blur.
 
 ---
 
@@ -495,12 +495,10 @@ chapter is **open / hollow / missing only** (advertise ≠ full effect).
 
 | Feature | Status | Notes |
 |---|---|---|
-| `ext-background-effect-v1` region / popup | 🚧 | Layers: per-rect plates + exclusive/opaque/input fallback. Toplevels still bool→full plate. No layer popup blur (§2) |
-| `xdg-toplevel-tag` consumers | 🚧 | Protocol + IPC store only; no rules / geometry-persist consumer |
-| `xdg-toplevel-icon-v1` buffers | 🚧 | Preferred sizes + name/buffer ref + IPC `icon_name`; SSD/shell do not paint buffers |
+| `xdg-toplevel-icon-v1` SSD blit | ❌ | Name + buffers stored; IPC `icon_name`. No theme lookup; SSD does not paint buffers (Noctalia uses app_id). Optional thin consumer later |
 | Screencast / capture_sessions UI | ❌ | Screencopy + ext-image-copy-capture wire shipped; portal session UX open |
-| `wp_fifo_v1` | ❌ | Not advertised. Presentation-time ships |
-| Full color-management | ❌ | Not advertised. Gamma LUT ships |
+| `wp_fifo_v1` | ❌ | Not in wlroots 0.20 / SceneFX 0.5 — do not hollow-advertise. Presentation-time ships |
+| Full color-management | ❌ | Not advertised (hollow ad worse than silence). Gamma LUT ships; Umbriel-class HDR is multi-day |
 
 **Intentional subsets** (documented in FEATURES, not gaps to “finish”):
 `xdg-activation` = urgency / never focus-steal; `xdg-system-bell` = visual
@@ -534,7 +532,7 @@ High knobs shipped (FEATURES).
 |---|---|---|
 | P1 | `sf.on` + window query | ❌ TODO NEXT #2 |
 | P2 | Workspaces polish | ❌ rules / geometry persist |
-| P2 | Protocol hollow-ads (blur region / popup) | 🚧 §5 |
+| P2 | SSD toplevel-icon blit (optional) | ❌ §5 |
 | P2 | Columns polish leftovers | 🚧 §1 (`center_focused=on_overflow`, drag-edge pan) |
 | P2 | `wp_fifo_v1` | ❌ |
 | P2 | Tablet v2 | ✅ FEATURES |
@@ -556,10 +554,9 @@ High knobs shipped (FEATURES).
 Primary queue is **TODO NEXT** at the top (#1–#3). After that stack:
 
 1. IPC action allowlist; APK release buildtype; `--write-config-lua`
-2. Protocol hollow-ads: blur region/popup
-3. Capture: tag/icon consumers; portal capture_sessions UX
-4. Not-yet-advertised: `wp_fifo_v1`, full color-mgmt
-5. Optional WM: columns polish leftovers; geometry persist / tag rules; overview polish (card drag, multi-surface cards, shortcut badges)
+2. Capture: portal capture_sessions UX; optional SSD icon blit
+3. Not-yet-advertised (needs dep bump / multi-day): `wp_fifo_v1`, full color-mgmt
+5. Optional WM: columns polish leftovers; geometry persist; overview polish (card drag, multi-surface cards, shortcut badges)
 6. **Bind context redesign** (own chapter below) — after overview/arrange filters feel cramped
 
 Shell/OSD/media stay **🌙 Noctalia**.

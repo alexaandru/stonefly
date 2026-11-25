@@ -632,6 +632,9 @@ static void emit_window_rules(struct json_buf *b, const struct sf_config *cfg) {
 		json_key(b, "title");
 		json_str(b, r->title ? r->title : "");
 		json_byte(b, ',');
+		json_key(b, "tag");
+		json_str(b, r->tag ? r->tag : "");
+		json_byte(b, ',');
 		json_key(b, "center");
 		if (r->center_set) {
 			json_bool(b, r->center);

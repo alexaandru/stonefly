@@ -65,6 +65,7 @@ sf_src = files(
   'anim/anim.c',
   'decor/decor.c',
   'effect/background_effect.c',
+  'effect/blur_plates.c',
   'ssd/ssd.c',
   'ssd/ssd_policy.c',
   'ssd/ssd_layout.c',

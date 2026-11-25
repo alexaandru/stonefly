@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <time.h>
+#include <pixman.h>
 #include <wayland-server-core.h>
 #include <wlr/util/box.h>
 
@@ -185,8 +186,12 @@ struct sf_toplevel {
 	struct wlr_xdg_toplevel_icon_v1 *icon;
 	char *icon_name;
 
-	/* ext-background-effect-v1: non-empty blur region requested. */
+	/* ext-background-effect-v1: non-empty blur region → plates under xdg tree.
+	 * Chrome `blur` stays the window_blur full plate (disabled while client
+	 * plates are active). */
 	bool client_blur;
+	pixman_region32_t blur_region; /* surface-local; empty when off */
+	struct wl_list blur_plates;    /* sf_blur_plate.link */
 
 	/* xdg-decoration: client preference + compositor SSD titlebar. */
 	bool want_ssd;

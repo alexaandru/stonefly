@@ -154,7 +154,9 @@ Highlights that ship for a usable Noctalia desktop:
   during lock, overview, workspace anim, or active capture; recovers after a
   failed async flip/present
 - Clipboard (ext + legacy data-control, primary selection)
-- Background-effect blur for layers (and full-plate for toplevels)
+- Background-effect blur — layers and toplevels use per-rect plates from
+  `set_blur_region`; layer-shell popups inherit a live plate when the parent
+  layer requested blur
 - Gestures, relative pointer, constraints, virtual keyboard, touch
 - **IME** — `zwp_text_input_v3` + `zwp_input_method_v2` relay (fcitx/ibus;
   keyboard grab + candidate popups). Sandbox allowlist exposes text-input;
@@ -164,6 +166,8 @@ Highlights that ship for a usable Noctalia desktop:
   modes; pointer emulation when the client has no tablet support.
 - Shortcuts inhibit, security context (Flatpak), presentation-time
 - **xdg_wm_dialog_v1** — modal attach policy (float/center/shade/focus trap)
+- **xdg-toplevel-tag-v1** — stored + IPC; `window_rule` `match.tag` (alias
+  `xdg_tag`) for rules; geometry persist still open
 - Lazy **Xwayland** — on-demand; managed windows share `sf_toplevel`
 
 Intentional subsets (not unfinished bugs): activation never focus-steals;
