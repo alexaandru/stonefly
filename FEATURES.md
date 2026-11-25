@@ -45,7 +45,11 @@ open row from the roadmap in the same turn.
   restores prior strip slots when the user had grouped rows, otherwise **one
   window per column**. Slot memory round-trips consume/drag across switches.
 - Column width uses Umbriel slot math so equal fractions fit the usable box.
-  Scroll reveals just enough; new windows insert beside the focused column.
+  Scroll follows `sf.opt.center_focused` (`never`|`always`|`on_overflow`,
+  default `on_overflow`): just-enough reveal, always center the focused column,
+  or center only when the focused column and its focus-side neighbor cannot
+  share the viewport (Umbriel). Underfull strips stay left-aligned. New windows
+  insert beside the focused column.
 
 ### Focus, chrome modes, fullscreen
 
@@ -90,7 +94,9 @@ open row from the roadmap in the same turn.
 - Always-on-top / pin; unminimize can carry to the active workspace
   (`sf.opt.unminimize_workspace`).
 - SSD titlebars via `ssd_mode` / height / font; hidden on fullscreen and
-  edge-max.
+  edge-max. When a client supplies `xdg-toplevel-icon-v1` buffers, the
+  titlebar blits the closest ARGB8888 square left of the title (name-only
+  icons and theme lookup are not resolved).
 
 ### Overview
 
@@ -192,6 +198,7 @@ system bell is visual only; layer keyboard auto-focus is exclusive-only.
   `src/config/default/`
 - WM feel knobs: `sf.opt.focus_cycle` (`spatial`|`mru`|`strip`),
   `pan_focus` (`keep`|`center`|`warp`|`under_pointer`; columns strip pan),
+  `center_focused` (`never`|`always`|`on_overflow`; columns focus scroll),
   `tile_insert` (`after_focus`|`end`|`begin`), `column_drop_seam`,
   `tiled_grab_remap`, `border_resize` (defaults match prior C hardcoding)
 - `sf.opt`, `sf.bind` (keys / mouse / Mod+Wheel), `sf.tap`, `sf.gesture`,

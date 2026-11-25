@@ -1923,6 +1923,8 @@ static int l_opt_newindex(lua_State *L) {
 			cfg->pan_focus = sf_pan_focus_parse(s);
 		} else if (strcmp(k, "tile_insert") == 0) {
 			cfg->tile_insert = sf_tile_insert_parse(s);
+		} else if (strcmp(k, "center_focused") == 0) {
+			cfg->center_focused = sf_center_focused_parse(s);
 		}
 		return 0;
 	}

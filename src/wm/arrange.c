@@ -937,8 +937,9 @@ void sf_arrange_columns_pan(struct sf_workspace *ws, double delta_px) {
 	int col_w[SF_ARRANGE_MAX];
 	int col_left[SF_ARRANGE_MAX];
 	int offset = 0;
-	if (!sf_arrange_math_column_strip(&usable, ncol, fracs, fulls, gap, 0, want, true, col_left,
-					  col_w, &offset)) {
+	if (!sf_arrange_math_column_strip(
+		    &usable, ncol, fracs, fulls, gap, 0, ws->columns_focus_col, want, true,
+		    sf_cfg(server)->center_focused, col_left, col_w, &offset)) {
 		return;
 	}
 	if (offset == ws->columns_view_offset) {

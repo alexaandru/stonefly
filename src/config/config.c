@@ -208,6 +208,12 @@ void sf_config_finish(struct sf_config *cfg) {
 	memset(cfg, 0, sizeof *cfg);
 }
 
+/*
+ * Recovery / STONEFLY_NOCONFIG / Lua-boot-failure seed — not day-zero chrome.
+ * Product defaults live in src/config/default/options.fnl (often softer opacity,
+ * thinner border, window_blur on). Keep this table minimal and safe; do not
+ * chase Fennel chrome numbers here.
+ */
 void sf_config_set_defaults(struct sf_config *cfg) {
 	memset(cfg, 0, sizeof *cfg);
 
@@ -291,6 +297,7 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 	cfg->wheel_bind_cooldown_ms = 150;
 	cfg->arrange = SF_ARRANGE_COLUMNS;
 	cfg->column_ratio = 0.5f;
+	cfg->center_focused = SF_CENTER_FOCUSED_ON_OVERFLOW;
 	cfg->swipe_workspace_threshold = 80;
 	cfg->swipe_workspace_natural = true;
 	cfg->overview_zoom = 0.5f;

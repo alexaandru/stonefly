@@ -4,9 +4,11 @@
 #include <time.h>
 #include <wayland-server-core.h>
 #include <wlr/interfaces/wlr_buffer.h>
+#include <wlr/types/wlr_buffer.h>
 #include <wlr/types/wlr_pointer.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
+#include <wlr/types/wlr_xdg_toplevel_icon_v1.h>
 #include <scenefx/types/fx/clipped_region.h>
 #include <scenefx/types/wlr_scene.h>
 
@@ -38,7 +40,51 @@ struct sf_ssd_buffer {
 	uint8_t fill[4];
 	bool focused;
 	bool maximized;
+	/* Pointer identity of toplevel->icon at last paint (NULL = none). */
+	const void *icon_key;
 };
+
+/* 'AR24' LE — same bits as DRM_FORMAT_ARGB8888; avoid fourcc_code (signed shifts). */
+static const uint32_t ssd_icon_fmt_argb8888 = 0x34325241u;
+
+/* Pick the square buffer whose pixel size is closest to want_px (ARGB8888 only). */
+static struct wlr_buffer *ssd_pick_icon_buffer(struct wlr_xdg_toplevel_icon_v1 *icon, int want_px) {
+	if (icon == NULL || wl_list_empty(&icon->buffers) || want_px < 1) {
+		return NULL;
+	}
+	struct wlr_xdg_toplevel_icon_v1_buffer *best = NULL;
+	int best_delta = 0;
+	struct wlr_xdg_toplevel_icon_v1_buffer *entry;
+	wl_list_for_each(entry, &icon->buffers, link) {
+		if (entry->buffer == NULL || entry->buffer->width < 1) {
+			continue;
+		}
+		int delta = entry->buffer->width - want_px;
+		if (delta < 0) {
+			delta = -delta;
+		}
+		if (best == NULL || delta < best_delta) {
+			best = entry;
+			best_delta = delta;
+		}
+	}
+	return best != NULL ? best->buffer : NULL;
+}
+
+static bool ssd_icon_begin(struct wlr_buffer *buf, void **data, uint32_t *format, size_t *stride) {
+	if (buf == NULL) {
+		return false;
+	}
+	if (!wlr_buffer_begin_data_ptr_access(buf, (uint32_t)WLR_BUFFER_DATA_PTR_ACCESS_READ, data,
+					      format, stride)) {
+		return false;
+	}
+	if (*format != ssd_icon_fmt_argb8888) {
+		wlr_buffer_end_data_ptr_access(buf);
+		return false;
+	}
+	return true;
+}
 
 static void ssd_buffer_destroy(struct wlr_buffer *wlr_buffer) {
 	struct sf_ssd_buffer *buf = wl_container_of(wlr_buffer, buf, base);
@@ -47,17 +93,14 @@ static void ssd_buffer_destroy(struct wlr_buffer *wlr_buffer) {
 	free(buf);
 }
 
-/* 'AR24' LE — same bits as DRM_FORMAT_ARGB8888; avoid fourcc_code (signed
- * char shifts trip clang-tidy bugprone-signed-bitwise). */
-static const uint32_t ssd_drm_format_argb8888 = 0x34325241u;
-
 static bool ssd_buffer_begin_data_ptr_access(struct wlr_buffer *wlr_buffer, uint32_t flags,
 					     void **data, uint32_t *format, size_t *stride) {
 	struct sf_ssd_buffer *buf = wl_container_of(wlr_buffer, buf, base);
 	if ((flags & (uint32_t)WLR_BUFFER_DATA_PTR_ACCESS_WRITE) != 0) {
 		return false;
 	}
-	*format = ssd_drm_format_argb8888;
+	/* Same ARGB8888 fourcc as ssd_icon_fmt_argb8888. */
+	*format = ssd_icon_fmt_argb8888;
 	*data = buf->data;
 	*stride = buf->stride;
 	return true;
@@ -183,6 +226,14 @@ static bool ssd_content_size(struct sf_toplevel *toplevel, int *out_w, int *out_
 	return sf_decor_present_content_size(toplevel, out_w, out_h);
 }
 
+static int ssd_icon_slot_side(int title_h) {
+	int side = title_h - 8;
+	if (side < 1) {
+		side = 1;
+	}
+	return side;
+}
+
 static void ssd_repaint(struct sf_ssd *ssd, bool focused) {
 	struct sf_toplevel *toplevel = ssd->toplevel;
 	struct sf_ssd_buffer *buf = wl_container_of(ssd->buffer, buf, base);
@@ -196,16 +247,49 @@ static void ssd_repaint(struct sf_ssd *ssd, bool focused) {
 			 sf_layout_sm_is_max_edges(&toplevel->layout);
 	uint8_t fill[4];
 	ssd_fill_color(toplevel, focused, fill);
+	const void *icon_key = toplevel->icon;
 	if (same_title && buf->focused == focused && buf->maximized == maximized &&
-	    buf->font_size == font_size && memcmp(buf->fill, fill, sizeof(fill)) == 0) {
+	    buf->font_size == font_size && buf->icon_key == icon_key &&
+	    memcmp(buf->fill, fill, sizeof(fill)) == 0) {
 		return;
 	}
 
+	int want_side = 0;
+	struct wlr_buffer *icon_buf = NULL;
+	if (toplevel->icon != NULL) {
+		want_side = ssd_icon_slot_side(ssd->height);
+		icon_buf = ssd_pick_icon_buffer(toplevel->icon, want_side);
+		if (icon_buf == NULL) {
+			want_side = 0;
+		}
+	}
+
 	struct sf_ssd_layout lay;
-	sf_ssd_layout_title(ssd->width, ssd->height, &lay);
+	sf_ssd_layout_title(ssd->width, ssd->height, want_side, &lay);
+
+	void *icon_data = NULL;
+	uint32_t icon_fmt;
+	size_t icon_stride = 0;
+	int icon_w = 0;
+	int icon_h = 0;
+	bool icon_open = false;
+	if (icon_buf != NULL && ssd_icon_begin(icon_buf, &icon_data, &icon_fmt, &icon_stride)) {
+		(void)icon_fmt;
+		icon_w = icon_buf->width;
+		icon_h = icon_buf->height;
+		icon_open = true;
+	} else if (want_side > 0) {
+		/* Format unsupported or unreadable — keep title layout without icon. */
+		sf_ssd_layout_title(ssd->width, ssd->height, 0, &lay);
+	}
+
 	sf_ssd_paint_ensure_font(font_size);
 	sf_ssd_paint_titlebar(ssd->pixels, ssd->width, ssd->height, title, focused, maximized, fill,
-			      &lay);
+			      &lay, icon_open ? (uint32_t *)icon_data : NULL, icon_w, icon_h,
+			      (int)icon_stride);
+	if (icon_open) {
+		wlr_buffer_end_data_ptr_access(icon_buf);
+	}
 	wlr_scene_buffer_set_buffer(ssd->scene_buf, NULL);
 	wlr_scene_buffer_set_buffer(ssd->scene_buf, ssd->buffer);
 
@@ -216,6 +300,7 @@ static void ssd_repaint(struct sf_ssd *ssd, bool focused) {
 	buf->focused = focused;
 	buf->maximized = maximized;
 	buf->font_size = font_size;
+	buf->icon_key = icon_key;
 	memcpy(buf->fill, fill, sizeof(fill));
 }
 
@@ -389,8 +474,14 @@ bool sf_ssd_pointer_button(struct sf_server *server, struct sf_toplevel *topleve
 		return false;
 	}
 
+	int icon_side = 0;
+	if (toplevel->icon != NULL &&
+	    ssd_pick_icon_buffer(toplevel->icon, ssd_icon_slot_side(toplevel->ssd->height)) !=
+		    NULL) {
+		icon_side = ssd_icon_slot_side(toplevel->ssd->height);
+	}
 	struct sf_ssd_layout lay;
-	sf_ssd_layout_title(toplevel->ssd->width, toplevel->ssd->height, &lay);
+	sf_ssd_layout_title(toplevel->ssd->width, toplevel->ssd->height, icon_side, &lay);
 	int lx = (int)(sx + 0.5);
 	int ly = (int)(sy + 0.5);
 	enum sf_ssd_button hit = sf_ssd_layout_hit(&lay, lx, ly);

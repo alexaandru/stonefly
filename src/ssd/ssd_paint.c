@@ -1,5 +1,6 @@
 #include <fcft/fcft.h>
 #include <pixman.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -305,8 +306,39 @@ static void draw_title(uint8_t *pix, int buf_w, int buf_h, const char *title, in
 	}
 }
 
+/* Bilinear scale of square ARGB8888 into the titlebar icon slot. */
+static void blit_app_icon(uint8_t *pix, int buf_w, int buf_h, const struct sf_ssd_layout *lay,
+			  uint32_t *src, int src_w, int src_h, int src_stride) {
+	if (lay->icon_side < 1 || src == NULL || src_w < 1 || src_h < 1 || src_stride < src_w * 4) {
+		return;
+	}
+	int side = lay->icon_side;
+	int dx = lay->icon_x;
+	int dy = (buf_h - side) / 2;
+	pixman_image_t *dst =
+		pixman_image_create_bits(PIXMAN_a8r8g8b8, buf_w, buf_h, (uint32_t *)pix, buf_w * 4);
+	if (dst == NULL) {
+		return;
+	}
+	pixman_image_t *img =
+		pixman_image_create_bits(PIXMAN_a8r8g8b8, src_w, src_h, src, src_stride);
+	if (img == NULL) {
+		pixman_image_unref(dst);
+		return;
+	}
+	pixman_transform_t xf;
+	pixman_transform_init_scale(&xf, pixman_double_to_fixed((double)src_w / (double)side),
+				    pixman_double_to_fixed((double)src_h / (double)side));
+	pixman_image_set_transform(img, &xf);
+	pixman_image_set_filter(img, PIXMAN_FILTER_BILINEAR, NULL, 0);
+	pixman_image_composite32(PIXMAN_OP_OVER, img, NULL, dst, 0, 0, 0, 0, dx, dy, side, side);
+	pixman_image_unref(img);
+	pixman_image_unref(dst);
+}
+
 void sf_ssd_paint_titlebar(uint8_t *pix, int buf_w, int buf_h, const char *title, bool focused,
-			   bool maximized, const uint8_t fill[4], const struct sf_ssd_layout *lay) {
+			   bool maximized, const uint8_t fill[4], const struct sf_ssd_layout *lay,
+			   uint32_t *icon_pix, int icon_w, int icon_h, int icon_stride) {
 	if (pix == NULL || buf_w < 1 || buf_h < 1 || lay == NULL) {
 		return;
 	}
@@ -319,6 +351,10 @@ void sf_ssd_paint_titlebar(uint8_t *pix, int buf_w, int buf_h, const char *title
 		nrgba_to_bgra(0x00, 0x00, 0x00, 0xff, fg);
 	} else {
 		nrgba_to_bgra(0x33, 0x33, 0x33, 0xff, fg);
+	}
+
+	if (lay->icon_side > 0) {
+		blit_app_icon(pix, buf_w, buf_h, lay, icon_pix, icon_w, icon_h, icon_stride);
 	}
 
 	draw_title(pix, buf_w, buf_h, title, lay->title_left, lay->title_right, fg);

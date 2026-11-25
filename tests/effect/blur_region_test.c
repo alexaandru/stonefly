@@ -49,6 +49,35 @@ static void test_rect_clipped_to_surface(void) {
 	pixman_region32_fini(&region);
 }
 
+static void test_clamp_box_direct(void) {
+	int bx = -4, by = -2, bw = 10, bh = 8;
+
+	sf_blur_clamp_box(20, 20, &bx, &by, &bw, &bh);
+	SF_TEST_EQ_INT(bx, 0);
+	SF_TEST_EQ_INT(by, 0);
+	SF_TEST_EQ_INT(bw, 6);
+	SF_TEST_EQ_INT(bh, 6);
+
+	bx = 18;
+	by = 15;
+	bw = 10;
+	bh = 10;
+	sf_blur_clamp_box(20, 20, &bx, &by, &bw, &bh);
+	SF_TEST_EQ_INT(bx, 18);
+	SF_TEST_EQ_INT(by, 15);
+	SF_TEST_EQ_INT(bw, 2);
+	SF_TEST_EQ_INT(bh, 5);
+
+	bx = 50;
+	by = 0;
+	bw = 10;
+	bh = 10;
+	sf_blur_clamp_box(20, 20, &bx, &by, &bw, &bh);
+	SF_TEST_EQ_INT(bw, 0);
+
+	sf_blur_clamp_box(20, 20, NULL, &by, &bw, &bh);
+}
+
 static void test_cap_and_fully_outside(void) {
 	struct wlr_box out[1];
 	pixman_region32_t region;
@@ -71,6 +100,7 @@ static const struct sf_test tests[] = {
 	{"empty_and_invalid", test_empty_and_invalid},
 	{"single_rect_clamped", test_single_rect_clamped},
 	{"rect_clipped_to_surface", test_rect_clipped_to_surface},
+	{"clamp_box_direct", test_clamp_box_direct},
 	{"cap_and_fully_outside", test_cap_and_fully_outside},
 };
 

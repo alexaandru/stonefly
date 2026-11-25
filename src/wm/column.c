@@ -585,13 +585,18 @@ size_t sf_columns_apply(struct sf_workspace *ws, const struct wlr_box *usable, i
 	int col_w[SF_COLUMN_MAX];
 	int col_left[SF_COLUMN_MAX];
 	int offset = 0;
+	enum sf_center_focused center = SF_CENTER_FOCUSED_ON_OVERFLOW;
+	if (ws->output != NULL && ws->output->server != NULL) {
+		center = sf_cfg(ws->output->server)->center_focused;
+	}
 	if (!sf_arrange_math_column_strip(usable, ncol, fracs, fulls, gap, focus_col,
-					  ws->columns_view_offset, false, col_left, col_w,
-					  &offset)) {
+					  ws->columns_focus_col, ws->columns_view_offset, false,
+					  center, col_left, col_w, &offset)) {
 		ws->columns_view_offset = 0;
 		return 0;
 	}
 	ws->columns_view_offset = offset;
+	ws->columns_focus_col = focus_col;
 
 	size_t n = 0;
 	for (size_t k = 0; k < ncol; k++) {

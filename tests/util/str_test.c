@@ -38,9 +38,24 @@ static void test_replace_str(void) {
 	free(dst);
 }
 
+static void test_csv_has_substr(void) {
+	SF_TEST_TRUE(!sf_str_csv_has_substr(NULL, "keepassxc"));
+	SF_TEST_TRUE(!sf_str_csv_has_substr("", "keepassxc"));
+	SF_TEST_TRUE(!sf_str_csv_has_substr("keepass", NULL));
+	SF_TEST_TRUE(!sf_str_csv_has_substr("keepass", ""));
+	SF_TEST_TRUE(!sf_str_csv_has_substr(", ,\t,", "keepassxc"));
+
+	SF_TEST_TRUE(sf_str_csv_has_substr("keepass, bitwarden", "org.keepassxc.KeePassXC"));
+	SF_TEST_TRUE(sf_str_csv_has_substr(" keepass ,bitwarden ", "bitwarden"));
+	SF_TEST_TRUE(sf_str_csv_has_substr("keepass,", "xkeepassy"));
+	SF_TEST_TRUE(!sf_str_csv_has_substr("Keepass", "keepassxc"));
+	SF_TEST_TRUE(!sf_str_csv_has_substr("xyz, nope", "bitwarden"));
+}
+
 static const struct sf_test tests[] = {
 	{"sf_xstrdup", test_xstrdup},
 	{"sf_replace_str", test_replace_str},
+	{"sf_str_csv_has_substr", test_csv_has_substr},
 };
 
 int main(void) {

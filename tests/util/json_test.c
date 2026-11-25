@@ -70,6 +70,33 @@ static void test_writer_overflow(void) {
 	SF_TEST_TRUE(b.err);
 }
 
+static void test_writer_sticky_err_and_i64(void) {
+	char buf[16];
+	struct json_buf b;
+
+	json_buf_init(&b, buf, sizeof(buf));
+	json_byte(&b, '{');
+	json_key(&b, "n");
+	json_i64(&b, 1234567890123LL);
+	SF_TEST_TRUE(b.err);
+	json_byte(&b, '}');
+	json_finish(&b);
+	SF_TEST_TRUE(b.err);
+	SF_TEST_TRUE(!json_ok(&b));
+
+	json_buf_init(&b, buf, sizeof(buf));
+	json_i64(&b, -42);
+	json_finish(&b);
+	SF_TEST_TRUE(json_ok(&b));
+	SF_TEST_STREQ(buf, "-42");
+
+	json_buf_init(&b, buf, sizeof(buf));
+	json_f64(&b, 1.25);
+	json_finish(&b);
+	SF_TEST_TRUE(json_ok(&b));
+	SF_TEST_STREQ(buf, "1.25");
+}
+
 static void test_scan_string_bool_i64(void) {
 	struct json_scan s;
 	char out[32];
@@ -164,6 +191,7 @@ static const struct sf_test tests[] = {
 	{"json_writer_basics", test_writer_basics},
 	{"json_writer_escape", test_writer_escape},
 	{"json_writer_overflow", test_writer_overflow},
+	{"json_writer_sticky_err_and_i64", test_writer_sticky_err_and_i64},
 	{"json_scan_string_bool_i64", test_scan_string_bool_i64},
 	{"json_scan_object", test_scan_object},
 	{"json_scan_errors", test_scan_errors},

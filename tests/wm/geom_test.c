@@ -32,6 +32,28 @@ static void test_box_inset_gap(void) {
 	SF_TEST_EQ_INT(box.width, 40);
 }
 
+static void test_box_cover_fractional_gap(void) {
+	struct wlr_box box = {.x = 10, .y = 20, .width = 100, .height = 80};
+
+	sf_box_cover_fractional_gap(&box, 1.0f);
+	SF_TEST_EQ_INT(box.width, 100);
+	SF_TEST_EQ_INT(box.height, 80);
+
+	sf_box_cover_fractional_gap(&box, 1.5f);
+	SF_TEST_EQ_INT(box.width, 101);
+	SF_TEST_EQ_INT(box.height, 81);
+
+	sf_box_cover_fractional_gap(NULL, 1.5f);
+}
+
+static void test_fullscreen_center_offset(void) {
+	SF_TEST_EQ_INT(sf_fullscreen_center_offset(100, 0), 0);
+	SF_TEST_EQ_INT(sf_fullscreen_center_offset(100, -4), 0);
+	SF_TEST_EQ_INT(sf_fullscreen_center_offset(100, 40), 30);
+	SF_TEST_EQ_INT(sf_fullscreen_center_offset(101, 40), 30);
+	SF_TEST_EQ_INT(sf_fullscreen_center_offset(40, 40), 0);
+}
+
 static void test_snap_box(void) {
 	const struct wlr_box usable = {.x = 100, .y = 50, .width = 800, .height = 600};
 	const int gap = 10;
@@ -69,6 +91,8 @@ static void test_snap_box(void) {
 
 static const struct sf_test tests[] = {
 	{"sf_box_inset_gap", test_box_inset_gap},
+	{"sf_box_cover_fractional_gap", test_box_cover_fractional_gap},
+	{"sf_fullscreen_center_offset", test_fullscreen_center_offset},
 	{"sf_wm_snap_box", test_snap_box},
 };
 

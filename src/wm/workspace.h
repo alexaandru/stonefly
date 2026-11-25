@@ -24,6 +24,8 @@ struct sf_workspace {
 	struct wl_list columns;
 	/* Horizontal scroll of the strip (layout px). */
 	int columns_view_offset;
+	/* Last packed focus column index (for center_focused=on_overflow). */
+	size_t columns_focus_col;
 	struct wlr_scene_tree *tree;
 	struct wlr_ext_workspace_handle_v1 *ext;
 	char ext_id[64];

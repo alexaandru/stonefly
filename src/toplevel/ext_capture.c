@@ -11,48 +11,14 @@
 #include "log/log.h"
 #include "server/server.h"
 #include "toplevel/ext_capture.h"
-
-/* Match app_id against comma-separated substrings in capture_block_app_ids. */
-static bool capture_app_id_blocked(const struct sf_server *server, const char *app_id) {
-	const char *list = sf_cfg(server)->capture_block_app_ids;
-	if (list == NULL || list[0] == '\0' || app_id == NULL || app_id[0] == '\0') {
-		return false;
-	}
-
-	const char *p = list;
-	while (*p != '\0') {
-		while (*p == ',' || *p == ' ' || *p == '\t') {
-			p++;
-		}
-		if (*p == '\0') {
-			break;
-		}
-		const char *start = p;
-		while (*p != '\0' && *p != ',') {
-			p++;
-		}
-		size_t n = (size_t)(p - start);
-		while (n > 0 && (start[n - 1] == ' ' || start[n - 1] == '\t')) {
-			n--;
-		}
-		if (n == 0) {
-			continue;
-		}
-		for (const char *hay = app_id; *hay != '\0'; hay++) {
-			if (strncmp(hay, start, n) == 0) {
-				return true;
-			}
-		}
-	}
-	return false;
-}
+#include "util/str.h"
 
 void sf_ext_capture_apply_block_rules(struct sf_toplevel *toplevel) {
 	if (toplevel == NULL) {
 		return;
 	}
 	const char *app_id = sf_toplevel_app_id(toplevel);
-	if (capture_app_id_blocked(toplevel->server, app_id)) {
+	if (sf_str_csv_has_substr(sf_cfg(toplevel->server)->capture_block_app_ids, app_id)) {
 		toplevel->capture_blocked = true;
 	}
 }

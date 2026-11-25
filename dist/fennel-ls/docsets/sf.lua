@@ -41,6 +41,13 @@ return {
           ["fnl/docstring"] = "Niri columns: column width as fraction of usable (default 0.5).",
         },
       },
+      ["center_focused"] = {
+        binding = "sf.opt.center_focused",
+        metadata = {
+          ["fls/itemKind"] = "Variable",
+          ["fnl/docstring"] = "Columns focus scroll: \"never\" | \"always\" | \"on_overflow\" (default). Umbriel center_focused.",
+        },
+      },
       ["scale"] = {
         binding = "sf.opt.scale",
         metadata = {

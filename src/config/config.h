@@ -412,6 +412,8 @@ struct sf_config {
 	enum sf_arrange arrange;
 	/* Niri columns: column width as fraction of usable (default 0.5). */
 	float column_ratio;
+	/* Columns focus scroll: never|always|on_overflow (default on_overflow). */
+	enum sf_center_focused center_focused;
 	/* 3-finger vertical swipe distance (logical px) to change workspace. */
 	int swipe_workspace_threshold;
 	/* Natural: finger up moves content up → next; finger down → prev.
@@ -533,6 +535,7 @@ enum sf_pan_focus sf_pan_focus_parse(const char *s);
 const char *sf_pan_focus_name(enum sf_pan_focus mode);
 enum sf_tile_insert sf_tile_insert_parse(const char *s);
 const char *sf_tile_insert_name(enum sf_tile_insert mode);
+/* center_focused parse/name live in arrange_math.h (layout math domain). */
 enum sf_anim_style sf_anim_style_parse(const char *s);
 const char *sf_anim_style_name(enum sf_anim_style style);
 int sf_anim_op_duration_ms(const struct sf_config *cfg, const struct sf_anim_op *op,

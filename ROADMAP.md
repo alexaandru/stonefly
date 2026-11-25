@@ -38,8 +38,8 @@ LuaJIT + Fennel config.
 | Bucket | Gaps | Feeds |
 |---|---|---|
 | **App-compatibility walls** | (IME + tablet shipped) | — |
-| **Daily-driver feel & polish** | `sf.on` + `sf.wins()`; columns polish (`center_focused=on_overflow`, drag-edge pan) | TODO NEXT #1–#2 |
-| **Credibility / no-surprises** | Predictability Medium shipped; optional SSD icon blit | TODO NEXT #8 |
+| **Daily-driver feel & polish** | `sf.on` + `sf.wins()`; columns polish (drag-edge pan; tabs) | TODO NEXT #1–#2 |
+| **Credibility / no-surprises** | (Predictability Medium + SSD icon blit shipped) | — |
 
 Recent catch-up batch already in FEATURES: shortcuts inhibit, security context,
 `sf.opt.anim` + dim-inactive + opacity/`no_dim`, lazy Xwayland, scratchpad
@@ -66,7 +66,7 @@ data-device) are assumed on all four.
 | **org_kde_kwin_server_decoration** | Old GTK SSD hint | no | yes | no | yes |
 | **xdg_wm_dialog_v1** | Modal dialog + parent | **yes** (attach + shade + focus trap) | no* | no* | yes |
 | **xdg-toplevel-tag-v1** | Stable window id for restore/rules | **yes** (store + IPC + `match.tag` rules) | no* | no* | yes |
-| **xdg-toplevel-icon-v1** | Client-set window icon | yes | no* | no* | no* |
+| **xdg-toplevel-icon-v1** | Client-set window icon | yes (IPC name + SSD buffer blit) | no* | no* | no* |
 | **xdg-toplevel-drag-v1** | Tab/window drag between clients | no | no* | no | yes |
 | **xdg-foreign-v2** | Embed another client’s surface | no | yes | no | yes |
 | **xdg-activation-v1** | Focus/urgency tokens | yes (never steal; amber urgent) | yes | yes | yes |
@@ -234,6 +234,7 @@ the chosen verb. High leftovers shipped; med/low stay in deferred inventory belo
 | Unminimize workspace | `sf.opt.unminimize_workspace` (default `active`) |
 | Per-op anim + dim/opacity | `sf.opt.anim`, `dim_inactive`, rule `opacity` / `no_dim` |
 | Modal dialog attach | `sf.opt.attach_modal_dialogs`, `dialog_dim` |
+| Columns focus scroll | `sf.opt.center_focused` (`never`\|`always`\|`on_overflow`) |
 
 **Maximize verbs (keep both binds):**
 
@@ -323,21 +324,12 @@ High rows shipped (FEATURES). Med/low are not pick-queue blockers.
 | `resize_center_min` | `pointer.c` | 50 | `sf.opt.resize_center_min` | low |
 | `snap_resist_mul` | `drag_snap.c` | 4 × `snap_threshold` | fold into snap opts | low |
 | `ssd_chrome_layout` | `ssd_layout.c` | fixed min+max+close boxes | button set / layout opts | low |
-| `pan_focus` | `arrange.c` columns pan | ✅ `sf.opt.pan_focus` keep\|center\|warp\|under_pointer (default center) | — | shipped |
 | `focus_on` | `pointer.c` | click-to-focus | `click`\|`sloppy` (careful enter) | low |
 | `map_focus` | `xdg/xdg.c` map | always focus new map | opt, or Tier 2 `sf.on("map")` | low |
-| `transient_edge_max` | focus / Tab | ✅ documented in `binds.fnl` (sticky = float then Super+f) | — | shipped |
 
 `tiled_slide` / `anim_ease` folded into shipped `sf.opt.anim` (FEATURES).
-
-#### Predictability Medium knobs
-
-| Gap | Direction |
-|---|---|
-| Maximize entry-point matrix | ✅ `client_maximize` (default gaps); Super+f remains zen |
-| Unminimize → active WS | ✅ `unminimize_workspace` (default active) |
-| Transient tile edge-max | ✅ documented in defaults; sticky = float+edge-max / rule |
-| Columns pan focus retarget | ✅ `sf.opt.pan_focus` keep\|center\|warp\|under_pointer |
+`pan_focus` / transient Super+f docs / Predictability Medium knobs shipped
+(FEATURES) — not deferred.
 
 #### Seed hygiene (C vs Fennel)
 
@@ -348,7 +340,7 @@ Day-zero truth is `src/config/default/*.fnl`. C seeds exist for
 |---|---|
 | C keybind seed omits F11, Super+Prior/Next, Super+1–9, Alt+Space, … that `binds.fnl` has | Shrink C seed to a tiny recovery set, or sync it — do not pretend C is product defaults |
 | First `sf.bind` / mouse / wheel / `sf.gesture` clears that C table only | Keep (replace pattern); document |
-| C numeric defaults (opacity 0.96, corner 12, …) differ from `options.fnl` (0.90 / 8, …) | Align C with Fennel **or** document NOCONFIG as “minimal recovery”, not day-zero chrome |
+| C numeric defaults (opacity 0.96, corner 12, …) differ from `options.fnl` (0.90 / 8, …) | Documented: `sf_config_set_defaults` is recovery / NOCONFIG only — Fennel owns day-zero chrome |
 #### Tier 2–3 gate (TODO NEXT #1)
 
 Do not invent more one-off C branches for pack-shaped policy:
@@ -374,22 +366,21 @@ stays green).
 
 ## TODO NEXT
 
-Fresh pick-queue. Small-fruit stack just shipped (FEATURES): Predictability
-Medium, `consume_from`, IPC `action` allowlist. Hollow protocol ads cleared.
-Next head is the C↔Lua frontline.
+Fresh pick-queue. Recent ship (FEATURES): Predictability Medium,
+`consume_from`, IPC `action` allowlist, SSD `xdg-toplevel-icon` buffer blit.
+Hollow protocol ads cleared earlier. Next head is the C↔Lua frontline.
 
 | # | Item | Status | Why |
 |---|---|---|---|
 | 1 | **`sf.on` + `sf.wins()`** | ❌ | Tier 2–3 Neovim leap. Packs subscribe to map/unmap/focus/arrange/layout/workspace and **recompute** from `sf.wins()` — not one-shot max/unmax. Example: Noctalia bar opaque iff any visible edge-max on that output |
-| 2 | **Columns polish leftovers** | 🚧 | `center_focused=on_overflow`, drag-edge pan (arrange-swap); tabs parked |
+| 2 | **Columns polish leftovers** | 🚧 | drag-edge pan (arrange-swap); tabs parked (`center_focused` shipped) |
 | 3 | **Geometry persist** | ❌ | Tag + `match.tag` ship; restore-across-restart consumer open |
 | 4 | **Overview polish** | 🚧 | Card drag, multi-surface cards, shortcut badges |
 | 5 | **APK release buildtype** | 🚧 | Flip off ASan/UBSan when crash hunting ends |
 | 6 | **`--write-config-lua`** | ❌ | Offload plain Lua instead of `.fnl` |
 | 7 | **Scratchpad click-outside catcher** | ❌ | `auto_hide` covers most |
-| 8 | **Optional SSD icon blit** | ❌ | Buffer-only; Noctalia uses app_id — low pull |
-| 9 | **Bind context redesign** | 📋 | Own chapter; after overview/arrange filters feel cramped |
-| 10 | **Portal capture_sessions UX** | ❌ | Protocols wire; session UX open |
+| 8 | **Bind context redesign** | 📋 | Own chapter; after overview/arrange filters feel cramped |
+| 9 | **Portal capture_sessions UX** | ❌ | Protocols wire; session UX open |
 
 **After this stack:** `wp_fifo_v1` / full color-mgmt (unadvertised); winmenu /
 shell chrome → 🌙 Noctalia; Predictability Low watch items.
@@ -438,11 +429,9 @@ one normal box; `sf.opt.pan_focus`).
 | Window menu / winmenu | ❌ | SSD titlebars shipped |
 | Geometry persist across restart | ❌ | Tag protocol shipped; no persist consumer |
 | Workspaces polish | 🚧 | Named rules / geometry persist open. Switch slide + strip shipped (FEATURES) |
-| Columns polish | 🚧 | Still open: `center_focused=on_overflow`, tabs, drag edge pan; deck/grid declined; consume-from bind shipped (FEATURES) |
-| Focus cycle opt (MRU / spatial / strip) | ✅ | `sf.opt.focus_cycle`; FEATURES |
+| Columns polish | 🚧 | Still open: tabs, drag edge pan; `center_focused` + consume-from shipped (FEATURES); deck/grid declined |
 | Picture-in-picture float | ❌ | Related to always-on-top |
 | Scratchpad click-outside catcher | ❌ | `auto_hide` on focus change ships |
-| Scratchpad claim vs icons | ✅ | xdg-activation token claim; optional app_id fallback; default Ghostty keeps real icons |
 | SSD per-app overrides / winmenu | 🚧 | Rule `ssd` ships; winmenu open |
 
 ---
@@ -489,7 +478,6 @@ chapter is **open / hollow / missing only** (advertise ≠ full effect).
 
 | Feature | Status | Notes |
 |---|---|---|
-| `xdg-toplevel-icon-v1` SSD blit | ❌ | Name + buffers stored; IPC `icon_name`. No theme lookup; SSD does not paint buffers (Noctalia uses app_id). Optional thin consumer later |
 | Screencast / capture_sessions UI | ❌ | Screencopy + ext-image-copy-capture wire shipped; portal session UX open |
 | `wp_fifo_v1` | ❌ | Protocol exists (staging); wlroots 0.20 has no `wlr_fifo_v1` helper (MR existed, not in 0.20.2). SceneFX unrelated. Do not hollow-advertise. Presentation-time ships |
 | Full color-management | ❌ | Not advertised (hollow ad worse than silence). Gamma LUT ships; Umbriel-class HDR is multi-day |
@@ -506,7 +494,6 @@ stays click-to-focus); foreign has no URGENT state (IPC urgency instead).
 | Feature | Status | Notes |
 |---|---|---|
 | `--write-config-lua` | ❌ | Offload compiled/plain Lua instead of `.fnl` |
-| IPC `action <name>` allowlist | ❌ | |
 | IPC inputs (live devices) | ❌ | `config inputs` rules ✅ |
 | Nano syntax highlight | ❌ | |
 | APK release buildtype | 🚧 | **TEMP:** clang debugoptimized + ASan/UBSan; flip when crash hunting ends |
@@ -527,7 +514,6 @@ High knobs shipped (FEATURES).
 | P1 | `sf.on` + window query | ❌ TODO NEXT #1 |
 | P2 | Columns polish leftovers | 🚧 TODO NEXT #2 |
 | P2 | Geometry persist | ❌ TODO NEXT #3 |
-| P2 | SSD toplevel-icon blit (optional) | ❌ TODO NEXT #8 / §5 |
 | P2 | `wp_fifo_v1` | ❌ unadvertised |
 
 ---
@@ -613,7 +599,7 @@ to enter a submap on Super+o.
 
 | Suite | Status | Scope | Gate |
 |---|---|---|---|
-| Unit (more pure) | 📋 | Remaining config decode / rules match without Lua VM; deeper JSON paths | Extend `make test` |
+| Unit (more pure) | 🚧 | Rules match extract still open; geom/json/csv-substr/blur-clamp deepened | Extend `make test` |
 | Integration | 📋 later | Headless / virtual WL + client/IPC drivers | Separate Meson tag; skip by default |
 | Coverage floors / HTML | 📋 optional | gcovr/`llvm-cov`; fail under a floor | Dev/CI only — not APK `check()` |
 

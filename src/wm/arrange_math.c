@@ -72,10 +72,66 @@ bool sf_arrange_math_columns(const struct wlr_box *usable, size_t n, double col_
 	return true;
 }
 
+static int strip_clamp_offset(int offset, int max_off) {
+	if (offset < 0) {
+		return 0;
+	}
+	if (offset > max_off) {
+		return max_off;
+	}
+	return offset;
+}
+
+static int strip_center_offset(int fl, int fw, int usable_w) {
+	return fl - (usable_w - fw) / 2;
+}
+
+static int strip_just_enough(int offset, int fl, int fr, int usable_w, int max_off) {
+	if (fr > offset + usable_w) {
+		offset = fr - usable_w;
+	}
+	if (fl < offset) {
+		offset = fl;
+	}
+	return strip_clamp_offset(offset, max_off);
+}
+
+/* Umbriel OnOverflow: center when focus and the immediate neighbor on the side
+ * focus came from cannot share the viewport. */
+static bool strip_pair_overflows(size_t focus_col, size_t prev_focus_col, size_t ncol,
+				 const int *out_left, const int *out_width, int usable_w) {
+	size_t neighbor;
+	size_t first;
+	size_t last;
+	int span;
+
+	if (prev_focus_col >= ncol || prev_focus_col == focus_col) {
+		return false;
+	}
+	/* Immediate neighbor toward the side focus came from (not the prior
+	 * column itself — a jump across the strip uses the same pair spacing). */
+	if (prev_focus_col > focus_col) {
+		neighbor = focus_col + 1;
+		if (neighbor >= ncol) {
+			neighbor = ncol - 1;
+		}
+	} else {
+		neighbor = focus_col > 0 ? focus_col - 1 : 0;
+	}
+	if (neighbor == focus_col) {
+		return false;
+	}
+	first = focus_col < neighbor ? focus_col : neighbor;
+	last = focus_col > neighbor ? focus_col : neighbor;
+	span = out_left[last] + out_width[last] - out_left[first];
+	return span > usable_w;
+}
+
 bool sf_arrange_math_column_strip(const struct wlr_box *usable, size_t ncol,
 				  const float *width_frac, const bool *full_width, int gap,
-				  size_t focus_col, int prev_offset, bool lock_offset,
-				  int *out_left, int *out_width, int *out_view_offset) {
+				  size_t focus_col, size_t prev_focus_col, int prev_offset,
+				  bool lock_offset, enum sf_center_focused center, int *out_left,
+				  int *out_width, int *out_view_offset) {
 	if (!usable_ok(usable) || out_left == NULL || out_width == NULL ||
 	    out_view_offset == NULL) {
 		return false;
@@ -125,32 +181,64 @@ bool sf_arrange_math_column_strip(const struct wlr_box *usable, size_t ncol,
 	}
 
 	int max_off = x > usable->width ? x - usable->width : 0;
-	int offset = prev_offset;
-	if (offset < 0) {
-		offset = 0;
-	}
-	if (offset > max_off) {
-		offset = max_off;
-	}
+	int offset = strip_clamp_offset(prev_offset, max_off);
 	if (!lock_offset) {
-		/* Just-enough: nudge only so focus is fully visible. */
 		int fl = out_left[focus_col];
-		int fr = fl + out_width[focus_col];
-		if (fr > offset + usable->width) {
-			offset = fr - usable->width;
+		int fw = out_width[focus_col];
+		int fr = fl + fw;
+		bool want_center = false;
+
+		switch (center) {
+		case SF_CENTER_FOCUSED_ALWAYS:
+			/* Wide columns pan; never park them in the middle. */
+			want_center = fw <= usable->width;
+			break;
+		case SF_CENTER_FOCUSED_ON_OVERFLOW:
+			/* Underfull strips stay left-aligned (no recenter). */
+			want_center = max_off > 0 && fw <= usable->width &&
+				      strip_pair_overflows(focus_col, prev_focus_col, ncol,
+							   out_left, out_width, usable->width);
+			break;
+		case SF_CENTER_FOCUSED_NEVER:
+		default:
+			break;
 		}
-		if (fl < offset) {
-			offset = fl;
-		}
-		if (offset < 0) {
-			offset = 0;
-		}
-		if (offset > max_off) {
-			offset = max_off;
+
+		if (want_center) {
+			offset = strip_clamp_offset(strip_center_offset(fl, fw, usable->width),
+						    max_off);
+		} else {
+			offset = strip_just_enough(offset, fl, fr, usable->width, max_off);
 		}
 	}
 	*out_view_offset = offset;
 	return true;
+}
+
+enum sf_center_focused sf_center_focused_parse(const char *s) {
+	if (s == NULL || s[0] == '\0' || strcmp(s, "never") == 0 || strcmp(s, "off") == 0 ||
+	    strcmp(s, "false") == 0) {
+		return SF_CENTER_FOCUSED_NEVER;
+	}
+	if (strcmp(s, "always") == 0 || strcmp(s, "on") == 0 || strcmp(s, "true") == 0) {
+		return SF_CENTER_FOCUSED_ALWAYS;
+	}
+	if (strcmp(s, "on_overflow") == 0 || strcmp(s, "overflow") == 0) {
+		return SF_CENTER_FOCUSED_ON_OVERFLOW;
+	}
+	return SF_CENTER_FOCUSED_NEVER;
+}
+
+const char *sf_center_focused_name(enum sf_center_focused mode) {
+	switch (mode) {
+	case SF_CENTER_FOCUSED_ALWAYS:
+		return "always";
+	case SF_CENTER_FOCUSED_ON_OVERFLOW:
+		return "on_overflow";
+	case SF_CENTER_FOCUSED_NEVER:
+	default:
+		return "never";
+	}
 }
 
 bool sf_arrange_math_column_rows(const struct wlr_box *col_box, size_t nrows, const float *weights,

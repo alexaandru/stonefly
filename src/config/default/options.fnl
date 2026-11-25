@@ -4,6 +4,10 @@
             :arrange "columns"
             ;; columns: fraction of usable width when 2+ columns (lone column fills usable)
             :column_ratio 0.5
+            ;; Focus scroll: never (just-enough) | always (center) | on_overflow
+            ;; (center when focus+neighbor pair cannot share the viewport; underfull
+            ;; strips stay left-aligned). Umbriel layout.scrolling.center_focused.
+            :center_focused "on_overflow"
             :scale 1.5
             :cursor_size 24
             :gap 15

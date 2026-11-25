@@ -3,7 +3,10 @@
 
 #include "effect/blur_region.h"
 
-static void blur_clamp(int surf_w, int surf_h, int *bx, int *by, int *bw, int *bh) {
+void sf_blur_clamp_box(int surf_w, int surf_h, int *bx, int *by, int *bw, int *bh) {
+	if (bx == NULL || by == NULL || bw == NULL || bh == NULL) {
+		return;
+	}
 	if (*bx < 0) {
 		*bw += *bx;
 		*bx = 0;
@@ -40,7 +43,7 @@ size_t sf_blur_region_boxes(const pixman_region32_t *region, int surf_w, int sur
 		int by = rects[i].y1;
 		int bw = rects[i].x2 - rects[i].x1;
 		int bh = rects[i].y2 - rects[i].y1;
-		blur_clamp(surf_w, surf_h, &bx, &by, &bw, &bh);
+		sf_blur_clamp_box(surf_w, surf_h, &bx, &by, &bw, &bh);
 		if (bw <= 0 || bh <= 0) {
 			continue;
 		}

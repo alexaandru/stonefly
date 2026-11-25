@@ -304,11 +304,12 @@ def main() -> int:
 	sf_test_o = unitdir / "sf_test.o"
 	compile_obj(cc, cflags, covflags, TESTS / "sf_test.c", sf_test_o, verbose, [TESTS / "sf_test.h"])
 
-	# Build all binaries first (fail fast on compile).
+	# Build all binaries first (fail fast on compile). Key by suite.name so
+	# multiple suites that share cover= (e.g. arrange_math + column_math) all run.
 	bins: dict[str, Path] = {}
 	cov_objs: dict[str, Path] = {}
 	for suite in suites:
-		bins[suite.cover] = build_suite(suite, cc, cflags, covflags, unitdir, sf_test_o, verbose)
+		bins[suite.name] = build_suite(suite, cc, cflags, covflags, unitdir, sf_test_o, verbose)
 		if suite.srcs:
 			# Primary covered TU is first src when it matches cover stem; else first src.
 			primary = None
@@ -318,10 +319,10 @@ def main() -> int:
 					break
 			if primary is None:
 				primary = suite.srcs[0]
-			cov_objs[suite.cover] = unitdir / (primary.replace("/", "_") + ".o")
+			cov_objs[suite.name] = unitdir / (primary.replace("/", "_") + ".o")
 		else:
 			# Header-only: coverage attributed to the test object (like before).
-			cov_objs[suite.cover] = unitdir / (suite.name + ".o")
+			cov_objs[suite.name] = unitdir / (suite.name + ".o")
 
 	if cover:
 		for gcda in unitdir.glob("*.gcda"):
@@ -348,7 +349,7 @@ def main() -> int:
 			emit_folder(prev_folder)
 		prev_folder = suite.folder
 
-		binpath = bins[suite.cover]
+		binpath = bins[suite.name]
 		t0 = time.perf_counter()
 		proc = subprocess.run(
 			[str(binpath)],
@@ -373,10 +374,12 @@ def main() -> int:
 				sys.stderr.write(proc.stderr)
 			extra = ""
 			if cover:
-				pct = gcov_pct(unitdir, cov_objs[suite.cover], suite.cover)
+				pct = gcov_pct(unitdir, cov_objs[suite.name], suite.cover)
 				if pct is None:
 					pct = 0.0
-				measured[suite.cover] = pct
+				# Keep the best coverage when several suites share cover=.
+				prev = measured.get(suite.cover)
+				measured[suite.cover] = pct if prev is None else max(prev, pct)
 				extra = f"coverage: {pct:.1f}% of lines"
 			print_row(False, "ok", suite.cover, elapsed, extra)
 			ok_files += 1
@@ -385,7 +388,7 @@ def main() -> int:
 		else:
 			extra = ""
 			if cover:
-				measured[suite.cover] = 0.0
+				measured.setdefault(suite.cover, 0.0)
 				extra = "coverage: 0.0% of lines"
 			print_row(True, "FAIL", suite.cover, elapsed, extra)
 			if proc.stderr:

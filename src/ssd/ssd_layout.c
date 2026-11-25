@@ -8,6 +8,8 @@ enum {
 	button_pad_r = 4,
 	title_pad_l = 10,
 	title_pad_r = 8,
+	icon_pad_l = 6,
+	icon_gap = 6,
 };
 
 static int mini(int a, int b) {
@@ -18,16 +20,31 @@ static int maxi(int a, int b) {
 	return a > b ? a : b;
 }
 
-void sf_ssd_layout_title(int width, int height, struct sf_ssd_layout *out) {
+void sf_ssd_layout_title(int width, int height, int icon_side, struct sf_ssd_layout *out) {
 	if (width < 1) {
 		width = 1;
 	}
 	if (height < 1) {
 		height = 1;
 	}
+	if (icon_side < 0) {
+		icon_side = 0;
+	}
+	if (icon_side > 0) {
+		int max_side = maxi(1, height - 4);
+		if (icon_side > max_side) {
+			icon_side = max_side;
+		}
+	}
 	out->width = width;
 	out->height = height;
-	out->title_left = title_pad_l;
+	out->icon_side = icon_side;
+	out->icon_x = icon_pad_l;
+	if (icon_side > 0) {
+		out->title_left = icon_pad_l + icon_side + icon_gap;
+	} else {
+		out->title_left = title_pad_l;
+	}
 	int box = mini(button_box, height);
 	out->close_x = width - button_pad_r - box;
 	out->max_x = out->close_x - button_gap - box;

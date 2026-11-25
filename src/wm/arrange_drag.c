@@ -221,11 +221,13 @@ static void columns_drag_reflow(struct sf_server *server, struct sf_toplevel *gr
 		return;
 	}
 	if (!sf_arrange_math_column_strip(&usable, strip_n, strip_fracs, strip_fulls, gap,
-					  focus_col, ws->columns_view_offset, false, col_left,
-					  col_w, &offset)) {
+					  focus_col, ws->columns_focus_col, ws->columns_view_offset,
+					  false, sf_cfg(server)->center_focused, col_left, col_w,
+					  &offset)) {
 		return;
 	}
 	ws->columns_view_offset = offset;
+	ws->columns_focus_col = focus_col;
 
 	float ph_weight = server->arrange_swap.home_weight;
 	if (ph_weight < 0.05f) {

@@ -44,16 +44,17 @@ static void test_arrange_parse_aliases(void) {
 	SF_TEST_TRUE(!sf_arrange_is_tiling(SF_ARRANGE_STACKING));
 }
 
-static void test_columns_one_fills(void) {
+static void test_columns_one_slot_width(void) {
 	const struct wlr_box usable = {.x = 0, .y = 0, .width = 500, .height = 400};
 	struct wlr_box out[1];
+	/* Legacy equal-column helper uses slot math (lone fill is column_strip). */
 	SF_TEST_TRUE(sf_arrange_math_columns(&usable, 1, 0.5, 10, 0, out));
-	expect_box(&out[0], 0, 0, 500, 400);
+	expect_box(&out[0], 0, 0, 245, 400);
 }
 
 static const struct sf_test tests[] = {
 	{"columns_three_offset", test_columns_three_offset},
-	{"columns_one_fills", test_columns_one_fills},
+	{"columns_one_slot_width", test_columns_one_slot_width},
 	{"arrange_parse_aliases", test_arrange_parse_aliases},
 	{"invalid_usable", test_invalid_usable},
 };

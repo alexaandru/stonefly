@@ -219,6 +219,9 @@ static void emit_options(struct json_buf *b, const struct sf_config *cfg) {
 	json_key(b, "column_ratio");
 	json_f64(b, (double)cfg->column_ratio);
 	json_byte(b, ',');
+	json_key(b, "center_focused");
+	json_str(b, sf_center_focused_name(cfg->center_focused));
+	json_byte(b, ',');
 	json_key(b, "swipe_workspace_threshold");
 	json_i64(b, cfg->swipe_workspace_threshold);
 	json_byte(b, ',');

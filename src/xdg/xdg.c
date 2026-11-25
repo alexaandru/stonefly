@@ -260,6 +260,7 @@ static void xdg_toplevel_set_icon(struct wl_listener *listener, void *data) {
 	}
 	SF_LOGI("toplevel icon", sf_i64("id", (int64_t)toplevel->id),
 		sf_str("name", toplevel->icon_name != NULL ? toplevel->icon_name : ""));
+	sf_ssd_update(toplevel);
 }
 
 /* Never steal focus for ordinary activates: demand-attention (amber until
@@ -1205,7 +1206,7 @@ void sf_xdg_setup(struct sf_server *server) {
 			      &server->xdg_toplevel_set_description);
 	}
 
-	/* xdg-toplevel-icon-v1 — silence Foot warn; store for IPC / future SSD. */
+	/* xdg-toplevel-icon-v1 — store name/buffers for IPC + SSD titlebar blit. */
 	server->xdg_toplevel_icon_mgr =
 		wlr_xdg_toplevel_icon_manager_v1_create(server->wl_display, 1);
 	if (server->xdg_toplevel_icon_mgr != NULL) {

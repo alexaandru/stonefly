@@ -13,6 +13,7 @@
 #include "config/config.h"
 #include "decor/decor.h"
 #include "effect/blur_plates.h"
+#include "effect/blur_region.h"
 #include "layer/layer.h"
 #include "log/log.h"
 #include "output/output.h"
@@ -62,29 +63,6 @@ static struct wlr_scene_buffer *layer_find_surface_buffer(struct sf_layer_surfac
 	return ctx.buffer;
 }
 
-static void layer_blur_clamp(int surf_w, int surf_h, int *bx, int *by, int *bw, int *bh) {
-	if (*bx < 0) {
-		*bw += *bx;
-		*bx = 0;
-	}
-	if (*by < 0) {
-		*bh += *by;
-		*by = 0;
-	}
-	if (*bx + *bw > surf_w) {
-		*bw = surf_w - *bx;
-	}
-	if (*by + *bh > surf_h) {
-		*bh = surf_h - *by;
-	}
-	if (*bw < 0) {
-		*bw = 0;
-	}
-	if (*bh < 0) {
-		*bh = 0;
-	}
-}
-
 static bool layer_blur_box_from_region(const pixman_region32_t *region, int surf_w, int surf_h,
 				       int *bx, int *by, int *bw, int *bh) {
 	if (region == NULL || !pixman_region32_not_empty(region)) {
@@ -95,7 +73,7 @@ static bool layer_blur_box_from_region(const pixman_region32_t *region, int surf
 	*by = e->y1;
 	*bw = e->x2 - e->x1;
 	*bh = e->y2 - e->y1;
-	layer_blur_clamp(surf_w, surf_h, bx, by, bw, bh);
+	sf_blur_clamp_box(surf_w, surf_h, bx, by, bw, bh);
 	return *bw > 0 && *bh > 0;
 }
 

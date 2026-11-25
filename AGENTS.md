@@ -68,8 +68,9 @@ stays in FEATURES; open gaps in ROADMAP.
   edges-max breaks out.
 - **Width is a slot:** `round(frac × (usable + gap)) - gap` so two 0.5 columns
   fit. `usable * frac` overflows by exactly one gap and wobbles the strip.
-- **Scroll = reveal enough**, not always center. New columns insert beside
-  focus. Consume/expel ≠ move-left/right.
+- **Scroll = reveal enough**, not always center. `sf.opt.center_focused`
+  (`never`|`always`|`on_overflow`) gates centering; underfull strips stay
+  left-aligned. New columns insert beside focus. Consume/expel ≠ move-left/right.
 
 ### Maximize, focus, FS
 
