@@ -24,7 +24,7 @@ return {
         binding = "sf.opt.arrange",
         metadata = {
           ["fls/itemKind"] = "Variable",
-          ["fnl/docstring"] = "Global arrange: \"stacking\"|\"columns\"|\"master\"|\"tile\"|\"dwindle\"|\"monocle\". Resolve workspace→output→global. sf.opt.layout is a deprecated alias.",
+          ["fnl/docstring"] = "Global arrange: \"stacking\"|\"columns\" (aliases master/tile/dwindle/monocle → columns; hard-cut). Resolve workspace→output→global. sf.opt.layout is a deprecated alias.",
         },
       },
       ["layout"] = {
@@ -32,27 +32,6 @@ return {
         metadata = {
           ["fls/itemKind"] = "Variable",
           ["fnl/docstring"] = "Deprecated alias for sf.opt.arrange.",
-        },
-      },
-      ["master_pos"] = {
-        binding = "sf.opt.master_pos",
-        metadata = {
-          ["fls/itemKind"] = "Variable",
-          ["fnl/docstring"] = "Master arrange side: \"left\"|\"right\"|\"top\"|\"bottom\"|\"center\".",
-        },
-      },
-      ["master_factor"] = {
-        binding = "sf.opt.master_factor",
-        metadata = {
-          ["fls/itemKind"] = "Variable",
-          ["fnl/docstring"] = "Master area fraction 0.05..0.95 (default 0.55).",
-        },
-      },
-      ["master_count"] = {
-        binding = "sf.opt.master_count",
-        metadata = {
-          ["fls/itemKind"] = "Variable",
-          ["fnl/docstring"] = "Number of master windows (default 1).",
         },
       },
       ["column_ratio"] = {

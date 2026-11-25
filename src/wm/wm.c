@@ -8,7 +8,6 @@
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/box.h>
-#include <wlr/util/edges.h>
 
 #include "anim/anim.h"
 #include "decor/decor.h"
@@ -28,6 +27,7 @@
 #include "wm/place_sm.h"
 #include "wm/rules.h"
 #include "wm/scratchpad.h"
+#include "wm/tiled_edges.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
 #include "xdg/xdg.h"
@@ -76,30 +76,6 @@ static void box_inset_ssd_top(struct sf_toplevel *toplevel, struct wlr_box *box)
 /* wlroots 0.20 asserts schedule_configure only after the first commit. */
 static bool xdg_surface_ready(struct sf_toplevel *toplevel) {
 	return sf_toplevel_is_initialized(toplevel);
-}
-
-/* Peeble tiledEdgesAll / tiledEdgesFor — CSD drops shadows/resizers on edges. */
-static uint32_t tiled_edges_all(void) {
-	return (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_BOTTOM | (uint32_t)WLR_EDGE_LEFT |
-	       (uint32_t)WLR_EDGE_RIGHT;
-}
-
-static uint32_t tiled_edges_for(enum sf_snap edge) {
-	switch (edge) {
-	case SF_SNAP_LEFT:
-		return (uint32_t)WLR_EDGE_LEFT | (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_BOTTOM;
-	case SF_SNAP_RIGHT:
-		return (uint32_t)WLR_EDGE_RIGHT | (uint32_t)WLR_EDGE_TOP |
-		       (uint32_t)WLR_EDGE_BOTTOM;
-	case SF_SNAP_TOP:
-		return (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_LEFT | (uint32_t)WLR_EDGE_RIGHT;
-	case SF_SNAP_BOTTOM:
-		return (uint32_t)WLR_EDGE_BOTTOM | (uint32_t)WLR_EDGE_LEFT |
-		       (uint32_t)WLR_EDGE_RIGHT;
-	case SF_SNAP_NONE:
-		break;
-	}
-	return 0;
 }
 
 static void toplevel_set_tiled(struct sf_toplevel *toplevel, uint32_t edges) {
@@ -210,9 +186,9 @@ static uint32_t layout_tiled_edges(unsigned tiled) {
 		return 0;
 	}
 	if (tiled == SF_LAYOUT_TILED_ALL) {
-		return tiled_edges_all();
+		return sf_tiled_edges_all();
 	}
-	return tiled_edges_for((enum sf_snap)tiled);
+	return sf_tiled_edges_for_snap((enum sf_snap)tiled);
 }
 
 void sf_toplevel_sync_scene_layer(struct sf_toplevel *toplevel) {

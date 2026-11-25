@@ -349,8 +349,6 @@ Day-zero truth is `src/config/default/*.fnl`. C seeds exist for
 | C keybind seed omits F11, Super+Prior/Next, Super+1–9, Alt+Space, … that `binds.fnl` has | Shrink C seed to a tiny recovery set, or sync it — do not pretend C is product defaults |
 | First `sf.bind` / mouse / wheel / `sf.gesture` clears that C table only | Keep (replace pattern); document |
 | C numeric defaults (opacity 0.96, corner 12, …) differ from `options.fnl` (0.90 / 8, …) | Align C with Fennel **or** document NOCONFIG as “minimal recovery”, not day-zero chrome |
-| Legacy `master_*` / `dwindle_*` still in `sf.opt` | Dormant while product arrange is stacking+columns; drop when unused |
-
 #### Tier 2–3 gate (TODO NEXT #1)
 
 Do not invent more one-off C branches for pack-shaped policy:

@@ -37,6 +37,9 @@ open row from the roadmap in the same turn.
   user and rule floats stay out (`arrange_floating`).
 - Per-monitor default via `sf.output` / `outputs.fnl`; resolve workspace
   override → output → global (`sf.opt.arrange`).
+- Hard-cut: product arrange is stacking + columns only. Parse aliases
+  `master` / `tile` / `dwindle` / `monocle` → columns; no engines or
+  `master_*` / `dwindle_*` knobs.
 - **Arrange switch:** columns → stacking restores preferred/natural size
   (pre-tile float box) and cascades so windows are usable; stacking → columns
   restores prior strip slots when the user had grouped rows, otherwise **one
@@ -159,9 +162,10 @@ Highlights that ship for a usable Noctalia desktop:
   during lock, overview, workspace anim, or active capture; recovers after a
   failed async flip/present
 - Clipboard (ext + legacy data-control, primary selection)
-- Background-effect blur — layers and toplevels use per-rect plates from
-  `set_blur_region`; layer-shell popups inherit a live plate when the parent
-  layer requested blur
+- Background-effect blur — layers and toplevels share `sf_blur_plates_*`
+  per-rect plates from `set_blur_region` (layer keeps exclusive/opaque/input
+  full-region box policy); layer-shell popups inherit a live plate when the
+  parent layer requested blur
 - Gestures, relative pointer, constraints, virtual keyboard, touch
 - **IME** — `zwp_text_input_v3` + `zwp_input_method_v2` relay (fcitx/ibus;
   keyboard grab + candidate popups). Sandbox allowlist exposes text-input;

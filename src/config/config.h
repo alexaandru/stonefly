@@ -410,11 +410,6 @@ struct sf_config {
 
 	/* Global arrange default (workspace → output → global). */
 	enum sf_arrange arrange;
-	/* Master engine: side + factor + count (Lua-configurable). */
-	enum sf_master_pos master_pos;
-	float master_factor;  /* 0.05..0.95; default 0.55 */
-	float dwindle_factor; /* 0.05..0.95; default 0.5 — first/rest split */
-	int master_count;     /* ≥1; default 1 */
 	/* Niri columns: column width as fraction of usable (default 0.5). */
 	float column_ratio;
 	/* 3-finger vertical swipe distance (logical px) to change workspace. */

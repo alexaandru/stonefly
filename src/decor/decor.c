@@ -248,9 +248,18 @@ void sf_decor_refresh_blur(struct sf_toplevel *toplevel) {
 		if (toplevel->blur != NULL) {
 			wlr_scene_node_set_enabled(&toplevel->blur->node, false);
 		}
-		if (toplevel->xdg_scene_tree == NULL) {
+		if (toplevel->scene_tree == NULL) {
 			sf_blur_plates_clear(&toplevel->blur_plates);
 			return;
+		}
+		if (toplevel->client_blur_tree == NULL) {
+			toplevel->client_blur_tree = wlr_scene_tree_create(toplevel->scene_tree);
+			if (toplevel->client_blur_tree == NULL) {
+				sf_blur_plates_clear(&toplevel->blur_plates);
+				return;
+			}
+			/* Below xdg content; restack also pins chrome under this. */
+			wlr_scene_node_lower_to_bottom(&toplevel->client_blur_tree->node);
 		}
 		struct wlr_surface *surf = sf_toplevel_wlr_surface(toplevel);
 		int surf_w = surf != NULL ? surf->current.width : 0;
@@ -259,9 +268,14 @@ void sf_decor_refresh_blur(struct sf_toplevel *toplevel) {
 		size_t n = sf_blur_region_boxes(&toplevel->blur_region, surf_w, surf_h, boxes,
 						SF_BLUR_PLATE_MAX);
 		struct wlr_scene_buffer *mask = n == 1 ? decor_find_surface_buffer(toplevel) : NULL;
-		sf_blur_plates_sync(toplevel->xdg_scene_tree, &toplevel->blur_plates, boxes, n,
+		sf_blur_plates_sync(toplevel->client_blur_tree, &toplevel->blur_plates, boxes, n,
 				    n > 0, cfg->blur_xray, mask);
+		wlr_scene_node_set_enabled(&toplevel->client_blur_tree->node, n > 0);
 		return;
+	}
+
+	if (toplevel->client_blur_tree != NULL) {
+		wlr_scene_node_set_enabled(&toplevel->client_blur_tree->node, false);
 	}
 
 	sf_blur_plates_clear(&toplevel->blur_plates);
@@ -675,9 +689,9 @@ static void apply_shadow_opacity(struct sf_toplevel *toplevel, float opacity) {
 }
 
 void sf_decor_restack_chrome(struct sf_toplevel *toplevel) {
-	/* fs_backdrop < blur < shadow < xdg. The border is raised above xdg
-	 * after geom — a rim left under the client is covered by any buffer
-	 * that still has a pop dest_size. */
+	/* fs_backdrop < client_blur_tree < window_blur < shadow < xdg.
+	 * The border is raised above xdg after geom — a rim left under the
+	 * client is covered by any buffer that still has a pop dest_size. */
 	if (toplevel->border != NULL) {
 		wlr_scene_node_lower_to_bottom(&toplevel->border->node);
 	}
@@ -686,6 +700,9 @@ void sf_decor_restack_chrome(struct sf_toplevel *toplevel) {
 	}
 	if (toplevel->blur != NULL) {
 		wlr_scene_node_lower_to_bottom(&toplevel->blur->node);
+	}
+	if (toplevel->client_blur_tree != NULL) {
+		wlr_scene_node_lower_to_bottom(&toplevel->client_blur_tree->node);
 	}
 	if (toplevel->fs_backdrop != NULL) {
 		wlr_scene_node_lower_to_bottom(&toplevel->fs_backdrop->node);
@@ -758,8 +775,8 @@ void sf_decor_init_toplevel(struct sf_toplevel *toplevel) {
 }
 
 /* Clip the subsurface tree inside wlr_scene_xdg_surface_create's wrapper.
- * set_clip on the outer tree is a no-op — only the subsurface tree accepts it.
- * Pass clip == NULL to clear (empty box = no crop). */
+ * Walk from the wrapper so sibling chrome (never parented here) cannot be
+ * the first child. Pass clip == NULL to clear (empty box = no crop). */
 static void decor_clip_xdg_surface(struct sf_toplevel *toplevel, const struct wlr_box *clip) {
 	if (toplevel->xdg_scene_tree == NULL) {
 		return;
@@ -769,17 +786,12 @@ static void decor_clip_xdg_surface(struct sf_toplevel *toplevel, const struct wl
 	if (clip == NULL) {
 		clip = &none;
 	}
-	if (toplevel->xdg_toplevel == NULL) {
-		/* Xwayland attaches the subsurface tree directly as xdg_scene_tree. */
-		wlr_scene_subsurface_tree_set_clip(&toplevel->xdg_scene_tree->node, clip);
+	/* Public set_clip asserts a subsurface tree was found — skip while the
+	 * wrapper is empty (pre-map / mid-destroy). */
+	if (wl_list_empty(&toplevel->xdg_scene_tree->children)) {
 		return;
 	}
-	struct wlr_scene_node *child;
-	wl_list_for_each(child, &toplevel->xdg_scene_tree->children, link) {
-		wlr_scene_subsurface_tree_set_clip(child, clip);
-		return;
-	}
-	SF_LOGW("decor clip: no subsurface child", sf_i64("id", (int64_t)toplevel->id));
+	wlr_scene_subsurface_tree_set_clip(&toplevel->xdg_scene_tree->node, clip);
 }
 
 /*
@@ -953,6 +965,11 @@ void sf_decor_update_geom(struct sf_toplevel *toplevel) {
 		wlr_scene_node_set_enabled(&toplevel->fs_backdrop->node, false);
 	}
 	wlr_scene_node_set_position(&toplevel->xdg_scene_tree->node, xdg_ox, xdg_oy);
+	if (toplevel->client_blur_tree != NULL) {
+		wlr_scene_node_set_position(&toplevel->client_blur_tree->node, xdg_ox, xdg_oy);
+		wlr_scene_node_set_enabled(&toplevel->client_blur_tree->node,
+					   toplevel->client_blur && !fs);
+	}
 	decor_clip_xdg_surface(toplevel, clip_ptr);
 	/* surface_reconfigure overwrites source and dest when the clip changes.
 	 * Program the scaled crop after that, or the box is a 1:1 top-left crop. */
@@ -1133,6 +1150,7 @@ void sf_decor_finish_toplevel(struct sf_toplevel *toplevel) {
 	sf_blur_plates_clear(&toplevel->blur_plates);
 	pixman_region32_fini(&toplevel->blur_region);
 	toplevel->client_blur = false;
+	toplevel->client_blur_tree = NULL;
 
 	/* Wrapper owns blur/shadow/border (+ xdg child if still linked). */
 	if (toplevel->scene_tree != NULL) {

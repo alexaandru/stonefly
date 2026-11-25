@@ -31,6 +31,7 @@
 #include "wm/overview.h"
 #include "wm/rules.h"
 #include "wm/scratchpad.h"
+#include "wm/tiled_edges.h"
 #include "wm/workspace.h"
 #include "session/session.h"
 #include "wm/layout_sm.h"
@@ -42,29 +43,6 @@
 static bool xdg_surface_ready(struct sf_toplevel *toplevel) {
 	return toplevel != NULL && toplevel->xdg_toplevel != NULL &&
 	       toplevel->xdg_toplevel->base->initialized;
-}
-
-static uint32_t xdg_edges_all(void) {
-	return (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_BOTTOM | (uint32_t)WLR_EDGE_LEFT |
-	       (uint32_t)WLR_EDGE_RIGHT;
-}
-
-static uint32_t xdg_edges_for_snap(enum sf_snap edge) {
-	switch (edge) {
-	case SF_SNAP_LEFT:
-		return (uint32_t)WLR_EDGE_LEFT | (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_BOTTOM;
-	case SF_SNAP_RIGHT:
-		return (uint32_t)WLR_EDGE_RIGHT | (uint32_t)WLR_EDGE_TOP |
-		       (uint32_t)WLR_EDGE_BOTTOM;
-	case SF_SNAP_TOP:
-		return (uint32_t)WLR_EDGE_TOP | (uint32_t)WLR_EDGE_LEFT | (uint32_t)WLR_EDGE_RIGHT;
-	case SF_SNAP_BOTTOM:
-		return (uint32_t)WLR_EDGE_BOTTOM | (uint32_t)WLR_EDGE_LEFT |
-		       (uint32_t)WLR_EDGE_RIGHT;
-	case SF_SNAP_NONE:
-		break;
-	}
-	return 0;
 }
 
 static uint32_t xdg_wm_caps(void) {
@@ -105,14 +83,14 @@ static uint32_t xdg_constrained_edges(struct sf_toplevel *toplevel) {
 	if (sf_layout_sm_is_fullscreen(&toplevel->layout) ||
 	    sf_layout_sm_is_max_edges(&toplevel->layout) ||
 	    sf_layout_sm_is_max_gaps(&toplevel->layout)) {
-		return xdg_edges_all();
+		return sf_tiled_edges_all();
 	}
 	if (toplevel->arrange_managed && !toplevel->arrange_floating) {
-		return xdg_edges_all();
+		return sf_tiled_edges_all();
 	}
 	enum sf_snap snap = sf_layout_sm_snap(&toplevel->layout);
 	if (snap != SF_SNAP_NONE) {
-		return xdg_edges_for_snap(snap);
+		return sf_tiled_edges_for_snap(snap);
 	}
 	struct wlr_box usable, geom;
 	if (!sf_toplevel_output_box(toplevel, &usable) || usable.width <= 0 || usable.height <= 0) {

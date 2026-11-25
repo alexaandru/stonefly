@@ -3,8 +3,9 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <pixman.h>
 #include <wayland-server-core.h>
+
+#include "effect/blur_region.h"
 
 struct wlr_box;
 struct wlr_scene_blur;
@@ -20,10 +21,6 @@ struct sf_blur_plate {
 	struct wlr_scene_blur *blur;
 	struct wl_listener destroy;
 };
-
-/* pixman region → clamped boxes (surface-local). Returns count (≤ cap). */
-size_t sf_blur_region_boxes(const pixman_region32_t *region, int surf_w, int surf_h,
-			    struct wlr_box *out, size_t cap);
 
 void sf_blur_plates_clear(struct wl_list *plates);
 

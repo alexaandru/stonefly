@@ -5,7 +5,6 @@
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
-#include <scenefx/types/fx/clipped_region.h>
 #include <scenefx/types/wlr_scene.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_xdg_shell.h>
@@ -13,6 +12,7 @@
 
 #include "config/config.h"
 #include "decor/decor.h"
+#include "effect/blur_plates.h"
 #include "layer/layer.h"
 #include "log/log.h"
 #include "output/output.h"
@@ -178,8 +178,6 @@ static void layer_blur_box_fallback(struct sf_layer_surface *layer, int surf_w, 
 	}
 }
 
-#define SF_LAYER_BLUR_MAX 64
-
 /*
  * Collect plate boxes. Prefer each effect-region rect (Noctalia switcher sends
  * panel + tiles). A single full-surface region falls back to exclusive/opaque/
@@ -191,23 +189,13 @@ static size_t layer_blur_boxes(struct sf_layer_surface *layer, int surf_w, int s
 		return 0;
 	}
 	if (pixman_region32_not_empty(&layer->blur_region)) {
-		int n_rects = 0;
-		pixman_box32_t *rects = pixman_region32_rectangles(&layer->blur_region, &n_rects);
-		size_t n = 0;
+		size_t n = sf_blur_region_boxes(&layer->blur_region, surf_w, surf_h, out, cap);
 		bool any_partial = false;
-		for (int i = 0; i < n_rects && n < cap; i++) {
-			int bx = rects[i].x1;
-			int by = rects[i].y1;
-			int bw = rects[i].x2 - rects[i].x1;
-			int bh = rects[i].y2 - rects[i].y1;
-			layer_blur_clamp(surf_w, surf_h, &bx, &by, &bw, &bh);
-			if (bw <= 0 || bh <= 0) {
-				continue;
-			}
-			if (!layer_blur_region_is_full(bx, by, bw, bh, surf_w, surf_h)) {
+		for (size_t i = 0; i < n; i++) {
+			if (!layer_blur_region_is_full(out[i].x, out[i].y, out[i].width,
+						       out[i].height, surf_w, surf_h)) {
 				any_partial = true;
 			}
-			out[n++] = (struct wlr_box){.x = bx, .y = by, .width = bw, .height = bh};
 		}
 		if (n > 0 && (n > 1 || any_partial)) {
 			return n;
@@ -222,113 +210,30 @@ static size_t layer_blur_boxes(struct sf_layer_surface *layer, int surf_w, int s
 	return 1;
 }
 
-struct sf_layer_blur_plate {
-	struct wl_list link;
-	struct sf_layer_surface *layer;
-	struct wlr_scene_blur *blur;
-	struct wl_listener destroy;
-};
-
-static void layer_blur_plate_destroy_notify(struct wl_listener *listener, void *data) {
-	(void)data;
-	struct sf_layer_blur_plate *plate = wl_container_of(listener, plate, destroy);
-	wl_list_remove(&plate->destroy.link);
-	wl_list_remove(&plate->link);
-	free(plate);
-}
-
-static void layer_blur_plates_clear(struct sf_layer_surface *layer) {
-	struct sf_layer_blur_plate *plate, *tmp;
-	wl_list_for_each_safe(plate, tmp, &layer->blur_plates, link) {
-		/* destroy notify frees plate. */
-		wlr_scene_node_destroy(&plate->blur->node);
-	}
-}
-
-static struct sf_layer_blur_plate *layer_blur_plate_create(struct sf_layer_surface *layer, int w,
-							   int h) {
-	if (layer->scene == NULL) {
-		return NULL;
-	}
-	struct sf_layer_blur_plate *plate = calloc(1, sizeof(*plate));
-	if (plate == NULL) {
-		return NULL;
-	}
-	plate->layer = layer;
-	plate->blur = wlr_scene_blur_create(layer->scene, w, h);
-	if (plate->blur == NULL) {
-		free(plate);
-		return NULL;
-	}
-	wlr_scene_blur_set_corner_radii(plate->blur, corner_radii_none());
-	plate->destroy.notify = layer_blur_plate_destroy_notify;
-	wl_signal_add(&plate->blur->node.events.destroy, &plate->destroy);
-	wl_list_insert(layer->blur_plates.prev, &plate->link);
-	wlr_scene_node_lower_to_bottom(&plate->blur->node);
-	return plate;
-}
-
-static void layer_blur_plate_configure(struct sf_layer_blur_plate *plate, const struct wlr_box *box,
-				       bool on, bool xray, struct wlr_scene_buffer *mask) {
-	wlr_scene_node_set_enabled(&plate->blur->node, on && box->width > 0 && box->height > 0);
-	if (!on || box->width <= 0 || box->height <= 0) {
-		return;
-	}
-	wlr_scene_blur_set_size(plate->blur, box->width, box->height);
-	wlr_scene_node_set_position(&plate->blur->node, box->x, box->y);
-	wlr_scene_blur_set_should_only_blur_bottom_layer(plate->blur, xray);
-	if (mask != NULL && wlr_scene_blur_get_transparency_mask_source(plate->blur) != mask) {
-		wlr_scene_blur_set_transparency_mask_source(plate->blur, mask);
-	}
-	wlr_scene_node_lower_to_bottom(&plate->blur->node);
-}
-
 void sf_layer_refresh_blur(struct sf_layer_surface *layer) {
 	if (layer == NULL || !layer->client_blur) {
 		return;
 	}
-	bool on = layer->layer_surface != NULL && layer->layer_surface->surface->mapped;
-	if (!on || layer->layer_surface == NULL || layer->scene == NULL) {
-		struct sf_layer_blur_plate *plate;
-		wl_list_for_each(plate, &layer->blur_plates, link) {
-			wlr_scene_node_set_enabled(&plate->blur->node, false);
+	bool mapped = layer->layer_surface != NULL && layer->layer_surface->surface->mapped;
+	if (!mapped || layer->scene == NULL) {
+		if (layer->scene != NULL) {
+			sf_blur_plates_clear(&layer->blur_plates);
 		}
 		return;
 	}
 	struct wlr_surface *surf = layer->layer_surface->surface;
 	int w = surf->current.width;
 	int h = surf->current.height;
-	struct wlr_box boxes[SF_LAYER_BLUR_MAX];
+	struct wlr_box boxes[SF_BLUR_PLATE_MAX];
 	size_t n = 0;
 	if (w > 0 && h > 0) {
-		n = layer_blur_boxes(layer, w, h, boxes, SF_LAYER_BLUR_MAX);
-	}
-	size_t have = 0;
-	struct sf_layer_blur_plate *plate;
-	wl_list_for_each(plate, &layer->blur_plates, link) {
-		have++;
-	}
-	if (have != n) {
-		layer_blur_plates_clear(layer);
-		for (size_t i = 0; i < n; i++) {
-			if (layer_blur_plate_create(layer, boxes[i].width, boxes[i].height) ==
-			    NULL) {
-				layer_blur_plates_clear(layer);
-				layer->client_blur = false;
-				pixman_region32_clear(&layer->blur_region);
-				return;
-			}
-		}
+		n = layer_blur_boxes(layer, w, h, boxes, SF_BLUR_PLATE_MAX);
 	}
 	bool xray = sf_cfg(layer->server)->blur_xray;
 	/* Mask dst matches the blur node box; a full-surface mask stretched into a
 	 * sub-rect plate mis-stencils. Only attach for a single plate (bars). */
 	struct wlr_scene_buffer *mask = n == 1 ? layer_find_surface_buffer(layer) : NULL;
-	size_t i = 0;
-	wl_list_for_each(plate, &layer->blur_plates, link) {
-		layer_blur_plate_configure(plate, &boxes[i], n > 0, xray, mask);
-		i++;
-	}
+	sf_blur_plates_sync(layer->scene, &layer->blur_plates, boxes, n, n > 0, xray, mask);
 }
 
 void sf_layer_set_client_blur(struct sf_layer_surface *layer, const pixman_region32_t *region) {
@@ -347,7 +252,7 @@ void sf_layer_set_client_blur(struct sf_layer_surface *layer, const pixman_regio
 	}
 	layer->client_blur = want;
 	if (!want) {
-		layer_blur_plates_clear(layer);
+		sf_blur_plates_clear(&layer->blur_plates);
 	}
 	sf_layer_refresh_blur(layer);
 }
@@ -623,9 +528,9 @@ static void layer_surface_destroy(struct wl_listener *listener, void *data) {
 
 	/* scene_layer (and blur plate children) are already freed: wlroots
 	 * registers its destroy listener before ours on layer_surface destroy.
-	 * Plate destroy notifies should have emptied blur_plates; detach any
-	 * stragglers without touching scene nodes. */
-	struct sf_layer_blur_plate *plate, *plate_tmp;
+	 * Do not sf_blur_plates_clear here. Plate destroy notifies should have
+	 * emptied blur_plates; detach any stragglers without touching nodes. */
+	struct sf_blur_plate *plate, *plate_tmp;
 	wl_list_for_each_safe(plate, plate_tmp, &layer->blur_plates, link) {
 		wl_list_remove(&plate->destroy.link);
 		wl_list_init(&plate->destroy.link);

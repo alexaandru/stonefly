@@ -1778,9 +1778,6 @@ static const struct opt_num opt_numbers[] = {
 	{"resize_border_in", OPT_NUM_FN, 0, opt_set_resize_border_in},
 	{"resize_border_out", OPT_NUM_FN, 0, opt_set_resize_border_out},
 	{"column_drop_seam", OPT_NUM_FN, 0, opt_set_column_drop_seam},
-	{"master_factor", OPT_NUM_FLOAT, offsetof(struct sf_config, master_factor), NULL},
-	{"dwindle_factor", OPT_NUM_FLOAT, offsetof(struct sf_config, dwindle_factor), NULL},
-	{"master_count", OPT_NUM_INT, offsetof(struct sf_config, master_count), NULL},
 	{"column_ratio", OPT_NUM_FLOAT, offsetof(struct sf_config, column_ratio), NULL},
 };
 
@@ -1914,8 +1911,6 @@ static int l_opt_newindex(lua_State *L) {
 		} else if (strcmp(k, "arrange") == 0 || strcmp(k, "layout") == 0) {
 			/* layout is a deprecated alias for arrange. */
 			cfg->arrange = sf_arrange_parse(s);
-		} else if (strcmp(k, "master_pos") == 0) {
-			cfg->master_pos = sf_master_pos_parse(s);
 		} else if (strcmp(k, "ssd_mode") == 0) {
 			cfg->ssd_mode = sf_ssd_mode_parse(s);
 		} else if (strcmp(k, "client_maximize") == 0) {

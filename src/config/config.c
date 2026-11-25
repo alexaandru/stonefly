@@ -290,10 +290,6 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 	cfg->double_tap_gap_ms = 300;
 	cfg->wheel_bind_cooldown_ms = 150;
 	cfg->arrange = SF_ARRANGE_COLUMNS;
-	cfg->master_pos = SF_MASTER_LEFT;
-	cfg->master_factor = 0.55f;
-	cfg->dwindle_factor = 0.5f;
-	cfg->master_count = 1;
 	cfg->column_ratio = 0.5f;
 	cfg->swipe_workspace_threshold = 80;
 	cfg->swipe_workspace_natural = true;

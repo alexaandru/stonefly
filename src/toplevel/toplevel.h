@@ -186,12 +186,16 @@ struct sf_toplevel {
 	struct wlr_xdg_toplevel_icon_v1 *icon;
 	char *icon_name;
 
-	/* ext-background-effect-v1: non-empty blur region → plates under xdg tree.
-	 * Chrome `blur` stays the window_blur full plate (disabled while client
-	 * plates are active). */
+	/* ext-background-effect-v1: non-empty blur region → plates under
+	 * client_blur_tree (sibling of xdg_scene_tree, surface-local). Never
+	 * parent plates inside xdg_scene_tree — that breaks
+	 * wlr_scene_subsurface_tree_set_clip (assert found). Chrome `blur`
+	 * stays the window_blur full plate (disabled while client plates are
+	 * active). */
 	bool client_blur;
 	pixman_region32_t blur_region; /* surface-local; empty when off */
 	struct wl_list blur_plates;    /* sf_blur_plate.link */
+	struct wlr_scene_tree *client_blur_tree;
 
 	/* xdg-decoration: client preference + compositor SSD titlebar. */
 	bool want_ssd;

@@ -9,7 +9,7 @@ diagnosing stonefly.
   `dist/`). That is what you change. Do not edit `umbriel/` or `peeble/`.
 - **Arrange set is stacking + columns only.** Umbriel remains the behavior
   reference for columns; do not chase Umbriel’s full layout/overview/HDR
-  sandwich (master/dwindle/monocle are gone; parse aliases → columns).
+  sandwich (master/dwindle/monocle hard-cut; parse aliases → columns).
 - **`umbriel/` is the reference compositor** — Noctalia’s C++/wlroots sibling
   (cloned under `./umbriel`). Prefer its docs, action catalog, layouts,
   scratchpads, foreign UX, and effects model when shaping stonefly. Steal
@@ -128,12 +128,16 @@ stays in FEATURES; open gaps in ROADMAP.
 - **Foreign output pins to the workspace output**, not geom∩paint — off-strip
   columns must not `output_leave` and drop taskbar icons. Taskbar is membership,
   not visibility.
-- **Layer blur:** one SceneFX plate per effect rect; full-region falls back to
-  exclusive/opaque/input. Do not destroy blur plates in `layer_surface_destroy`
-  (tree already freed). Wire every layer surface, not a bar special case.
-  Toplevel client regions use plates under `xdg_scene_tree` (chrome
-  `window_blur` plate disabled while active). Layer popups inherit a live
-  non-xray plate when the parent layer has `client_blur`.
+- **Layer blur:** one SceneFX plate per effect rect via shared
+  `sf_blur_plates_*` (same as toplevel); layer keeps exclusive/opaque/input
+  full-region box policy. Do not destroy blur plates in
+  `layer_surface_destroy` (tree already freed) — detach straggler plate
+  listeners only. Wire every layer surface, not a bar special case. Toplevel
+  client regions use plates under `client_blur_tree` (sibling of
+  `xdg_scene_tree` — never inside it, or `wlr_scene_subsurface_tree_set_clip`
+  asserts). Chrome `window_blur` disabled while client plates are active.
+  Layer popups inherit a live non-xray plate when the parent layer has
+  `client_blur`.
 - **xdg_popup:** `wlr_xdg_popup_unconstrain_from_box` into usable; layer popups
   reparent on `get_popup`; defer unconstrain until initialized.
 - **Derived shell policy** (e.g. Noctalia bar opacity on edge-max): recompute

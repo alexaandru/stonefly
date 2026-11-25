@@ -227,7 +227,7 @@ struct sf_server {
 	/* Tile-factor resize (SF_CURSOR_ARRANGE_RESIZE). */
 	struct {
 		bool active;
-		bool vertical; /* dy → factor (master top/bottom); else dx */
+		bool vertical; /* dy → factor (vertical strip resize); else dx */
 		double start_cx;
 		double start_cy;
 		float start_factor;

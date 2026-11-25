@@ -8,7 +8,8 @@ Suites are tests/**/*_test.c with a pragma near the top:
 	cover=  path under src/ shown in the report (required)
 	src=    comma-separated extra .c files under src/ to link (optional)
 	stub=   log  → also compile tests/stubs/log_stub.c (optional)
-	libs=   m    → -lm (optional)
+	libs=   m            → -lm
+	        pixman-1     → pkg-config --cflags --libs pixman-1
 
 Both host `make test` and APK check put tests/stubs/include ahead of system
 headers (compositor Meson build uses real deps; unit suites do not). Adding a
@@ -207,6 +208,30 @@ def overall_stats(measured: dict[str, float]) -> tuple[float, int, int]:
 	return avg, hit, len(pcts)
 
 
+def suite_pkg_flags(suite: Suite) -> tuple[list[str], list[str]]:
+	"""Return (extra_cflags, link_flags) for suite.libs."""
+	extra_cflags: list[str] = []
+	link_flags: list[str] = []
+	for lib in suite.libs:
+		if lib == "pixman-1":
+			try:
+				cflags = subprocess.check_output(
+					["pkg-config", "--cflags", "pixman-1"],
+					text=True,
+				)
+				libs = subprocess.check_output(
+					["pkg-config", "--libs", "pixman-1"],
+					text=True,
+				)
+			except (OSError, subprocess.CalledProcessError) as e:
+				raise SystemExit(f"{suite.test_c}: pkg-config pixman-1 failed: {e}") from e
+			extra_cflags.extend(shlex.split(cflags))
+			link_flags.extend(shlex.split(libs))
+		else:
+			link_flags.append(f"-l{lib}")
+	return extra_cflags, link_flags
+
+
 def build_suite(
 	suite: Suite,
 	cc: str,
@@ -216,11 +241,14 @@ def build_suite(
 	sf_test_o: Path,
 	verbose: bool,
 ) -> Path:
+	pkg_cflags, link_flags = suite_pkg_flags(suite)
+	use_cflags = cflags + pkg_cflags
+
 	objs = [sf_test_o]
 	if suite.stub_log:
 		stub_c = TESTS / "stubs" / "log_stub.c"
 		stub_o = unitdir / "log_stub.o"
-		compile_obj(cc, cflags, covflags, stub_c, stub_o, verbose, [ROOT / "src" / "log" / "log.h"])
+		compile_obj(cc, use_cflags, covflags, stub_c, stub_o, verbose, [ROOT / "src" / "log" / "log.h"])
 		objs.append(stub_o)
 
 	for rel in suite.srcs:
@@ -228,17 +256,16 @@ def build_suite(
 		if not src.is_file():
 			raise SystemExit(f"{suite.test_c}: src={rel} missing")
 		obj = unitdir / (rel.replace("/", "_") + ".o")
-		compile_obj(cc, cflags, covflags, src, obj, verbose)
+		compile_obj(cc, use_cflags, covflags, src, obj, verbose)
 		objs.append(obj)
 
 	test_o = unitdir / (suite.name + ".o")
-	compile_obj(cc, cflags, covflags, suite.test_c, test_o, verbose, [TESTS / "sf_test.h"])
+	compile_obj(cc, use_cflags, covflags, suite.test_c, test_o, verbose, [TESTS / "sf_test.h"])
 	objs.append(test_o)
 
 	binpath = unitdir / suite.name
-	libflags = [f"-l{lib}" for lib in suite.libs]
 	if newer(binpath, objs):
-		cmd = [cc, *covflags, "-o", str(binpath), *[str(o) for o in objs], *libflags]
+		cmd = [cc, *covflags, "-o", str(binpath), *[str(o) for o in objs], *link_flags]
 		run_cmd(cmd, verbose)
 	return binpath
 
