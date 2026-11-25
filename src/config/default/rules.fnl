@@ -29,7 +29,6 @@
                   "^io%.github%.dvlv%.boxbuddyrs$"
                   "^org%.gnome%.eog$"
                   "^zenity$"
-                  "^org%.dosbox%-staging%.dosbox%-staging$"
                   "^xdg%-desktop%-portal%-gtk$"
                   "^org%.gnome%.Mahjongg$"
                   "^org%.gnome%.World%.PikaBackup$"

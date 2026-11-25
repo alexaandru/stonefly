@@ -51,7 +51,10 @@
               ["Alt+Tab" {:action :exec :cmd (noctalia "window-switcher")}]
               ["Alt+Shift+Tab" {:action :focus_prev_all}]
               ;; maximize / fullscreen / minimize
+              ;; Super+f on a tiled window = transient peek (arrange_max_edges_rejoin);
+              ;; focus/Tab drops it back to the cell. Sticky edge-max: Super+v then Super+f.
               ["Super+f" {:action :toggle_maximize_to_edges}]
+              ;; Super+m = column/gap max; stays tiled under columns.
               ["Super+m" {:action :toggle_maximize}]
               ["F11" {:action :toggle_fullscreen}]
               ["Ctrl+Esc" {:action :minimize}]
@@ -67,7 +70,8 @@
               ["Super+Up" {:action :focus_dir :cmd "up" :arrange "tiling"}]
               ["Super+Down" {:action :focus_dir :cmd "down" :arrange "tiling"}]
               ["Super+u" {:action :unsnap :arrange "stacking"}]
-              ;; tiling: leave/rejoin the tile set (Super+LMB drag swaps tiles instead)
+              ;; tiling: leave/rejoin the tile set (Super+LMB drag swaps tiles instead).
+              ;; Float first (here), then Super+f, for sticky edge-max under columns.
               ["Super+v" {:action :toggle_float :arrange "tiling"}]
               ["Super+Shift+v" {:action :float :arrange "tiling"}]
               ["Super+Ctrl+v" {:action :unfloat :arrange "tiling"}]
@@ -75,6 +79,11 @@
               ["Super+comma" {:action :consume :cmd "left" :arrange "columns"}]
               ["Super+period"
                {:action :consume :cmd "right" :arrange "columns"}]
+              ;; columns: pull neighbor's first row into focused column
+              ["Super+Ctrl+comma"
+               {:action :consume_from :cmd "left" :arrange "columns"}]
+              ["Super+Ctrl+period"
+               {:action :consume_from :cmd "right" :arrange "columns"}]
               ;; tiling: rotate tile order (cw = last→first; columns push others right)
               ["Super+c" {:action :arrange_rotate :cmd "cw" :arrange "tiling"}]
               ["Super+Shift+c"

@@ -154,6 +154,44 @@ static void test_snap_geom_leave_and_regain(void) {
 	SF_TEST_EQ_INT((int)out.state.snap, (int)SF_SNAP_RIGHT);
 }
 
+/*
+ * Overlays share one normal box: float → snap → max → unmax restores the
+ * original float geom (snap must not overwrite saved).
+ */
+static void test_snap_then_max_restores_float(void) {
+	struct sf_layout_sm s;
+	sf_layout_sm_init(&s);
+	struct wlr_box normal = box(120, 140, 640, 480);
+	struct sf_layout_ctx ctx = make_ctx(normal);
+	struct sf_layout_result out;
+
+	struct sf_layout_ev snap = {.kind = SF_LAYOUT_EV_SNAP, .snap = SF_SNAP_LEFT};
+	sf_layout_sm_step(&s, &snap, &ctx, &out);
+	SF_TEST_EQ_INT((int)out.state.mode, (int)SF_LAYOUT_MODE_SNAP);
+	SF_TEST_TRUE(out.state.has_saved);
+	SF_TEST_EQ_INT(out.state.saved.x, normal.x);
+	SF_TEST_EQ_INT(out.state.saved.y, normal.y);
+	SF_TEST_EQ_INT(out.state.saved.width, normal.width);
+	SF_TEST_EQ_INT(out.state.saved.height, normal.height);
+	s = out.state;
+
+	ctx.current = ctx.snap_left;
+	struct sf_layout_ev max = {.kind = SF_LAYOUT_EV_SET_MAX_EDGES, .want = true};
+	sf_layout_sm_step(&s, &max, &ctx, &out);
+	SF_TEST_EQ_INT((int)out.state.mode, (int)SF_LAYOUT_MODE_MAX_EDGES);
+	SF_TEST_TRUE(out.state.has_saved);
+	SF_TEST_EQ_INT(out.state.saved.width, normal.width);
+	SF_TEST_EQ_INT(out.state.saved.height, normal.height);
+	s = out.state;
+
+	ctx.current = ctx.max_edges;
+	struct sf_layout_ev unmax = {.kind = SF_LAYOUT_EV_SET_MAX_EDGES, .want = false};
+	sf_layout_sm_step(&s, &unmax, &ctx, &out);
+	SF_TEST_EQ_INT((int)out.state.mode, (int)SF_LAYOUT_MODE_FLOAT);
+	SF_TEST_TRUE(!out.state.has_saved);
+	SF_TEST_TRUE(has_apply_near(&out, &normal));
+}
+
 static void test_float_clears_saved(void) {
 	struct sf_layout_sm s;
 	sf_layout_sm_init(&s);
@@ -323,6 +361,7 @@ static const struct sf_test tests[] = {
 	{"toggle_max_edges_enter_leave", test_toggle_max_edges_enter_leave},
 	{"max_edges_resize_away_toggle_and_regain", test_max_edges_resize_away_toggle_and_regain},
 	{"snap_geom_leave_and_regain", test_snap_geom_leave_and_regain},
+	{"snap_then_max_restores_float", test_snap_then_max_restores_float},
 	{"float_clears_saved", test_float_clears_saved},
 	{"fullscreen_instant_and_restore", test_fullscreen_instant_and_restore},
 	{"fullscreen_toggle", test_fullscreen_toggle},

@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <wayland-server-core.h>
 
+#include "config/action.h"
 #include "config/config.h"
 #include "decor/decor.h"
 #include "ipc/config.h"
@@ -24,6 +25,7 @@
 #include "log/log.h"
 #include "server/server.h"
 #include "util/json.h"
+#include "wm/action_run.h"
 #include "wm/scratchpad.h"
 #include "wm/wm.h"
 #include "wm/workspace.h"
@@ -88,7 +90,6 @@ static char *socket_path(void) {
 	return path;
 }
 
-/* Parse {"cmd":"<name>","arg":"..."} (arg optional; string values only). */
 static struct sf_toplevel *toplevel_by_id(struct sf_server *server, uint64_t id) {
 	struct sf_toplevel *toplevel;
 	wl_list_for_each(toplevel, &server->toplevels, link) {
@@ -377,10 +378,31 @@ static void ipc_handle_config(struct sf_ipc_client *client, const char *arg) {
 	free(out);
 }
 
+static void ipc_handle_action(struct sf_ipc_client *client, const char *arg, const char *data) {
+	if (arg == NULL || arg[0] == '\0') {
+		ipc_write_err(client, "action requires arg (action name)");
+		return;
+	}
+	enum sf_action action = SF_ACTION_NONE;
+	if (!sf_action_parse_ok(arg, &action) || action == SF_ACTION_NONE) {
+		ipc_write_err(client, "unknown action");
+		return;
+	}
+	if ((sf_action_run_flags(action) & SF_ACTION_F_IPC) == 0) {
+		ipc_write_err(client, "action not allowed over IPC");
+		return;
+	}
+	const char *payload = (data != NULL && data[0] != '\0') ? data : NULL;
+	/* Reply before run so action quit still delivers {"ok":true} (like cmd=exit). */
+	ipc_write_ok(client);
+	sf_run_action(client->ipc->server, NULL, action, payload);
+}
+
 static void ipc_handle_request(struct sf_ipc_client *client, const char *line) {
 	char cmd[64];
 	char arg[128];
-	if (!sf_ipc_parse_cmd_arg(line, cmd, sizeof(cmd), arg, sizeof(arg))) {
+	char data[128];
+	if (!sf_ipc_parse_cmd_arg(line, cmd, sizeof(cmd), arg, sizeof(arg), data, sizeof(data))) {
 		ipc_write_err(client, "bad request");
 		return;
 	}
@@ -451,6 +473,10 @@ static void ipc_handle_request(struct sf_ipc_client *client, const char *line) {
 			return;
 		}
 		ipc_write_ok(client);
+		return;
+	}
+	if (strcmp(cmd, "action") == 0) {
+		ipc_handle_action(client, arg, data);
 		return;
 	}
 	if (strcmp(cmd, "exit") == 0 || strcmp(cmd, "quit") == 0) {
@@ -657,7 +683,8 @@ void sf_ipc_stop(struct sf_server *server) {
 
 /* ---- client ----------------------------------------------------------- */
 
-static int ipc_request_arg(const char *cmd, const char *arg, char **reply_out) {
+static int ipc_request_fields(const char *cmd, const char *arg, const char *data,
+			      char **reply_out) {
 	*reply_out = NULL;
 
 	char *path = socket_path();
@@ -696,7 +723,7 @@ static int ipc_request_arg(const char *cmd, const char *arg, char **reply_out) {
 	}
 	free(path);
 
-	char req[256];
+	char req[1024];
 	struct json_buf b;
 	json_buf_init(&b, req, sizeof(req));
 	json_byte(&b, '{');
@@ -706,6 +733,11 @@ static int ipc_request_arg(const char *cmd, const char *arg, char **reply_out) {
 		json_byte(&b, ',');
 		json_key(&b, "arg");
 		json_str(&b, arg);
+	}
+	if (data != NULL && data[0] != '\0') {
+		json_byte(&b, ',');
+		json_key(&b, "data");
+		json_str(&b, data);
 	}
 	json_byte(&b, '}');
 	json_byte(&b, '\n');
@@ -759,6 +791,10 @@ static int ipc_request_arg(const char *cmd, const char *arg, char **reply_out) {
 	}
 	*reply_out = reply;
 	return 0;
+}
+
+static int ipc_request_arg(const char *cmd, const char *arg, char **reply_out) {
+	return ipc_request_fields(cmd, arg, NULL, reply_out);
 }
 
 static int ipc_request(const char *cmd, char **reply_out) {
@@ -975,6 +1011,56 @@ int sf_ipc_cmd_exit(int argc, char **argv) {
 int sf_ipc_cmd_reload(int argc, char **argv) {
 	return ipc_cmd_ok_noarg(argc, argv, "reload", "Usage: stonefly reload",
 				"  Re-run Lua/Fennel config (keeps previous on failure).\n");
+}
+
+int sf_ipc_cmd_action(int argc, char **argv) {
+	const char *name = NULL;
+	char data[512];
+	size_t data_len = 0;
+	data[0] = '\0';
+
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+			printf("Usage: stonefly action <name> [data…]\n");
+			printf("  Run an allowlisted bind action over IPC (same-UID socket).\n");
+			printf("  Optional data is joined with spaces (exec cmd, left|right, "
+			       "…).\n");
+			printf("  Pointer-grab verbs (move_window/resize_*) are denied.\n");
+			printf("  Prefer `stonefly exit` to quit; `action quit` is also "
+			       "allowed.\n");
+			return 0;
+		}
+		if (name == NULL) {
+			name = argv[i];
+			continue;
+		}
+		size_t piece = strlen(argv[i]);
+		if (data_len > 0) {
+			if (data_len + 1 >= sizeof(data)) {
+				fprintf(stderr, "stonefly: action data too long\n");
+				return 1;
+			}
+			data[data_len++] = ' ';
+		}
+		if (data_len + piece >= sizeof(data)) {
+			fprintf(stderr, "stonefly: action data too long\n");
+			return 1;
+		}
+		memcpy(data + data_len, argv[i], piece);
+		data_len += piece;
+		data[data_len] = '\0';
+	}
+	if (name == NULL) {
+		fprintf(stderr, "Usage: stonefly action <name> [data…]\n");
+		return 1;
+	}
+
+	char *reply = NULL;
+	int rc = ipc_request_fields("action", name, data_len > 0 ? data : NULL, &reply);
+	if (rc != 0) {
+		return rc;
+	}
+	return ipc_print_ok_reply(reply);
 }
 
 int sf_ipc_cmd_config(int argc, char **argv) {

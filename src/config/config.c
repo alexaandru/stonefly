@@ -307,6 +307,7 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 	cfg->client_maximize = SF_CLIENT_MAXIMIZE_GAPS;
 	cfg->unminimize_workspace = SF_UNMINIMIZE_WS_ACTIVE;
 	cfg->focus_cycle = SF_FOCUS_CYCLE_SPATIAL;
+	cfg->pan_focus = SF_PAN_FOCUS_CENTER;
 	cfg->tile_insert = SF_TILE_INSERT_AFTER_FOCUS;
 	cfg->column_drop_seam = 0.15f;
 	cfg->tiled_grab_remap = true;
@@ -357,6 +358,10 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 		{SF_SUPER | SF_CTRL, XKB_KEY_v, 0, SF_ACTION_UNFLOAT, NULL, SF_ARRANGE_TILING},
 		{SF_SUPER, XKB_KEY_comma, 0, SF_ACTION_CONSUME, "left", SF_ARRANGE_COLUMNS},
 		{SF_SUPER, XKB_KEY_period, 0, SF_ACTION_CONSUME, "right", SF_ARRANGE_COLUMNS},
+		{SF_SUPER | SF_CTRL, XKB_KEY_comma, 0, SF_ACTION_CONSUME_FROM, "left",
+		 SF_ARRANGE_COLUMNS},
+		{SF_SUPER | SF_CTRL, XKB_KEY_period, 0, SF_ACTION_CONSUME_FROM, "right",
+		 SF_ARRANGE_COLUMNS},
 		{SF_SUPER, XKB_KEY_c, 0, SF_ACTION_ARRANGE_ROTATE, "cw", SF_ARRANGE_TILING},
 		{SF_SUPER | SF_SHIFT, XKB_KEY_c, 0, SF_ACTION_ARRANGE_ROTATE, "ccw",
 		 SF_ARRANGE_TILING},

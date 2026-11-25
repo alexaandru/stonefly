@@ -38,8 +38,8 @@ LuaJIT + Fennel config.
 | Bucket | Gaps | Feeds |
 |---|---|---|
 | **App-compatibility walls** | (IME + tablet shipped) | — |
-| **Daily-driver feel & polish** | `sf.on` + `sf.wins()`; columns polish (`center_focused=on_overflow`, drag-edge pan) | TODO NEXT #2; §1 columns |
-| **Credibility / no-surprises** | Predictability Medium leftovers; optional SSD icon blit | TODO NEXT #1; after-stack |
+| **Daily-driver feel & polish** | `sf.on` + `sf.wins()`; columns polish (`center_focused=on_overflow`, drag-edge pan) | TODO NEXT #1–#2 |
+| **Credibility / no-surprises** | Predictability Medium shipped; optional SSD icon blit | TODO NEXT #8 |
 
 Recent catch-up batch already in FEATURES: shortcuts inhibit, security context,
 `sf.opt.anim` + dim-inactive + opacity/`no_dim`, lazy Xwayland, scratchpad
@@ -210,7 +210,7 @@ from Lua mid-session (`sf.wins`, …); replacing focus / insert / maximize / SSD
 chrome policy with Lua *functions* (still hardcoded or only partially opt’d —
 see deferred inventory); packs that react to map / focus / arrange without new
 C. Summary: **strong static config**, **live reload**, still a **weak runtime**
-until TODO NEXT #2.
+until TODO NEXT #1.
 
 Default tree: `src/config/default/` (`options.fnl`, `binds.fnl`, `gestures.fnl`,
 `rules.fnl`, `inputs.fnl`, `outputs.fnl`, `scratchpads.fnl`, `execs.fnl`, …).
@@ -242,7 +242,7 @@ the chosen verb. High leftovers shipped; med/low stay in deferred inventory belo
 | **edge-max** | Zen / usable-fill, gapless | Super+f, `:maximize_to_edges`, Super+pinchout |
 | **gap-max** / columns **full_width** | Column / gap-inset max | Super+m; CSD / SSD max+dblclick / foreign follow `client_maximize` (default `gaps`) |
 
-**Tier 2 — event runtime (`sf.on`) — TODO NEXT #2.** Without this, packs cannot
+**Tier 2 — event runtime (`sf.on`) — TODO NEXT #1.** Without this, packs cannot
 replace ad-hoc C branches.
 
 ```text
@@ -323,10 +323,10 @@ High rows shipped (FEATURES). Med/low are not pick-queue blockers.
 | `resize_center_min` | `pointer.c` | 50 | `sf.opt.resize_center_min` | low |
 | `snap_resist_mul` | `drag_snap.c` | 4 × `snap_threshold` | fold into snap opts | low |
 | `ssd_chrome_layout` | `ssd_layout.c` | fixed min+max+close boxes | button set / layout opts | low |
-| `pan_focus` | `arrange.c` columns pan | centre-most visible; no warp | keep / warp / under-pointer | low (also Predictability Medium) |
+| `pan_focus` | `arrange.c` columns pan | ✅ `sf.opt.pan_focus` keep\|center\|warp\|under_pointer (default center) | — | shipped |
 | `focus_on` | `pointer.c` | click-to-focus | `click`\|`sloppy` (careful enter) | low |
 | `map_focus` | `xdg/xdg.c` map | always focus new map | opt, or Tier 2 `sf.on("map")` | low |
-| `transient_edge_max` | focus / Tab | tile edge-max is transient | document; sticky = float+rule | docs / Stay |
+| `transient_edge_max` | focus / Tab | ✅ documented in `binds.fnl` (sticky = float then Super+f) | — | shipped |
 
 `tiled_slide` / `anim_ease` folded into shipped `sf.opt.anim` (FEATURES).
 
@@ -336,8 +336,8 @@ High rows shipped (FEATURES). Med/low are not pick-queue blockers.
 |---|---|
 | Maximize entry-point matrix | ✅ `client_maximize` (default gaps); Super+f remains zen |
 | Unminimize → active WS | ✅ `unminimize_workspace` (default active) |
-| Transient tile edge-max | Keep transient; document; sticky = float+edge-max / rule (TODO NEXT #1) |
-| Columns pan focus retarget | `pan_focus` opt if users disagree (TODO NEXT #1) |
+| Transient tile edge-max | ✅ documented in defaults; sticky = float+edge-max / rule |
+| Columns pan focus retarget | ✅ `sf.opt.pan_focus` keep\|center\|warp\|under_pointer |
 
 #### Seed hygiene (C vs Fennel)
 
@@ -351,7 +351,7 @@ Day-zero truth is `src/config/default/*.fnl`. C seeds exist for
 | C numeric defaults (opacity 0.96, corner 12, …) differ from `options.fnl` (0.90 / 8, …) | Align C with Fennel **or** document NOCONFIG as “minimal recovery”, not day-zero chrome |
 | Legacy `master_*` / `dwindle_*` still in `sf.opt` | Dormant while product arrange is stacking+columns; drop when unused |
 
-#### Tier 2–3 gate (TODO NEXT #2)
+#### Tier 2–3 gate (TODO NEXT #1)
 
 Do not invent more one-off C branches for pack-shaped policy:
 
@@ -376,26 +376,25 @@ stays green).
 
 ## TODO NEXT
 
-Fresh pick-queue (tiling overview / big engines excluded). Knock these out in
-order when choosing “what next”; chapter tables below hold detail. Carry-overs
-from the previous stack plus high-value leftovers and low-hanging fruit.
+Fresh pick-queue. Small-fruit stack just shipped (FEATURES): Predictability
+Medium, `consume_from`, IPC `action` allowlist. Hollow protocol ads cleared.
+Next head is the C↔Lua frontline.
 
 | # | Item | Status | Why |
 |---|---|---|---|
-| 1 | **Predictability Medium leftovers** | 🚧 | FS unFS→pack; snap↔max one “normal” box; document transient tile edge-max; pan-focus opt |
-| 2 | **`sf.on` + window query** | ❌ | Tier 2–3 Neovim leap (C↔Lua border). Packs subscribe to map/unmap/focus/arrange/layout/workspace and **recompute** from `sf.wins()` — not one-shot max/unmax. Example: Noctalia bar opaque iff any visible edge-max on that output (`noctalia msg config-set bar.default.background_opacity`); naive bind-side toggle breaks with 2+ maxed windows |
+| 1 | **`sf.on` + `sf.wins()`** | ❌ | Tier 2–3 Neovim leap. Packs subscribe to map/unmap/focus/arrange/layout/workspace and **recompute** from `sf.wins()` — not one-shot max/unmax. Example: Noctalia bar opaque iff any visible edge-max on that output |
+| 2 | **Columns polish leftovers** | 🚧 | `center_focused=on_overflow`, drag-edge pan (arrange-swap); tabs parked |
+| 3 | **Geometry persist** | ❌ | Tag + `match.tag` ship; restore-across-restart consumer open |
+| 4 | **Overview polish** | 🚧 | Card drag, multi-surface cards, shortcut badges |
+| 5 | **APK release buildtype** | 🚧 | Flip off ASan/UBSan when crash hunting ends |
+| 6 | **`--write-config-lua`** | ❌ | Offload plain Lua instead of `.fnl` |
+| 7 | **Scratchpad click-outside catcher** | ❌ | `auto_hide` covers most |
+| 8 | **Optional SSD icon blit** | ❌ | Buffer-only; Noctalia uses app_id — low pull |
+| 9 | **Bind context redesign** | 📋 | Own chapter; after overview/arrange filters feel cramped |
+| 10 | **Portal capture_sessions UX** | ❌ | Protocols wire; session UX open |
 
-**Shipped this stack:** scratchpad claim via xdg-activation; IME relay; tablet
-v2; deferred WM opts high (`focus_cycle`, `tile_insert`, `column_drop_seam`,
-`tiled_grab_remap`, `border_resize`); `sf.output` / `outputs.fnl` + IPC
-`config outputs` — all FEATURES.
-
-**After this stack (not numbered):** IPC `action` allowlist; APK flip to release
-buildtype when ASan hunting ends; `--write-config-lua`; protocol hollow-ads
-optional SSD icon blit; `wp_fifo_v1` / full color-mgmt (unadvertised);
-geometry persist;
-scratchpad click-outside catcher; winmenu (or Noctalia); columns polish leftovers.
-Queue is #1–#2.
+**After this stack:** `wp_fifo_v1` / full color-mgmt (unadvertised); winmenu /
+shell chrome → 🌙 Noctalia; Predictability Low watch items.
 
 ---
 
@@ -409,12 +408,8 @@ slots or one window per column (FEATURES).
 
 ### Medium
 
-| Gap | What surprises | Direction |
-|---|---|---|
-| **Transient tile edge-max** | Focus/Tab drops overlay back to cell — right for “peek”, wrong if user wanted sticky | Keep transient; sticky = float+edge-max / rule. Document in defaults (TODO NEXT #1) |
-| **FS saved box vs tile cell** | UnFS restores layout_sm saved geom; column pack may overwrite | If `arrange_managed`, pack instead of saved-box morph |
-| **Snap ↔ max ↔ unmax** | PreMax / PreSnap stacking after toggle chains | One saved “normal” box; modes are overlays |
-| **Pan focus vs click focus** | 3-finger pan retargets centre-most; pointer may sit over another cell | Optional: warp or focus-under-pointer on swipe end |
+Shipped → FEATURES (transient Super+f docs; FS unFS→pack when strip-managed;
+one normal box; `sf.opt.pan_focus`).
 
 ### Low
 
@@ -445,7 +440,7 @@ slots or one window per column (FEATURES).
 | Window menu / winmenu | ❌ | SSD titlebars shipped |
 | Geometry persist across restart | ❌ | Tag protocol shipped; no persist consumer |
 | Workspaces polish | 🚧 | Named rules / geometry persist open. Switch slide + strip shipped (FEATURES) |
-| Columns polish | 🚧 | Still open: `center_focused=on_overflow`, consume-from bind, tabs, drag edge pan; deck/grid declined |
+| Columns polish | 🚧 | Still open: `center_focused=on_overflow`, tabs, drag edge pan; deck/grid declined; consume-from bind shipped (FEATURES) |
 | Focus cycle opt (MRU / spatial / strip) | ✅ | `sf.opt.focus_cycle`; FEATURES |
 | Picture-in-picture float | ❌ | Related to always-on-top |
 | Scratchpad click-outside catcher | ❌ | `auto_hide` on focus change ships |
@@ -531,12 +526,11 @@ High knobs shipped (FEATURES).
 
 | Pri | Item | Status |
 |---|---|---|
-| P1 | `sf.on` + window query | ❌ TODO NEXT #2 |
-| P2 | Workspaces polish | ❌ rules / geometry persist |
-| P2 | SSD toplevel-icon blit (optional) | ❌ §5 |
-| P2 | Columns polish leftovers | 🚧 §1 (`center_focused=on_overflow`, drag-edge pan) |
-| P2 | `wp_fifo_v1` | ❌ |
-| P2 | Tablet v2 | ✅ FEATURES |
+| P1 | `sf.on` + window query | ❌ TODO NEXT #1 |
+| P2 | Columns polish leftovers | 🚧 TODO NEXT #2 |
+| P2 | Geometry persist | ❌ TODO NEXT #3 |
+| P2 | SSD toplevel-icon blit (optional) | ❌ TODO NEXT #8 / §5 |
+| P2 | `wp_fifo_v1` | ❌ unadvertised |
 
 ---
 
@@ -552,15 +546,8 @@ High knobs shipped (FEATURES).
 
 ## 9. Suggested attack order
 
-Primary queue is **TODO NEXT** at the top (#1–#3). After that stack:
-
-1. IPC action allowlist; APK release buildtype; `--write-config-lua`
-2. Capture: portal capture_sessions UX; optional SSD icon blit
-3. Not-yet-advertised: `wp_fifo_v1` (no wlroots 0.20 helper — hand-roll or wait), full color-mgmt (multi-day)
-5. Optional WM: columns polish leftovers; geometry persist; overview polish (card drag, multi-surface cards, shortcut badges)
-6. **Bind context redesign** (own chapter below) — after overview/arrange filters feel cramped
-
-Shell/OSD/media stay **🌙 Noctalia**.
+Primary queue is **TODO NEXT** (#1 = C↔Lua frontline). After that stack:
+unadvertised `wp_fifo_v1` / full color-mgmt; shell chrome stays **🌙 Noctalia**.
 
 ---
 

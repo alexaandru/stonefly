@@ -71,6 +71,8 @@ void sf_arrange_toggle_float(struct sf_toplevel *toplevel);
 /* Columns: stack focused into neighbor column, or expel from a multi-window
  * column when no neighbor exists (umbriel consume-or-expel). dir: left|right. */
 void sf_arrange_consume(struct sf_server *server, const char *dir);
+/* Columns: pull neighbor column's first painted row into the focused column. */
+void sf_arrange_consume_from(struct sf_server *server, const char *dir);
 
 /* Drop from the workspace tile-order list (unmap / destroy / leave). */
 void sf_arrange_unlink(struct sf_toplevel *toplevel);

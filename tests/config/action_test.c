@@ -71,6 +71,8 @@ static void test_parse_name_roundtrip(void) {
 	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_UNFLOAT);
 	SF_TEST_TRUE(sf_action_parse_ok("consume", &a));
 	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_CONSUME);
+	SF_TEST_TRUE(sf_action_parse_ok("consume_from", &a));
+	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_CONSUME_FROM);
 	SF_TEST_TRUE(sf_action_parse_ok("arrange_rotate", &a));
 	SF_TEST_EQ_INT((int)a, (int)SF_ACTION_ARRANGE_ROTATE);
 	SF_TEST_TRUE(sf_action_parse_ok("reload", &a));
@@ -112,6 +114,7 @@ static void test_parse_name_roundtrip(void) {
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_FLOAT), "float");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_UNFLOAT), "unfloat");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_CONSUME), "consume");
+	SF_TEST_STREQ(sf_action_name(SF_ACTION_CONSUME_FROM), "consume_from");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_ARRANGE_ROTATE), "arrange_rotate");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_RELOAD), "reload");
 	SF_TEST_STREQ(sf_action_name(SF_ACTION_MOVE_WINDOW), "move_window");

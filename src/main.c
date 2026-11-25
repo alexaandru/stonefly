@@ -28,6 +28,7 @@ static void usage(const char *argv0) {
 	printf("  %s toggle-quick-terminal        toggle scratchpad pad \"term\"\n", argv0);
 	printf("  %s toggle-claim-quick-terminal  claim/unclaim focused as QT\n", argv0);
 	printf("  %s reload                       re-run Lua/Fennel config\n", argv0);
+	printf("  %s action <name> [data…]        run allowlisted bind action\n", argv0);
 	printf("  %s exit                         quit this WAYLAND_DISPLAY session\n", argv0);
 }
 
@@ -129,6 +130,9 @@ int main(int argc, char *argv[]) {
 		}
 		if (strcmp(argv[1], "reload") == 0) {
 			return sf_ipc_cmd_reload(argc - 1, argv + 1);
+		}
+		if (strcmp(argv[1], "action") == 0) {
+			return sf_ipc_cmd_action(argc - 1, argv + 1);
 		}
 		if (strcmp(argv[1], "exit") == 0 || strcmp(argv[1], "quit") == 0) {
 			return sf_ipc_cmd_exit(argc - 1, argv + 1);

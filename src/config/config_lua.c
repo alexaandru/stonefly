@@ -1924,6 +1924,8 @@ static int l_opt_newindex(lua_State *L) {
 			cfg->unminimize_workspace = sf_unminimize_workspace_parse(s);
 		} else if (strcmp(k, "focus_cycle") == 0) {
 			cfg->focus_cycle = sf_focus_cycle_parse(s);
+		} else if (strcmp(k, "pan_focus") == 0) {
+			cfg->pan_focus = sf_pan_focus_parse(s);
 		} else if (strcmp(k, "tile_insert") == 0) {
 			cfg->tile_insert = sf_tile_insert_parse(s);
 		}

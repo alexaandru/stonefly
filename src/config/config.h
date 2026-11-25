@@ -65,6 +65,14 @@ enum sf_focus_cycle {
 	SF_FOCUS_CYCLE_STRIP,	    /* columns→rows collect order */
 };
 
+/* Columns strip pan focus retarget. Default center. */
+enum sf_pan_focus {
+	SF_PAN_FOCUS_CENTER = 0,    /* centre-most visible cell (default) */
+	SF_PAN_FOCUS_KEEP,	    /* never retarget during pan */
+	SF_PAN_FOCUS_WARP,	    /* centre + warp pointer on focus change */
+	SF_PAN_FOCUS_UNDER_POINTER, /* prefer cell under cursor among visible */
+};
+
 /* Where a new tiled window joins the strip. Default after focused column. */
 enum sf_tile_insert {
 	SF_TILE_INSERT_AFTER_FOCUS = 0,
@@ -172,6 +180,8 @@ enum sf_action {
 	SF_ACTION_UNFLOAT,
 	/* Columns: cmd = left|right — stack focused into neighbor column. */
 	SF_ACTION_CONSUME,
+	/* Columns: cmd = left|right — pull neighbor's first row into focused column. */
+	SF_ACTION_CONSUME_FROM,
 	/* cmd = next|cw|prev|ccw (default next). Rotate tile order; focus stays put.
 	 * next/cw: last→first (columns: last becomes 1st, others shift right). */
 	SF_ACTION_ARRANGE_ROTATE,
@@ -436,6 +446,8 @@ struct sf_config {
 
 	/* Super+Tab tiling walk: spatial|mru|strip (default spatial). */
 	enum sf_focus_cycle focus_cycle;
+	/* Columns pan focus: keep|center|warp|under_pointer (default center). */
+	enum sf_pan_focus pan_focus;
 	/* New tiled column insert: after_focus|end|begin (default after_focus). */
 	enum sf_tile_insert tile_insert;
 	/* Cell-drag mid vs fringe seam (0..0.5; default 0.15). */
@@ -522,6 +534,8 @@ enum sf_unminimize_workspace sf_unminimize_workspace_parse(const char *s);
 const char *sf_unminimize_workspace_name(enum sf_unminimize_workspace mode);
 enum sf_focus_cycle sf_focus_cycle_parse(const char *s);
 const char *sf_focus_cycle_name(enum sf_focus_cycle mode);
+enum sf_pan_focus sf_pan_focus_parse(const char *s);
+const char *sf_pan_focus_name(enum sf_pan_focus mode);
 enum sf_tile_insert sf_tile_insert_parse(const char *s);
 const char *sf_tile_insert_name(enum sf_tile_insert mode);
 enum sf_anim_style sf_anim_style_parse(const char *s);

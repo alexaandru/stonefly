@@ -78,6 +78,8 @@
             :unminimize_workspace "active"
             ;; Super+Tab on tiling: spatial (atan2) | mru | strip (columns→rows).
             :focus_cycle "spatial"
+            ;; Columns 3-finger pan focus: keep | center | warp | under_pointer.
+            :pan_focus "center"
             ;; New tiled window column: after_focus | end | begin.
             :tile_insert "after_focus"
             ;; Cell-drag: mid = swap, fringe = insert (0..0.5 of cell height/width).

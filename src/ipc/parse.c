@@ -8,9 +8,13 @@
 
 #include "util/json.h"
 
-bool sf_ipc_parse_cmd_arg(const char *line, char *cmd, size_t cmd_cap, char *arg, size_t arg_cap) {
+bool sf_ipc_parse_cmd_arg(const char *line, char *cmd, size_t cmd_cap, char *arg, size_t arg_cap,
+			  char *data, size_t data_cap) {
 	if (arg != NULL && arg_cap > 0) {
 		arg[0] = '\0';
+	}
+	if (data != NULL && data_cap > 0) {
+		data[0] = '\0';
 	}
 
 	struct json_scan s;
@@ -40,6 +44,8 @@ bool sf_ipc_parse_cmd_arg(const char *line, char *cmd, size_t cmd_cap, char *arg
 			found = true;
 		} else if (strcmp(key, "arg") == 0 && arg != NULL && arg_cap > 0) {
 			snprintf(arg, arg_cap, "%s", value);
+		} else if (strcmp(key, "data") == 0 && data != NULL && data_cap > 0) {
+			snprintf(data, data_cap, "%s", value);
 		}
 
 		json_scan_skip_ws(&s);

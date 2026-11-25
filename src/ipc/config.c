@@ -255,6 +255,9 @@ static void emit_options(struct json_buf *b, const struct sf_config *cfg) {
 	json_key(b, "focus_cycle");
 	json_str(b, sf_focus_cycle_name(cfg->focus_cycle));
 	json_byte(b, ',');
+	json_key(b, "pan_focus");
+	json_str(b, sf_pan_focus_name(cfg->pan_focus));
+	json_byte(b, ',');
 	json_key(b, "tile_insert");
 	json_str(b, sf_tile_insert_name(cfg->tile_insert));
 	json_byte(b, ',');

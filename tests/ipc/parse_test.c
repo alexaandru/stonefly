@@ -7,28 +7,41 @@
 static void test_parse_cmd_arg(void) {
 	char cmd[64];
 	char arg[64];
+	char data[64];
 
-	SF_TEST_TRUE(
-		sf_ipc_parse_cmd_arg("{\"cmd\":\"ping\"}", cmd, sizeof(cmd), arg, sizeof(arg)));
+	SF_TEST_TRUE(sf_ipc_parse_cmd_arg("{\"cmd\":\"ping\"}", cmd, sizeof(cmd), arg, sizeof(arg),
+					  data, sizeof(data)));
 	SF_TEST_STREQ(cmd, "ping");
 	SF_TEST_STREQ(arg, "");
+	SF_TEST_STREQ(data, "");
 
 	SF_TEST_TRUE(sf_ipc_parse_cmd_arg("{\"cmd\":\"focus\",\"arg\":\"42\"}", cmd, sizeof(cmd),
-					  arg, sizeof(arg)));
+					  arg, sizeof(arg), data, sizeof(data)));
 	SF_TEST_STREQ(cmd, "focus");
 	SF_TEST_STREQ(arg, "42");
+	SF_TEST_STREQ(data, "");
 
 	SF_TEST_TRUE(sf_ipc_parse_cmd_arg("{\"arg\":\"7\",\"cmd\":\"close\"}", cmd, sizeof(cmd),
-					  arg, sizeof(arg)));
+					  arg, sizeof(arg), NULL, 0));
 	SF_TEST_STREQ(cmd, "close");
 	SF_TEST_STREQ(arg, "7");
 
-	SF_TEST_TRUE(!sf_ipc_parse_cmd_arg("{}", cmd, sizeof(cmd), arg, sizeof(arg)));
-	SF_TEST_TRUE(!sf_ipc_parse_cmd_arg("[]", cmd, sizeof(cmd), arg, sizeof(arg)));
-	SF_TEST_TRUE(!sf_ipc_parse_cmd_arg("{\"cmd\":\"\"}", cmd, sizeof(cmd), arg, sizeof(arg)));
-	SF_TEST_TRUE(!sf_ipc_parse_cmd_arg(NULL, cmd, sizeof(cmd), arg, sizeof(arg)));
+	SF_TEST_TRUE(sf_ipc_parse_cmd_arg("{\"cmd\":\"action\",\"arg\":\"exec\",\"data\":\"foot\"}",
+					  cmd, sizeof(cmd), arg, sizeof(arg), data, sizeof(data)));
+	SF_TEST_STREQ(cmd, "action");
+	SF_TEST_STREQ(arg, "exec");
+	SF_TEST_STREQ(data, "foot");
 
-	SF_TEST_TRUE(sf_ipc_parse_cmd_arg("{\"cmd\":\"x\"}", cmd, sizeof(cmd), NULL, 0));
+	SF_TEST_TRUE(!sf_ipc_parse_cmd_arg("{}", cmd, sizeof(cmd), arg, sizeof(arg), data,
+					   sizeof(data)));
+	SF_TEST_TRUE(!sf_ipc_parse_cmd_arg("[]", cmd, sizeof(cmd), arg, sizeof(arg), data,
+					   sizeof(data)));
+	SF_TEST_TRUE(!sf_ipc_parse_cmd_arg("{\"cmd\":\"\"}", cmd, sizeof(cmd), arg, sizeof(arg),
+					   data, sizeof(data)));
+	SF_TEST_TRUE(!sf_ipc_parse_cmd_arg(NULL, cmd, sizeof(cmd), arg, sizeof(arg), data,
+					   sizeof(data)));
+
+	SF_TEST_TRUE(sf_ipc_parse_cmd_arg("{\"cmd\":\"x\"}", cmd, sizeof(cmd), NULL, 0, NULL, 0));
 	SF_TEST_STREQ(cmd, "x");
 }
 

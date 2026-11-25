@@ -30,7 +30,8 @@ open row from the roadmap in the same turn.
 ### Arrange
 
 - **Columns** — scrollable strip of first-class columns; windows are rows inside
-  a column (consume/expel, column width, focus-within-column).
+  a column (consume/expel, consume-from, column width, focus-within-column).
+  Super+,/. consume (or expel); Super+Ctrl+,/. pull from the neighbor column.
 - **Stacking** — free float / snap / gap-max desktop.
 - Switch with Super+] / [ (`arrange_rotate`). Non-floats join the tile set;
   user and rule floats stay out (`arrange_floating`).
@@ -49,13 +50,17 @@ open row from the roadmap in the same turn.
   including sticky floats; stacking: MRU). Focus raises the target.
 - Alt+Tab → Noctalia window switcher; Alt+Shift+Tab includes minimized.
 - **Super+f** — maximize to edges (zen). Under columns this is a transient
-  overlay that rejoins its cell on focus change unless the window is a sticky
-  float.
+  peek (`arrange_max_edges_rejoin`) that drops back to the cell on focus/Tab;
+  sticky edge-max = float first (Super+v) then Super+f (or a float rule).
+  Documented next to the default binds.
 - **Super+m** — maximize with gaps / column full-width (stays tiled in columns).
 - Client / SSD / foreign maximize follow `sf.opt.client_maximize` (default
   `gaps`).
-- **F11** — exclusive fullscreen (one per output; exact output box).
-- Half-snap with Super+arrows while stacking; Super+u restores.
+- **F11** — exclusive fullscreen (one per output; exact output box). Leaving
+  FS on a strip-managed tiled window packs the cell (skips saved-box morph);
+  stacking / sticky-float still restore the saved box.
+- Half-snap with Super+arrows while stacking; Super+u restores. Snap↔max↔FS
+  overlays share one “normal” float box.
 
 ### Move, resize, drag
 
@@ -182,6 +187,7 @@ system bell is visual only; layer keyboard auto-focus is exclusive-only.
 - LuaJIT VM in-process; Fennel-first embedded defaults under
   `src/config/default/`
 - WM feel knobs: `sf.opt.focus_cycle` (`spatial`|`mru`|`strip`),
+  `pan_focus` (`keep`|`center`|`warp`|`under_pointer`; columns strip pan),
   `tile_insert` (`after_focus`|`end`|`begin`), `column_drop_seam`,
   `tiled_grab_remap`, `border_resize` (defaults match prior C hardcoding)
 - `sf.opt`, `sf.bind` (keys / mouse / Mod+Wheel), `sf.tap`, `sf.gesture`,
@@ -201,8 +207,9 @@ Same binary; socket `$STONEFLY_SOCKET` or
 
 `windows`, `layers`, `outputs`, `workspaces`, `workspace` /
 `move-to-workspace`, `config` [section], `focus` / `close`,
-`toggle-quick-terminal`, `toggle-claim-quick-terminal`, `reload`, `exit` —
-human or `--json`.
+`toggle-quick-terminal`, `toggle-claim-quick-terminal`, `reload`,
+`action` `<name>` `[data…]` (allowlisted bind verbs; pointer-grab denied;
+`quit` allowed — same terminate as `exit`), `exit` — human or `--json`.
 
 Structured JSON logs on stderr and `~/.var/log/stonefly/wm.log`.
 

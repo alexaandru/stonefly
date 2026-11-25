@@ -56,6 +56,7 @@ static const struct sf_action_entry sf_actions[] = {
 	{"float", SF_ACTION_FLOAT},
 	{"unfloat", SF_ACTION_UNFLOAT},
 	{"consume", SF_ACTION_CONSUME},
+	{"consume_from", SF_ACTION_CONSUME_FROM},
 	{"arrange_rotate", SF_ACTION_ARRANGE_ROTATE},
 	{"reload", SF_ACTION_RELOAD},
 	{"move_window", SF_ACTION_MOVE_WINDOW},

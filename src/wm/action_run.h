@@ -10,6 +10,7 @@
 /* Shared precondition bits (visible next to each verb in the catalog). */
 #define SF_ACTION_F_WIN 1u /* need a resolved toplevel */
 #define SF_ACTION_F_CMD 2u /* need non-empty cmd; warn otherwise */
+#define SF_ACTION_F_IPC 4u /* allowed via IPC cmd=action (same-UID socket) */
 
 /* Introspection for unit tests / tooling. */
 unsigned sf_action_run_flags(enum sf_action action);

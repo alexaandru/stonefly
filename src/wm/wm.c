@@ -249,11 +249,21 @@ void sf_toplevel_sync_scene_layer(struct sf_toplevel *toplevel) {
 }
 
 static void layout_apply_result(struct sf_toplevel *toplevel, const struct sf_layout_result *r) {
+	bool was_fs = sf_layout_sm_is_fullscreen(&toplevel->layout);
+	/* Strip-managed unFS→float: skip saved-box morph; arrange schedule packs. */
+	bool skip_unfs_box = was_fs && r->state.mode == SF_LAYOUT_MODE_FLOAT &&
+			     toplevel->arrange_managed && toplevel->column != NULL &&
+			     toplevel->workspace != NULL &&
+			     sf_arrange_is_tiling(sf_workspace_arrange(toplevel->workspace));
+
 	toplevel->layout = r->state;
 	for (size_t i = 0; i < r->nfx; i++) {
 		const struct sf_layout_effect *e = &r->fx[i];
 		switch (e->kind) {
 		case SF_LAYOUT_FX_APPLY_BOX:
+			if (skip_unfs_box) {
+				break;
+			}
 			if (e->morph) {
 				toplevel_try_morph_to(toplevel, &e->box);
 			} else {

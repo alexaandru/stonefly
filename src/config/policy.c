@@ -73,6 +73,36 @@ const char *sf_focus_cycle_name(enum sf_focus_cycle mode) {
 	}
 }
 
+enum sf_pan_focus sf_pan_focus_parse(const char *s) {
+	if (s == NULL || s[0] == '\0' || strcmp(s, "center") == 0 || strcmp(s, "centre") == 0) {
+		return SF_PAN_FOCUS_CENTER;
+	}
+	if (strcmp(s, "keep") == 0) {
+		return SF_PAN_FOCUS_KEEP;
+	}
+	if (strcmp(s, "warp") == 0) {
+		return SF_PAN_FOCUS_WARP;
+	}
+	if (strcmp(s, "under_pointer") == 0 || strcmp(s, "pointer") == 0) {
+		return SF_PAN_FOCUS_UNDER_POINTER;
+	}
+	return SF_PAN_FOCUS_CENTER;
+}
+
+const char *sf_pan_focus_name(enum sf_pan_focus mode) {
+	switch (mode) {
+	case SF_PAN_FOCUS_KEEP:
+		return "keep";
+	case SF_PAN_FOCUS_WARP:
+		return "warp";
+	case SF_PAN_FOCUS_UNDER_POINTER:
+		return "under_pointer";
+	case SF_PAN_FOCUS_CENTER:
+	default:
+		return "center";
+	}
+}
+
 enum sf_tile_insert sf_tile_insert_parse(const char *s) {
 	if (s == NULL || s[0] == '\0' || strcmp(s, "after_focus") == 0 || strcmp(s, "after") == 0) {
 		return SF_TILE_INSERT_AFTER_FOCUS;

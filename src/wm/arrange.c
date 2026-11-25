@@ -819,10 +819,10 @@ static bool pan_box_mostly_visible(const struct wlr_box *box, const struct wlr_b
 }
 
 /*
- * Pan is view-first: keep focus while its cell is still mostly on-screen; once
- * it scrolls off, focus the centre-most visible tiled cell. No pointer warp —
- * continuous swipe must not yank the cursor (cursor_follows_focus stays for
- * keybinds).
+ * Pan focus retarget (sf.opt.pan_focus). keep = no-op; center = centre-most
+ * visible cell; warp = center + pointer warp; under_pointer = prefer the
+ * visible strip cell under the cursor, else centre-most. Continuous pan may
+ * retarget under_pointer each tick among visible cells.
  */
 static void columns_pan_sync_focus(struct sf_workspace *ws, struct sf_toplevel **wins,
 				   const struct wlr_box *boxes, size_t n,
@@ -832,34 +832,61 @@ static void columns_pan_sync_focus(struct sf_workspace *ws, struct sf_toplevel *
 		return;
 	}
 	struct sf_server *server = ws->output->server;
+	enum sf_pan_focus mode = sf_cfg(server)->pan_focus;
+	if (mode == SF_PAN_FOCUS_KEEP) {
+		return;
+	}
 	struct sf_toplevel *focus = sf_focused_toplevel(server);
 	for (size_t i = 0; i < n; i++) {
 		if (wins[i] == focus && pan_box_mostly_visible(&boxes[i], usable)) {
 			return;
 		}
 	}
-	double cx = (double)usable->x + (double)usable->width / 2.0;
-	double cy = (double)usable->y + (double)usable->height / 2.0;
 	struct sf_toplevel *best = NULL;
-	double best_d = 0.0;
-	for (size_t i = 0; i < n; i++) {
-		struct wlr_box inter;
-		if (!wlr_box_intersection(&inter, &boxes[i], usable) || inter.width <= 0 ||
-		    inter.height <= 0) {
-			continue;
+	if (mode == SF_PAN_FOCUS_UNDER_POINTER && server->cursor != NULL) {
+		struct wlr_surface *surface = NULL;
+		double sx = 0.0;
+		double sy = 0.0;
+		struct sf_toplevel *under = sf_desktop_toplevel_at(
+			server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+		for (size_t i = 0; under != NULL && i < n; i++) {
+			struct wlr_box inter;
+			if (wins[i] != under) {
+				continue;
+			}
+			if (wlr_box_intersection(&inter, &boxes[i], usable) && inter.width > 0 &&
+			    inter.height > 0) {
+				best = under;
+			}
+			break;
 		}
-		double bx = (double)boxes[i].x + (double)boxes[i].width / 2.0;
-		double by = (double)boxes[i].y + (double)boxes[i].height / 2.0;
-		double dx = bx - cx;
-		double dy = by - cy;
-		double d = dx * dx + dy * dy;
-		if (best == NULL || d < best_d) {
-			best = wins[i];
-			best_d = d;
+	}
+	if (best == NULL) {
+		double cx = (double)usable->x + (double)usable->width / 2.0;
+		double cy = (double)usable->y + (double)usable->height / 2.0;
+		double best_d = 0.0;
+		for (size_t i = 0; i < n; i++) {
+			struct wlr_box inter;
+			if (!wlr_box_intersection(&inter, &boxes[i], usable) || inter.width <= 0 ||
+			    inter.height <= 0) {
+				continue;
+			}
+			double bx = (double)boxes[i].x + (double)boxes[i].width / 2.0;
+			double by = (double)boxes[i].y + (double)boxes[i].height / 2.0;
+			double dx = bx - cx;
+			double dy = by - cy;
+			double d = dx * dx + dy * dy;
+			if (best == NULL || d < best_d) {
+				best = wins[i];
+				best_d = d;
+			}
 		}
 	}
 	if (best != NULL && best != focus) {
 		sf_focus_toplevel(best);
+		if (mode == SF_PAN_FOCUS_WARP) {
+			sf_pointer_center(server, best);
+		}
 	}
 }
 
@@ -1049,6 +1076,30 @@ void sf_arrange_consume(struct sf_server *server, const char *dir) {
 		return;
 	}
 	if (sf_columns_expel(focus, delta)) {
+		sf_arrange_schedule(focus->workspace);
+	}
+}
+
+void sf_arrange_consume_from(struct sf_server *server, const char *dir) {
+	if (server == NULL || dir == NULL) {
+		return;
+	}
+	int delta = 0;
+	if (strcasecmp(dir, "left") == 0) {
+		delta = -1;
+	} else if (strcasecmp(dir, "right") == 0) {
+		delta = 1;
+	} else {
+		return;
+	}
+	struct sf_toplevel *focus = sf_focused_toplevel(server);
+	if (focus == NULL || focus->column == NULL || focus->workspace == NULL) {
+		return;
+	}
+	if (sf_workspace_arrange(focus->workspace) != SF_ARRANGE_COLUMNS) {
+		return;
+	}
+	if (sf_columns_consume_from(focus, delta)) {
 		sf_arrange_schedule(focus->workspace);
 	}
 }

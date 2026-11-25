@@ -28,6 +28,10 @@ struct sf_server;
  *   {"cmd":"config","arg":"binds"}    → one section (options|binds|taps|
  *                                       scratchpads|window_rules|inputs|
  *                                       outputs)
+ *   {"cmd":"action","arg":"<name>","data":"…"} → {"ok":true}
+ *     Run an allowlisted action (SF_ACTION_F_IPC). data is optional cmd
+ *     payload (exec string, left|right, …). Pointer-grab verbs denied.
+ *     quit is allowed (same terminate path as cmd=exit).
  *
  * Socket: $STONEFLY_SOCKET, else
  * $XDG_RUNTIME_DIR/sf-$WAYLAND_DISPLAY.sock.
@@ -54,5 +58,7 @@ int sf_ipc_cmd_toggle_claim_quick_terminal(int argc, char **argv);
 int sf_ipc_cmd_exit(int argc, char **argv);
 /* Re-run Lua/Fennel config; keep previous on failure. */
 int sf_ipc_cmd_reload(int argc, char **argv);
+/* Run allowlisted action: stonefly action <name> [data…]. */
+int sf_ipc_cmd_action(int argc, char **argv);
 
 #endif
