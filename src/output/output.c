@@ -11,6 +11,8 @@
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_output_management_v1.h>
 #include <wlr/types/wlr_output_swapchain_manager.h>
+#include <wlr/types/wlr_damage_ring.h>
+#include <wlr/types/wlr_tearing_control_v1.h>
 #include <scenefx/types/wlr_scene.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 
@@ -21,29 +23,139 @@
 #include "log/log.h"
 #include "output/output.h"
 #include "session/session.h"
+#include "toplevel/ext_capture.h"
+#include "toplevel/toplevel.h"
+#include "wm/layout_sm.h"
 #include "wm/overview.h"
+#include "wm/wm.h"
 #include "wm/workspace.h"
+
+static bool output_client_tearing_hint(struct sf_output *output, struct sf_toplevel *tl) {
+	struct sf_server *server = output->server;
+	if (server->tearing_control_mgr == NULL || tl == NULL) {
+		return false;
+	}
+	struct wlr_surface *surf = sf_toplevel_wlr_surface(tl);
+	if (surf == NULL) {
+		return false;
+	}
+	enum wp_tearing_control_v1_presentation_hint hint =
+		wlr_tearing_control_manager_v1_surface_hint_from_surface(
+			server->tearing_control_mgr, surf);
+	return hint == WP_TEARING_CONTROL_V1_PRESENTATION_HINT_ASYNC;
+}
+
+/* Eligible fullscreen candidate on this output (prefer focused). */
+static struct sf_toplevel *output_tearing_candidate(struct sf_output *output) {
+	struct sf_toplevel *focused = sf_focused_toplevel(output->server);
+	if (focused != NULL && sf_layout_sm_is_fullscreen(&focused->layout) &&
+	    sf_output_for_toplevel(focused) == output && !focused->minimized) {
+		return focused;
+	}
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &output->server->toplevels, link) {
+		if (!sf_layout_sm_is_fullscreen(&t->layout) || t->minimized) {
+			continue;
+		}
+		if (sf_output_for_toplevel(t) == output) {
+			return t;
+		}
+	}
+	return NULL;
+}
+
+static bool output_tearing_eligible(struct sf_output *output, struct sf_toplevel *tl) {
+	if (tl == NULL || !output->allow_tearing) {
+		return false;
+	}
+	if (output->tearing_regular_pending) {
+		return false;
+	}
+	if (sf_session_locked(output->server) || sf_overview_interactive(output->server) ||
+	    output->ws_anim.active) {
+		return false;
+	}
+	/* Screencopy / image-copy hold attach_render_locks; never tear those frames. */
+	if (output->wlr_output->attach_render_locks > 0) {
+		return false;
+	}
+	bool hint = output_client_tearing_hint(output, tl);
+	if (tl->rule_tearing_set) {
+		return tl->rule_tearing;
+	}
+	return hint;
+}
+
+/*
+ * build_state + optional tearing_page_flip + commit. Returns whether a buffer
+ * was submitted. track_tearing updates recovery/present bookkeeping.
+ */
+static bool output_commit_scene(struct sf_output *output, struct wlr_scene_output *scene,
+				bool allow_tearing_attempt, bool track_lock_frame) {
+	struct wlr_output_state state;
+	wlr_output_state_init(&state);
+	if (!wlr_scene_output_build_state(scene, &state, NULL)) {
+		wlr_output_state_finish(&state);
+		return false;
+	}
+
+	bool has_buffer =
+		(state.committed & (uint32_t)WLR_OUTPUT_STATE_BUFFER) != 0 && state.buffer != NULL;
+	bool tear = false;
+	if (allow_tearing_attempt && has_buffer) {
+		struct sf_toplevel *cand = output_tearing_candidate(output);
+		tear = output_tearing_eligible(output, cand);
+		if (tear) {
+			state.tearing_page_flip = true;
+			if (!wlr_output_test_state(output->wlr_output, &state)) {
+				state.tearing_page_flip = false;
+				tear = false;
+				output->tearing_regular_pending = true;
+				SF_LOGD("tearing", sf_str("fallback", "backend rejected async"));
+			}
+		}
+	}
+
+	bool ok = wlr_output_commit_state(output->wlr_output, &state);
+	if (has_buffer) {
+		if (tear && !ok) {
+			output->tearing_regular_pending = true;
+		} else if (ok && !tear && output->tearing_regular_pending) {
+			output->tearing_regular_pending = false;
+		}
+		if (ok) {
+			output->tearing_last_commit = tear;
+			output->tearing_tracked_seq = output->wlr_output->commit_seq;
+			if (track_lock_frame) {
+				output->lock_frame = (struct sf_lock_frame){
+					.seq = output->wlr_output->commit_seq,
+					.submitted = true,
+				};
+			}
+		}
+	}
+	wlr_output_state_finish(&state);
+	return ok && has_buffer;
+}
 
 static void output_present(struct wl_listener *listener, void *data) {
 	struct sf_output *output = wl_container_of(listener, output, present);
 	const struct wlr_output_event_present *event = data;
 	sf_session_output_present(output, event->commit_seq, event->presented);
-}
 
-static void output_commit_lock_frame(struct sf_output *output, struct wlr_scene_output *scene) {
-	/* A successful scene commit can be a no-op. Only track a submitted buffer. */
-	struct wlr_output_state state;
-	wlr_output_state_init(&state);
-	if (wlr_scene_output_build_state(scene, &state, NULL) && state.buffer != NULL &&
-	    wlr_output_commit_state(output->wlr_output, &state)) {
-		output->lock_frame = (struct sf_lock_frame){
-			.seq = output->wlr_output->commit_seq,
-			.submitted = true,
-		};
-	} else {
+	if (output->tearing_last_commit && event->commit_seq == output->tearing_tracked_seq &&
+	    !event->presented) {
+		/* Failed async present: force a regular flip next frame. */
+		output->tearing_regular_pending = true;
+		output->tearing_last_commit = false;
+		struct wlr_scene_output *scene =
+			wlr_scene_get_scene_output(output->server->scene, output->wlr_output);
+		if (scene != NULL) {
+			wlr_damage_ring_add_whole(&scene->damage_ring);
+		}
 		wlr_output_schedule_frame(output->wlr_output);
+		SF_LOGD("tearing", sf_str("fallback", "async present failed"));
 	}
-	wlr_output_state_finish(&state);
 }
 
 static void output_frame(struct wl_listener *listener, void *data) {
@@ -69,11 +181,31 @@ static void output_frame(struct wl_listener *listener, void *data) {
 	if (sf_session_locked(output->server) && wlr_box_empty(&output->lock_box)) {
 		return;
 	}
-	if (output->server->lock.awaiting_present && !output->lock_frame.submitted &&
-	    !output->lock_frame.presented) {
-		output_commit_lock_frame(output, scene_output);
+
+	bool lock_await = output->server->lock.awaiting_present && !output->lock_frame.submitted &&
+			  !output->lock_frame.presented;
+	/*
+	 * Dual-pass capture blanking on stock SceneFX: screencopy copies the
+	 * committed buffer. Commit once with blocked trees hidden (clients
+	 * capture underneath), restore, then commit the full scene for display.
+	 * Both commits run in this handler so the last buffer is what scans out.
+	 */
+	bool capture_filter = !lock_await && output->wlr_output->attach_render_locks > 0 &&
+			      sf_capture_has_blocked(output->server);
+	if (capture_filter) {
+		sf_capture_set_blocked_hidden(output->server, true);
+		(void)output_commit_scene(output, scene_output, false, false);
+		sf_capture_set_blocked_hidden(output->server, false);
+		/* New swapchain buffer after the capture pass needs a full redraw. */
+		wlr_damage_ring_add_whole(&scene_output->damage_ring);
+	}
+
+	if (lock_await) {
+		if (!output_commit_scene(output, scene_output, false, true)) {
+			wlr_output_schedule_frame(output->wlr_output);
+		}
 	} else {
-		wlr_scene_output_commit(scene_output, NULL);
+		(void)output_commit_scene(output, scene_output, !capture_filter, false);
 	}
 	wlr_scene_output_send_frame_done(scene_output, &now);
 }
@@ -467,16 +599,25 @@ void sf_output_apply_config(struct sf_output *output) {
 	}
 	const struct sf_config *cfg = sf_cfg(output->server);
 	enum sf_arrange arrange = SF_ARRANGE_UNSET;
+	bool allow_tearing = false;
 	const char *name = output->wlr_output->name;
 	if (cfg != NULL && name != NULL) {
 		for (size_t i = 0; i < cfg->n_output_rules; i++) {
 			const struct sf_output_rule *rule = &cfg->output_rules[i];
 			if (rule->match != NULL && strcasecmp(rule->match, name) == 0) {
 				arrange = rule->arrange;
+				if (rule->tearing_set) {
+					allow_tearing = rule->tearing;
+				}
 			}
 		}
 	}
 	output->arrange = arrange;
+	if (output->allow_tearing != allow_tearing) {
+		output->tearing_regular_pending = false;
+		wlr_output_schedule_frame(output->wlr_output);
+	}
+	output->allow_tearing = allow_tearing;
 }
 
 void sf_output_apply_all(struct sf_server *server) {

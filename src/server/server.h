@@ -244,7 +244,7 @@ struct sf_server {
 	struct wl_listener output_mgr_apply;
 	struct wl_listener output_mgr_test;
 
-	/* wp_presentation + wp_tearing_control_v1 (advertise only this pass). */
+	/* wp_presentation + wp_tearing_control_v1 (async flips in output_frame). */
 	struct wlr_presentation *presentation;
 	struct wlr_tearing_control_manager_v1 *tearing_control_mgr;
 	struct wl_listener tearing_new_object;

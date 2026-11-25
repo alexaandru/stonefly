@@ -129,8 +129,6 @@
               ["Super+space" {:action :exec :cmd "foot"}]
               ["Super+z" {:action :exec :cmd "luciole"}]
               ["Super+w" {:action :exec :cmd "ghostty +new-window"}]
-              ["Alt+Return"
-               {:action :exec :cmd "ghostty +toggle-quick-terminal"}]
               ["Super+e"
                {:action :exec :cmd "gtk-launch org.gnome.TextEditor"}]
               ["Super+t" {:action :scratch_claim :cmd "term"}]

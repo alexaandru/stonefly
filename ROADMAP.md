@@ -38,7 +38,7 @@ LuaJIT + Fennel config.
 |---|---|---|
 | **App-compatibility walls** | (IME + tablet shipped) | — |
 | **Daily-driver feel & polish** | `sf.on` + `sf.wins()`; columns polish (`center_focused=on_overflow`, drag-edge pan) | TODO NEXT #2; §1 columns |
-| **Credibility / no-surprises** | Hollow protocol ads (toplevel region mask, real tearing flips, full-output screencopy blanking); Predictability Medium leftovers | TODO NEXT #1; §5; after-stack |
+| **Credibility / no-surprises** | Hollow protocol ads (toplevel blur region / popup); Predictability Medium leftovers | TODO NEXT #1; §5; after-stack |
 
 Recent catch-up batch already in FEATURES: shortcuts inhibit, security context,
 `sf.opt.anim` + dim-inactive + opacity/`no_dim`, lazy Xwayland, scratchpad
@@ -85,7 +85,7 @@ data-device) are assumed on all four.
 | **wp-fractional-scale-v1** | Non-integer scale | yes | yes | yes* | yes |
 | **wp-viewporter** | Crop/scale buffer | yes | yes | yes* | yes |
 | **wp-presentation** | Present timestamps | yes (v2) | yes | ? | yes (v2) |
-| **wp-tearing-control-v1** | Async page-flip hint | **partial** (advertise, no async flip) | no* | yes | yes |
+| **wp-tearing-control-v1** | Async page-flip hint | yes (output `:tearing` + FS hint/rule; recovery) | no* | yes | yes |
 | **wp-fifo-v1** | Commit after a refresh | no | no | no | no* |
 | **wp-content-type-v1** | Game/video/photo hint | no | no | no | yes |
 | **wp-alpha-modifier-v1** | Client surface opacity | no | no | no | yes |
@@ -93,7 +93,7 @@ data-device) are assumed on all four.
 | **ext-data-control-v1** | Clipboard managers | yes | yes | ? | yes |
 | **zwlr-data-control-v1** | Legacy clipboard mgr | yes | yes | ? | yes |
 | **wp-primary-selection** | Middle-click paste | yes | yes | yes | yes |
-| **zwlr-screencopy-v1** | grim / old portal capture | yes | yes | ? | yes |
+| **zwlr-screencopy-v1** | grim / old portal capture | yes (dual-pass omits `capture_blocked`) | yes | ? | yes |
 | **ext-image-copy-capture-v1** | New output capture | yes | yes | yes | yes |
 | **ext-*-image-capture-source-v1** | Per-output / per-toplevel capture | yes (toplevel + privacy block) | yes | yes | yes |
 | **ext-background-effect-v1** | Client blur regions (Noctalia) | yes (layers per-rect; toplevels full plate) | yes | no* | yes |
@@ -137,8 +137,8 @@ scene and foreign-toplevel still pins them to the output.
 
 ### Highest-leverage protocol gaps
 
-1. `wp_color_manager_v1` / real tearing page-flips — after-stack / §5
-2. Dialog focus trap; `ext-background-effect` toplevel region mask — §5
+1. `wp_color_manager_v1` / `wp_fifo_v1` — after-stack / §5
+2. `ext-background-effect` toplevel region mask + layer popup blur — §5
 
 ---
 
@@ -390,8 +390,8 @@ v2; deferred WM opts high (`focus_cycle`, `tile_insert`, `column_drop_seam`,
 
 **After this stack (not numbered):** IPC `action` allowlist; APK flip to release
 buildtype when ASan hunting ends; `--write-config-lua`; protocol hollow-ads
-(tearing flips, blur region/popup); tag/icon consumers; full-output
-screencopy blanking; `wp_fifo_v1`; full color-mgmt; geometry persist;
+(blur region/popup); tag/icon consumers; `wp_fifo_v1`; full color-mgmt;
+geometry persist;
 scratchpad click-outside catcher; winmenu (or Noctalia); columns polish leftovers.
 Queue is #1–#2.
 
@@ -495,16 +495,11 @@ chapter is **open / hollow / missing only** (advertise ≠ full effect).
 
 | Feature | Status | Notes |
 |---|---|---|
-| `wp_tearing_control_v1` | 🚧 | **Hollow ad:** global + `new_object` logs hint only. No async/tearing page-flips (SceneFX commit stays vsynced) |
 | `ext-background-effect-v1` region / popup | 🚧 | Layers: per-rect plates + exclusive/opaque/input fallback. Toplevels still bool→full plate. No layer popup blur (§2) |
-| `xdg_wm_dialog_v1` modal policy | ✅ | Attach under parent `attachment_tree`, center, `dialog_dim` shade, focus redirect; opts `attach_modal_dialogs` / `dialog_dim` |
 | `xdg-toplevel-tag` consumers | 🚧 | Protocol + IPC store only; no rules / geometry-persist consumer |
 | `xdg-toplevel-icon-v1` buffers | 🚧 | Preferred sizes + name/buffer ref + IPC `icon_name`; SSD/shell do not paint buffers |
-| Full-output screencopy blanking | ❌ | Per-toplevel `ext-image-capture` reject + IPC `capture_blocked` ship; `zwlr_screencopy` full-output still composites blocked windows |
 | Screencast / capture_sessions UI | ❌ | Screencopy + ext-image-copy-capture wire shipped; portal session UX open |
-| text-input / IME | ✅ | Relay + keyboard grab + candidate popups; FEATURES |
 | `wp_fifo_v1` | ❌ | Not advertised. Presentation-time ships |
-| Tablet (`zwp_tablet_v2`) | ✅ | Tools + pads + pointer emulate; FEATURES |
 | Full color-management | ❌ | Not advertised. Gamma LUT ships |
 
 **Intentional subsets** (documented in FEATURES, not gaps to “finish”):
@@ -539,7 +534,7 @@ High knobs shipped (FEATURES).
 |---|---|---|
 | P1 | `sf.on` + window query | ❌ TODO NEXT #2 |
 | P2 | Workspaces polish | ❌ rules / geometry persist |
-| P2 | Protocol hollow-ads (tearing / blur region) | 🚧 §5 |
+| P2 | Protocol hollow-ads (blur region / popup) | 🚧 §5 |
 | P2 | Columns polish leftovers | 🚧 §1 (`center_focused=on_overflow`, drag-edge pan) |
 | P2 | `wp_fifo_v1` | ❌ |
 | P2 | Tablet v2 | ✅ FEATURES |
@@ -561,8 +556,8 @@ High knobs shipped (FEATURES).
 Primary queue is **TODO NEXT** at the top (#1–#3). After that stack:
 
 1. IPC action allowlist; APK release buildtype; `--write-config-lua`
-2. Protocol hollow-ads: tearing async flips; blur region/popup
-3. Capture: full-output screencopy blanking; tag/icon consumers
+2. Protocol hollow-ads: blur region/popup
+3. Capture: tag/icon consumers; portal capture_sessions UX
 4. Not-yet-advertised: `wp_fifo_v1`, full color-mgmt
 5. Optional WM: columns polish leftovers; geometry persist / tag rules; overview polish (card drag, multi-surface cards, shortcut badges)
 6. **Bind context redesign** (own chapter below) — after overview/arrange filters feel cramped

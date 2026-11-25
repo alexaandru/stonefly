@@ -75,7 +75,10 @@ open row from the roadmap in the same turn.
   `xdg-activation` token; optional `:app_id` is only a soft fallback.
   Super N-tap: 1 → Noctalia launcher, 2 → term pad. Super+t toggles QT
   membership on the focused window (claim / unclaim; steals the pad).
-- Window rules: match `app_id` / title → float, center, size, SSD, actions.
+- Window rules: match `app_id` / title → float, center, size, SSD, opacity,
+  actions. Embedded defaults (`rules.fnl`) seed Umbriel float/size/opacity
+  peers (Noctalia, PiP, GNOME utils, portals, halloy, …) plus Slack edge-max
+  and Chrome/Chromium profile float.
 - Always-on-top / pin; unminimize can carry to the active workspace
   (`sf.opt.unminimize_workspace`).
 - SSD titlebars via `ssd_mode` / height / font; hidden on fullscreen and
@@ -142,7 +145,14 @@ Highlights that ship for a usable Noctalia desktop:
 - Foreign toplevel v3 + ext list (taskbar; output pin follows workspace)
 - Workspaces, session lock, idle, output power, gamma, output management
 - Fractional scale + viewporter + xdg-output; cursor-shape
-- Screencopy + ext-image-copy-capture (per-toplevel privacy block)
+- Screencopy + ext-image-copy-capture — per-toplevel privacy block; full-output
+  captures omit `capture_blocked` windows (dual-pass on stock SceneFX: filtered
+  commit for clients, then full scene for display)
+- **Tearing** — `wp_tearing_control_v1` async page-flips when
+  `sf.output name {:tearing true}`, the window is fullscreen, and the client
+  hints async (or `window_rule` `:tearing true`/`false` forces/vetoes). Vetoed
+  during lock, overview, workspace anim, or active capture; recovers after a
+  failed async flip/present
 - Clipboard (ext + legacy data-control, primary selection)
 - Background-effect blur for layers (and full-plate for toplevels)
 - Gestures, relative pointer, constraints, virtual keyboard, touch

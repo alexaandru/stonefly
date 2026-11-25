@@ -158,10 +158,15 @@ struct sf_toplevel {
 	float rule_inactive_opacity;
 	bool rule_no_dim_set;
 	bool rule_no_dim;
+	/* window_rule :tearing true|false; unset follows client hint. */
+	bool rule_tearing_set;
+	bool rule_tearing;
 	/* Demand-attention until focused (xdg-activation). */
 	bool urgent;
-	/* Block ext-image-capture source accept (IPC / config #1481). */
+	/* Block ext-image-capture / full-output screencopy (IPC / config). */
 	bool capture_blocked;
+	/* Scene tree temporarily disabled for the filtered capture pass. */
+	bool capture_pass_hidden;
 	/* Transient system-bell flash overrides border color. */
 	bool bell_flash;
 	struct wl_event_source *bell_timer;

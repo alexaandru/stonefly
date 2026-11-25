@@ -444,7 +444,7 @@ return {
       metadata = {
         ["fls/itemKind"] = "Function",
         ["fnl/arglist"] = {"match", "actions", "?parent"},
-        ["fnl/docstring"] = "Add a window rule; returns a tag string for parent composition.\n  (sf.window_rule match actions [?parent-tag])\nMatch: :app_id / :title as Lua patterns (string.find). Exact: \"^…$\"; escape magic with %.\nDeclarative: :center :float :borderless :always_on_top (bool), :width :height (int),\n  :ssd (\"never\"|\"auto\"|\"prefer_ssd\"|\"always\").\nWM: :action string | step table | (sf.chain …) — same vocabulary as binds (prefer maximize / maximize_to_edges over toggles; toggles flip on every reapply).\nLongest pattern wins; child overwrites parent keys.",
+        ["fnl/docstring"] = "Add a window rule; returns a tag string for parent composition.\n  (sf.window_rule match actions [?parent-tag])\nMatch: :app_id / :title as Lua patterns (string.find). Exact: \"^…$\"; escape magic with %.\n  Lua patterns have no \"|\"; use one rule per alternative. Longest pattern wins (one match).\nDeclarative: :center :float :borderless :always_on_top (bool), :width :height (int),\n  :ssd (\"never\"|\"auto\"|\"prefer_ssd\"|\"always\"), :opacity / :inactive_opacity (0.05..1),\n  :no_dim :tearing (bool).\nWM: :action string | step table | (sf.chain …) — same vocabulary as binds (prefer maximize / maximize_to_edges over toggles; toggles flip on every reapply).\nChild overwrites parent keys when composing with a parent tag.",
       },
     },
     ["exec"] = {

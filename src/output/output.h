@@ -47,6 +47,13 @@ struct sf_output {
 		struct timespec start;
 		int64_t dur_ns;
 	} ws_anim;
+
+	/* sf.output :tearing — gate for async page-flips (default off). */
+	bool allow_tearing;
+	/* After a failed async flip/present, force one regular commit. */
+	bool tearing_regular_pending;
+	bool tearing_last_commit;
+	uint32_t tearing_tracked_seq;
 };
 
 void sf_output_setup(struct sf_server *server);

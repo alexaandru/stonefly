@@ -542,6 +542,13 @@ static void emit_outputs(struct json_buf *b, const struct sf_config *cfg) {
 		json_byte(b, ',');
 		json_key(b, "arrange");
 		json_str(b, sf_arrange_name(r->arrange));
+		json_byte(b, ',');
+		json_key(b, "tearing");
+		if (r->tearing_set) {
+			json_bool(b, r->tearing);
+		} else {
+			json_raw(b, "null");
+		}
 		json_byte(b, '}');
 	}
 	json_byte(b, ']');
@@ -670,6 +677,13 @@ static void emit_window_rules(struct json_buf *b, const struct sf_config *cfg) {
 		json_key(b, "no_dim");
 		if (r->no_dim_set) {
 			json_bool(b, r->no_dim);
+		} else {
+			json_raw(b, "null");
+		}
+		json_byte(b, ',');
+		json_key(b, "tearing");
+		if (r->tearing_set) {
+			json_bool(b, r->tearing);
 		} else {
 			json_raw(b, "null");
 		}

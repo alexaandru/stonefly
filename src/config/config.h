@@ -285,6 +285,9 @@ struct sf_input_rule {
 struct sf_output_rule {
 	char *match;
 	enum sf_arrange arrange;
+	/* Allow async page-flips for eligible fullscreen clients (default false). */
+	bool tearing;
+	bool tearing_set;
 };
 
 /* sf.gesture({fingers, axis|direction, mods?}, action). action is :workspace,
@@ -326,6 +329,9 @@ struct sf_window_rule {
 	float inactive_opacity;
 	bool no_dim_set;
 	bool no_dim;
+	/* Optional: force (true) or veto (false) tearing; unset follows client hint. */
+	bool tearing_set;
+	bool tearing;
 	/* Optional WM actions (:action string or sf.chain); run on the matched window. */
 	struct sf_action_step *steps;
 	size_t n_steps;

@@ -170,6 +170,8 @@ void sf_rules_apply(struct sf_toplevel *toplevel) {
 	float inactive_opacity = 1.0f;
 	bool no_dim_set = false;
 	bool no_dim = false;
+	bool tearing_set = false;
+	bool tearing = false;
 	if (r != NULL) {
 		const char *app = sf_toplevel_app_id(toplevel);
 		const char *title = sf_toplevel_title(toplevel);
@@ -197,6 +199,10 @@ void sf_rules_apply(struct sf_toplevel *toplevel) {
 		if (r->no_dim_set) {
 			no_dim_set = true;
 			no_dim = r->no_dim;
+		}
+		if (r->tearing_set) {
+			tearing_set = true;
+			tearing = r->tearing;
 		}
 		if (r->float_set && r->float_win) {
 			/* Sticky tile opt-out; restore pre-tile size if we were packed. */
@@ -241,6 +247,8 @@ void sf_rules_apply(struct sf_toplevel *toplevel) {
 	toplevel->rule_inactive_opacity = inactive_opacity;
 	toplevel->rule_no_dim_set = no_dim_set;
 	toplevel->rule_no_dim = no_dim;
+	toplevel->rule_tearing_set = tearing_set;
+	toplevel->rule_tearing = tearing;
 	if (ssd_set) {
 		/* Apply even before xdg-decoration binds (force never/always). */
 		int requested = WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_NONE;

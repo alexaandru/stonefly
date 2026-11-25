@@ -174,7 +174,7 @@ bool sf_server_init(struct sf_server *server) {
 	 */
 	server->presentation = wlr_presentation_create(server->wl_display, server->backend, 2);
 
-	/* Advertise tearing-control; page-flip tearing not wired this pass. */
+	/* wp_tearing_control_v1: hints feed async page-flips in output_frame. */
 	server->tearing_control_mgr = wlr_tearing_control_manager_v1_create(server->wl_display, 1);
 	if (server->tearing_control_mgr != NULL) {
 		server->tearing_new_object.notify = tearing_new_object;

@@ -600,7 +600,8 @@ static bool parse_output_arrange(const char *s, enum sf_arrange *out) {
 /*
  * sf.output(name, opts)
  * name: case-insensitive exact connector (wlr_output->name), e.g. "eDP-1".
- * opts: :arrange "stacking"|"columns"|"inherit" (retired names → columns).
+ * opts: :arrange "stacking"|"columns"|"inherit" (retired names → columns);
+ *       :tearing bool (optional; default false — async page-flip gate).
  * Later rules override earlier for the same connector. Applied on connect and
  * live reload. Resolve remains workspace → output → global.
  */
@@ -647,6 +648,12 @@ static int l_output(lua_State *L) {
 					L, "output: arrange must be stacking|columns|inherit");
 			}
 			arrange_set = true;
+		} else if (strcmp(k, "tearing") == 0) {
+			if (!lua_isboolean(L, -1)) {
+				return luaL_error(L, "output: tearing must be a bool");
+			}
+			rule.tearing = lua_toboolean(L, -1);
+			rule.tearing_set = true;
 		} else {
 			return luaL_error(L, "output: unknown setting %s", k);
 		}
@@ -1095,6 +1102,12 @@ static int parse_rule_actions(lua_State *L, int idx, struct sf_window_rule *out)
 			}
 			out->no_dim = lua_toboolean(L, -1);
 			out->no_dim_set = true;
+		} else if (strcmp(k, "tearing") == 0) {
+			if (!lua_isboolean(L, -1)) {
+				return luaL_error(L, "window_rule: actions.tearing must be a bool");
+			}
+			out->tearing = lua_toboolean(L, -1);
+			out->tearing_set = true;
 		} else if (strcmp(k, "action") == 0) {
 			/* Parsed after the loop via parse_action_field on the actions table. */
 		} else {
@@ -1142,6 +1155,8 @@ static void merge_window_rule(struct sf_window_rule *dst, const struct sf_window
 	dst->inactive_opacity = parent->inactive_opacity;
 	dst->no_dim_set = parent->no_dim_set;
 	dst->no_dim = parent->no_dim;
+	dst->tearing_set = parent->tearing_set;
+	dst->tearing = parent->tearing;
 
 	if (child->center_set) {
 		dst->center = child->center;
@@ -1182,6 +1197,10 @@ static void merge_window_rule(struct sf_window_rule *dst, const struct sf_window
 	if (child->no_dim_set) {
 		dst->no_dim = child->no_dim;
 		dst->no_dim_set = true;
+	}
+	if (child->tearing_set) {
+		dst->tearing = child->tearing;
+		dst->tearing_set = true;
 	}
 	if (child->n_steps > 0) {
 		if (!sf_action_steps_dup(child->steps, child->n_steps, &dst->steps,

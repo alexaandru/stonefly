@@ -222,3 +222,38 @@ void sf_ext_capture_on_close(struct sf_toplevel *toplevel) {
 	ext_capture_destroy_handle(toplevel);
 	ext_capture_destroy_scene(toplevel);
 }
+
+bool sf_capture_has_blocked(struct sf_server *server) {
+	if (server == NULL) {
+		return false;
+	}
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &server->toplevels, link) {
+		if (t->capture_blocked && t->scene_tree != NULL && t->scene_tree->node.enabled) {
+			return true;
+		}
+	}
+	return false;
+}
+
+void sf_capture_set_blocked_hidden(struct sf_server *server, bool hide) {
+	if (server == NULL) {
+		return;
+	}
+	struct sf_toplevel *t;
+	wl_list_for_each(t, &server->toplevels, link) {
+		if (!t->capture_blocked || t->scene_tree == NULL) {
+			continue;
+		}
+		if (hide) {
+			if (!t->scene_tree->node.enabled || t->capture_pass_hidden) {
+				continue;
+			}
+			t->capture_pass_hidden = true;
+			wlr_scene_node_set_enabled(&t->scene_tree->node, false);
+		} else if (t->capture_pass_hidden) {
+			t->capture_pass_hidden = false;
+			wlr_scene_node_set_enabled(&t->scene_tree->node, true);
+		}
+	}
+}
