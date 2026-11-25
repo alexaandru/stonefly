@@ -139,7 +139,8 @@ scene and foreign-toplevel still pins them to the output.
 ### Highest-leverage protocol gaps
 
 1. Full `wp_color_manager_v1` (HDR/output) — multi-day; leave unadvertised until then (§5)
-2. `wp_fifo_v1` — needs wlroots/SceneFX newer than 0.20; leave unadvertised
+2. `wp_fifo_v1` — no `wlr_fifo_v1` in wlroots 0.20 (stable tip); leave
+   unadvertised until upstream helper or a hand-rolled surface-blocker path
 
 ---
 
@@ -497,7 +498,7 @@ chapter is **open / hollow / missing only** (advertise ≠ full effect).
 |---|---|---|
 | `xdg-toplevel-icon-v1` SSD blit | ❌ | Name + buffers stored; IPC `icon_name`. No theme lookup; SSD does not paint buffers (Noctalia uses app_id). Optional thin consumer later |
 | Screencast / capture_sessions UI | ❌ | Screencopy + ext-image-copy-capture wire shipped; portal session UX open |
-| `wp_fifo_v1` | ❌ | Not in wlroots 0.20 / SceneFX 0.5 — do not hollow-advertise. Presentation-time ships |
+| `wp_fifo_v1` | ❌ | Protocol exists (staging); wlroots 0.20 has no `wlr_fifo_v1` helper (MR existed, not in 0.20.2). SceneFX unrelated. Do not hollow-advertise. Presentation-time ships |
 | Full color-management | ❌ | Not advertised (hollow ad worse than silence). Gamma LUT ships; Umbriel-class HDR is multi-day |
 
 **Intentional subsets** (documented in FEATURES, not gaps to “finish”):
@@ -555,7 +556,7 @@ Primary queue is **TODO NEXT** at the top (#1–#3). After that stack:
 
 1. IPC action allowlist; APK release buildtype; `--write-config-lua`
 2. Capture: portal capture_sessions UX; optional SSD icon blit
-3. Not-yet-advertised (needs dep bump / multi-day): `wp_fifo_v1`, full color-mgmt
+3. Not-yet-advertised: `wp_fifo_v1` (no wlroots 0.20 helper — hand-roll or wait), full color-mgmt (multi-day)
 5. Optional WM: columns polish leftovers; geometry persist; overview polish (card drag, multi-surface cards, shortcut badges)
 6. **Bind context redesign** (own chapter below) — after overview/arrange filters feel cramped
 
