@@ -1,7 +1,5 @@
 #!/usr/bin/env luajit
 -- Generated from tests/drive.fnl — edit the .fnl, then: make drive-lua
--- FFI: clock_gettime for wall-clock suite timing (os.clock skips children);
--- setenv/unsetenv for SF_TEST_VERBOSE on spawned *_test binaries.
 local ffi = require("ffi")
 ffi.cdef("typedef long time_t;\ntypedef struct { time_t tv_sec; long tv_nsec; } timespec;\nint clock_gettime(int clk_id, timespec *tp);\nint setenv(const char *name, const char *value, int overwrite);\nint unsetenv(const char *name);")
 local CLOCK_MONOTONIC = 1

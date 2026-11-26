@@ -23,9 +23,6 @@
 ;;;;     time.perf_counter).
 ;;;;   • setenv / unsetenv — pass SF_TEST_VERBOSE into spawned *_test binaries
 ;;;;     (stock Lua has no env mutators).
-;;;; (lua "-- …") below keeps the same note in the committed drive.lua.)
-(lua "-- FFI: clock_gettime for wall-clock suite timing (os.clock skips children);
--- setenv/unsetenv for SF_TEST_VERBOSE on spawned *_test binaries.")
 (local ffi (require :ffi))
 
 (ffi.cdef "typedef long time_t;
