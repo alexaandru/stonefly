@@ -41,6 +41,7 @@
 #include "server/server.h"
 #include "session/session.h"
 #include "ssd/ssd.h"
+#include "ui/ui.h"
 #include "util/spawn.h"
 #include "toplevel/ext_capture.h"
 #include "toplevel/foreign.h"
@@ -198,6 +199,7 @@ bool sf_server_init(struct sf_server *server) {
 	sf_workspace_setup(server);
 	sf_output_setup(server);
 	sf_ssd_setup(server);
+	sf_ui_init(server);
 	sf_xdg_setup(server);
 	sf_foreign_toplevel_setup(server);
 	sf_background_effect_setup(server);
@@ -231,6 +233,8 @@ int sf_server_run(struct sf_server *server, const char *startup_cmd) {
 	}
 	/* After -s so Noctalia can claim org.freedesktop.Notifications. */
 	sf_dbus_notify_config_warn(server);
+	/* Outputs exist after backend start — Umbriel-shaped keybind splash. */
+	sf_cheatsheet_show_on_startup(server);
 
 	SF_LOGI("Running Wayland compositor", sf_str("display", socket));
 	wl_display_run(server->wl_display);
@@ -242,6 +246,7 @@ void sf_server_finish(struct sf_server *server) {
 	sf_dbus_finish(server);
 	sf_config_watch_finish(server);
 	sf_ipc_stop(server);
+	sf_ui_fini(server);
 	sf_ssd_finish(server);
 	sf_xwayland_finish(server);
 	wl_display_destroy_clients(server->wl_display);

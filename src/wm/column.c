@@ -14,8 +14,9 @@
 
 #define SF_COLUMN_MAX 64
 
-/* Fullscreen stays a column member but takes no strip cell (opaque layer
- * must not shove neighbors). Minimized likewise. */
+/* Minimized stays a column member but takes no strip cell. Fullscreen parks
+ * off the strip (slot + remove_row) so FS-only columns cannot leave shells;
+ * skip FS here as a belt-and-braces if a row is still linked. */
 static bool column_row_paints(const struct sf_toplevel *t) {
 	return t != NULL && !t->minimized && !sf_layout_sm_is_fullscreen(&t->layout);
 }

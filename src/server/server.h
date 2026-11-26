@@ -42,6 +42,8 @@ struct wlr_output_manager_v1;
 struct wlr_presentation;
 struct wlr_tearing_control_manager_v1;
 struct wlr_scene_rect;
+struct wlr_scene_buffer;
+struct wlr_buffer;
 struct wlr_ext_workspace_manager_v1;
 struct wlr_pointer_gestures_v1;
 struct wlr_virtual_keyboard_manager_v1;
@@ -340,6 +342,14 @@ struct sf_server {
 		int match_idx;
 		bool stepped;
 	} pinch;
+
+	/* In-process keybind cheatsheet / splash (src/ui/). */
+	struct {
+		struct wlr_scene_tree *tree;
+		struct wlr_scene_buffer *scene_buf;
+		struct wlr_buffer *buffer;
+		bool show_pending; /* show after unlock if startup was locked */
+	} cheatsheet;
 
 	/* Workspace overview (Umbriel-shaped filmstrip; thin v1). */
 	struct {

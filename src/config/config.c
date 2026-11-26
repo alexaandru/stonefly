@@ -318,10 +318,15 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 	cfg->resize_border_in = 3;
 	cfg->resize_border_out = 1;
 	cfg->config_watch = true;
+	cfg->show_cheatsheet = true;
 
 	cfg->capture_block_app_ids = sf_xstrdup("");
 
-	/* arrange: UNSET=any, STACKING/TILING/exact filter (calloc 0 was STACKING). */
+	/*
+	 * Recovery keybinds only (STONEFLY_NOCONFIG / Lua boot failure).
+	 * Day-zero product binds live in src/config/default/binds.fnl — first
+	 * sf.bind replaces this table. Keep this list tiny and shell-free.
+	 */
 	static const struct {
 		uint32_t mods;
 		xkb_keysym_t sym;
@@ -336,111 +341,16 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 		{SF_SUPER, XKB_KEY_Tab, 0, SF_ACTION_FOCUS_NEXT, NULL, SF_ARRANGE_UNSET},
 		{SF_SUPER | SF_SHIFT, XKB_KEY_Tab, XKB_KEY_ISO_Left_Tab, SF_ACTION_FOCUS_PREV, NULL,
 		 SF_ARRANGE_UNSET},
-		{SF_ALT, XKB_KEY_Tab, 0, SF_ACTION_EXEC, "noctalia msg window-switcher",
-		 SF_ARRANGE_UNSET},
-		{SF_ALT | SF_SHIFT, XKB_KEY_Tab, XKB_KEY_ISO_Left_Tab, SF_ACTION_FOCUS_PREV_ALL,
-		 NULL, SF_ARRANGE_UNSET},
-		{SF_SUPER, XKB_KEY_f, 0, SF_ACTION_TOGGLE_MAXIMIZE_TO_EDGES, NULL,
-		 SF_ARRANGE_UNSET},
-		{SF_SUPER, XKB_KEY_m, 0, SF_ACTION_TOGGLE_MAXIMIZE, NULL, SF_ARRANGE_UNSET},
-		{0, XKB_KEY_F11, 0, SF_ACTION_TOGGLE_FULLSCREEN, NULL, SF_ARRANGE_UNSET},
-		{SF_CTRL, XKB_KEY_Escape, 0, SF_ACTION_MINIMIZE, NULL, SF_ARRANGE_UNSET},
-		{SF_CTRL | SF_SHIFT, XKB_KEY_Escape, 0, SF_ACTION_UNMINIMIZE, NULL,
-		 SF_ARRANGE_UNSET},
-		{SF_SUPER, XKB_KEY_Left, 0, SF_ACTION_SNAP_LEFT, NULL, SF_ARRANGE_STACKING},
-		{SF_SUPER, XKB_KEY_Right, 0, SF_ACTION_SNAP_RIGHT, NULL, SF_ARRANGE_STACKING},
-		{SF_SUPER, XKB_KEY_Up, 0, SF_ACTION_SNAP_TOP, NULL, SF_ARRANGE_STACKING},
-		{SF_SUPER, XKB_KEY_Down, 0, SF_ACTION_SNAP_BOTTOM, NULL, SF_ARRANGE_STACKING},
 		{SF_SUPER, XKB_KEY_Left, 0, SF_ACTION_FOCUS_DIR, "left", SF_ARRANGE_TILING},
 		{SF_SUPER, XKB_KEY_Right, 0, SF_ACTION_FOCUS_DIR, "right", SF_ARRANGE_TILING},
 		{SF_SUPER, XKB_KEY_Up, 0, SF_ACTION_FOCUS_DIR, "up", SF_ARRANGE_TILING},
 		{SF_SUPER, XKB_KEY_Down, 0, SF_ACTION_FOCUS_DIR, "down", SF_ARRANGE_TILING},
-		{SF_SUPER, XKB_KEY_u, 0, SF_ACTION_UNSNAP, NULL, SF_ARRANGE_STACKING},
-		{SF_SUPER, XKB_KEY_v, 0, SF_ACTION_TOGGLE_FLOAT, NULL, SF_ARRANGE_TILING},
-		{SF_SUPER | SF_SHIFT, XKB_KEY_v, 0, SF_ACTION_FLOAT, NULL, SF_ARRANGE_TILING},
-		{SF_SUPER | SF_CTRL, XKB_KEY_v, 0, SF_ACTION_UNFLOAT, NULL, SF_ARRANGE_TILING},
-		{SF_SUPER, XKB_KEY_comma, 0, SF_ACTION_CONSUME, "left", SF_ARRANGE_COLUMNS},
-		{SF_SUPER, XKB_KEY_period, 0, SF_ACTION_CONSUME, "right", SF_ARRANGE_COLUMNS},
-		{SF_SUPER | SF_CTRL, XKB_KEY_comma, 0, SF_ACTION_CONSUME_FROM, "left",
-		 SF_ARRANGE_COLUMNS},
-		{SF_SUPER | SF_CTRL, XKB_KEY_period, 0, SF_ACTION_CONSUME_FROM, "right",
-		 SF_ARRANGE_COLUMNS},
-		{SF_SUPER, XKB_KEY_c, 0, SF_ACTION_ARRANGE_ROTATE, "cw", SF_ARRANGE_TILING},
-		{SF_SUPER | SF_SHIFT, XKB_KEY_c, 0, SF_ACTION_ARRANGE_ROTATE, "ccw",
-		 SF_ARRANGE_TILING},
-		{SF_SUPER | SF_SHIFT, XKB_KEY_p, 0, SF_ACTION_TOGGLE_ALWAYS_ON_TOP, NULL,
+		{SF_SUPER, XKB_KEY_f, 0, SF_ACTION_TOGGLE_MAXIMIZE_TO_EDGES, NULL,
 		 SF_ARRANGE_UNSET},
-		{SF_SUPER, XKB_KEY_bracketright, 0, SF_ACTION_ARRANGE_CYCLE, "next",
-		 SF_ARRANGE_UNSET},
-		{SF_SUPER, XKB_KEY_bracketleft, 0, SF_ACTION_ARRANGE_CYCLE, "prev",
-		 SF_ARRANGE_UNSET},
-		{SF_SUPER | SF_CTRL, XKB_KEY_Left, 0, SF_ACTION_FOCUS_MONITOR, "left",
-		 SF_ARRANGE_UNSET},
-		{SF_SUPER | SF_CTRL, XKB_KEY_Right, 0, SF_ACTION_FOCUS_MONITOR, "right",
-		 SF_ARRANGE_UNSET},
-		{SF_SUPER | SF_CTRL, XKB_KEY_Up, 0, SF_ACTION_FOCUS_MONITOR, "up",
-		 SF_ARRANGE_UNSET},
-		{SF_SUPER | SF_CTRL, XKB_KEY_Down, 0, SF_ACTION_FOCUS_MONITOR, "down",
-		 SF_ARRANGE_UNSET},
-		{SF_SUPER | SF_SHIFT, XKB_KEY_Left, 0, SF_ACTION_SEND_TO_MONITOR, "left",
-		 SF_ARRANGE_UNSET},
-		{SF_SUPER | SF_SHIFT, XKB_KEY_Right, 0, SF_ACTION_SEND_TO_MONITOR, "right",
-		 SF_ARRANGE_UNSET},
-		{SF_SUPER | SF_SHIFT, XKB_KEY_Up, 0, SF_ACTION_SEND_TO_MONITOR, "up",
-		 SF_ARRANGE_UNSET},
-		{SF_SUPER | SF_SHIFT, XKB_KEY_Down, 0, SF_ACTION_SEND_TO_MONITOR, "down",
-		 SF_ARRANGE_UNSET},
-		{SF_ALT, XKB_KEY_Left, 0, SF_ACTION_NUDGE, "left", SF_ARRANGE_UNSET},
-		{SF_ALT, XKB_KEY_Right, 0, SF_ACTION_NUDGE, "right", SF_ARRANGE_UNSET},
-		{SF_ALT, XKB_KEY_Up, 0, SF_ACTION_NUDGE, "up", SF_ARRANGE_UNSET},
-		{SF_ALT, XKB_KEY_Down, 0, SF_ACTION_NUDGE, "down", SF_ARRANGE_UNSET},
-		{SF_ALT | SF_SHIFT, XKB_KEY_Left, 0, SF_ACTION_RESIZE_EDGE, "left",
-		 SF_ARRANGE_UNSET},
-		{SF_ALT | SF_SHIFT, XKB_KEY_Right, 0, SF_ACTION_RESIZE_EDGE, "right",
-		 SF_ARRANGE_UNSET},
-		{SF_ALT | SF_SHIFT, XKB_KEY_Up, 0, SF_ACTION_RESIZE_EDGE, "up", SF_ARRANGE_UNSET},
-		{SF_ALT | SF_SHIFT, XKB_KEY_Down, 0, SF_ACTION_RESIZE_EDGE, "down",
-		 SF_ARRANGE_UNSET},
+		{0, XKB_KEY_F11, 0, SF_ACTION_TOGGLE_FULLSCREEN, NULL, SF_ARRANGE_UNSET},
 		{SF_SUPER, XKB_KEY_space, 0, SF_ACTION_EXEC, "foot", SF_ARRANGE_UNSET},
-		{SF_SUPER, XKB_KEY_z, 0, SF_ACTION_EXEC, "nautilus", SF_ARRANGE_UNSET},
-		{SF_SUPER, XKB_KEY_w, 0, SF_ACTION_EXEC, "ghostty +new-window", SF_ARRANGE_UNSET},
-		{SF_ALT, XKB_KEY_Return, 0, SF_ACTION_EXEC, "ghostty +toggle-quick-terminal",
-		 SF_ARRANGE_UNSET},
-		{SF_SUPER, XKB_KEY_e, 0, SF_ACTION_EXEC, "gtk-launch org.gnome.TextEditor",
-		 SF_ARRANGE_UNSET},
-		{SF_SUPER, XKB_KEY_t, 0, SF_ACTION_SCRATCH_CLAIM, "term", SF_ARRANGE_UNSET},
 		{SF_SUPER | SF_SHIFT, XKB_KEY_r, 0, SF_ACTION_RELOAD, NULL, SF_ARRANGE_UNSET},
-		{0, XKB_KEY_Print, 0, SF_ACTION_EXEC, "noctalia msg screenshot-fullscreen",
-		 SF_ARRANGE_UNSET},
-		{SF_SHIFT, XKB_KEY_Print, 0, SF_ACTION_EXEC, "noctalia msg screenshot-region",
-		 SF_ARRANGE_UNSET},
-		{SF_CTRL | SF_SHIFT, XKB_KEY_Print, 0, SF_ACTION_EXEC,
-		 "noctalia msg screenshot-window", SF_ARRANGE_UNSET},
-		{0, XKB_KEY_XF86AudioRaiseVolume, 0, SF_ACTION_EXEC, "noctalia msg volume-up",
-		 SF_ARRANGE_UNSET},
-		{0, XKB_KEY_XF86AudioLowerVolume, 0, SF_ACTION_EXEC, "noctalia msg volume-down",
-		 SF_ARRANGE_UNSET},
-		{0, XKB_KEY_XF86AudioMute, 0, SF_ACTION_EXEC, "noctalia msg volume-mute",
-		 SF_ARRANGE_UNSET},
-		{0, XKB_KEY_XF86AudioMicMute, 0, SF_ACTION_EXEC, "noctalia msg mic-mute",
-		 SF_ARRANGE_UNSET},
-		{0, XKB_KEY_XF86Launch5, 0, SF_ACTION_EXEC, "noctalia msg mic-volume-up",
-		 SF_ARRANGE_UNSET},
-		{SF_SHIFT, XKB_KEY_XF86Launch5, 0, SF_ACTION_EXEC, "noctalia msg mic-volume-down",
-		 SF_ARRANGE_UNSET},
-		{0, XKB_KEY_XF86MonBrightnessUp, 0, SF_ACTION_EXEC, "noctalia msg brightness-up",
-		 SF_ARRANGE_UNSET},
-		{0, XKB_KEY_XF86MonBrightnessDown, 0, SF_ACTION_EXEC,
-		 "noctalia msg brightness-down", SF_ARRANGE_UNSET},
-		{0, XKB_KEY_XF86KbdBrightnessUp, 0, SF_ACTION_EXEC,
-		 "noctalia msg keyboard-backlight-up", SF_ARRANGE_UNSET},
-		{0, XKB_KEY_XF86KbdBrightnessDown, 0, SF_ACTION_EXEC,
-		 "noctalia msg keyboard-backlight-down", SF_ARRANGE_UNSET},
-		{0, XKB_KEY_XF86AudioPlay, XKB_KEY_XF86AudioPause, SF_ACTION_EXEC,
-		 "noctalia msg media toggle", SF_ARRANGE_UNSET},
-		{0, XKB_KEY_XF86AudioNext, 0, SF_ACTION_EXEC, "noctalia msg media next",
-		 SF_ARRANGE_UNSET},
-		{0, XKB_KEY_XF86AudioPrev, 0, SF_ACTION_EXEC, "noctalia msg media previous",
+		{SF_SUPER | SF_SHIFT, XKB_KEY_slash, 0, SF_ACTION_CHEATSHEET_TOGGLE, NULL,
 		 SF_ARRANGE_UNSET},
 	};
 
@@ -464,21 +374,18 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 		}
 	}
 
+	/* Recovery Super tap: toggle scratch term (no Noctalia in NOCONFIG). */
 	cfg->n_tapbinds = 1;
 	cfg->tapbinds = calloc(1, sizeof *cfg->tapbinds);
 	if (cfg->tapbinds != NULL) {
-		struct sf_tap_level *lv = calloc(2, sizeof *lv);
+		struct sf_tap_level *lv = calloc(1, sizeof *lv);
 		cfg->tapbinds[0].sym = XKB_KEY_Super_L;
 		cfg->tapbinds[0].sym_alt = XKB_KEY_Super_R;
-		if (lv == NULL ||
-		    !sf_action_steps_one(SF_ACTION_EXEC, "noctalia msg panel-toggle launcher",
-					 &lv[0].steps, &lv[0].n_steps) ||
-		    !sf_action_steps_one(SF_ACTION_SCRATCH_TOGGLE, "term", &lv[1].steps,
-					 &lv[1].n_steps)) {
+		if (lv == NULL || !sf_action_steps_one(SF_ACTION_SCRATCH_TOGGLE, "term",
+						       &lv[0].steps, &lv[0].n_steps)) {
 			SF_LOGE("config tap steps OOM");
 			if (lv != NULL) {
 				sf_action_steps_free(lv[0].steps, lv[0].n_steps);
-				sf_action_steps_free(lv[1].steps, lv[1].n_steps);
 				free(lv);
 			}
 			free(cfg->tapbinds);
@@ -486,9 +393,8 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 			cfg->n_tapbinds = 0;
 		} else {
 			lv[0].count = 1;
-			lv[1].count = 2;
 			cfg->tapbinds[0].levels = lv;
-			cfg->tapbinds[0].n_levels = 2;
+			cfg->tapbinds[0].n_levels = 1;
 		}
 	} else {
 		cfg->n_tapbinds = 0;

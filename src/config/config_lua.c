@@ -30,6 +30,7 @@
 #include "util/path.h"
 #include "util/shell_quote.h"
 #include "util/str.h"
+#include "ui/ui.h"
 #include "wm/arrange.h"
 #include "wm/dialog.h"
 #include "wm/rules.h"
@@ -1794,6 +1795,7 @@ static const struct {
 	{"tiled_grab_remap", offsetof(struct sf_config, tiled_grab_remap)},
 	{"border_resize", offsetof(struct sf_config, border_resize)},
 	{"attach_modal_dialogs", offsetof(struct sf_config, attach_modal_dialogs)},
+	{"show_cheatsheet", offsetof(struct sf_config, show_cheatsheet)},
 };
 
 static const struct {
@@ -2229,6 +2231,7 @@ static void reload_apply_side_effects(struct sf_server *server) {
 
 	sf_config_run_execs(server, true);
 	sf_config_watch_sync(server);
+	sf_cheatsheet_on_config_reload(server);
 }
 
 bool sf_config_load(struct sf_server *server) {

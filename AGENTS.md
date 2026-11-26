@@ -23,6 +23,10 @@ diagnosing stonefly.
 - Shell UI (bar, launcher, OSD, wallpaper chrome) is day-zero **Noctalia**,
   not an in-process peeble-style shell. Prefer compositor/protocol work in
   `./src` over reinventing shell features.
+- **In-compositor UI stack** lives under `src/ui/` (cheatsheet first;
+  quit-confirm later). fcft-first text + scene buffers/rects under
+  `layers.overlay` — no Pango/Cairo unless forced; SSD still owns
+  `fcft_init`/`fcft_fini`.
 - **Steal first, then implement.** Short Umbriel (then niri/mango only if
   Umbriel lacks it) read → ship. Reject long formal design-doc /
   write-review loops when a peer already solved it.
@@ -99,7 +103,10 @@ stays in FEATURES; open gaps in ROADMAP.
   chrome/dim after every decor update.
 - **Exclusive fullscreen:** one FS per output; FS box = `sf_output_for_toplevel`
   → exact `output->full`. Do **not** crop FS with `arrange_prop_*` present-size
-  (strip membership would chop Netflix chrome). Clear `arrange_prop_*` on enter.
+  (strip cell would chop Netflix chrome). Clear `arrange_prop_*` on enter.
+  Under columns, FS **parks off the strip** (`sf_arrange_slot_remember` +
+  `remove_row`, `arrange_managed` stays); unFS rejoins via slot. Minimized
+  rows stay members. Do not leave FS-only empty column shells.
 
 ### Appear / hide / present
 

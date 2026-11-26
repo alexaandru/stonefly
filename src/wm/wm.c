@@ -226,9 +226,11 @@ void sf_toplevel_sync_scene_layer(struct sf_toplevel *toplevel) {
 
 static void layout_apply_result(struct sf_toplevel *toplevel, const struct sf_layout_result *r) {
 	bool was_fs = sf_layout_sm_is_fullscreen(&toplevel->layout);
-	/* Strip-managed unFS→float: skip saved-box morph; arrange schedule packs. */
+	/* Strip-managed unFS→float: skip saved-box morph; arrange schedule packs.
+	 * FS parks off the strip (slot remembered, column may already be NULL). */
 	bool skip_unfs_box = was_fs && r->state.mode == SF_LAYOUT_MODE_FLOAT &&
-			     toplevel->arrange_managed && toplevel->column != NULL &&
+			     toplevel->arrange_managed &&
+			     (toplevel->column != NULL || toplevel->arrange_slot_saved) &&
 			     toplevel->workspace != NULL &&
 			     sf_arrange_is_tiling(sf_workspace_arrange(toplevel->workspace));
 
@@ -253,8 +255,9 @@ static void layout_apply_result(struct sf_toplevel *toplevel, const struct sf_la
 			break;
 		case SF_LAYOUT_FX_XDG_FULLSCREEN:
 			if (e->flag) {
-				/* Strip membership stays; drop cell present-size so
-				 * decor cannot crop the FS buffer to the old tile. */
+				/* Drop cell present-size so decor cannot crop the FS
+				 * buffer to the old tile. Strip park happens after
+				 * apply (slot remember + remove_row). */
 				toplevel->arrange_prop_w = 0;
 				toplevel->arrange_prop_h = 0;
 				toplevel->arrange_prop_waits = 0;
@@ -298,10 +301,20 @@ static void layout_dispatch(struct sf_toplevel *toplevel, const struct sf_layout
 	struct sf_layout_result out;
 	sf_layout_sm_step(&toplevel->layout, ev, &ctx, &out);
 	layout_apply_result(toplevel, &out);
-	/* FS enter/exit changes whether the row paints in the strip. */
-	if (was_fs != sf_layout_sm_is_fullscreen(&toplevel->layout) &&
-	    toplevel->workspace != NULL && toplevel->column != NULL &&
+	/*
+	 * Fullscreen parks off the columns strip (slot + remove_row) so FS-only
+	 * columns cannot leave empty shells. Minimized rows stay members.
+	 * UnFS rejoins via arrange_slot_* while arrange_managed stays set.
+	 */
+	bool now_fs = sf_layout_sm_is_fullscreen(&toplevel->layout);
+	if (was_fs != now_fs && toplevel->workspace != NULL && toplevel->arrange_managed &&
 	    sf_arrange_is_tiling(sf_workspace_arrange(toplevel->workspace))) {
+		if (now_fs && toplevel->column != NULL) {
+			sf_arrange_slot_remember(toplevel);
+			sf_column_remove_row(toplevel);
+		} else if (!now_fs && toplevel->column == NULL) {
+			sf_arrange_join_toplevel(toplevel);
+		}
 		sf_arrange_schedule(toplevel->workspace);
 	}
 }

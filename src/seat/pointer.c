@@ -35,6 +35,7 @@
 #include "output/output.h"
 #include "session/session.h"
 #include "ssd/ssd.h"
+#include "ui/ui.h"
 #include "util/time.h"
 #include "wm/arrange.h"
 #include "wm/drag_snap.h"
@@ -1117,6 +1118,11 @@ void server_cursor_button(struct wl_listener *listener, void *data) {
 		enum sf_arrange cur = sf_bind_context_arrange(server);
 		const struct sf_mousebind *mb =
 			sf_mousebind_match(sf_cfg(server), mods, event->button, cur);
+		enum sf_action mb_action = SF_ACTION_NONE;
+		if (mb != NULL && mb->n_steps > 0 && mb->steps != NULL) {
+			mb_action = mb->steps[0].action;
+		}
+		sf_cheatsheet_dismiss_pointer(server, mb_action);
 		if (mb != NULL && mb->n_steps > 0) {
 			sf_tap_disarm(server);
 			sf_run_actions(server, NULL, mb->steps, mb->n_steps);

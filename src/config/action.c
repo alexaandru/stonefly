@@ -67,6 +67,9 @@ static const struct sf_action_entry sf_actions[] = {
 	{"overview_close", SF_ACTION_OVERVIEW_CLOSE},
 	{"overview_confirm", SF_ACTION_OVERVIEW_CONFIRM},
 	{"overview_scroll", SF_ACTION_OVERVIEW_SCROLL},
+	{"cheatsheet_toggle", SF_ACTION_CHEATSHEET_TOGGLE},
+	{"cheatsheet_open", SF_ACTION_CHEATSHEET_OPEN},
+	{"cheatsheet_close", SF_ACTION_CHEATSHEET_CLOSE},
 };
 
 size_t sf_action_name_table_len(void) {

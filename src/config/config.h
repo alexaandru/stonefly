@@ -199,6 +199,10 @@ enum sf_action {
 	SF_ACTION_OVERVIEW_CONFIRM,
 	/* cmd = up|down|left|right — pan the overview filmstrip. */
 	SF_ACTION_OVERVIEW_SCROLL,
+	/* In-process keybind cheatsheet / splash (Umbriel-shaped). */
+	SF_ACTION_CHEATSHEET_TOGGLE,
+	SF_ACTION_CHEATSHEET_OPEN,
+	SF_ACTION_CHEATSHEET_CLOSE,
 
 	/* One past the last real action — table sizes / completeness checks. */
 	SF_ACTION_COUNT,
@@ -464,6 +468,9 @@ struct sf_config {
 
 	/* Watch the config directory and reload on save (inotify). Default true. */
 	bool config_watch;
+
+	/* Show keybind cheatsheet overlay on startup. Default true. */
+	bool show_cheatsheet;
 
 	struct sf_keybind *keybinds;
 	size_t n_keybinds;

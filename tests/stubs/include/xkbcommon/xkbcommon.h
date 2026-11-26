@@ -5,6 +5,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 #include <strings.h>
 
 typedef uint32_t xkb_keysym_t;
@@ -27,6 +28,76 @@ typedef uint32_t xkb_keysym_t;
 #define XKB_KEY_Shift_R 0xffe2
 #define XKB_KEY_Control_L 0xffe3
 #define XKB_KEY_Control_R 0xffe4
+#define XKB_KEY_1 0x31
+#define XKB_KEY_2 0x32
+#define XKB_KEY_3 0x33
+#define XKB_KEY_4 0x34
+#define XKB_KEY_5 0x35
+#define XKB_KEY_6 0x36
+#define XKB_KEY_7 0x37
+#define XKB_KEY_8 0x38
+#define XKB_KEY_9 0x39
+#define XKB_KEY_q 0x71
+#define XKB_KEY_slash 0x2f
+#define XKB_KEY_Left 0xff51
+#define XKB_KEY_Right 0xff53
+#define XKB_KEY_Up 0xff52
+#define XKB_KEY_Down 0xff54
+
+static inline int xkb_keysym_get_name(xkb_keysym_t sym, char *buffer, size_t size) {
+	if (buffer == NULL || size == 0) {
+		return -1;
+	}
+	char tmp[16];
+	const char *name = tmp;
+	if (sym >= XKB_KEY_1 && sym <= XKB_KEY_9) {
+		tmp[0] = (char)('1' + (sym - XKB_KEY_1));
+		tmp[1] = '\0';
+	} else if (sym >= (xkb_keysym_t)'a' && sym <= (xkb_keysym_t)'z') {
+		tmp[0] = (char)sym;
+		tmp[1] = '\0';
+	} else {
+		switch (sym) {
+		case XKB_KEY_slash:
+			name = "slash";
+			break;
+		case XKB_KEY_Left:
+			name = "Left";
+			break;
+		case XKB_KEY_Right:
+			name = "Right";
+			break;
+		case XKB_KEY_Up:
+			name = "Up";
+			break;
+		case XKB_KEY_Down:
+			name = "Down";
+			break;
+		case XKB_KEY_Escape:
+			name = "Escape";
+			break;
+		case XKB_KEY_Tab:
+			name = "Tab";
+			break;
+		case XKB_KEY_space:
+			name = "space";
+			break;
+		case XKB_KEY_Return:
+			name = "Return";
+			break;
+		default:
+			name = "unknown";
+			break;
+		}
+	}
+	size_t n = strlen(name);
+	if (n + 1 > size) {
+		n = size - 1;
+	}
+	memcpy(buffer, name, n);
+	buffer[n] = '\0';
+	return (int)n;
+}
 
 static inline xkb_keysym_t xkb_keysym_from_name(const char *name, int flags) {
 	(void)flags;

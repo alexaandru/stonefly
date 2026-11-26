@@ -24,6 +24,7 @@
 #include "output/output.h"
 #include "session/session.h"
 #include "toplevel/ext_capture.h"
+#include "ui/ui.h"
 #include "toplevel/toplevel.h"
 #include "wm/layout_sm.h"
 #include "wm/overview.h"
@@ -453,6 +454,8 @@ static void output_request_state(struct wl_listener *listener, void *data) {
 	sf_session_sync_outputs(output->server);
 	sf_layer_arrange_output(output);
 	sf_decor_update_blur_size(output->server);
+	/* Nested Wayland/X11 window resize — keep splash centered on the new box. */
+	sf_cheatsheet_on_output_change(output->server);
 	sf_output_mgr_send_config(output->server);
 }
 

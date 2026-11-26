@@ -63,9 +63,11 @@ open row from the roadmap in the same turn.
 - **Super+m** — maximize with gaps / column full-width (stays tiled in columns).
 - Client / SSD / foreign maximize follow `sf.opt.client_maximize` (default
   `gaps`).
-- **F11** — exclusive fullscreen (one per output; exact output box). Leaving
-  FS on a strip-managed tiled window packs the cell (skips saved-box morph);
-  stacking / sticky-float still restore the saved box.
+- **F11** — exclusive fullscreen (one per output; exact output box). Under
+  columns, FS parks off the strip (slot remembered) so FS-only columns cannot
+  leave empty shells; unFS rejoins the saved cell (skips saved-box morph).
+  Minimized rows stay column members. Stacking / sticky-float still restore
+  the saved box.
 - Half-snap with Super+arrows while stacking; Super+u restores. Snap↔max↔FS
   overlays share one “normal” float box.
 
@@ -103,6 +105,28 @@ open row from the roadmap in the same turn.
 - Super+o and 4-finger vertical swipe open an Umbriel-shaped workspace
   filmstrip (thin v1: live cards, click to focus, Escape / Enter / Space,
   overview-only binds and pan gestures).
+
+### Keybind cheatsheet
+
+- In-process Umbriel-shaped splash / keybind reminder under `src/ui/`
+  (fcft text + scene overlay on `layers.overlay`). Shows live configured
+  keybinds grouped (Apps / Focus / Move / Windows / Scratchpad / Workspaces /
+  Overview / System); merges identical actions into comma-joined chords;
+  collapses Super+1…9 workspace runs.
+- Float chrome: SceneFX `window_blur` plate (when `sf.opt.window_blur`),
+  soft shadow, content corner radii, and `border_float_active` rim with
+  outer radii — same stack as floating clients. Panel fill is translucent
+  so the blur reads through; pad matches Umbriel (`28px`) on all sides
+  (width is content + pads, never clamped into the text). Optically centered
+  on the focused output's full layout box (even when the panel is larger than
+  a nested guest window — no top-left pin). Rebuilds on output resize.
+- **`sf.opt.show_cheatsheet`** (default **true**) shows it once after
+  startup; `false` skips the splash.
+- **`cheatsheet_toggle` / `open` / `close`** — default bind
+  **Super+Shift+/**. Any non-modifier key or pointer button dismisses
+  (cheatsheet_* binds do not); bound actions still run. Hidden on session
+  lock; rebuilds on live reload while open.
+- Hold-modifier cheatsheet remains a separate ROADMAP item.
 
 ---
 
@@ -200,7 +224,8 @@ system bell is visual only; layer keyboard auto-focus is exclusive-only.
   `pan_focus` (`keep`|`center`|`warp`|`under_pointer`; columns strip pan),
   `center_focused` (`never`|`always`|`on_overflow`; columns focus scroll),
   `tile_insert` (`after_focus`|`end`|`begin`), `column_drop_seam`,
-  `tiled_grab_remap`, `border_resize` (defaults match prior C hardcoding)
+  `tiled_grab_remap`, `border_resize` (defaults match prior C hardcoding),
+  `show_cheatsheet` (startup keybind splash; default true)
 - `sf.opt`, `sf.bind` (keys / mouse / Mod+Wheel), `sf.tap`, `sf.gesture`,
   `sf.window_rule`, `sf.scratchpad`, `sf.input`, `sf.output`, `sf.exec`,
   `sf.reload`, packs via `sf.packadd` / `sf.stdpath`

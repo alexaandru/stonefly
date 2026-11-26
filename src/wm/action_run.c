@@ -15,6 +15,7 @@
 #include "wm/arrange.h"
 #include "wm/internal.h"
 #include "wm/layout_sm.h"
+#include "ui/ui.h"
 #include "wm/overview.h"
 #include "wm/scratchpad.h"
 #include "wm/snap.h"
@@ -364,6 +365,18 @@ static void action_overview_scroll(struct sf_action_ctx *ctx) {
 	sf_overview_scroll(ctx->server, ctx->cmd);
 }
 
+static void action_cheatsheet_toggle(struct sf_action_ctx *ctx) {
+	sf_cheatsheet_toggle(ctx->server);
+}
+
+static void action_cheatsheet_open(struct sf_action_ctx *ctx) {
+	sf_cheatsheet_show(ctx->server);
+}
+
+static void action_cheatsheet_close(struct sf_action_ctx *ctx) {
+	sf_cheatsheet_hide(ctx->server);
+}
+
 /*
  * Verb catalog: one slot per enum value. Flags encode the shared protocol
  * (need window / need cmd) so arms stay free of duplicated guards.
@@ -436,6 +449,9 @@ static const struct sf_action_slot sf_action_slots[SF_ACTION_COUNT] = {
 	[SF_ACTION_OVERVIEW_CLOSE] = {SF_ACTION_F_IPC, action_overview_close},
 	[SF_ACTION_OVERVIEW_CONFIRM] = {SF_ACTION_F_IPC, action_overview_confirm},
 	[SF_ACTION_OVERVIEW_SCROLL] = {SF_ACTION_F_CMD | SF_ACTION_F_IPC, action_overview_scroll},
+	[SF_ACTION_CHEATSHEET_TOGGLE] = {SF_ACTION_F_IPC, action_cheatsheet_toggle},
+	[SF_ACTION_CHEATSHEET_OPEN] = {SF_ACTION_F_IPC, action_cheatsheet_open},
+	[SF_ACTION_CHEATSHEET_CLOSE] = {SF_ACTION_F_IPC, action_cheatsheet_close},
 };
 
 _Static_assert(sizeof(sf_action_slots) / sizeof(sf_action_slots[0]) == (size_t)SF_ACTION_COUNT,

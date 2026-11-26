@@ -17,6 +17,7 @@
 #include "output/output.h"
 #include "seat/ime.h"
 #include "session/session.h"
+#include "ui/ui.h"
 #include "util/time.h"
 #include "wm/arrange.h"
 #include "wm/overview.h"
@@ -173,6 +174,13 @@ static bool handle_vt_switch(struct sf_server *server, xkb_keysym_t sym) {
 	return true;
 }
 
+static enum sf_action bind_first_action(const struct sf_keybind *bind) {
+	if (bind == NULL || bind->n_steps == 0 || bind->steps == NULL) {
+		return SF_ACTION_NONE;
+	}
+	return bind->steps[0].action;
+}
+
 static bool handle_keybinding(struct sf_server *server, uint32_t modifiers, xkb_keysym_t sym) {
 	if (handle_vt_switch(server, sym)) {
 		return true;
@@ -200,6 +208,7 @@ static bool handle_keybinding(struct sf_server *server, uint32_t modifiers, xkb_
 		}
 		if (bind->arrange != SF_ARRANGE_UNSET) {
 			sf_tap_disarm(server);
+			sf_cheatsheet_dismiss_key(server, bind_first_action(bind), false);
 			sf_run_actions(server, NULL, bind->steps, bind->n_steps);
 			return true;
 		}
@@ -209,6 +218,7 @@ static bool handle_keybinding(struct sf_server *server, uint32_t modifiers, xkb_
 	}
 	if (fallback != NULL) {
 		sf_tap_disarm(server);
+		sf_cheatsheet_dismiss_key(server, bind_first_action(fallback), false);
 		sf_run_actions(server, NULL, fallback->steps, fallback->n_steps);
 		return true;
 	}
@@ -264,6 +274,23 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 					handled = true;
 					break;
 				}
+			}
+			/* Unbound non-modifier press dismisses the cheatsheet. */
+			if (!handled && !locked && sf_cheatsheet_visible(server)) {
+				bool modifier_only = nsyms > 0;
+				for (int i = 0; i < nsyms; i++) {
+					xkb_keysym_t s = syms[i];
+					bool is_mod =
+						(s >= XKB_KEY_Shift_L && s <= XKB_KEY_Hyper_R) ||
+						s == XKB_KEY_Mode_switch ||
+						s == XKB_KEY_ISO_Level3_Shift ||
+						s == XKB_KEY_ISO_Level5_Shift;
+					if (!is_mod) {
+						modifier_only = false;
+						break;
+					}
+				}
+				sf_cheatsheet_dismiss_key(server, SF_ACTION_NONE, modifier_only);
 			}
 		} else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED && !locked &&
 			   !inhibited) {

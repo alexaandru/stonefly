@@ -73,6 +73,10 @@ sf_src = files(
   'ssd/ssd_policy.c',
   'ssd/ssd_layout.c',
   'ssd/ssd_paint.c',
+  'ui/ui.c',
+  'ui/text.c',
+  'ui/cheatsheet_rows.c',
+  'ui/cheatsheet.c',
   'toplevel/foreign.c',
   'toplevel/ext_capture.c',
 )

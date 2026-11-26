@@ -33,6 +33,8 @@
               ["Super+q" {:action :close}]
               ;; workspace overview (Umbriel Mod+O; 4-finger swipe also)
               ["Super+o" {:action :overview_toggle}]
+              ;; keybind cheatsheet / splash (sf.opt.show_cheatsheet gates startup)
+              ["Super+Shift+slash" {:action :cheatsheet_toggle}]
               ;; overview-only (:arrange overview — see bind context)
               ["Escape" {:action :overview_close :arrange "overview"}]
               ["Return" {:action :overview_confirm :arrange "overview"}]

@@ -16,6 +16,7 @@
 #include "seat/seat.h"
 #include "server/server.h"
 #include "session/session.h"
+#include "ui/ui.h"
 #include "wm/overview.h"
 #include "wm/wm.h"
 #include "xdg/xdg.h"
@@ -271,6 +272,7 @@ static void session_new_lock(struct wl_listener *listener, void *data) {
 	server->lock.active = true;
 	wl_list_init(&server->lock.surfaces);
 	sf_overview_force_close(server);
+	sf_cheatsheet_on_lock(server);
 
 	struct sf_output *output;
 	wl_list_for_each(output, &server->outputs, link) {

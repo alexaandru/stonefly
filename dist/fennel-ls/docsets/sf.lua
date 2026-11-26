@@ -391,6 +391,13 @@ return {
           ["fnl/docstring"] = "Watch the config directory with inotify and reload on save (default true). false = Super+Shift+r / stonefly reload / (sf.reload) only.",
         },
       },
+      ["show_cheatsheet"] = {
+        binding = "sf.opt.show_cheatsheet",
+        metadata = {
+          ["fls/itemKind"] = "Variable",
+          ["fnl/docstring"] = "bool — show the in-process keybind cheatsheet on startup (default true). Super+Shift+/ toggles; any key or click dismisses.",
+        },
+      },
       },
     },
     ["chain"] = {

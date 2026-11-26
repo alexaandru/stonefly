@@ -278,6 +278,9 @@ static void emit_options(struct json_buf *b, const struct sf_config *cfg) {
 	json_byte(b, ',');
 	json_key(b, "config_watch");
 	json_bool(b, cfg->config_watch);
+	json_byte(b, ',');
+	json_key(b, "show_cheatsheet");
+	json_bool(b, cfg->show_cheatsheet);
 
 	json_byte(b, '}');
 }

@@ -338,7 +338,7 @@ Day-zero truth is `src/config/default/*.fnl`. C seeds exist for
 
 | Issue | Direction |
 |---|---|
-| C keybind seed omits F11, Super+Prior/Next, Super+1–9, Alt+Space, … that `binds.fnl` has | Shrink C seed to a tiny recovery set, or sync it — do not pretend C is product defaults |
+| C keybind / tap seed vs `binds.fnl` | Done: C seed is recovery-only (quit/close/focus/fs/foot/reload + Super-tap scratch); Fennel owns day-zero |
 | First `sf.bind` / mouse / wheel / `sf.gesture` clears that C table only | Keep (replace pattern); document |
 | C numeric defaults (opacity 0.96, corner 12, …) differ from `options.fnl` (0.90 / 8, …) | Documented: `sf_config_set_defaults` is recovery / NOCONFIG only — Fennel owns day-zero chrome |
 #### Tier 2–3 gate (TODO NEXT #1)
@@ -404,7 +404,6 @@ one normal box; `sf.opt.pan_focus`).
 
 | Gap | Notes |
 |---|---|
-| Empty column shells after FS-only column | Membership kept, pack skips FS — watch empty-shell leaks |
 | SoftPlace late title / app_id | Appear-hold is late-title only (empty app_id no longer parks forever — Chrome Task Manager). Watch late app_id morph still |
 | Output disconnect / refuge | Live validation: unplug/replug with tiled, minimized and fullscreen clients; verify recovery when the last head was lost |
 
@@ -448,8 +447,9 @@ Alpine SceneFX `ignore_alpha` threshold for transparency-mask blur.
 | Feature | Status | Notes |
 |---|---|---|
 | Winmenu | ❌ | |
-| Power confirm / power menu | ❌ | |
-| Hold-modifier cheatsheet | ❌ | |
+| Power confirm / power menu | ❌ | Next `src/ui/` brick after splash |
+| Keybind cheatsheet / splash | ✅ | `src/ui/`; `sf.opt.show_cheatsheet`; Super+Shift+/ |
+| Hold-modifier cheatsheet | ❌ | Separate from startup/toggle splash |
 | Clipboard history panel | ❌ | Protocols shipped; panel is shell |
 | Color picker | ❌ | |
 | Dock with magnification | ❌ | |
