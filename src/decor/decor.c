@@ -264,13 +264,20 @@ void sf_decor_refresh_blur(struct sf_toplevel *toplevel) {
 		struct wlr_surface *surf = sf_toplevel_wlr_surface(toplevel);
 		int surf_w = surf != NULL ? surf->current.width : 0;
 		int surf_h = surf != NULL ? surf->current.height : 0;
-		struct wlr_box boxes[SF_BLUR_PLATE_MAX];
-		size_t n = sf_blur_region_boxes(&toplevel->blur_region, surf_w, surf_h, boxes,
-						SF_BLUR_PLATE_MAX);
-		struct wlr_scene_buffer *mask = n == 1 ? decor_find_surface_buffer(toplevel) : NULL;
-		sf_blur_plates_sync(toplevel->client_blur_tree, &toplevel->blur_plates, boxes, n,
-				    n > 0, cfg->blur_xray, mask);
-		wlr_scene_node_set_enabled(&toplevel->client_blur_tree->node, n > 0);
+		/*
+		 * Non-empty set_blur_region enables the effect. Plate geometry
+		 * is the full surface with a buffer-alpha mask: GTK ≥4.23.3
+		 * Ghostty under-reports the region (body only; translucent tabs
+		 * omitted) and opaque_region is glyph swiss-cheese — unioning
+		 * ¬opaque fragmented plates, dropped the mask at n>1, and left
+		 * cursor-line holes. Buffer alpha is the reliable stencil.
+		 */
+		struct wlr_box box = {.x = 0, .y = 0, .width = surf_w, .height = surf_h};
+		bool on = surf_w > 0 && surf_h > 0;
+		struct wlr_scene_buffer *mask = on ? decor_find_surface_buffer(toplevel) : NULL;
+		sf_blur_plates_sync(toplevel->client_blur_tree, &toplevel->blur_plates, &box,
+				    on ? 1 : 0, on, cfg->blur_xray, mask);
+		wlr_scene_node_set_enabled(&toplevel->client_blur_tree->node, on);
 		return;
 	}
 

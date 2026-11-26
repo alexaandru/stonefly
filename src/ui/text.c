@@ -8,14 +8,23 @@
 #include "log/log.h"
 
 enum {
-	ui_font_pt_default = 12,
+	ui_font_pt_default = 18, /* 12 × 1.5 — cheatsheet default */
 	ui_font_pt_min = 8,
-	ui_font_pt_max = 32,
+	ui_font_pt_max = 72,
+	ui_font_family_max = 128,
 };
 
 static struct fcft_font *ui_font;
 static int ui_font_pt;
+static char ui_font_family[ui_font_family_max];
 static bool ui_fcft_inited_here;
+
+static const char *ui_family_or_sans(const char *family) {
+	if (family == NULL || family[0] == '\0') {
+		return "sans";
+	}
+	return family;
+}
 
 static size_t utf8_to_utf32(const char *s, uint32_t *out, size_t max) {
 	size_t n = 0;
@@ -56,14 +65,15 @@ static int measure_run(const struct fcft_glyph *const *glyphs, size_t count) {
 	return w;
 }
 
-bool sf_ui_text_init(int size_pt) {
+bool sf_ui_text_init(int size_pt, const char *family) {
 	if (size_pt < ui_font_pt_min) {
 		size_pt = ui_font_pt_min;
 	}
 	if (size_pt > ui_font_pt_max) {
 		size_pt = ui_font_pt_max;
 	}
-	if (ui_font != NULL && ui_font_pt == size_pt) {
+	const char *want = ui_family_or_sans(family);
+	if (ui_font != NULL && ui_font_pt == size_pt && strcmp(ui_font_family, want) == 0) {
 		return true;
 	}
 	/*
@@ -79,6 +89,7 @@ bool sf_ui_text_init(int size_pt) {
 		fcft_destroy(ui_font);
 		ui_font = NULL;
 	}
+	/* "size=NN" — pt is 8..72; avoid snprintf size_t/int tidy noise. */
 	char attrs[8];
 	attrs[0] = 's';
 	attrs[1] = 'i';
@@ -93,14 +104,28 @@ bool sf_ui_text_init(int size_pt) {
 		attrs[5] = (char)('0' + size_pt);
 		attrs[6] = '\0';
 	}
-	const char *names[] = {"sans"};
+	const char *names[] = {want};
 	ui_font = fcft_from_name(1, names, attrs);
+	if (ui_font == NULL && strcmp(want, "sans") != 0) {
+		SF_LOGW("ui: fcft font load failed; trying sans", sf_str("family", want),
+			sf_i64("size", size_pt));
+		const char *fallback[] = {"sans"};
+		ui_font = fcft_from_name(1, fallback, attrs);
+		want = "sans";
+	}
 	if (ui_font == NULL) {
-		SF_LOGW("ui: fcft font load failed", sf_i64("size", size_pt));
+		SF_LOGW("ui: fcft font load failed", sf_str("family", want),
+			sf_i64("size", size_pt));
 		ui_font_pt = 0;
+		ui_font_family[0] = '\0';
 		return false;
 	}
 	ui_font_pt = size_pt;
+	size_t i = 0;
+	for (; want[i] != '\0' && i + 1 < sizeof ui_font_family; i++) {
+		ui_font_family[i] = want[i];
+	}
+	ui_font_family[i] = '\0';
 	return true;
 }
 
@@ -110,6 +135,7 @@ void sf_ui_text_fini(void) {
 		ui_font = NULL;
 	}
 	ui_font_pt = 0;
+	ui_font_family[0] = '\0';
 	/*
 	 * Never fcft_fini here — SSD still owns the global. The ui_fcft_inited_here
 	 * flag only records that we called init; SSD fini tears the library down.

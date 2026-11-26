@@ -398,6 +398,20 @@ return {
           ["fnl/docstring"] = "bool — show the in-process keybind cheatsheet on startup (default true). Super+Shift+/ toggles; any key or click dismisses.",
         },
       },
+      ["cheatsheet_font_size"] = {
+        binding = "sf.opt.cheatsheet_font_size",
+        metadata = {
+          ["fls/itemKind"] = "Variable",
+          ["fnl/docstring"] = "Cheatsheet splash font size in pt (int, 8–72; default 18).",
+        },
+      },
+      ["cheatsheet_font"] = {
+        binding = "sf.opt.cheatsheet_font",
+        metadata = {
+          ["fls/itemKind"] = "Variable",
+          ["fnl/docstring"] = "Cheatsheet splash fontconfig family (string; default \"sans\"). Empty falls back to sans.",
+        },
+      },
       },
     },
     ["chain"] = {

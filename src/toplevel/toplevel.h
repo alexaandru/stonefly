@@ -186,12 +186,12 @@ struct sf_toplevel {
 	struct wlr_xdg_toplevel_icon_v1 *icon;
 	char *icon_name;
 
-	/* ext-background-effect-v1: non-empty blur region → plates under
-	 * client_blur_tree (sibling of xdg_scene_tree, surface-local). Never
-	 * parent plates inside xdg_scene_tree — that breaks
-	 * wlr_scene_subsurface_tree_set_clip (assert found). Chrome `blur`
-	 * stays the window_blur full plate (disabled while client plates are
-	 * active). */
+	/* ext-background-effect-v1: non-empty blur region enables one
+	 * full-surface plate under client_blur_tree (sibling of
+	 * xdg_scene_tree) with a buffer-alpha mask. Never parent plates inside
+	 * xdg_scene_tree — that breaks wlr_scene_subsurface_tree_set_clip.
+	 * Chrome `blur` stays the window_blur full plate (disabled while
+	 * client plates are active). */
 	bool client_blur;
 	pixman_region32_t blur_region; /* surface-local; empty when off */
 	struct wl_list blur_plates;    /* sf_blur_plate.link */

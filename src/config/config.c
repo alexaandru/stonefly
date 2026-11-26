@@ -156,6 +156,7 @@ void sf_config_finish(struct sf_config *cfg) {
 	sf_config_lua_close(cfg);
 
 	free(cfg->capture_block_app_ids);
+	free(cfg->cheatsheet_font);
 	for (size_t i = 0; i < cfg->n_keybinds; i++) {
 		sf_action_steps_free(cfg->keybinds[i].steps, cfg->keybinds[i].n_steps);
 	}
@@ -319,6 +320,8 @@ void sf_config_set_defaults(struct sf_config *cfg) {
 	cfg->resize_border_out = 1;
 	cfg->config_watch = true;
 	cfg->show_cheatsheet = true;
+	cfg->cheatsheet_font_size = 18;
+	cfg->cheatsheet_font = sf_xstrdup("sans");
 
 	cfg->capture_block_app_ids = sf_xstrdup("");
 

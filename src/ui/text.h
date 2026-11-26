@@ -11,8 +11,11 @@ struct sf_ui_text_metrics {
 	int ascent;
 };
 
-/* Own face after SSD has called fcft_init. Does not call fcft_fini. */
-bool sf_ui_text_init(int size_pt);
+/*
+ * Own face after SSD has called fcft_init. Does not call fcft_fini.
+ * family NULL/empty → "sans". Reloads when size or family changes.
+ */
+bool sf_ui_text_init(int size_pt, const char *family);
 void sf_ui_text_fini(void);
 bool sf_ui_text_ready(void);
 

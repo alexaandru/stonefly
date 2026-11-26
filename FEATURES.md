@@ -122,6 +122,9 @@ open row from the roadmap in the same turn.
   a nested guest window — no top-left pin). Rebuilds on output resize.
 - **`sf.opt.show_cheatsheet`** (default **true**) shows it once after
   startup; `false` skips the splash.
+- **`sf.opt.cheatsheet_font_size`** (default **18**, was 12×1.5) and
+  **`cheatsheet_font`** (fontconfig family, default `"sans"`) set the
+  splash face; live-reload refreshes an open sheet.
 - **`cheatsheet_toggle` / `open` / `close`** — default bind
   **Super+Shift+/**. Any non-modifier key or pointer button dismisses
   (cheatsheet_* binds do not); bound actions still run. Hidden on session
@@ -192,10 +195,12 @@ Highlights that ship for a usable Noctalia desktop:
   during lock, overview, workspace anim, or active capture; recovers after a
   failed async flip/present
 - Clipboard (ext + legacy data-control, primary selection)
-- Background-effect blur — layers and toplevels share `sf_blur_plates_*`
-  per-rect plates from `set_blur_region` (layer keeps exclusive/opaque/input
-  full-region box policy); layer-shell popups inherit a live plate when the
-  parent layer requested blur
+- Background-effect blur — shared `sf_blur_plates_*`: layers use per-rect
+  plates from `set_blur_region` (exclusive/opaque/input full-region fallback);
+  toplevels treat a non-empty region as enable and paint one full-surface
+  plate with a buffer-alpha transparency mask (GTK/Ghostty under-report the
+  region; opaque_region is not a safe expand signal). Layer-shell popups
+  inherit a live plate when the parent layer requested blur
 - Gestures, relative pointer, constraints, virtual keyboard, touch
 - **IME** — `zwp_text_input_v3` + `zwp_input_method_v2` relay (fcitx/ibus;
   keyboard grab + candidate popups). Sandbox allowlist exposes text-input;
@@ -225,7 +230,8 @@ system bell is visual only; layer keyboard auto-focus is exclusive-only.
   `center_focused` (`never`|`always`|`on_overflow`; columns focus scroll),
   `tile_insert` (`after_focus`|`end`|`begin`), `column_drop_seam`,
   `tiled_grab_remap`, `border_resize` (defaults match prior C hardcoding),
-  `show_cheatsheet` (startup keybind splash; default true)
+  `show_cheatsheet` (startup keybind splash; default true),
+  `cheatsheet_font_size` / `cheatsheet_font` (splash fcft face)
 - `sf.opt`, `sf.bind` (keys / mouse / Mod+Wheel), `sf.tap`, `sf.gesture`,
   `sf.window_rule`, `sf.scratchpad`, `sf.input`, `sf.output`, `sf.exec`,
   `sf.reload`, packs via `sf.packadd` / `sf.stdpath`

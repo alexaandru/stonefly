@@ -146,6 +146,12 @@ stays in FEATURES; open gaps in ROADMAP.
   asserts). Chrome `window_blur` disabled while client plates are active.
   Layer popups inherit a live non-xray plate when the parent layer has
   `client_blur`.
+- **Ghostty tab “periscope”:** GTK ≥4.23.3 marks only the terminal widget in
+  `set_blur_region`; tabs stay translucent outside that region. `opaque_region`
+  is glyph swiss-cheese — ∪¬opaque fragmented plates, dropped the n==1 mask,
+  and punched cursor-line holes. Toplevel client blur: non-empty region
+  enables one full-surface plate + buffer-alpha mask (protocol = enable;
+  stencil = real alpha). Layers stay per-rect.
 - **xdg_popup:** `wlr_xdg_popup_unconstrain_from_box` into usable; layer popups
   reparent on `get_popup`; defer unconstrain until initialized.
 - **Derived shell policy** (e.g. Noctalia bar opacity on edge-max): recompute

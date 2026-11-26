@@ -106,7 +106,11 @@
             ;; false = keybind / stonefly reload / (sf.reload) only.
             :config_watch true
             ;; Keybind cheatsheet / splash on startup (Super+Shift+/ toggles).
-            :show_cheatsheet true})
+            :show_cheatsheet true
+            ;; Cheatsheet fcft face (pt default 18 = former 12×1.5; family =
+            ;; fontconfig name, e.g. "sans" / "monospace" / "JetBrains Mono").
+            :cheatsheet_font_size 16
+            :cheatsheet_font "sans"})
 
 (each [k v (pairs opt)]
   (tset sf.opt k v))

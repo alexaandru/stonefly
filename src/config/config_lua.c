@@ -1718,6 +1718,17 @@ static void opt_set_ssd_font_size(struct sf_config *cfg, double v) {
 	cfg->ssd_font_size = s;
 }
 
+static void opt_set_cheatsheet_font_size(struct sf_config *cfg, double v) {
+	int s = (int)v;
+	if (s < 8) {
+		s = 8;
+	}
+	if (s > 72) {
+		s = 72;
+	}
+	cfg->cheatsheet_font_size = s;
+}
+
 static void opt_set_resize_border_in(struct sf_config *cfg, double v) {
 	int n = (int)v;
 	cfg->resize_border_in = n < 0 ? 0 : n;
@@ -1776,6 +1787,7 @@ static const struct opt_num opt_numbers[] = {
 	{"nudge_step", OPT_NUM_INT, offsetof(struct sf_config, nudge_step), NULL},
 	{"ssd_height", OPT_NUM_FN, 0, opt_set_ssd_height},
 	{"ssd_font_size", OPT_NUM_FN, 0, opt_set_ssd_font_size},
+	{"cheatsheet_font_size", OPT_NUM_FN, 0, opt_set_cheatsheet_font_size},
 	{"resize_border_in", OPT_NUM_FN, 0, opt_set_resize_border_in},
 	{"resize_border_out", OPT_NUM_FN, 0, opt_set_resize_border_out},
 	{"column_drop_seam", OPT_NUM_FN, 0, opt_set_column_drop_seam},
@@ -1910,6 +1922,9 @@ static int l_opt_newindex(lua_State *L) {
 		const char *s = lua_tostring(L, 3);
 		if (strcmp(k, "capture_block_app_ids") == 0) {
 			sf_replace_str(&cfg->capture_block_app_ids, s);
+		} else if (strcmp(k, "cheatsheet_font") == 0) {
+			sf_replace_str(&cfg->cheatsheet_font,
+				       (s != NULL && s[0] != '\0') ? s : "sans");
 		} else if (strcmp(k, "arrange") == 0 || strcmp(k, "layout") == 0) {
 			/* layout is a deprecated alias for arrange. */
 			cfg->arrange = sf_arrange_parse(s);

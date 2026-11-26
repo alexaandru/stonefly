@@ -308,7 +308,8 @@ static struct sf_output *cheatsheet_output(struct sf_server *server) {
 
 static void cheatsheet_render(struct sf_server *server) {
 	cheatsheet_destroy_tree(server);
-	if (!sf_ui_text_ready() && !sf_ui_text_init(12)) {
+	sf_ui_apply_config(server);
+	if (!sf_ui_text_ready()) {
 		SF_LOGW("cheatsheet: no font; skip");
 		return;
 	}
@@ -702,6 +703,7 @@ void sf_cheatsheet_on_config_reload(struct sf_server *server) {
 	if (server == NULL) {
 		return;
 	}
+	sf_ui_apply_config(server);
 	if (!sf_cfg(server)->show_cheatsheet && sf_cheatsheet_visible(server)) {
 		sf_cheatsheet_hide(server);
 		return;

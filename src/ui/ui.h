@@ -10,6 +10,8 @@ struct sf_server;
 
 void sf_ui_init(struct sf_server *server);
 void sf_ui_fini(struct sf_server *server);
+/* Reload cheatsheet fcft face from sf.opt (size + family). */
+void sf_ui_apply_config(struct sf_server *server);
 
 bool sf_cheatsheet_is_action(enum sf_action action);
 bool sf_cheatsheet_visible(const struct sf_server *server);

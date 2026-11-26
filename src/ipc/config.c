@@ -282,6 +282,12 @@ static void emit_options(struct json_buf *b, const struct sf_config *cfg) {
 	json_key(b, "show_cheatsheet");
 	json_bool(b, cfg->show_cheatsheet);
 
+	json_key(b, "cheatsheet_font_size");
+	json_i64(b, cfg->cheatsheet_font_size);
+
+	json_key(b, "cheatsheet_font");
+	json_str(b, cfg->cheatsheet_font != NULL ? cfg->cheatsheet_font : "sans");
+
 	json_byte(b, '}');
 }
 

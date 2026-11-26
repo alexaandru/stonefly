@@ -26,7 +26,7 @@ Core Wayland desktop plumbing (`xdg-shell` v7, `wlr-layer-shell` v5,
 `zwlr-foreign-toplevel-v1` + `ext-foreign-toplevel-list-v1`, `ext-workspace-v1`,
 `ext-image-copy-capture-v1` with per-toplevel privacy block, `ext-session-lock-v1`,
 output power / gamma / management, fractional scale, viewporter,
-`ext-background-effect-v1` (layers+toplevels per-rect; layer popup inherit),
+`ext-background-effect-v1` (layers per-rect; toplevels enable+full+mask; layer popup inherit),
 shortcuts inhibit, security context, lazy on-demand Xwayland). WM & UX:
 scrollable `columns` + `stacking`, workspace overview filmstrip, touchpad
 gestures, SceneFX blur/shadows/rounded corners,
@@ -97,7 +97,7 @@ data-device) are assumed on all four.
 | **zwlr-screencopy-v1** | grim / old portal capture | yes (dual-pass omits `capture_blocked`) | yes | ? | yes |
 | **ext-image-copy-capture-v1** | New output capture | yes | yes | yes | yes |
 | **ext-*-image-capture-source-v1** | Per-output / per-toplevel capture | yes (toplevel + privacy block) | yes | yes | yes |
-| **ext-background-effect-v1** | Client blur regions (Noctalia) | yes (layers+toplevels per-rect; layer popup inherit) | yes | no* | compositor blur (no protocol) |
+| **ext-background-effect-v1** | Client blur regions (Noctalia) | yes (layers per-rect; toplevels enable+full+mask; layer popup inherit) | yes | no* | compositor blur (no protocol) |
 | **wp-cursor-shape-v1** | Named cursors | yes v2 + WM grab faces | yes | yes | yes |
 | **zwp-pointer-gestures-v1** | Touchpad swipe/pinch | yes (`sf.gesture`) | yes | yes | yes |
 | **zwp-relative-pointer-v1** | FPS look | yes | yes | yes | yes |
@@ -302,7 +302,7 @@ new C hardcoding.
 
 | Surface | Notes |
 |---|---|
-| `sf.opt` chrome / gaps / snap / tap / wheel cooldown / swipe / SSD size / resize hitband / opacity / blur / `cursor_follows_focus` / `config_watch` / `client_maximize` / `unminimize_workspace` / `anim` / `dim_inactive` / `focus_cycle` / `tile_insert` / `column_drop_seam` / `tiled_grab_remap` / `border_resize` | `options.fnl` + C defaults |
+| `sf.opt` chrome / gaps / snap / tap / wheel cooldown / swipe / SSD size / resize hitband / opacity / blur / `cursor_follows_focus` / `config_watch` / `client_maximize` / `unminimize_workspace` / `anim` / `dim_inactive` / `focus_cycle` / `tile_insert` / `column_drop_seam` / `tiled_grab_remap` / `border_resize` / `show_cheatsheet` / `cheatsheet_font_size` / `cheatsheet_font` | `options.fnl` + C defaults |
 | `sf.bind` keys / mouse / Mod+Wheel | `binds.fnl`; C seeds recovery-only (seed hygiene below) |
 | `sf.gesture` | 3-finger V/H + Super+pinch → max/unmax |
 | `sf.tap` / scratchpads / rules / inputs / execs / live reload | default tree |
@@ -448,7 +448,8 @@ Alpine SceneFX `ignore_alpha` threshold for transparency-mask blur.
 |---|---|---|
 | Winmenu | ❌ | |
 | Power confirm / power menu | ❌ | Next `src/ui/` brick after splash |
-| Keybind cheatsheet / splash | ✅ | `src/ui/`; `sf.opt.show_cheatsheet`; Super+Shift+/ |
+| Keybind cheatsheet / splash | ✅ | `src/ui/`; `sf.opt.show_cheatsheet`; `cheatsheet_font_size` / `cheatsheet_font`; Super+Shift+/ |
+| Cheatsheet theme / colors | ❌ | Face+size ship; panel/chord/header colors stay hardcoded — own chapter when UI theming lands (with quit-confirm / power chrome) |
 | Hold-modifier cheatsheet | ❌ | Separate from startup/toggle splash |
 | Clipboard history panel | ❌ | Protocols shipped; panel is shell |
 | Color picker | ❌ | |

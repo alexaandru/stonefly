@@ -471,6 +471,10 @@ struct sf_config {
 
 	/* Show keybind cheatsheet overlay on startup. Default true. */
 	bool show_cheatsheet;
+	/* Cheatsheet fcft face: pt (default 18 = former 12×1.5) + family
+	 * (fontconfig name; default "sans"; empty/NULL → sans). */
+	int cheatsheet_font_size;
+	char *cheatsheet_font;
 
 	struct sf_keybind *keybinds;
 	size_t n_keybinds;
