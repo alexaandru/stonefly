@@ -1,8 +1,9 @@
-# Unit suites are discovered by tests/drive.py (/* sf-suite … */ in *_test.c).
-# Host `make test` and APKBUILD check() invoke drive.py directly so the
-# per-file listing is visible. This meson test() remains for `meson test`
-# convenience; meson's default runner hides stdout of passing tests.
-unit_runner = find_program('drive.py')
+# Unit suites are discovered by tests/drive.lua (/* sf-suite … */ in *_test.c).
+# Maintain tests/drive.fnl; `make drive-lua` regenerates the committed Lua.
+# Host `make test` and APKBUILD check() invoke drive.lua only (no Fennel).
+# This meson test() remains for `meson test` convenience; meson's default
+# runner hides stdout of passing tests.
+unit_runner = find_program('drive.lua')
 test(
   'unit',
   unit_runner,

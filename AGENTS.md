@@ -294,8 +294,10 @@ Workarounds:
 
 **`make apk` works in the agent sandbox.** After compositor / Meson / protocol
 edits that should compile, run it to verify the Alpine pack (compile +
-`check()`: style-check + `tests/drive.py`). Host unit tests (`make test` /
-`tests/drive.py`) remain fine for faster C harness iteration.
+`check()`: style-check + `tests/drive.lua`). Host unit tests (`make test` /
+`tests/drive.lua`) remain fine for faster C harness iteration. Driver source
+of truth is `tests/drive.fnl` → `make drive-lua` (Fennel only for that regen;
+never required for `make test` / APK check).
 
 **Do not look up libraries, headers, or pkg-config on the host.**
 
@@ -367,7 +369,7 @@ it was a pick-queue item).
   `build.log` this turn.
 - **Tests follow the compositor.** If product code uses LuaJIT, pixman, or
   other deps already in `makedepends`, unit suites may link them
-  (`libs=` / pkg-config in `tests/drive.py`). Do not invent C peels, fake
+  (`libs=` / pkg-config in `tests/drive.lua`). Do not invent C peels, fake
   matchers, or dep-free reshapes solely so the harness stays “pure.” Domain
   kernels that are already Wayland-free (`place_sm`, `layout_sm`,
   `arrange_math`) stay unit-tested as pure C — that is domain purity, not

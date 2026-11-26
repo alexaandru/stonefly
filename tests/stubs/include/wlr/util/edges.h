@@ -1,4 +1,4 @@
-/* Unit-test stub: drive.py -I's this ahead of system headers. */
+/* Unit-test stub: drive.lua -I's this ahead of system headers. */
 #ifndef TEST_STUB_WLR_UTIL_EDGES_H
 #define TEST_STUB_WLR_UTIL_EDGES_H
 

@@ -22,7 +22,7 @@ TEST_H_SOURCES := $(shell find tests -type f -name '*.h' | sort)
 FMT_SOURCES := $(C_SOURCES) $(H_SOURCES) $(TEST_C_SOURCES) $(TEST_H_SOURCES)
 
 
-.PHONY: apk dist-tarball clean fmt fmt-check cppcheck tidy style-check test coverage
+.PHONY: apk dist-tarball clean fmt fmt-check cppcheck tidy style-check test coverage drive-lua
 
 dist-tarball: $(TARBALL)
 
@@ -61,16 +61,34 @@ tidy:
 
 style-check: fmt-check cppcheck tidy
 
-# Unit tests: tests/drive.py discovers tests/**/*_test.c via /* sf-suite … */.
+# Unit tests: tests/drive.lua discovers tests/**/*_test.c via /* sf-suite … */.
 # Makefile only forwards OPTS/CC — no per-suite object lists.
+# Maintain the driver in tests/drive.fnl; regenerate committed Lua with
+# `make drive-lua` (Fennel is NOT on the make test / APK check path).
 CC ?= cc
 CFLAGS_TEST ?= -std=c23 -Wall -Wextra -Werror -D_POSIX_C_SOURCE=200809L
+FENNEL ?= fennel
 
 # Go-style runner: OPTS=verbose,cover (comma-separated). Default cover.
 OPTS ?= cover
 
+# Source of truth: tests/drive.fnl → committed tests/drive.lua (luajit).
+# `make test` / APK check never invoke Fennel; only this target does.
+tests/drive.lua: tests/drive.fnl
+	@command -v "$(FENNEL)" >/dev/null || { \
+		echo 'make drive-lua: fennel not found (set FENNEL=…)' >&2; exit 1; }
+	@{ \
+		printf '%s\n' '#!/usr/bin/env luajit'; \
+		printf '%s\n' '-- Generated from tests/drive.fnl — edit the .fnl, then: make drive-lua'; \
+		"$(FENNEL)" --compile tests/drive.fnl; \
+	} > $@
+	@chmod +x $@
+	@echo 'wrote $@'
+
+drive-lua: tests/drive.lua
+
 test:
-	@OPTS="$(OPTS)" CC="$(CC)" CFLAGS_TEST="$(CFLAGS_TEST)" ./tests/drive.py
+	@OPTS="$(OPTS)" CC="$(CC)" CFLAGS_TEST="$(CFLAGS_TEST)" ./tests/drive.lua
 
 # Alias for make test (cover is already the default).
 coverage: test

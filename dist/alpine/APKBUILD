@@ -61,8 +61,8 @@ check() {
 	make BUILDDIR=output style-check
 	# Same driver as host `make test`, without coverage (OPTS empty).
 	# Do not use `meson test` here: it registers one wrapper suite and hides
-	# drive.py's per-file listing on success (only "1/1 stonefly:unit OK").
-	OPTS= ./tests/drive.py
+	# drive.lua's per-file listing on success (only "1/1 stonefly:unit OK").
+	OPTS= ./tests/drive.lua
 }
 
 package() {

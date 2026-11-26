@@ -262,7 +262,9 @@ Structured JSON logs on stderr and `~/.var/log/stonefly/wm.log`.
 ## Testing and packaging
 
 - Owned C unit harness under `tests/` (`make test` on host; APK `check()`
-  runs style-check + the same driver)
+  runs style-check + the same LuaJIT driver `tests/drive.lua`). Maintain the
+  driver as `tests/drive.fnl` and regenerate with `make drive-lua` — Fennel is
+  not on the test/check path.
 - Alpine package via `make apk` (`dist/alpine/APKBUILD`)
 
 ---

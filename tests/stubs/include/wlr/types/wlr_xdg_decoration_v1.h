@@ -1,4 +1,4 @@
-/* Unit-test stub: drive.py -I's this ahead of system headers (host + APK check).
+/* Unit-test stub: drive.lua -I's this ahead of system headers (host + APK check).
  * The compositor Meson build uses real wlroots; unit suites do not. */
 #ifndef TEST_STUB_WLR_XDG_DECORATION_V1_H
 #define TEST_STUB_WLR_XDG_DECORATION_V1_H
